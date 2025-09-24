@@ -52,6 +52,72 @@ export interface Sprint {
 
 export type SprintStatus = 'planning' | 'active' | 'completed' | 'cancelled';
 
+export interface Epic {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string;
+  summary: string;
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  status: EpicStatus;
+  assigneeId?: string;
+  owner: string; // User ID
+  startDate: string;
+  endDate: string;
+  progress: number; // 0-100
+  storyPoints: number;
+  completedStoryPoints: number;
+  linkedMilestones: string[]; // Milestone IDs
+  linkedStories: string[]; // Story IDs
+  releaseId?: string; // Link to Release
+  labels: string[];
+  components: string[];
+  theme?: string; // Epic theme or category
+  businessValue: string;
+  acceptanceCriteria: string[];
+  risks: string[];
+  dependencies: string[]; // Other Epic IDs
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+}
+
+export type EpicStatus = 'backlog' | 'planning' | 'in-progress' | 'review' | 'completed' | 'cancelled';
+
+export interface Release {
+  id: string;
+  projectId: string;
+  name: string;
+  version: string;
+  description: string;
+  status: ReleaseStatus;
+  releaseDate: string;
+  targetDate: string;
+  progress: number; // 0-100
+  linkedEpics: string[]; // Epic IDs
+  linkedStories: string[]; // Story IDs
+  linkedSprints: string[]; // Sprint IDs
+  releaseNotes: string;
+  qualityGates: QualityGate[];
+  risks: string[];
+  dependencies: string[]; // Other Release IDs
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+}
+
+export type ReleaseStatus = 'planning' | 'development' | 'testing' | 'staging' | 'ready-for-release' | 'released' | 'cancelled';
+
+export interface QualityGate {
+  id: string;
+  name: string;
+  description: string;
+  status: 'pending' | 'passed' | 'failed';
+  required: boolean;
+  completedAt?: string;
+}
+
 export interface Story {
   id: string;
   title: string;
@@ -63,6 +129,11 @@ export interface Story {
   assigneeId?: string;
   tasks: Task[];
   sprintId?: string;
+  epicId?: string; // Link to Epic
+  milestoneId?: string; // Link to Milestone
+  releaseId?: string; // Link to Release
+  labels: string[];
+  components: string[];
   createdAt: string;
 }
 
@@ -141,6 +212,7 @@ export interface Milestone {
   type: MilestoneType;
   linkedTasks?: string[]; // Task IDs
   linkedStories?: string[]; // Story IDs
+  linkedEpics?: string[]; // Epic IDs
   deliverables: Deliverable[];
   dependencies?: string[]; // Other milestone IDs
   isBlocker: boolean;

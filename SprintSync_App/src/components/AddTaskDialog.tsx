@@ -11,7 +11,8 @@ import { Card, CardContent } from './ui/card';
 import { Separator } from './ui/separator';
 import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { CalendarIcon, CheckSquare, User, Flag, Target, Clock, Plus, X } from 'lucide-react';
+import { CalendarIcon, CheckSquare, User, Flag, Target, Clock, Plus, X, FileText, Database, Code, Palette, Bug, Search } from 'lucide-react';
+import { taskTemplates, TaskTemplate, getTemplatesByType } from '../data/taskTemplates';
 
 // Simple date formatter to replace date-fns
 const format = (date: Date, formatStr: string) => {
@@ -80,7 +81,9 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
     estimatedHours: 4,
     dueDate: undefined as Date | undefined,
     subtasks: [''],
-    status: defaultStatus as 'todo' | 'inprogress' | 'qa' | 'done'
+    status: defaultStatus as 'todo' | 'inprogress' | 'qa' | 'done',
+    templateId: 'none',
+    labels: [] as string[]
   });
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -159,7 +162,9 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
       estimatedHours: 4,
       dueDate: undefined,
       subtasks: [''],
-      status: defaultStatus as 'todo' | 'inprogress' | 'qa' | 'done'
+      status: defaultStatus as 'todo' | 'inprogress' | 'qa' | 'done',
+      templateId: 'none',
+      labels: []
     });
     setErrors({});
   };
@@ -227,6 +232,56 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
     }
   };
 
+  // Template selection handlers
+  const handleTemplateSelect = (templateId: string) => {
+    if (templateId === 'none') {
+      setFormData(prev => ({
+        ...prev,
+        templateId: 'none',
+        labels: []
+      }));
+      return;
+    }
+
+    const template = taskTemplates.find(t => t.id === templateId);
+    if (template) {
+      setFormData(prev => ({
+        ...prev,
+        templateId: template.id,
+        title: template.title,
+        description: template.description,
+        estimatedHours: template.estimatedHours,
+        priority: template.priority,
+        subtasks: template.subtasks,
+        labels: template.labels
+      }));
+    }
+  };
+
+  const getTemplateIcon = (type: string) => {
+    switch (type) {
+      case 'db': return <Database className="w-4 h-4" />;
+      case 'api': return <Code className="w-4 h-4" />;
+      case 'ui': return <Palette className="w-4 h-4" />;
+      case 'qa': return <Bug className="w-4 h-4" />;
+      case 'devops': return <FileText className="w-4 h-4" />;
+      case 'research': return <Search className="w-4 h-4" />;
+      default: return <CheckSquare className="w-4 h-4" />;
+    }
+  };
+
+  const getTemplateTypeColor = (type: string) => {
+    switch (type) {
+      case 'db': return 'bg-blue-100 text-blue-800';
+      case 'api': return 'bg-green-100 text-green-800';
+      case 'ui': return 'bg-purple-100 text-purple-800';
+      case 'qa': return 'bg-red-100 text-red-800';
+      case 'devops': return 'bg-orange-100 text-orange-800';
+      case 'research': return 'bg-yellow-100 text-yellow-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
   return (
     <>
       <style>{`
@@ -246,7 +301,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
         }
       `}</style>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-3xl max-h-[95vh] flex flex-col">
+        <DialogContent className="max-w-2xl max-h-[95vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
@@ -267,6 +322,66 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
             maxHeight: 'calc(95vh - 200px)'
           }}>
             <div className="space-y-6 py-2 pb-6">
+            {/* Template Selection */}
+            <Card>
+              <CardContent className="p-4 space-y-4">
+                <div className="flex items-center space-x-2 mb-3">
+                  <FileText className="w-4 h-4 text-indigo-600" />
+                  <h3 className="font-medium">Task Template</h3>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="template">Choose a template (optional)</Label>
+                  <Select 
+                    value={formData.templateId} 
+                    onValueChange={handleTemplateSelect}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a task template..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No template (Custom task)</SelectItem>
+                      <SelectItem value="db-schema-design">
+                        <div className="flex items-center space-x-2">
+                          <Database className="w-4 h-4 text-blue-600" />
+                          <span>Database Schema Design</span>
+                          <Badge variant="outline" className="bg-blue-100 text-blue-800">DB</Badge>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="api-endpoint">
+                        <div className="flex items-center space-x-2">
+                          <Code className="w-4 h-4 text-green-600" />
+                          <span>REST API Endpoint</span>
+                          <Badge variant="outline" className="bg-green-100 text-green-800">API</Badge>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="ui-component">
+                        <div className="flex items-center space-x-2">
+                          <Palette className="w-4 h-4 text-purple-600" />
+                          <span>React Component Development</span>
+                          <Badge variant="outline" className="bg-purple-100 text-purple-800">UI</Badge>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="qa-test-plan">
+                        <div className="flex items-center space-x-2">
+                          <Bug className="w-4 h-4 text-red-600" />
+                          <span>Test Plan Creation</span>
+                          <Badge variant="outline" className="bg-red-100 text-red-800">QA</Badge>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="devops-deployment">
+                        <div className="flex items-center space-x-2">
+                          <FileText className="w-4 h-4 text-orange-600" />
+                          <span>Deployment Pipeline</span>
+                          <Badge variant="outline" className="bg-orange-100 text-orange-800">DevOps</Badge>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Basic Information */}
             <Card>
               <CardContent className="p-4 space-y-4">
@@ -581,6 +696,26 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                 </div>
               </CardContent>
             </Card>
+
+            {/* Labels */}
+            {formData.labels.length > 0 && (
+              <Card>
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex items-center space-x-2 mb-3">
+                    <Flag className="w-4 h-4 text-purple-600" />
+                    <h3 className="font-medium">Labels</h3>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {formData.labels.map((label, index) => (
+                      <Badge key={index} variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                        {label}
+                      </Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Preview */}
             <Card>

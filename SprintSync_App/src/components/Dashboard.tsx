@@ -155,7 +155,12 @@ const Dashboard: React.FC = () => {
                 {aiInsights.length} new
               </Badge>
             </div>
-            <Button variant="ghost" size="sm">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => navigate('/ai-insights')}
+              title="View all AI insights"
+            >
               View All
               <ArrowUpRight className="w-4 h-4 ml-1" />
             </Button>
@@ -183,7 +188,13 @@ const Dashboard: React.FC = () => {
                     </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">{insight.description}</p>
-                  <Button size="sm" variant="outline" className="text-xs">
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="text-xs"
+                    onClick={() => navigate('/ai-insights')}
+                    title="View detailed AI insights"
+                  >
                     Take Action
                   </Button>
                 </div>
@@ -195,7 +206,11 @@ const Dashboard: React.FC = () => {
 
       {/* Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200">
+        <Card 
+          className="bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200 cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => navigate('/projects')}
+          title="View all projects"
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Projects</CardTitle>
             <FolderKanban className="h-4 w-4 text-blue-600" />
@@ -207,7 +222,11 @@ const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-green-50 to-green-100/50 border-green-200">
+        <Card 
+          className="bg-gradient-to-br from-green-50 to-green-100/50 border-green-200 cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => navigate('/todo-list')}
+          title="View my tasks"
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Tasks Complete</CardTitle>
             <CheckCircle className="h-4 w-4 text-green-600" />
@@ -219,7 +238,11 @@ const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100/50 border-purple-200">
+        <Card 
+          className="bg-gradient-to-br from-purple-50 to-purple-100/50 border-purple-200 cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => hasPermission('view_team') && navigate('/team-allocation')}
+          title={hasPermission('view_team') ? "View team allocation" : "Team members"}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Team Members</CardTitle>
             <Users className="h-4 w-4 text-purple-600" />
@@ -231,7 +254,11 @@ const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100/50 border-orange-200">
+        <Card 
+          className="bg-gradient-to-br from-orange-50 to-orange-100/50 border-orange-200 cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => navigate('/scrum')}
+          title="View sprint management"
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Sprint Velocity</CardTitle>
             <Zap className="h-4 w-4 text-orange-600" />
@@ -293,11 +320,21 @@ const Dashboard: React.FC = () => {
                       </div>
 
                       <div className="flex items-center space-x-2">
-                        <Button size="sm" variant="outline">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => navigate('/team-allocation')}
+                          title="Go to team management"
+                        >
                           <MessageSquare className="w-4 h-4 mr-1" />
                           Schedule 1-on-1
                         </Button>
-                        <Button size="sm" variant="ghost">
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          onClick={() => navigate('/reports')}
+                          title="View team reports"
+                        >
                           <Eye className="w-4 h-4 mr-1" />
                           View Details
                         </Button>
@@ -314,15 +351,27 @@ const Dashboard: React.FC = () => {
             </div>
             
             <div className="flex items-center space-x-2 mt-4 pt-4 border-t">
-              <Button variant="outline">
+              <Button 
+                variant="outline"
+                onClick={() => navigate('/team-allocation')}
+                title="Go to team management"
+              >
                 <Users className="w-4 h-4 mr-1" />
                 Schedule Team Review
               </Button>
-              <Button variant="outline">
+              <Button 
+                variant="outline"
+                onClick={() => navigate('/reports')}
+                title="Generate team reports"
+              >
                 <BookOpen className="w-4 h-4 mr-1" />
                 Generate Report
               </Button>
-              <Button variant="outline">
+              <Button 
+                variant="outline"
+                onClick={() => navigate('/team-allocation')}
+                title="Access training resources"
+              >
                 <Coffee className="w-4 h-4 mr-1" />
                 Training
               </Button>
@@ -416,7 +465,12 @@ const Dashboard: React.FC = () => {
           <CardTitle className="flex items-center justify-between">
             <span>Recent Projects</span>
             {hasPermission('view_projects') && (
-              <Button variant="ghost" size="sm">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => navigate('/projects')}
+                title="View all projects"
+              >
                 View all
                 <ArrowUpRight className="w-4 h-4 ml-1" />
               </Button>

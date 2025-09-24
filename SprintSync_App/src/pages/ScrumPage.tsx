@@ -18,8 +18,7 @@ import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import AddStoryDialog from '../components/AddStoryDialog';
 import AddTaskDialog from '../components/AddTaskDialog';
-import EffortLogDialog from '../components/EffortLogDialog';
-import EffortHistoryDialog from '../components/EffortHistoryDialog';
+import EffortManager from '../components/EffortManager';
 import { 
   Search,
   Plus,
@@ -135,16 +134,12 @@ const ScrumPage: React.FC = () => {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedStory, setSelectedStory] = useState<Story | null>(null);
   const [isEffortDialogOpen, setIsEffortDialogOpen] = useState(false);
-  const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
   const [isSprintDialogOpen, setIsSprintDialogOpen] = useState(false);
   const [historyFilter, setHistoryFilter] = useState('all');
   const [isAddStoryDialogOpen, setIsAddStoryDialogOpen] = useState(false);
   const [isAddTaskDialogOpen, setIsAddTaskDialogOpen] = useState(false);
-  const [isEffortLogDialogOpen, setIsEffortLogDialogOpen] = useState(false);
-  
+  const [isEffortManagerOpen, setIsEffortManagerOpen] = useState(false);
   const [selectedTaskForEffort, setSelectedTaskForEffort] = useState<Task | null>(null);
-  const [selectedTaskForHistory, setSelectedTaskForHistory] = useState<Task | null>(null);
-  const [selectedStoryForHistory, setSelectedStoryForHistory] = useState<Story | null>(null);
   const [timelineView, setTimelineView] = useState('current');
   const [selectedTaskStatus, setSelectedTaskStatus] = useState<string>('');
   const [backlogFilter, setBacklogFilter] = useState('all');
@@ -601,22 +596,11 @@ const ScrumPage: React.FC = () => {
     setSelectedTaskForEffort(null);
   };
 
-  const handleOpenEffortDialog = (task: Task) => {
+  const handleOpenEffortManager = (task: Task) => {
     setSelectedTaskForEffort(task);
-    setIsEffortLogDialogOpen(true);
+    setIsEffortManagerOpen(true);
   };
 
-  const handleOpenTaskHistoryDialog = (task: Task) => {
-    setSelectedTaskForHistory(task);
-    setSelectedStoryForHistory(null);
-    setIsHistoryDialogOpen(true);
-  };
-
-  const handleOpenStoryHistoryDialog = (story: Story) => {
-    setSelectedStoryForHistory(story);
-    setSelectedTaskForHistory(null);
-    setIsHistoryDialogOpen(true);
-  };
 
   // Create Sprint Handler
   const handleCreateSprint = () => {
@@ -778,15 +762,11 @@ const ScrumPage: React.FC = () => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {canLogEffort && (
-                <DropdownMenuItem onClick={() => handleOpenEffortDialog(task)}>
+                <DropdownMenuItem onClick={() => handleOpenEffortManager(task)}>
                   <Clock className="w-4 h-4 mr-2" />
-                  Add Efforts
+                  Manage Efforts
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onClick={() => handleOpenTaskHistoryDialog(task)}>
-                <History className="w-4 h-4 mr-2" />
-                View History
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -1219,25 +1199,19 @@ const ScrumPage: React.FC = () => {
           stories={currentSprintStories}
         />
 
-        {/* Effort Log Dialog */}
-        <EffortLogDialog
-          open={isEffortLogDialogOpen}
-          onOpenChange={setIsEffortLogDialogOpen}
+        {/* Effort Manager */}
+        <EffortManager
+          open={isEffortManagerOpen}
+          onOpenChange={setIsEffortManagerOpen}
           onLogEffort={handleLogEffort}
           task={selectedTaskForEffort}
-        />
-
-        {/* Effort History Dialog */}
-        <EffortHistoryDialog
-          isOpen={isHistoryDialogOpen}
-          onClose={() => setIsHistoryDialogOpen(false)}
-          task={selectedTaskForHistory}
-          story={selectedStoryForHistory}
+          allTasks={tasks}
+          allStories={stories}
         />
 
         {/* Create Sprint Dialog */}
         <Dialog open={isSprintDialogOpen} onOpenChange={setIsSprintDialogOpen}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>Create New Sprint</DialogTitle>
               <DialogDescription>

@@ -485,7 +485,7 @@ const IntegrationsPage: React.FC = () => {
 
       {/* Configuration Modal */}
       <Dialog open={isConfigModalOpen} onOpenChange={setIsConfigModalOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center space-x-2">
               {selectedIntegration && (

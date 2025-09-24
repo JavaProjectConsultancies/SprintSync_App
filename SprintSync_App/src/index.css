@@ -7000,7 +7000,7 @@ html {
   }
 }
 
-/* Custom scrollbar styles for EffortLogDialog */
+/* Custom scrollbar styles for EffortManager */
 .custom-scrollbar::-webkit-scrollbar {
   width: 8px;
 }

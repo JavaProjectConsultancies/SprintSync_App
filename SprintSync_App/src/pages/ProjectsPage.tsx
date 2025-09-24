@@ -46,16 +46,22 @@ import {
   BarChart3,
   Link,
   Star,
-  Flag
+  Flag,
+  Rocket
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import TeamManager from '../components/TeamManager';
 import MilestoneWidget from '../components/MilestoneWidget';
 import MilestoneDialog from '../components/MilestoneDialog';
+import EpicManager from '../components/EpicManager';
+import { mockEpics } from '../data/mockEpics';
 import MilestoneTimeline from '../components/MilestoneTimeline';
 import { mockMilestones } from '../data/mockData';
 import { Milestone } from '../types';
+import ReleaseManager from '../components/ReleaseManager';
+import { mockReleases } from '../data/mockReleases';
 import { useAuth } from '../contexts/AuthContext';
+import { mockProjects } from '../data/mockData';
 
 interface Stakeholder {
   id: string;
@@ -653,6 +659,12 @@ const ProjectsPage: React.FC = () => {
 
   // Filter projects based on user role and access
   const getFilteredProjects = () => {
+    // For debugging: show all projects regardless of user role
+    // TODO: Restore proper filtering once user authentication is working
+    return projects;
+    
+    // Original filtering logic (commented out for debugging):
+    /*
     if (!user) return [];
 
     if (user.role === 'admin') {
@@ -665,9 +677,18 @@ const ProjectsPage: React.FC = () => {
         user.assignedProjects?.some(assignedId => `proj-${project.id}` === assignedId)
       );
     }
+    */
   };
 
   const filteredProjects = getFilteredProjects();
+  
+  // Debug logging
+  console.log('ProjectsPage Debug:', {
+    user: user,
+    projectsCount: projects.length,
+    filteredProjectsCount: filteredProjects.length,
+    projects: projects.map(p => ({ id: p.id, name: p.name }))
+  });
 
   // Deep link: open a project by id via ?open= query from dashboard
   useEffect(() => {
@@ -675,14 +696,26 @@ const ProjectsPage: React.FC = () => {
     const fallback = (() => { try { return sessionStorage.getItem('openProjectId') || ''; } catch { return ''; } })();
     const wanted = target || fallback;
     if (!wanted) return;
-    const match = filteredProjects.find(p => p.id === wanted) || filteredProjects.find(p => `proj-${p.id}` === wanted);
+    
+    // Handle both string IDs (from Dashboard) and numeric IDs
+    let match = null;
+    if (wanted.startsWith('proj-')) {
+      // Dashboard passes 'proj-1', we need to convert to numeric ID
+      const numericId = parseInt(wanted.replace('proj-', ''));
+      match = filteredProjects.find(p => p.id === numericId);
+    } else {
+      // Direct numeric ID or string numeric
+      const numericId = parseInt(wanted);
+      match = filteredProjects.find(p => p.id === numericId) || filteredProjects.find(p => p.id.toString() === wanted);
+    }
+    
     if (match) {
       handleProjectClick(match);
       try { sessionStorage.removeItem('openProjectId'); } catch {}
       // Clean the URL so sidebar nav back to Projects doesn't re-open details
       navigate('/projects', { replace: true });
     }
-  }, [searchParams, filteredProjects]);
+  }, [searchParams, filteredProjects, navigate]);
 
   // Check if user can add projects/milestones
   const canAddProject = () => {
@@ -840,6 +873,169 @@ const ProjectsPage: React.FC = () => {
               </CardContent>
             </Card>
 
+            {/* Project Epics */}
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">Project Epics</CardTitle>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => console.log('Add Epic')}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add Epic
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {(() => {
+                  const projectEpics = mockEpics.filter(epic => epic.projectId === `proj-${selectedProject.id}`);
+                  return projectEpics.length > 0 ? (
+                    <div className="space-y-3">
+                      {projectEpics.slice(0, 3).map((epic) => (
+                        <div key={epic.id} className="p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-2 flex-1">
+                              <div className="flex items-center space-x-2">
+                                <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                                  {epic.theme}
+                                </Badge>
+                                <Badge variant="outline" className="bg-green-50 text-green-700">
+                                  {epic.storyPoints} pts
+                                </Badge>
+                                <Badge variant="outline" className={`${
+                                  epic.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                  epic.status === 'in-progress' ? 'bg-orange-100 text-orange-800' :
+                                  epic.status === 'planning' ? 'bg-blue-100 text-blue-800' :
+                                  'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {epic.status.replace('-', ' ')}
+                                </Badge>
+                              </div>
+                              <h5 className="font-medium text-sm">{epic.title}</h5>
+                              <p className="text-xs text-gray-600 line-clamp-2">{epic.summary}</p>
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-4 text-xs text-gray-500">
+                                  <span>{epic.linkedStories.length} stories</span>
+                                  <span>{epic.linkedMilestones.length} milestones</span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-xs text-gray-500">{epic.progress}%</span>
+                                  <div className="w-16 h-1 bg-gray-200 rounded-full overflow-hidden">
+                                    <div 
+                                      className="h-full bg-blue-500 transition-all" 
+                                      style={{ width: `${epic.progress}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {projectEpics.length > 3 && (
+                        <div className="text-center py-2">
+                          <Button variant="ghost" size="sm" className="text-blue-600">
+                            View all {projectEpics.length} epics
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <Flag className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                      <p className="text-sm">No epics defined yet</p>
+                      <p className="text-xs text-gray-400 mt-1">Create epics to organize large features</p>
+                    </div>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+
+            {/* Project Releases */}
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">Project Releases</CardTitle>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => console.log('Add Release')}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add Release
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {(() => {
+                  const projectReleases = mockReleases.filter(release => release.projectId === `proj-${selectedProject.id}`);
+                  return projectReleases.length > 0 ? (
+                    <div className="space-y-3">
+                      {projectReleases.slice(0, 3).map((release) => (
+                        <div key={release.id} className="p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-2 flex-1">
+                              <div className="flex items-center space-x-2">
+                                <Badge variant="outline" className="bg-purple-50 text-purple-700">
+                                  {release.version}
+                                </Badge>
+                                <Badge variant="outline" className={`${
+                                  release.status === 'released' ? 'bg-green-100 text-green-800' :
+                                  release.status === 'development' ? 'bg-orange-100 text-orange-800' :
+                                  release.status === 'testing' ? 'bg-purple-100 text-purple-800' :
+                                  release.status === 'planning' ? 'bg-blue-100 text-blue-800' :
+                                  'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {release.status.replace('-', ' ')}
+                                </Badge>
+                              </div>
+                              <h5 className="font-medium text-sm">{release.name}</h5>
+                              <p className="text-xs text-gray-600 line-clamp-2">{release.description}</p>
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-4 text-xs text-gray-500">
+                                  <span>{release.linkedStories.length} stories</span>
+                                  <span>{release.linkedEpics.length} epics</span>
+                                  <span>{release.linkedSprints.length} sprints</span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-xs text-gray-500">{release.progress}%</span>
+                                  <div className="w-16 h-1 bg-gray-200 rounded-full overflow-hidden">
+                                    <div 
+                                      className="h-full bg-purple-500 transition-all" 
+                                      style={{ width: `${release.progress}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {projectReleases.length > 3 && (
+                        <div className="text-center py-2">
+                          <Button variant="ghost" size="sm" className="text-purple-600">
+                            View all {projectReleases.length} releases
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <Rocket className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                      <p className="text-sm">No releases defined yet</p>
+                      <p className="text-xs text-gray-400 mt-1">Create releases to organize product deployments</p>
+                    </div>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+
             {/* Project Stats */}
             <Card>
               <CardHeader>
@@ -879,14 +1075,15 @@ const ProjectsPage: React.FC = () => {
 
         {/* Milestone Dialog */}
         <MilestoneDialog
-          isOpen={isMilestoneDialogOpen}
-          onClose={() => {
-            setIsMilestoneDialogOpen(false);
-            setSelectedMilestone(null);
+          open={isMilestoneDialogOpen}
+          onOpenChange={(open) => {
+            setIsMilestoneDialogOpen(open);
+            if (!open) setSelectedMilestone(null);
           }}
           milestone={selectedMilestone}
           projectId={`proj-${selectedProject.id}`}
           onSave={handleMilestoneSave}
+          availableEpics={mockEpics.filter(epic => epic.projectId === `proj-${selectedProject.id}`)}
         />
       </div>
     );
@@ -1124,7 +1321,7 @@ const ProjectsPage: React.FC = () => {
       {/* Create Project Dialog - Only show if user can add projects */}
       {canAddProject() && (
         <Dialog open={isNewProjectDialogOpen} onOpenChange={setIsNewProjectDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create New Project</DialogTitle>
               <DialogDescription>
@@ -1133,8 +1330,10 @@ const ProjectsPage: React.FC = () => {
             </DialogHeader>
             
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-6">
                 <TabsTrigger value="basic">Basic Info</TabsTrigger>
+                <TabsTrigger value="epics">Epics</TabsTrigger>
+                <TabsTrigger value="releases">Releases</TabsTrigger>
                 <TabsTrigger value="requirements">Requirements</TabsTrigger>
                 <TabsTrigger value="team">Team & Risk</TabsTrigger>
                 <TabsTrigger value="integration">Integration</TabsTrigger>
@@ -1261,6 +1460,117 @@ const ProjectsPage: React.FC = () => {
                     onChange={(e) => setNewProject({ ...newProject, scope: e.target.value })}
                     rows={4}
                   />
+                </div>
+              </TabsContent>
+
+              <TabsContent value="epics" className="space-y-4">
+                <div className="space-y-4">
+                  <h4 className="font-medium">Project Epics</h4>
+                  <div className="text-sm text-gray-600 mb-4">
+                    Define large features and initiatives that will be broken down into stories and tasks.
+                  </div>
+                  
+                  {(() => {
+                    const projectEpics = mockEpics.filter(epic => epic.projectId === `proj-${newProject.id || 'new'}`);
+                    return projectEpics.length > 0 ? (
+                      <div className="space-y-3">
+                        {projectEpics.map((epic) => (
+                          <Card key={epic.id} className="p-4">
+                            <div className="flex items-start justify-between">
+                              <div className="space-y-2">
+                                <div className="flex items-center space-x-2">
+                                  <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                                    {epic.theme}
+                                  </Badge>
+                                  <Badge variant="outline" className="bg-green-50 text-green-700">
+                                    {epic.storyPoints} pts
+                                  </Badge>
+                                </div>
+                                <h5 className="font-medium">{epic.title}</h5>
+                                <p className="text-sm text-gray-600 line-clamp-2">{epic.summary}</p>
+                                <div className="flex items-center space-x-4 text-xs text-gray-500">
+                                  <span>Status: {epic.status}</span>
+                                  <span>Progress: {epic.progress}%</span>
+                                  <span>{epic.linkedStories.length} stories</span>
+                                </div>
+                              </div>
+                              <Button variant="ghost" size="sm">
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <Flag className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                        <p>No epics defined yet. Create epics to organize large features.</p>
+                        <Button variant="outline" className="mt-4">
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add Epic
+                        </Button>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="releases" className="space-y-4">
+                <div className="space-y-4">
+                  <h4 className="font-medium">Project Releases</h4>
+                  <div className="text-sm text-gray-600 mb-4">
+                    Define product releases and deployment cycles for your project.
+                  </div>
+                  
+                  {(() => {
+                    const projectReleases = mockReleases.filter(release => release.projectId === `proj-${newProject.id || 'new'}`);
+                    return projectReleases.length > 0 ? (
+                      <div className="space-y-3">
+                        {projectReleases.map((release) => (
+                          <Card key={release.id} className="p-4">
+                            <div className="flex items-start justify-between">
+                              <div className="space-y-2">
+                                <div className="flex items-center space-x-2">
+                                  <Badge variant="outline" className="bg-purple-50 text-purple-700">
+                                    {release.version}
+                                  </Badge>
+                                  <Badge variant="outline" className={`${
+                                    release.status === 'released' ? 'bg-green-100 text-green-800' :
+                                    release.status === 'development' ? 'bg-orange-100 text-orange-800' :
+                                    release.status === 'testing' ? 'bg-purple-100 text-purple-800' :
+                                    release.status === 'planning' ? 'bg-blue-100 text-blue-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {release.status.replace('-', ' ')}
+                                  </Badge>
+                                </div>
+                                <h5 className="font-medium">{release.name}</h5>
+                                <p className="text-sm text-gray-600 line-clamp-2">{release.description}</p>
+                                <div className="flex items-center space-x-4 text-xs text-gray-500">
+                                  <span>Status: {release.status}</span>
+                                  <span>Progress: {release.progress}%</span>
+                                  <span>{release.linkedStories.length} stories</span>
+                                  <span>{release.linkedEpics.length} epics</span>
+                                </div>
+                              </div>
+                              <Button variant="ghost" size="sm">
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <Rocket className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                        <p>No releases defined yet. Create releases to organize product deployments.</p>
+                        <Button variant="outline" className="mt-4">
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add Release
+                        </Button>
+                      </div>
+                    );
+                  })()}
                 </div>
               </TabsContent>
 

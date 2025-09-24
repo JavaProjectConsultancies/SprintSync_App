@@ -38,7 +38,7 @@ import {
   Eye,
   GitBranch
 } from 'lucide-react';
-import EffortLogDialog from '../components/EffortLogDialog';
+import EffortManager from '../components/EffortManager';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -96,7 +96,7 @@ const BacklogPage: React.FC = () => {
   const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
   const [isNewSprintOpen, setIsNewSprintOpen] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
-  const [isEffortLogDialogOpen, setIsEffortLogDialogOpen] = useState(false);
+  const [isEffortManagerOpen, setIsEffortManagerOpen] = useState(false);
   
   const [selectedTaskForEffort, setSelectedTaskForEffort] = useState<Task | null>(null);
 
@@ -357,9 +357,9 @@ const BacklogPage: React.FC = () => {
     setSelectedTaskForEffort(null);
   };
 
-  const handleOpenEffortDialog = (task: Task) => {
+  const handleOpenEffortManager = (task: Task) => {
     setSelectedTaskForEffort(task);
-    setIsEffortLogDialogOpen(true);
+    setIsEffortManagerOpen(true);
   };
 
   const getStatusColor = (status: string) => {
@@ -419,9 +419,9 @@ const BacklogPage: React.FC = () => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleOpenEffortDialog(task)}>
+              <DropdownMenuItem onClick={() => handleOpenEffortManager(task)}>
                 <Clock className="w-4 h-4 mr-2" />
-                Add Efforts
+                Manage Efforts
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <Eye className="w-4 h-4 mr-2" />
@@ -551,7 +551,7 @@ const BacklogPage: React.FC = () => {
                 New Task
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
+            <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>Create New Task</DialogTitle>
                 <DialogDescription>
@@ -894,12 +894,14 @@ const BacklogPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Effort Log Dialog */}
-      <EffortLogDialog 
-        open={isEffortLogDialogOpen}
-        onOpenChange={setIsEffortLogDialogOpen}
+      {/* Effort Manager */}
+      <EffortManager 
+        open={isEffortManagerOpen}
+        onOpenChange={setIsEffortManagerOpen}
         onLogEffort={handleLogEffort}
         task={selectedTaskForEffort}
+        allTasks={tasks}
+        allStories={[]}
       />
     </div>
   );

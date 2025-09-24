@@ -27,7 +27,8 @@ import {
   Zap,
   Flag
 } from 'lucide-react';
-import { Milestone, MilestoneStatus, MilestoneType, Deliverable } from '../types';
+import { Milestone, MilestoneStatus, MilestoneType, Deliverable, Epic } from '../types';
+import { epicTemplates, EpicTemplate } from '../data/epicTemplates';
 
 
 interface MilestoneDialogProps {
@@ -36,6 +37,7 @@ interface MilestoneDialogProps {
   milestone?: Milestone;
   projectId: string;
   onSave: (milestone: Milestone) => void;
+  availableEpics?: Epic[];
 }
 
 const MilestoneDialog: React.FC<MilestoneDialogProps> = ({
@@ -43,7 +45,8 @@ const MilestoneDialog: React.FC<MilestoneDialogProps> = ({
   onOpenChange,
   milestone,
   projectId,
-  onSave
+  onSave,
+  availableEpics = []
 }) => {
   const [formData, setFormData] = useState<Partial<Milestone>>({
     name: '',
@@ -55,7 +58,8 @@ const MilestoneDialog: React.FC<MilestoneDialogProps> = ({
     progress: 0,
     type: 'custom',
     deliverables: [],
-    isBlocker: false
+    isBlocker: false,
+    linkedEpics: []
   });
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [newDeliverable, setNewDeliverable] = useState('');
@@ -259,6 +263,85 @@ const MilestoneDialog: React.FC<MilestoneDialogProps> = ({
                   </Select>
                 </div>
               </div>
+            </div>
+
+            <Separator />
+
+            {/* Epic Linking */}
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Flag className="w-4 h-4 text-purple-600" />
+                <h3 className="font-medium">Epic Association</h3>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Link to Epics (optional)</Label>
+                <Select
+                  value=""
+                  onValueChange={(epicId) => {
+                    if (epicId && !formData.linkedEpics?.includes(epicId)) {
+                      setFormData(prev => ({
+                        ...prev,
+                        linkedEpics: [...(prev.linkedEpics || []), epicId]
+                      }));
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select an epic to link..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableEpics
+                      .filter(epic => !formData.linkedEpics?.includes(epic.id))
+                      .map((epic) => (
+                        <SelectItem key={epic.id} value={epic.id}>
+                          <div className="flex items-center space-x-2">
+                            <div className="flex items-center space-x-1">
+                              <Badge variant="outline" className="text-xs">
+                                {epic.theme}
+                              </Badge>
+                              <span className="text-xs text-gray-500">
+                                {epic.storyPoints} pts
+                              </span>
+                            </div>
+                            <span className="truncate">{epic.title}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {formData.linkedEpics && formData.linkedEpics.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Linked Epics</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {formData.linkedEpics.map((epicId) => {
+                      const epic = availableEpics.find(e => e.id === epicId);
+                      return epic ? (
+                        <Badge 
+                          key={epicId} 
+                          variant="outline" 
+                          className="bg-purple-50 text-purple-700 border-purple-200 flex items-center space-x-1"
+                        >
+                          <span className="truncate max-w-32">{epic.title}</span>
+                          <button
+                            onClick={() => {
+                              setFormData(prev => ({
+                                ...prev,
+                                linkedEpics: prev.linkedEpics?.filter(id => id !== epicId) || []
+                              }));
+                            }}
+                            className="ml-1 hover:text-red-600"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </Badge>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             <Separator />

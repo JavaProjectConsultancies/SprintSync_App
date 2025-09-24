@@ -9,7 +9,9 @@ import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Card, CardContent } from './ui/card';
 import { Separator } from './ui/separator';
-import { Plus, X, Target, User, Flag, BookOpen, CheckCircle2 } from 'lucide-react';
+import { Plus, X, Target, User, Flag, BookOpen, CheckCircle2, FileText, Star, Bug, Code, Search } from 'lucide-react';
+import { storyTemplates, StoryTemplate, getStoriesByType } from '../data/storyTemplates';
+import { Epic } from '../types';
 
 interface Story {
   id: string;
@@ -27,16 +29,20 @@ interface AddStoryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAddStory: (story: Omit<Story, 'id'>) => void;
+  availableEpics?: Epic[];
 }
 
-const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onAddStory }) => {
+const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onAddStory, availableEpics = [] }) => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     priority: 'medium' as 'high' | 'medium' | 'low',
     points: 1,
     assignee: '',
-    acceptanceCriteria: ['']
+    acceptanceCriteria: [''],
+    templateId: 'none',
+    labels: [] as string[],
+    epicId: 'none'
   });
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -110,7 +116,10 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
       priority: 'medium',
       points: 1,
       assignee: '',
-      acceptanceCriteria: ['']
+      acceptanceCriteria: [''],
+      templateId: 'none',
+      labels: [],
+      epicId: 'none'
     });
     setErrors({});
   };
@@ -153,9 +162,57 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
     return 'text-red-600';
   };
 
+  // Template selection handlers
+  const handleTemplateSelect = (templateId: string) => {
+    if (templateId === 'none') {
+      setFormData(prev => ({
+        ...prev,
+        templateId: 'none',
+        labels: []
+      }));
+      return;
+    }
+
+    const template = storyTemplates.find(t => t.id === templateId);
+    if (template) {
+      setFormData(prev => ({
+        ...prev,
+        templateId: template.id,
+        title: template.title,
+        description: template.description,
+        priority: template.priority,
+        points: template.points,
+        acceptanceCriteria: template.acceptanceCriteria,
+        labels: template.labels
+      }));
+    }
+  };
+
+  const getStoryTypeIcon = (type: string) => {
+    switch (type) {
+      case 'feature': return <Star className="w-4 h-4" />;
+      case 'enhancement': return <Target className="w-4 h-4" />;
+      case 'bug-fix': return <Bug className="w-4 h-4" />;
+      case 'technical': return <Code className="w-4 h-4" />;
+      case 'research': return <Search className="w-4 h-4" />;
+      default: return <BookOpen className="w-4 h-4" />;
+    }
+  };
+
+  const getStoryTypeColor = (type: string) => {
+    switch (type) {
+      case 'feature': return 'bg-green-100 text-green-800';
+      case 'enhancement': return 'bg-blue-100 text-blue-800';
+      case 'bug-fix': return 'bg-red-100 text-red-800';
+      case 'technical': return 'bg-purple-100 text-purple-800';
+      case 'research': return 'bg-yellow-100 text-yellow-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="flex-shrink-0 p-6 pb-4">
           <DialogTitle className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
@@ -175,6 +232,73 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
             style={{ maxHeight: 'calc(90vh - 160px)' }}
           >
             <div className="space-y-6 py-2 pb-6">
+            {/* Template Selection */}
+            <Card>
+              <CardContent className="p-4 space-y-4">
+                <div className="flex items-center space-x-2 mb-3">
+                  <FileText className="w-4 h-4 text-indigo-600" />
+                  <h3 className="font-medium">Story Template</h3>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="template">Choose a template (optional)</Label>
+                  <Select 
+                    value={formData.templateId} 
+                    onValueChange={handleTemplateSelect}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a story template..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No template (Custom story)</SelectItem>
+                      <SelectItem value="feature-user-auth">
+                        <div className="flex items-center space-x-2">
+                          <Star className="w-4 h-4 text-green-600" />
+                          <span>User Authentication Feature</span>
+                          <Badge variant="outline" className="bg-green-100 text-green-800">Feature</Badge>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="feature-payment">
+                        <div className="flex items-center space-x-2">
+                          <Star className="w-4 h-4 text-green-600" />
+                          <span>Payment Processing Feature</span>
+                          <Badge variant="outline" className="bg-green-100 text-green-800">Feature</Badge>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="enhancement-performance">
+                        <div className="flex items-center space-x-2">
+                          <Target className="w-4 h-4 text-blue-600" />
+                          <span>Performance Optimization</span>
+                          <Badge variant="outline" className="bg-blue-100 text-blue-800">Enhancement</Badge>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="bug-crash-fix">
+                        <div className="flex items-center space-x-2">
+                          <Bug className="w-4 h-4 text-red-600" />
+                          <span>Application Crash Fix</span>
+                          <Badge variant="outline" className="bg-red-100 text-red-800">Bug Fix</Badge>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="technical-refactor">
+                        <div className="flex items-center space-x-2">
+                          <Code className="w-4 h-4 text-purple-600" />
+                          <span>Code Refactoring</span>
+                          <Badge variant="outline" className="bg-purple-100 text-purple-800">Technical</Badge>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="research-technology">
+                        <div className="flex items-center space-x-2">
+                          <Search className="w-4 h-4 text-yellow-600" />
+                          <span>Technology Evaluation</span>
+                          <Badge variant="outline" className="bg-yellow-100 text-yellow-800">Research</Badge>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Basic Information */}
             <Card>
               <CardContent className="p-4 space-y-4">
@@ -374,6 +498,90 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
                 {errors.acceptanceCriteria && <p className="text-sm text-red-600">{errors.acceptanceCriteria}</p>}
               </CardContent>
             </Card>
+
+            {/* Epic Association */}
+            {availableEpics.length > 0 && (
+              <Card>
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex items-center space-x-2 mb-3">
+                    <Flag className="w-4 h-4 text-purple-600" />
+                    <h3 className="font-medium">Epic Association</h3>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="epic">Link to Epic (optional)</Label>
+                    <Select 
+                      value={formData.epicId} 
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, epicId: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select an epic..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No epic (Standalone story)</SelectItem>
+                        {availableEpics.map((epic) => (
+                          <SelectItem key={epic.id} value={epic.id}>
+                            <div className="flex items-center space-x-2">
+                              <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700">
+                                {epic.theme}
+                              </Badge>
+                              <span className="text-xs text-gray-500">
+                                {epic.storyPoints} pts
+                              </span>
+                              <span className="truncate">{epic.title}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {formData.epicId !== 'none' && (
+                    <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                      {(() => {
+                        const selectedEpic = availableEpics.find(epic => epic.id === formData.epicId);
+                        return selectedEpic ? (
+                          <div className="space-y-2">
+                            <div className="flex items-center space-x-2">
+                              <Badge variant="outline" className="bg-purple-100 text-purple-800">
+                                {selectedEpic.theme}
+                              </Badge>
+                              <span className="text-sm font-medium">{selectedEpic.title}</span>
+                            </div>
+                            <p className="text-sm text-gray-600 line-clamp-2">{selectedEpic.summary}</p>
+                            <div className="flex items-center space-x-4 text-xs text-gray-500">
+                              <span>{selectedEpic.storyPoints} story points</span>
+                              <span>{selectedEpic.linkedStories.length} stories</span>
+                              <span>{selectedEpic.progress}% complete</span>
+                            </div>
+                          </div>
+                        ) : null;
+                      })()}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Labels */}
+            {formData.labels.length > 0 && (
+              <Card>
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex items-center space-x-2 mb-3">
+                    <Flag className="w-4 h-4 text-purple-600" />
+                    <h3 className="font-medium">Labels</h3>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {formData.labels.map((label, index) => (
+                      <Badge key={index} variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                        {label}
+                      </Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Preview */}
             <Card>
