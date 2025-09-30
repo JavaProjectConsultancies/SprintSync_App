@@ -1,10 +1,10 @@
 # SprintSync Database Structure & Diagram
 
 ## 📊 Database Overview
-**Total Tables**: 25 tables  
-**Total Enums**: 23 custom types  
+**Total Tables**: 27 tables  
+**Total Enums**: 25 custom types  
 **Database Type**: PostgreSQL 12+  
-**Features**: UUID primary keys, JSONB fields, Row-level security, Audit trails, Multi-level time tracking, Bug fixing workflows
+**Features**: UUID primary keys, JSONB fields, Row-level security, Audit trails, Multi-level time tracking, Bug fixing workflows, Epic management, Release planning
 
 ## 🎯 Key Features Implemented
 - ✅ **Multi-level time tracking** (project → story → task → subtask)
@@ -14,6 +14,8 @@
 - ✅ **Personal todo management** with project linking
 - ✅ **Comprehensive analytics** and AI insights
 - ✅ **Real-time notifications** and activity tracking
+- ✅ **Epic management** with themes, business value, and story linking
+- ✅ **Release planning** with quality gates and deployment tracking
 
 ---
 
@@ -80,24 +82,66 @@
 │ • created_at, updated_at                                    │   │
 └─────────────────────────────────────────────────────────────┘   │
     │                    │                    │                   │
-    │                    │  relsease tree     │                   │
-    ▼                    ▼                    ▼                   ▼
-┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-│project_team │  │   sprints   │  │ milestones  │  │project_integ│
+    │                    │                    │                    │                   │
+    │                    │  release tree      │                    │                   │
+    ▼                    ▼                    ▼                    ▼                   ▼
+┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+│project_team │  │   sprints   │  │ milestones  │  │project_integ│  │    epics    │
 │_members     │  │             │  │             │  │rations      │
 │             │  │ • id (UUID) │  │ • id (UUID) │  │             │
 │ • id (UUID) │  │ • project_id│  │ • project_id│  │ • id (UUID) │
 │ • project_id│  │ • name      │  │ • title     │  │ • project_id│
-│ • user_id   │  │ • goal      │  │ • desc.     │  │ • integ._id │◄┘
-│ • role      │  │ • status    │  │ • status    │  │ • is_enabled│
-│ • is_lead   │  │ • start_date│  │ • due_date  │  │ • config    │
-│ • alloc_%   │  │ • end_date  │  │ • complete  │  │ • created_at│
-│ • joined_at │  │ • capacity  │  │ • progress% │  │ • updated_at│
-│ • left_at   │  │ • velocity  │  │ • created_at│  └─────────────┘
-│ • created_at│  │ • is_active │  │ • updated_at│
-└─────────────┘  │ • created_at│  └─────────────┘
-                 │ • updated_at│
-                 └─────────────┘
+│ • user_id   │  │ • goal      │  │ • desc.     │  │ • integ._id │◄┘  │ • id (UUID) │
+│ • role      │  │ • status    │  │ • status    │  │ • is_enabled│    │ • project_id│
+│ • is_lead   │  │ • start_date│  │ • due_date  │  │ • config    │    │ • title     │
+│ • alloc_%   │  │ • end_date  │  │ • complete  │  │ • created_at│    │ • summary   │
+│ • joined_at │  │ • capacity  │  │ • progress% │  │ • updated_at│    │ • priority  │
+│ • left_at   │  │ • velocity  │  │ • created_at│  └─────────────┘    │ • status    │
+│ • created_at│  │ • is_active │  │ • updated_at│                     │ • owner     │
+└─────────────┘  │ • created_at│  └─────────────┘                     │ • theme     │
+                 │ • updated_at│                                      │ • story_pts │
+                 └─────────────┘                                      │ • progress% │
+                                                                      │ • linked_st.│
+                                                                      │ • created_at│
+                                                                      └─────────────┘
+                                                                              │
+                                                                              │
+                                                                              ▼
+                                                                  ┌─────────────────────────────┐
+                                                                  │         releases            │
+                                                                  │                             │
+                                                                  │ • id (UUID) PRIMARY KEY     │
+                                                                  │ • project_id → projects.id  │
+                                                                  │ • name, version             │
+                                                                  │ • description               │
+                                                                  │ • status (planning|develop  │
+                                                                  │           ment|testing|     │
+                                                                  │           staging|ready|    │
+                                                                  │           released|cancel)  │
+                                                                  │ • release_date              │
+                                                                  │ • target_date               │
+                                                                  │ • progress                  │
+                                                                  │ • linked_epics (JSONB)      │
+                                                                  │ • linked_stories (JSONB)    │
+                                                                  │ • linked_sprints (JSONB)    │
+                                                                  │ • release_notes             │
+                                                                  │ • created_by → users.id     │
+                                                                  │ • created_at, updated_at    │
+                                                                  └─────────────────────────────┘
+                                                                              │
+                                                                              │
+                                                                              ▼
+                                                                  ┌─────────────────────────────┐
+                                                                  │       quality_gates         │
+                                                                  │                             │
+                                                                  │ • id (UUID) PRIMARY KEY     │
+                                                                  │ • release_id → releases.id  │
+                                                                  │ • name, description         │
+                                                                  │ • status (pending|passed|   │
+                                                                  │           failed)           │
+                                                                  │ • required BOOLEAN          │
+                                                                  │ • completed_at              │
+                                                                  └─────────────────────────────┘
                         │
                         │
                         ▼
@@ -106,7 +150,9 @@
                 │                                             │
                 │ • id (UUID) PRIMARY KEY                     │
                 │ • project_id → projects.id                  │
-                │ • sprint_id → sprints.id (nullable)         │ story
+                │ • sprint_id → sprints.id (nullable)         │
+                │ • epic_id → epics.id (nullable)             │ ← Epic link
+                │ • release_id → releases.id (nullable)       │ ← Release link
                 │ • title                                     │
                 │ • description                               │
                 │ • acceptance_criteria (JSONB)               │
@@ -116,7 +162,6 @@
                 │ • story_points                              │
                 │ • assignee_id → users.id                    │
                 │ • reporter_id → users.id                    │
-                │ • epic                                      │
                 │ • labels (JSONB)                            │
                 │ • order_index                               │
                 │ • estimated_hours, actual_hours             │
@@ -336,11 +381,79 @@ created_at      TIMESTAMP WITH TIME ZONE
 updated_at      TIMESTAMP WITH TIME ZONE
 ```
 
+#### **epics**
+```sql
+id                      UUID PRIMARY KEY
+project_id              UUID → projects.id (CASCADE DELETE)
+title                   VARCHAR(255)
+description             TEXT
+summary                 TEXT
+priority                ENUM(low, medium, high, critical)
+status                  ENUM(backlog, planning, in-progress, review, completed, cancelled)
+assignee_id             UUID → users.id (nullable)
+owner                   UUID → users.id
+start_date              DATE
+end_date                DATE
+progress                INTEGER (0-100)
+story_points            INTEGER
+completed_story_points  INTEGER
+linked_milestones       JSONB                -- Array of milestone IDs
+linked_stories          JSONB                -- Array of story IDs
+release_id              UUID → releases.id (nullable)
+labels                  JSONB                -- ["authentication", "security"]
+components              JSONB                -- ["Auth Service", "User Service"]
+theme                   VARCHAR(255)         -- "User Experience & Security"
+business_value          TEXT
+acceptance_criteria     JSONB                -- Array of criteria
+risks                   JSONB                -- Array of risk descriptions
+dependencies            JSONB                -- Array of other epic IDs
+created_at              TIMESTAMP WITH TIME ZONE
+updated_at              TIMESTAMP WITH TIME ZONE
+completed_at            TIMESTAMP WITH TIME ZONE (nullable)
+```
+
+#### **releases**
+```sql
+id                  UUID PRIMARY KEY
+project_id          UUID → projects.id (CASCADE DELETE)
+name                VARCHAR(255)
+version             VARCHAR(50)             -- "v2.0.0"
+description         TEXT
+status              ENUM(planning, development, testing, staging, ready-for-release, released, cancelled)
+release_date        DATE
+target_date         DATE
+progress            INTEGER (0-100)
+linked_epics        JSONB                -- Array of epic IDs
+linked_stories      JSONB                -- Array of story IDs
+linked_sprints      JSONB                -- Array of sprint IDs
+release_notes       TEXT
+risks               JSONB                -- Array of risk descriptions
+dependencies        JSONB                -- Array of other release IDs
+created_by          UUID → users.id
+created_at          TIMESTAMP WITH TIME ZONE
+updated_at          TIMESTAMP WITH TIME ZONE
+completed_at        TIMESTAMP WITH TIME ZONE (nullable)
+```
+
+#### **quality_gates**
+```sql
+id              UUID PRIMARY KEY
+release_id      UUID → releases.id (CASCADE DELETE)
+name            VARCHAR(255)
+description     TEXT
+status          ENUM(pending, passed, failed)
+required        BOOLEAN
+completed_at    TIMESTAMP WITH TIME ZONE (nullable)
+created_at      TIMESTAMP WITH TIME ZONE
+```
+
 #### **stories**
 ```sql
 id                  UUID PRIMARY KEY
 project_id          UUID → projects.id (CASCADE DELETE)
 sprint_id           UUID → sprints.id (SET NULL)
+epic_id             UUID → epics.id (SET NULL)         -- Epic relationship
+release_id          UUID → releases.id (SET NULL)      -- Release relationship
 title               VARCHAR(255)
 description         TEXT
 acceptance_criteria JSONB                -- ["User can login", "Password validation"]
@@ -349,7 +462,6 @@ priority            ENUM(low, medium, high, critical)
 story_points        INTEGER
 assignee_id         UUID → users.id
 reporter_id         UUID → users.id
-epic                VARCHAR(255)         -- "Authentication"
 labels              JSONB                -- ["frontend", "urgent"]
 order_index         INTEGER
 estimated_hours     DECIMAL(5,2)
@@ -453,11 +565,17 @@ expires_at       TIMESTAMP WITH TIME ZONE
 
 ### **Core Hierarchical Relationships**
 1. **User → Projects**: Many-to-many through `project_team_members`
-2. **Projects → Sprints**: One-to-many (agile iterations)
-3. **Sprints → Stories**: One-to-many (stories can exist without sprints)
-4. **Stories → Tasks → Subtasks**: Hierarchical one-to-many breakdown
-5. **Time Entries**: Multi-level linking (project/story/task/subtask)
-6. **Comments/Attachments**: Polymorphic - can attach to any entity
+2. **Projects → Epics**: One-to-many (large feature initiatives)
+3. **Projects → Releases**: One-to-many (product deployment cycles)
+4. **Projects → Sprints**: One-to-many (agile iterations)
+5. **Epics → Stories**: One-to-many (stories grouped by epic)
+6. **Releases → Epics**: Many-to-many (releases contain multiple epics)
+7. **Releases → Stories**: Many-to-many (releases contain multiple stories)
+8. **Sprints → Stories**: One-to-many (stories can exist without sprints)
+9. **Stories → Tasks → Subtasks**: Hierarchical one-to-many breakdown
+10. **Releases → Quality Gates**: One-to-many (release validation steps)
+11. **Time Entries**: Multi-level linking (project/story/task/subtask)
+12. **Comments/Attachments**: Polymorphic - can attach to any entity
 
 ### **Specialized Workflows**
 
@@ -473,6 +591,23 @@ QA verifies → Marks task as 'done' → Notifies developer
 User logs time → Links to work item (project/story/task/subtask)
 System auto-calculates → Rollup hours to parent levels
 Analytics generated → Burndown charts, productivity metrics
+```
+
+#### **🚀 Epic Management Flow**
+```
+Product Owner creates epic → Defines theme, business value, acceptance criteria
+Epic assigned to owner → Stories linked to epic via epic_id
+Stories developed → Epic progress calculated from story completion
+Epic completed → All linked stories marked as done, epic status updated
+```
+
+#### **📦 Release Planning Flow**
+```
+Release Manager creates release → Defines version, target date, scope
+Epics/Stories linked to release → Release progress calculated from linked items
+Quality gates defined → Validation steps for release readiness
+Release tested → Quality gates validated, release approved
+Release deployed → Status updated to 'released', deployment notes recorded
 ```
 
 #### **🔗 Integration Flow**
@@ -554,6 +689,9 @@ Progress tracked → Requirements completion status updated
 - **Budget Tracking**: Actual costs vs budget using hourly rates
 - **Progress Calculation**: Automatic project progress based on story completion
 - **Team Utilization**: Resource allocation and availability analysis
+- **Epic Progress Tracking**: Epic completion rates and story point velocity
+- **Release Roadmap**: Release timeline and milestone tracking
+- **Quality Gate Analytics**: Release readiness and validation metrics
 
 ### **🎯 Performance Metrics**
 - **Bug Fix Cycle Time**: From subtask creation to task completion
@@ -561,6 +699,9 @@ Progress tracked → Requirements completion status updated
 - **Requirements Coverage**: Implementation status by requirement type
 - **Risk Assessment**: Heat maps showing probability × impact matrices
 - **Integration Health**: API usage and webhook success rates
+- **Epic Delivery Velocity**: Time from epic creation to completion
+- **Release Cycle Time**: Average time from planning to deployment
+- **Quality Gate Success Rate**: Percentage of passed vs failed quality gates
 
 ### **👥 Team Productivity**
 - **Individual Performance**: Hours logged, tasks completed, productivity trends
@@ -602,7 +743,7 @@ Progress tracked → Requirements completion status updated
 8. **`task-status-workflow.md`** - Bug fixing and QA workflow implementation
 
 ### **🚀 Ready-to-Use Features**
-- ✅ **Complete database schema** with 25 tables and 23 enums
+- ✅ **Complete database schema** with 27 tables and 25 enums
 - ✅ **Multi-level time tracking** system with automatic rollups
 - ✅ **Bug fixing workflow** with QA-Developer collaboration
 - ✅ **Integration marketplace** supporting 8+ external tools
@@ -611,11 +752,13 @@ Progress tracked → Requirements completion status updated
 - ✅ **Real-time notifications** and activity tracking
 - ✅ **Comprehensive analytics** and AI insights framework
 - ✅ **Role-based security** with row-level access control
+- ✅ **Epic management** with themes, business value, and progress tracking
+- ✅ **Release planning** with quality gates and deployment workflows
 
 ### **📊 Database Statistics**
-- **25 Tables** covering all aspects of project management
-- **23 Custom Enums** for data integrity and consistency
-- **20+ Indexes** for optimal query performance
+- **27 Tables** covering all aspects of project management
+- **25 Custom Enums** for data integrity and consistency
+- **25+ Indexes** for optimal query performance
 - **Multiple Views** for common dashboard queries
 - **Automated Triggers** for data consistency and notifications
 - **Row Level Security** policies for data protection

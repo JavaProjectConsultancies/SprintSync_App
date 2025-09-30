@@ -35,6 +35,9 @@ CREATE TYPE ai_insight_type AS ENUM ('productivity', 'risk_assessment', 'resourc
 CREATE TYPE report_type AS ENUM ('sprint_burndown', 'velocity_chart', 'team_productivity', 'project_overview', 'time_analysis', 'custom');
 CREATE TYPE todo_priority AS ENUM ('low', 'medium', 'high');
 CREATE TYPE todo_status AS ENUM ('pending', 'in_progress', 'completed');
+CREATE TYPE epic_status AS ENUM ('backlog', 'planning', 'in-progress', 'review', 'completed', 'cancelled');
+CREATE TYPE release_status AS ENUM ('planning', 'development', 'testing', 'staging', 'ready-for-release', 'released', 'cancelled');
+CREATE TYPE quality_gate_status AS ENUM ('pending', 'passed', 'failed');
 
 -- =============================================
 -- CORE TABLES
@@ -132,11 +135,78 @@ CREATE TABLE sprints (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Epics table
+CREATE TABLE epics (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    summary TEXT,
+    priority project_priority DEFAULT 'medium',
+    status epic_status DEFAULT 'backlog',
+    assignee_id UUID REFERENCES users(id),
+    owner UUID REFERENCES users(id) NOT NULL,
+    start_date DATE,
+    end_date DATE,
+    progress INTEGER DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
+    story_points INTEGER DEFAULT 0,
+    completed_story_points INTEGER DEFAULT 0,
+    linked_milestones JSONB DEFAULT '[]',
+    linked_stories JSONB DEFAULT '[]',
+    labels JSONB DEFAULT '[]',
+    components JSONB DEFAULT '[]',
+    theme VARCHAR(255),
+    business_value TEXT,
+    acceptance_criteria JSONB DEFAULT '[]',
+    risks JSONB DEFAULT '[]',
+    dependencies JSONB DEFAULT '[]',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    completed_at TIMESTAMP WITH TIME ZONE
+);
+
+-- Releases table
+CREATE TABLE releases (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    version VARCHAR(50) NOT NULL,
+    description TEXT,
+    status release_status DEFAULT 'planning',
+    release_date DATE,
+    target_date DATE,
+    progress INTEGER DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
+    linked_epics JSONB DEFAULT '[]',
+    linked_stories JSONB DEFAULT '[]',
+    linked_sprints JSONB DEFAULT '[]',
+    release_notes TEXT,
+    risks JSONB DEFAULT '[]',
+    dependencies JSONB DEFAULT '[]',
+    created_by UUID REFERENCES users(id) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    completed_at TIMESTAMP WITH TIME ZONE
+);
+
+-- Quality gates table
+CREATE TABLE quality_gates (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    release_id UUID REFERENCES releases(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    status quality_gate_status DEFAULT 'pending',
+    required BOOLEAN DEFAULT true,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Stories table
 CREATE TABLE stories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
     sprint_id UUID REFERENCES sprints(id) ON DELETE SET NULL,
+    epic_id UUID REFERENCES epics(id) ON DELETE SET NULL,
+    release_id UUID REFERENCES releases(id) ON DELETE SET NULL,
     title VARCHAR(255) NOT NULL,
     description TEXT,
     acceptance_criteria JSONB DEFAULT '[]',
@@ -145,7 +215,6 @@ CREATE TABLE stories (
     story_points INTEGER CHECK (story_points >= 0),
     assignee_id UUID REFERENCES users(id),
     reporter_id UUID REFERENCES users(id),
-    epic VARCHAR(255),
     labels JSONB DEFAULT '[]',
     order_index INTEGER DEFAULT 0,
     estimated_hours DECIMAL(5,2),
@@ -434,6 +503,8 @@ CREATE INDEX idx_sprints_active ON sprints(is_active);
 -- Story indexes
 CREATE INDEX idx_stories_project ON stories(project_id);
 CREATE INDEX idx_stories_sprint ON stories(sprint_id);
+CREATE INDEX idx_stories_epic ON stories(epic_id);
+CREATE INDEX idx_stories_release ON stories(release_id);
 CREATE INDEX idx_stories_status ON stories(status);
 CREATE INDEX idx_stories_assignee ON stories(assignee_id);
 
@@ -448,6 +519,22 @@ CREATE INDEX idx_subtasks_assignee ON subtasks(assignee_id);
 CREATE INDEX idx_subtasks_completed ON subtasks(is_completed);
 CREATE INDEX idx_subtasks_bug_type ON subtasks(bug_type);
 CREATE INDEX idx_subtasks_severity ON subtasks(severity);
+
+-- Epic indexes
+CREATE INDEX idx_epics_project ON epics(project_id);
+CREATE INDEX idx_epics_status ON epics(status);
+CREATE INDEX idx_epics_owner ON epics(owner);
+CREATE INDEX idx_epics_assignee ON epics(assignee_id);
+
+-- Release indexes
+CREATE INDEX idx_releases_project ON releases(project_id);
+CREATE INDEX idx_releases_status ON releases(status);
+CREATE INDEX idx_releases_created_by ON releases(created_by);
+CREATE INDEX idx_releases_target_date ON releases(target_date);
+
+-- Quality gate indexes
+CREATE INDEX idx_quality_gates_release ON quality_gates(release_id);
+CREATE INDEX idx_quality_gates_status ON quality_gates(status);
 
 -- Time entry indexes
 CREATE INDEX idx_time_entries_user ON time_entries(user_id);
