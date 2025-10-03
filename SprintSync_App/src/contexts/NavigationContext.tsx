@@ -49,9 +49,6 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
     // Navigate to the route
     const path = section === 'dashboard' ? '/' : `/${section}`;
     navigate(path);
-    
-    // Log navigation for debugging
-    console.log(`Navigation: ${section}${page ? ` > ${page}` : ''} -> ${path}`);
   };
 
   return (

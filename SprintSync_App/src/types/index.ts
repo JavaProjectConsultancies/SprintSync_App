@@ -7,6 +7,11 @@ export interface User {
   assignedProjects?: string[];
   department?: string;
   domain?: string;
+  hourlyRate?: number;
+  skills?: string[];
+  budget?: number;
+  experience?: 'junior' | 'mid' | 'senior' | 'lead';
+  availability?: number;
 }
 
 export type UserRole = 'admin' | 'manager' | 'developer' | 'designer';
@@ -175,6 +180,23 @@ export interface Notification {
   read: boolean;
   createdAt: string;
   actionUrl?: string;
+  relatedEntityType?: 'project' | 'task' | 'sprint' | 'team' | 'ai-insights';
+  relatedEntityId?: string;
+}
+
+export interface UserTask {
+  id: string;
+  title: string;
+  description: string;
+  type: 'development' | 'design' | 'review' | 'planning' | 'testing' | 'bug-fix' | 'optimization' | 'security' | 'audit' | 'documentation' | 'presentation' | 'migration';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  status: 'pending' | 'in-progress' | 'completed' | 'cancelled';
+  dueDate: string;
+  estimatedHours: number;
+  projectId: string;
+  projectName: string;
+  assignedBy: string;
+  createdAt: string;
 }
 
 export type NotificationType = 'task-assignment' | 'deadline-warning' | 'sprint-event' | 'project-risk' | 'team-mention';
