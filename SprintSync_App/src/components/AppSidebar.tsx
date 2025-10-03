@@ -219,7 +219,22 @@ const AppSidebar: React.FC = () => {
   return (
     <Sidebar>
       <SidebarHeader>
-        <div className="flex items-center space-x-3 px-2 py-3">
+        <div 
+          className="flex items-center space-x-3 px-2 py-3 cursor-pointer hover:bg-gray-50 rounded-lg transition-colors"
+          onClick={() => {
+            try {
+              if (navigateTo) {
+                navigateTo('dashboard');
+              } else {
+                window.location.href = '/';
+              }
+            } catch (error) {
+              console.error('Navigation error:', error);
+              window.location.href = '/';
+            }
+          }}
+          title="Go to Dashboard"
+        >
           <div className="relative">
             <img 
               src={sprintSyncLogo} 

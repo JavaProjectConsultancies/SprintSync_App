@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigation } from '../contexts/NavigationContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,11 +13,14 @@ import {
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
-import { Bell, Check, AlertTriangle, Users, FolderKanban, Brain, Clock } from 'lucide-react';
+import { Bell, Check, AlertTriangle, Users, FolderKanban, Brain, Clock, ExternalLink } from 'lucide-react';
 import { mockNotifications } from '../data/mockData';
+import { toast } from 'sonner';
 
 const NotificationDropdown: React.FC = () => {
   const { user } = useAuth();
+  const { navigateTo } = useNavigation();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState(mockNotifications);
 
   if (!user) return null;
@@ -38,6 +43,63 @@ const NotificationDropdown: React.FC = () => {
         n.userId === user.id ? { ...n, read: true } : n
       )
     );
+  };
+
+  const handleNotificationClick = (notification: any) => {
+    // Mark notification as read
+    markAsRead(notification.id);
+    
+    // Navigate based on notification type and action URL
+    if (notification.actionUrl) {
+      try {
+        // Parse the action URL to determine navigation
+        const url = notification.actionUrl;
+        
+        if (url.startsWith('/')) {
+          // Internal navigation
+          navigate(url);
+          toast.success(`Navigating to ${notification.title}`);
+        } else if (url.startsWith('http')) {
+          // External navigation
+          window.open(url, '_blank');
+          toast.success(`Opening ${notification.title} in new tab`);
+        } else {
+          // Handle specific notification types
+          handleNotificationTypeNavigation(notification);
+        }
+      } catch (error) {
+        console.error('Navigation error:', error);
+        toast.error('Failed to navigate to notification target');
+      }
+    } else {
+      // Fallback navigation based on notification type
+      handleNotificationTypeNavigation(notification);
+    }
+  };
+
+  const handleNotificationTypeNavigation = (notification: any) => {
+    switch (notification.type) {
+      case 'task-assignment':
+        navigateTo('scrum', 'tasks');
+        toast.success('Navigating to Tasks');
+        break;
+      case 'deadline-warning':
+        navigateTo('scrum', 'sprints');
+        toast.success('Navigating to Sprints');
+        break;
+      case 'project-risk':
+        navigateTo('team-allocation');
+        toast.success('Navigating to Team Allocation');
+        break;
+      case 'team-mention':
+        navigateTo('ai-insights');
+        toast.success('Navigating to AI Insights');
+        break;
+      default:
+        navigateTo('dashboard');
+        toast.success('Navigating to Dashboard');
+        break;
+    }
   };
 
   const getNotificationIcon = (type: string) => {
@@ -128,10 +190,10 @@ const NotificationDropdown: React.FC = () => {
               {userNotifications.map((notification) => (
                 <DropdownMenuItem
                   key={notification.id}
-                  className={`flex flex-col items-start p-4 cursor-pointer ${
+                  className={`flex flex-col items-start p-4 cursor-pointer hover:bg-gray-50 transition-colors ${
                     !notification.read ? 'bg-blue-50' : ''
                   }`}
-                  onClick={() => markAsRead(notification.id)}
+                  onClick={() => handleNotificationClick(notification)}
                 >
                   <div className="flex items-start space-x-3 w-full">
                     <div className="flex-shrink-0 mt-0.5">
@@ -139,12 +201,17 @@ const NotificationDropdown: React.FC = () => {
                     </div>
                     <div className="flex-1 space-y-2">
                       <div className="flex items-start justify-between">
-                        <h4 className="text-sm font-medium leading-tight">
+                        <h4 className="text-sm font-medium leading-tight text-gray-900">
                           {notification.title}
                         </h4>
-                        {!notification.read && (
-                          <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1"></div>
-                        )}
+                        <div className="flex items-center space-x-2">
+                          {!notification.read && (
+                            <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1"></div>
+                          )}
+                          {notification.actionUrl && (
+                            <ExternalLink className="w-3 h-3 text-gray-400" />
+                          )}
+                        </div>
                       </div>
                       <p className="text-xs text-muted-foreground leading-relaxed">
                         {notification.message}

@@ -8,7 +8,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { useAuth } from '../contexts/AuthContext';
+import { mockProjects } from '../data/mockData';
 import { 
   Users, 
   Plus,
@@ -33,7 +35,8 @@ import {
   Search,
   Filter,
   Building,
-  Coffee
+  Coffee,
+  X
 } from 'lucide-react';
 
 const TeamAllocationPage: React.FC = () => {
@@ -43,12 +46,30 @@ const TeamAllocationPage: React.FC = () => {
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [domainFilter, setDomainFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
+  const [showAddMemberDialog, setShowAddMemberDialog] = useState(false);
+  const [newMember, setNewMember] = useState({
+    userId: '',
+    projectId: '',
+    role: '',
+    allocation: 100,
+    budget: '',
+    experience: ''
+  });
 
   // Get all users from AuthContext and generate realistic team allocation data
   const allUsers = getAllUsers();
   
   // Enhanced team member data based on real user data from AuthContext
   const teamMembers = useMemo(() => {
+    // Track project team sizes and managers
+    const projectTeamCounts: { [key: string]: number } = {};
+    const projectManagers: { [key: string]: boolean } = {};
+    
+    mockProjects.forEach(project => {
+      projectTeamCounts[project.id] = 0;
+      projectManagers[project.id] = false;
+    });
+    
     return allUsers.map((user, index) => {
       // Generate realistic data based on user properties
       const baseCapacity = user.role === 'admin' ? 35 : user.role === 'manager' ? 35 : user.role === 'designer' ? 35 : 40;
@@ -71,25 +92,49 @@ const TeamAllocationPage: React.FC = () => {
         return skillSets[domain] || ['General', 'Communication', 'Problem Solving'];
       };
 
-      // Generate project assignments based on assigned projects
+      // Generate project assignments based on assigned projects and actual mockProjects
       const getProjectAssignments = () => {
-        const projectNames = [
-          'FinTech Mobile App', 'E-Commerce Platform', 'Banking Dashboard',
-          'Healthcare Portal', 'Education Management', 'Supply Chain System',
-          'CRM Solution', 'Analytics Platform', 'AI Chat Support', 'IoT Dashboard'
-        ];
-        
         const assignments = [];
-        const numProjects = Math.min(user.assignedProjects?.length || 1, 3);
         
-        for (let i = 0; i < numProjects; i++) {
-          const allocation = i === 0 ? Math.floor(Math.random() * 40) + 50 : Math.floor(Math.random() * 30) + 20;
+        // Get projects where this user is a team member
+        const userProjects = mockProjects.filter(project => 
+          project.teamMembers.includes(user.id)
+        );
+        
+        // If user has assigned projects, use them, otherwise assign to random projects
+        const projectsToUse = userProjects.length > 0 
+          ? userProjects 
+          : mockProjects.slice(0, Math.min(user.assignedProjects?.length || 1, 2));
+        
+        projectsToUse.forEach((project, i) => {
+          // Check team size constraint (max 8 members per project)
+          if (projectTeamCounts[project.id] >= 8) {
+            return; // Skip this project if it's full
+          }
+          
+          // Check manager constraint (only one manager per project)
+          if (user.role === 'manager' && projectManagers[project.id]) {
+            return; // Skip this project if it already has a manager
+          }
+          
+          const allocation = i === 0 
+            ? Math.floor(Math.random() * 40) + 50 
+            : Math.floor(Math.random() * 30) + 20;
+            
           assignments.push({
-            name: projectNames[i % projectNames.length],
+            id: project.id,
+            name: project.name,
             allocation,
-            role: getRoleInProject(user.role, user.domain)
+            role: getRoleInProject(user.role, user.domain),
+            status: project.status
           });
-        }
+          
+          // Update tracking
+          projectTeamCounts[project.id]++;
+          if (user.role === 'manager') {
+            projectManagers[project.id] = true;
+          }
+        });
         
         return assignments;
       };
@@ -224,24 +269,40 @@ const TeamAllocationPage: React.FC = () => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
-  // Group projects by name for project allocation tab
+  // Group projects by name for project allocation tab - using actual mockProjects
   const projectGroups = useMemo(() => {
-    const groups: { [key: string]: Array<{ member: any; allocation: number; role: string }> } = {};
+    const groups: { [key: string]: { project: any; members: Array<{ member: any; allocation: number; role: string }> } } = {};
     
+    // Initialize groups with all mockProjects
+    mockProjects.forEach(project => {
+      groups[project.id] = {
+        project: project,
+        members: []
+      };
+    });
+    
+    // Add team members to their assigned projects
     filteredMembers.forEach(member => {
-      member.projects.forEach(project => {
-        if (!groups[project.name]) {
-          groups[project.name] = [];
+      member.projects.forEach(memberProject => {
+        if (groups[memberProject.id]) {
+          groups[memberProject.id].members.push({
+            member,
+            allocation: memberProject.allocation,
+            role: memberProject.role
+          });
         }
-        groups[project.name].push({
-          member,
-          allocation: project.allocation,
-          role: project.role
-        });
       });
     });
     
-    return groups;
+    // Filter out projects with no members
+    const filteredGroups: { [key: string]: { project: any; members: Array<{ member: any; allocation: number; role: string }> } } = {};
+    Object.entries(groups).forEach(([id, data]) => {
+      if (data.members.length > 0) {
+        filteredGroups[id] = data;
+      }
+    });
+    
+    return filteredGroups;
   }, [filteredMembers]);
 
   return (
@@ -257,7 +318,10 @@ const TeamAllocationPage: React.FC = () => {
             <BarChart3 className="w-4 h-4 mr-2" />
             Capacity Report
           </Button>
-          <Button className="bg-gradient-primary border-0 text-white hover:opacity-90">
+          <Button 
+            className="bg-gradient-primary border-0 text-white hover:opacity-90"
+            onClick={() => setShowAddMemberDialog(true)}
+          >
             <UserPlus className="w-4 h-4 mr-2" />
             Add Team Member
           </Button>
@@ -509,21 +573,49 @@ const TeamAllocationPage: React.FC = () => {
 
         <TabsContent value="projects" className="space-y-4 mt-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {Object.entries(projectGroups).slice(0, 6).map(([projectName, assignments]) => (
-              <Card key={projectName}>
+            {Object.entries(projectGroups).map(([projectId, { project, members }]) => (
+              <Card key={projectId}>
                 <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Building className="w-5 h-5 text-blue-600" />
-                    <span>{projectName}</span>
-                  </CardTitle>
-                  <CardDescription>
-                    {assignments.length} team members • 
-                    {Math.round(assignments.reduce((sum, a) => sum + a.allocation, 0) / assignments.length)}% avg allocation
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center space-x-2">
+                      <Building className="w-5 h-5 text-blue-600" />
+                      <span>{project.name}</span>
+                    </CardTitle>
+                    <Badge 
+                      variant="outline" 
+                      className={
+                        project.status === 'active' ? 'border-green-200 text-green-700 bg-green-50' :
+                        project.status === 'planning' ? 'border-blue-200 text-blue-700 bg-blue-50' :
+                        project.status === 'completed' ? 'border-gray-200 text-gray-700 bg-gray-50' :
+                        'border-yellow-200 text-yellow-700 bg-yellow-50'
+                      }
+                    >
+                      {project.status}
+                    </Badge>
+                  </div>
+                  <CardDescription className="flex items-center justify-between">
+                    <span>
+                      {members.length} team members • 
+                      {Math.round(members.reduce((sum, a) => sum + a.allocation, 0) / members.length)}% avg allocation
+                      {project.priority && ` • ${project.priority} priority`}
+                    </span>
+                    <Badge 
+                      variant="outline" 
+                      className={
+                        members.length >= 7 && members.length <= 8 
+                          ? 'border-green-200 text-green-700 bg-green-50'
+                          : members.length > 8
+                            ? 'border-red-200 text-red-700 bg-red-50'
+                            : 'border-yellow-200 text-yellow-700 bg-yellow-50'
+                      }
+                    >
+                      {members.length}/8
+                    </Badge>
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {assignments.map(({ member, allocation, role }, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  {members.map(({ member, allocation, role }, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                       <div className="flex items-center space-x-3">
                         <Avatar className="h-8 w-8">
                           <AvatarImage src={member.avatar} alt={member.name} />
@@ -532,20 +624,48 @@ const TeamAllocationPage: React.FC = () => {
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="text-sm font-medium">{member.name}</p>
+                          <div className="flex items-center space-x-2">
+                            <p className="text-sm font-medium">{member.name}</p>
+                            {member.role === 'manager' && (
+                              <Badge variant="outline" className="text-xs border-purple-200 text-purple-700 bg-purple-50">
+                                Manager
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-xs text-muted-foreground">{role}</p>
-                          <p className="text-xs text-muted-foreground">{member.domain}</p>
+                          <p className="text-xs text-muted-foreground">{member.domain} • {member.department}</p>
                         </div>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-medium">{allocation}%</p>
                         <p className="text-xs text-muted-foreground">allocation</p>
+                        <Badge variant="outline" className={
+                          member.status === 'available' ? 'text-green-600 border-green-200' :
+                          member.status === 'busy' ? 'text-yellow-600 border-yellow-200' :
+                          'text-red-600 border-red-200'
+                        }>
+                          {member.status}
+                        </Badge>
                       </div>
                     </div>
                   ))}
+                  {members.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No team members allocated to this project yet.
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             ))}
+            {Object.keys(projectGroups).length === 0 && (
+              <div className="col-span-2 text-center py-12">
+                <Building className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-lg font-medium text-muted-foreground">No Project Allocations</p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Start by allocating team members to projects using the "Add Team Member" button.
+                </p>
+              </div>
+            )}
           </div>
         </TabsContent>
 
@@ -612,6 +732,251 @@ const TeamAllocationPage: React.FC = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Add Team Member Dialog */}
+      <Dialog open={showAddMemberDialog} onOpenChange={setShowAddMemberDialog}>
+        <DialogContent className="max-w-[800px] w-[800px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Allocate Team Member to Project</DialogTitle>
+            <DialogDescription>
+              Assign a team member to a project with their role, budget, skills, and experience. Each project should have 7-8 members with only one manager.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="member-select">Team Member</Label>
+              <Select value={newMember.userId} onValueChange={(value) => setNewMember({...newMember, userId: value})}>
+                <SelectTrigger id="member-select">
+                  <SelectValue placeholder="Select team member" />
+                </SelectTrigger>
+                <SelectContent>
+                  {teamMembers.map((member) => (
+                    <SelectItem key={member.id} value={member.id}>
+                      <div className="flex items-center space-x-2">
+                        <span>{member.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          ({member.domain} • {member.role})
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="project-select">Project</Label>
+              <Select value={newMember.projectId} onValueChange={(value) => setNewMember({...newMember, projectId: value})}>
+                <SelectTrigger id="project-select">
+                  <SelectValue placeholder="Select project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {mockProjects.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      <div className="flex items-center justify-between">
+                        <span>{project.name}</span>
+                        <Badge variant="outline" className="ml-2 text-xs">
+                          {project.status}
+                        </Badge>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="role-input">Role in Project</Label>
+              <Input
+                id="role-input"
+                placeholder="e.g., Frontend Developer, Backend Developer, etc."
+                value={newMember.role}
+                onChange={(e) => setNewMember({...newMember, role: e.target.value})}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="budget-input">Budget / Hourly Rate (₹)</Label>
+                <Input
+                  id="budget-input"
+                  type="number"
+                  placeholder="e.g., 2000"
+                  value={newMember.budget}
+                  onChange={(e) => setNewMember({...newMember, budget: e.target.value})}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="experience-input">Experience Level</Label>
+                <Select value={newMember.experience} onValueChange={(value) => setNewMember({...newMember, experience: value})}>
+                  <SelectTrigger id="experience-input">
+                    <SelectValue placeholder="Select experience" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="junior">Junior (0-2 years)</SelectItem>
+                    <SelectItem value="mid">Mid-Level (2-5 years)</SelectItem>
+                    <SelectItem value="senior">Senior (5-8 years)</SelectItem>
+                    <SelectItem value="lead">Lead (8+ years)</SelectItem>
+                    <SelectItem value="architect">Architect (10+ years)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {newMember.userId && (
+              <div className="grid gap-2">
+                <Label>Member Skills</Label>
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                  <div className="flex flex-wrap gap-2">
+                    {teamMembers.find(m => m.id === newMember.userId)?.skills.map((skill, index) => (
+                      <Badge key={index} variant="secondary" className="text-xs">
+                        {skill}
+                      </Badge>
+                    ))}
+                  </div>
+                  {!teamMembers.find(m => m.id === newMember.userId)?.skills.length && (
+                    <p className="text-sm text-muted-foreground">No skills listed</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="grid gap-2">
+              <Label htmlFor="allocation-input">
+                Allocation Percentage: {newMember.allocation}%
+              </Label>
+              <Input
+                id="allocation-input"
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value={newMember.allocation}
+                onChange={(e) => setNewMember({...newMember, allocation: parseInt(e.target.value)})}
+                className="cursor-pointer"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>0%</span>
+                <span>50%</span>
+                <span>100%</span>
+              </div>
+            </div>
+
+            {newMember.userId && (
+              <div className="space-y-2">
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <strong>Current Utilization:</strong>{' '}
+                    {teamMembers.find(m => m.id === newMember.userId)?.utilization || 0}%
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    Adding {newMember.allocation}% will result in{' '}
+                    {(teamMembers.find(m => m.id === newMember.userId)?.utilization || 0) + newMember.allocation}% utilization
+                  </p>
+                </div>
+
+                {newMember.budget && newMember.allocation && (
+                  <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                    <p className="text-sm text-purple-800">
+                      <strong>Estimated Monthly Cost:</strong>{' '}
+                      ₹{((parseFloat(newMember.budget) * 8 * 22 * newMember.allocation) / 100).toLocaleString('en-IN')}
+                    </p>
+                    <p className="text-xs text-purple-600 mt-1">
+                      Based on ₹{newMember.budget}/hr × 8 hrs/day × 22 days × {newMember.allocation}% allocation
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {newMember.projectId && projectGroups[newMember.projectId] && (
+              <div className={`p-3 border rounded-lg ${
+                projectGroups[newMember.projectId].members.length >= 8 
+                  ? 'bg-red-50 border-red-200' 
+                  : projectGroups[newMember.projectId].members.length >= 7
+                    ? 'bg-yellow-50 border-yellow-200'
+                    : 'bg-green-50 border-green-200'
+              }`}>
+                <p className={`text-sm font-medium ${
+                  projectGroups[newMember.projectId].members.length >= 8 
+                    ? 'text-red-800' 
+                    : projectGroups[newMember.projectId].members.length >= 7
+                      ? 'text-yellow-800'
+                      : 'text-green-800'
+                }`}>
+                  <strong>Project Team Size:</strong>{' '}
+                  {projectGroups[newMember.projectId].members.length} / 8 members
+                </p>
+                {projectGroups[newMember.projectId].members.length >= 8 && (
+                  <p className="text-xs text-red-600 mt-1">
+                    ⚠️ This project team is full (max 8 members)
+                  </p>
+                )}
+                {projectGroups[newMember.projectId].members.length === 7 && (
+                  <p className="text-xs text-yellow-600 mt-1">
+                    ⚠️ Adding this member will fill the team (8/8)
+                  </p>
+                )}
+                {projectGroups[newMember.projectId].members.some(m => m.member.role === 'manager') && 
+                 teamMembers.find(m => m.id === newMember.userId)?.role === 'manager' && (
+                  <p className="text-xs text-red-600 mt-1">
+                    ⚠️ This project already has a manager assigned
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowAddMemberDialog(false);
+              setNewMember({ userId: '', projectId: '', role: '', allocation: 100, budget: '', experience: '' });
+            }}>
+              Cancel
+            </Button>
+            <Button 
+              className="bg-gradient-primary"
+              onClick={() => {
+                const memberData = {
+                  ...newMember,
+                  memberName: teamMembers.find(m => m.id === newMember.userId)?.name,
+                  projectName: mockProjects.find(p => p.id === newMember.projectId)?.name,
+                  skills: teamMembers.find(m => m.id === newMember.userId)?.skills
+                };
+                // Here you would typically make an API call to save the allocation
+                console.log('Allocating team member with details:', memberData);
+                
+                // Show success message with details
+                const successMsg = `Successfully allocated ${memberData.memberName} to ${memberData.projectName}\n\nDetails:\n- Role: ${newMember.role}\n- Budget: ₹${newMember.budget || 'Not specified'}/hr\n- Experience: ${newMember.experience || 'Not specified'}\n- Allocation: ${newMember.allocation}%`;
+                alert(successMsg);
+                
+                setShowAddMemberDialog(false);
+                setNewMember({ userId: '', projectId: '', role: '', allocation: 100, budget: '', experience: '' });
+              }}
+              disabled={
+                !newMember.userId || 
+                !newMember.projectId || 
+                !newMember.role ||
+                !newMember.budget ||
+                !newMember.experience ||
+                (projectGroups[newMember.projectId]?.members.length >= 8) ||
+                (projectGroups[newMember.projectId]?.members.some(m => m.member.role === 'manager') && 
+                 teamMembers.find(m => m.id === newMember.userId)?.role === 'manager')
+              }
+            >
+              {!newMember.userId || !newMember.projectId || !newMember.role || !newMember.budget || !newMember.experience
+                ? 'Allocate Member'
+                : (projectGroups[newMember.projectId]?.members.length >= 8)
+                  ? 'Team Full (8/8)'
+                  : (projectGroups[newMember.projectId]?.members.some(m => m.member.role === 'manager') && 
+                     teamMembers.find(m => m.id === newMember.userId)?.role === 'manager')
+                    ? 'Manager Already Assigned'
+                    : 'Allocate Member'
+              }
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -6,6 +6,7 @@ import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
 import { Button } from './ui/button';
 import { Alert, AlertDescription } from './ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import {
   LineChart,
   Line,
@@ -39,7 +40,9 @@ import {
   BookOpen,
   Zap,
   Coffee,
-  Eye
+  Eye,
+  Filter,
+  X
 } from 'lucide-react';
 import { 
   getDashboardMetrics, 
@@ -50,10 +53,15 @@ import {
   getTeamPerformanceData,
   getAIInsights
 } from '../data/mockData';
+import UserTasks from './UserTasks';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user, hasPermission, canAccessProject } = useAuth();
+  
+  // Filter states
+  const [selectedProjectForSprint, setSelectedProjectForSprint] = useState<string>('all');
+  const [selectedProjectForTasks, setSelectedProjectForTasks] = useState<string>('all');
 
   // Get role-based metrics
   const metrics = useMemo(() => {
@@ -72,6 +80,180 @@ const Dashboard: React.FC = () => {
   const projectStatusData = getProjectStatusData();
   const teamPerformanceData = getTeamPerformanceData();
   const aiInsights = getAIInsights();
+
+  // Generate project-specific sprint performance data based on actual project characteristics
+  const getSprintPerformanceData = (projectId: string) => {
+    const project = accessibleProjects.find(p => p.id === projectId);
+    
+    if (projectId === 'all') {
+      // Aggregate data from all accessible projects
+      return [
+        { name: 'Sprint 12', planned: 45, done: 42 },
+        { name: 'Sprint 13', planned: 50, done: 48 },
+        { name: 'Sprint 14', planned: 40, done: 35 },
+        { name: 'Sprint 15', planned: 35, done: 28 }
+      ];
+    }
+
+    if (!project) return [];
+
+    // Generate data based on project characteristics
+    const baseVelocity = project.teamMembers.length * 8; // Base velocity per team member
+    const progressFactor = project.progress / 100;
+    const priorityMultiplier = project.priority === 'critical' ? 1.2 : project.priority === 'high' ? 1.1 : 1.0;
+    
+    // Use project ID to create consistent "random" values
+    const projectSeed = project.id.charCodeAt(project.id.length - 1);
+    
+    const sprints = [];
+    for (let i = 1; i <= 4; i++) {
+      // Create consistent values based on project ID and sprint number
+      const variation = ((projectSeed + i) % 10) / 10; // 0-0.9 variation
+      const planned = Math.round(baseVelocity * priorityMultiplier * (0.8 + variation * 0.4));
+      const done = Math.round(planned * (0.7 + progressFactor * 0.3) * (0.8 + variation * 0.4));
+      sprints.push({
+        name: `Sprint ${i}`,
+        planned,
+        done: Math.min(done, planned)
+      });
+    }
+    
+    return sprints;
+  };
+
+  // Generate project-specific task distribution data based on project status and progress
+  const getTaskDistributionData = (projectId: string) => {
+    const project = accessibleProjects.find(p => p.id === projectId);
+    
+    if (projectId === 'all') {
+      // Aggregate data from all accessible projects
+      return [
+        { name: 'To Do', value: 28, percentage: 19 },
+        { name: 'In Progress', value: 35, percentage: 24 },
+        { name: 'QA', value: 15, percentage: 10 },
+        { name: 'Done', value: 67, percentage: 46 }
+      ];
+    }
+
+    if (!project) return [];
+
+    // Generate data based on project characteristics
+    const totalTasks = 100;
+    const progress = project.progress;
+    const status = project.status;
+    
+    let todo, inProgress, qa, done;
+    
+    if (status === 'completed') {
+      // Completed projects have most tasks done
+      done = Math.round(totalTasks * 0.9);
+      qa = Math.round(totalTasks * 0.05);
+      inProgress = Math.round(totalTasks * 0.03);
+      todo = totalTasks - done - qa - inProgress;
+    } else if (status === 'planning') {
+      // Planning projects have most tasks in todo
+      todo = Math.round(totalTasks * 0.6);
+      inProgress = Math.round(totalTasks * 0.2);
+      qa = Math.round(totalTasks * 0.1);
+      done = totalTasks - todo - inProgress - qa;
+    } else if (status === 'active') {
+      // Active projects have balanced distribution based on progress
+      done = Math.round(totalTasks * (progress / 100) * 0.8);
+      qa = Math.round(totalTasks * 0.15);
+      inProgress = Math.round(totalTasks * 0.25);
+      todo = totalTasks - done - qa - inProgress;
+    } else {
+      // Default distribution
+      done = Math.round(totalTasks * 0.3);
+      qa = Math.round(totalTasks * 0.15);
+      inProgress = Math.round(totalTasks * 0.3);
+      todo = totalTasks - done - qa - inProgress;
+    }
+
+    const total = todo + inProgress + qa + done;
+    
+    return [
+      { 
+        name: 'To Do', 
+        value: todo, 
+        percentage: Math.round((todo / total) * 100) 
+      },
+      { 
+        name: 'In Progress', 
+        value: inProgress, 
+        percentage: Math.round((inProgress / total) * 100) 
+      },
+      { 
+        name: 'QA', 
+        value: qa, 
+        percentage: Math.round((qa / total) * 100) 
+      },
+      { 
+        name: 'Done', 
+        value: done, 
+        percentage: Math.round((done / total) * 100) 
+      }
+    ];
+  };
+
+  // Get filtered data based on selected projects
+  const sprintPerformanceData = useMemo(() => 
+    getSprintPerformanceData(selectedProjectForSprint), 
+    [selectedProjectForSprint]
+  );
+  
+  const taskDistributionData = useMemo(() => 
+    getTaskDistributionData(selectedProjectForTasks), 
+    [selectedProjectForTasks]
+  );
+
+  // Reset filters
+  const resetFilters = () => {
+    setSelectedProjectForSprint('all');
+    setSelectedProjectForTasks('all');
+  };
+
+  // Check if any filters are active
+  const hasActiveFilters = selectedProjectForSprint !== 'all' || selectedProjectForTasks !== 'all';
+
+  // Get project-specific chart information
+  const getSprintChartInfo = () => {
+    if (selectedProjectForSprint === 'all') {
+      return {
+        title: 'Sprint Performance',
+        description: 'Planned vs Done comparison across all projects',
+        subtitle: 'Aggregated view of all accessible projects'
+      };
+    }
+    
+    const project = accessibleProjects.find(p => p.id === selectedProjectForSprint);
+    if (!project) return { title: 'Sprint Performance', description: 'Planned vs Done comparison', subtitle: '' };
+    
+    return {
+      title: `Sprint Performance - ${project.name}`,
+      description: `Planned vs Done comparison for ${project.name}`,
+      subtitle: `${project.status} • ${project.progress}% complete • ${project.teamMembers.length} team members`
+    };
+  };
+
+  const getTaskChartInfo = () => {
+    if (selectedProjectForTasks === 'all') {
+      return {
+        title: 'Task Distribution',
+        description: 'Current sprint task breakdown across all projects',
+        subtitle: 'Aggregated view of all accessible projects'
+      };
+    }
+    
+    const project = accessibleProjects.find(p => p.id === selectedProjectForTasks);
+    if (!project) return { title: 'Task Distribution', description: 'Current sprint task breakdown', subtitle: '' };
+    
+    return {
+      title: `Task Distribution - ${project.name}`,
+      description: `Current sprint task breakdown for ${project.name}`,
+      subtitle: `${project.status} • ${project.progress}% complete • ${project.priority} priority`
+    };
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -131,6 +313,7 @@ const Dashboard: React.FC = () => {
             Here's your project overview for today.
           </p>
         </div>
+        
       </div>
 
       {/* Performance Alert for Managers/Admins */}
@@ -203,6 +386,13 @@ const Dashboard: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* User Tasks & Pending Work */}
+      <UserTasks 
+        userId={user.id} 
+        userRole={user.role} 
+        userName={user.name} 
+      />
 
       {/* Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -382,24 +572,77 @@ const Dashboard: React.FC = () => {
 
       {/* Charts and Analytics */}
       {hasPermission('view_analytics') && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <>
+          {/* Filter Status Bar */}
+          {hasActiveFilters && (
+            <Card className="bg-blue-50 border-blue-200">
+              <CardContent className="py-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Filter className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-800">Active Filters:</span>
+                    {selectedProjectForSprint !== 'all' && (
+                      <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+                        Sprint: {accessibleProjects.find(p => p.id === selectedProjectForSprint)?.name}
+                      </Badge>
+                    )}
+                    {selectedProjectForTasks !== 'all' && (
+                      <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+                        Tasks: {accessibleProjects.find(p => p.id === selectedProjectForTasks)?.name}
+                      </Badge>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={resetFilters}
+                    className="text-blue-600 hover:text-blue-800 hover:bg-blue-100"
+                  >
+                    <X className="w-4 h-4 mr-1" />
+                    Clear All
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Sprint Performance Chart */}
           <Card className="bg-pastel-yellow">
             <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <TrendingUp className="w-5 h-5 text-yellow-600" />
-                <span>Sprint Performance</span>
-              </CardTitle>
-              <CardDescription>Planned vs Done comparison</CardDescription>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <TrendingUp className="w-5 h-5 text-yellow-600" />
+                  <span>{getSprintChartInfo().title}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Select value={selectedProjectForSprint} onValueChange={setSelectedProjectForSprint}>
+                    <SelectTrigger className="w-48 h-8">
+                      <SelectValue placeholder="Select project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Projects</SelectItem>
+                      {accessibleProjects.map((project) => (
+                        <SelectItem key={project.id} value={project.id}>
+                          {project.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <CardDescription>
+                {getSprintChartInfo().description}
+                {getSprintChartInfo().subtitle && (
+                  <div className="mt-1 text-xs text-yellow-700 font-medium">
+                    {getSprintChartInfo().subtitle}
+                  </div>
+                )}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={[
-                  { name: 'Sprint 12', planned: 45, done: 42 },
-                  { name: 'Sprint 13', planned: 50, done: 48 },
-                  { name: 'Sprint 14', planned: 40, done: 35 },
-                  { name: 'Sprint 15', planned: 35, done: 28 }
-                ]}>
+                <BarChart data={sprintPerformanceData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
                   <XAxis dataKey="name" stroke="#6b7280" />
                   <YAxis stroke="#6b7280" />
@@ -410,8 +653,8 @@ const Dashboard: React.FC = () => {
                       borderRadius: '8px' 
                     }} 
                   />
-                  <Bar dataKey="planned" fill="#06B6D4" />
-                  <Bar dataKey="done" fill="#10B981" />
+                  <Bar dataKey="planned" fill="#06B6D4" name="Planned" />
+                  <Bar dataKey="done" fill="#10B981" name="Done" />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -420,34 +663,48 @@ const Dashboard: React.FC = () => {
           {/* Task Distribution */}
           <Card className="bg-pastel-cyan">
             <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Target className="w-5 h-5 text-cyan-600" />
-                <span>Task Distribution</span>
-              </CardTitle>
-              <CardDescription>Current sprint task breakdown</CardDescription>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Target className="w-5 h-5 text-cyan-600" />
+                  <span>{getTaskChartInfo().title}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Select value={selectedProjectForTasks} onValueChange={setSelectedProjectForTasks}>
+                    <SelectTrigger className="w-48 h-8">
+                      <SelectValue placeholder="Select project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Projects</SelectItem>
+                      {accessibleProjects.map((project) => (
+                        <SelectItem key={project.id} value={project.id}>
+                          {project.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <CardDescription>
+                {getTaskChartInfo().description}
+                {getTaskChartInfo().subtitle && (
+                  <div className="mt-1 text-xs text-cyan-700 font-medium">
+                    {getTaskChartInfo().subtitle}
+                  </div>
+                )}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
-                    data={[
-                      { name: 'To Do', value: 28, percentage: 19 },
-                      { name: 'In Progress', value: 35, percentage: 24 },
-                      { name: 'QA', value: 15, percentage: 10 },
-                      { name: 'Done', value: 67, percentage: 46 }
-                    ]}
+                    data={taskDistributionData}
                     cx="50%"
                     cy="50%"
                     outerRadius={80}
                     dataKey="value"
                     label={({ name, percentage }) => `${name}: ${percentage}%`}
                   >
-                    {[
-                      { name: 'To Do', value: 28, percentage: 19 },
-                      { name: 'In Progress', value: 35, percentage: 24 },
-                      { name: 'QA', value: 15, percentage: 10 },
-                      { name: 'Done', value: 67, percentage: 46 }
-                    ].map((entry, index) => (
+                    {taskDistributionData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={pieColors[index % pieColors.length]} />
                     ))}
                   </Pie>
@@ -456,7 +713,8 @@ const Dashboard: React.FC = () => {
               </ResponsiveContainer>
             </CardContent>
           </Card>
-        </div>
+          </div>
+        </>
       )}
 
       {/* Recent Projects */}

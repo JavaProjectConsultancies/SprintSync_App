@@ -52,7 +52,7 @@ const ProtectedRoute: React.FC<{
 
 const AppContent: React.FC = () => {
   const { user, isLoading } = useAuth();
-  const { navigationState } = useNavigation();
+  const { navigationState, navigateTo } = useNavigation();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -170,8 +170,22 @@ const AppContent: React.FC = () => {
               <BreadcrumbList>
                 <BreadcrumbItem className="hidden md:block">
                   <BreadcrumbLink 
-                    href="#" 
-                    className="flex items-center space-x-2 hover:text-green-600 transition-colors group"
+                    href="/"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      try {
+                        if (navigateTo) {
+                          navigateTo('dashboard');
+                        } else {
+                          navigate('/');
+                        }
+                      } catch (error) {
+                        console.error('Navigation error:', error);
+                        navigate('/');
+                      }
+                    }}
+                    className="flex items-center space-x-2 hover:text-green-600 transition-colors group cursor-pointer"
+                    title="Go to Dashboard"
                   >
                     <div className="relative">
                       <img 

@@ -539,6 +539,11 @@ const SelectedTeamDropZone: React.FC<{
                   <div>
                     <p className="text-sm font-medium">Team Recommendations</p>
                     <ul className="text-xs text-muted-foreground mt-1 space-y-1">
+                      {(selectedMembers.length < 7 || selectedMembers.length > 8) && (
+                        <li className={selectedMembers.length < 7 ? 'text-orange-600' : 'text-yellow-600'}>
+                          • Optimal team size is 7-8 members per project (Current: {selectedMembers.length})
+                        </li>
+                      )}
                       {selectedMembers.filter(m => m.role === 'manager').length === 0 && (
                         <li>• Consider adding a project manager for better coordination</li>
                       )}
@@ -550,6 +555,11 @@ const SelectedTeamDropZone: React.FC<{
                       )}
                       {teamAnalysis.budgetUtilization > 90 && (
                         <li>• Consider optimizing team composition to reduce costs</li>
+                      )}
+                      {selectedMembers.length >= 7 && selectedMembers.length <= 8 && 
+                       selectedMembers.filter(m => m.role === 'manager').length > 0 &&
+                       teamAnalysis.budgetUtilization <= 90 && (
+                        <li className="text-green-600">• Team composition looks optimal! ✓</li>
                       )}
                     </ul>
                   </div>

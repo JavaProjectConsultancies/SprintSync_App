@@ -238,6 +238,306 @@ export const mockSubtasks: Subtask[] = [
   }
 ];
 
+// User-specific tasks and pending work
+export const mockUserTasks = {
+  '1': [ // Arjun Sharma - Admin
+    {
+      id: 'task-admin-1',
+      title: 'Review Team Performance Reports',
+      description: 'Analyze Q4 team performance metrics and prepare management summary',
+      type: 'review',
+      priority: 'high',
+      status: 'pending',
+      dueDate: '2024-02-20',
+      estimatedHours: 4,
+      projectId: 'proj-1',
+      projectName: 'E-Commerce Platform',
+      assignedBy: 'System',
+      createdAt: '2024-02-15T09:00:00Z'
+    },
+    {
+      id: 'task-admin-2',
+      title: 'System Security Audit',
+      description: 'Conduct comprehensive security review of all applications',
+      type: 'audit',
+      priority: 'critical',
+      status: 'in-progress',
+      dueDate: '2024-02-25',
+      estimatedHours: 8,
+      projectId: 'proj-2',
+      projectName: 'Mobile Banking App',
+      assignedBy: 'Compliance Team',
+      createdAt: '2024-02-10T14:00:00Z'
+    },
+    {
+      id: 'task-admin-3',
+      title: 'Budget Planning for Q2',
+      description: 'Prepare resource allocation and budget planning for next quarter',
+      type: 'planning',
+      priority: 'medium',
+      status: 'pending',
+      dueDate: '2024-03-01',
+      estimatedHours: 6,
+      projectId: 'proj-3',
+      projectName: 'Corporate Website',
+      assignedBy: 'Finance Team',
+      createdAt: '2024-02-12T11:00:00Z'
+    }
+  ],
+  '2': [ // Kavita Singh - Admin
+    {
+      id: 'task-admin-4',
+      title: 'Database Optimization Review',
+      description: 'Review and optimize database performance across all projects',
+      type: 'optimization',
+      priority: 'high',
+      status: 'pending',
+      dueDate: '2024-02-22',
+      estimatedHours: 5,
+      projectId: 'proj-1',
+      projectName: 'E-Commerce Platform',
+      assignedBy: 'System',
+      createdAt: '2024-02-16T10:00:00Z'
+    },
+    {
+      id: 'task-admin-5',
+      title: 'User Access Management',
+      description: 'Review and update user permissions and access controls',
+      type: 'security',
+      priority: 'medium',
+      status: 'in-progress',
+      dueDate: '2024-02-28',
+      estimatedHours: 3,
+      projectId: 'proj-2',
+      projectName: 'Mobile Banking App',
+      assignedBy: 'Security Team',
+      createdAt: '2024-02-14T15:00:00Z'
+    }
+  ],
+  '3': [ // Priya Mehta - Manager
+    {
+      id: 'task-mgr-1',
+      title: 'Sprint Planning for E-Commerce Platform',
+      description: 'Plan next sprint with focus on payment integration features',
+      type: 'planning',
+      priority: 'high',
+      status: 'pending',
+      dueDate: '2024-02-18',
+      estimatedHours: 4,
+      projectId: 'proj-1',
+      projectName: 'E-Commerce Platform',
+      assignedBy: 'Product Owner',
+      createdAt: '2024-02-15T09:30:00Z'
+    },
+    {
+      id: 'task-mgr-2',
+      title: 'Team Performance Review',
+      description: 'Conduct 1-on-1 meetings with development team members',
+      type: 'review',
+      priority: 'medium',
+      status: 'in-progress',
+      dueDate: '2024-02-25',
+      estimatedHours: 6,
+      projectId: 'proj-1',
+      projectName: 'E-Commerce Platform',
+      assignedBy: 'HR Department',
+      createdAt: '2024-02-12T14:00:00Z'
+    },
+    {
+      id: 'task-mgr-3',
+      title: 'Client Demo Preparation',
+      description: 'Prepare demo for E-Commerce platform progress review',
+      type: 'presentation',
+      priority: 'high',
+      status: 'pending',
+      dueDate: '2024-02-20',
+      estimatedHours: 3,
+      projectId: 'proj-1',
+      projectName: 'E-Commerce Platform',
+      assignedBy: 'Client',
+      createdAt: '2024-02-16T11:00:00Z'
+    }
+  ],
+  '4': [ // Rajesh Kumar - Manager
+    {
+      id: 'task-mgr-4',
+      title: 'Mobile App Security Review',
+      description: 'Review security implementation for mobile banking app',
+      type: 'security',
+      priority: 'critical',
+      status: 'in-progress',
+      dueDate: '2024-02-19',
+      estimatedHours: 5,
+      projectId: 'proj-2',
+      projectName: 'Mobile Banking App',
+      assignedBy: 'Security Team',
+      createdAt: '2024-02-14T16:00:00Z'
+    },
+    {
+      id: 'task-mgr-5',
+      title: 'API Documentation Update',
+      description: 'Update API documentation for banking services',
+      type: 'documentation',
+      priority: 'medium',
+      status: 'pending',
+      dueDate: '2024-02-26',
+      estimatedHours: 4,
+      projectId: 'proj-2',
+      projectName: 'Mobile Banking App',
+      assignedBy: 'Technical Lead',
+      createdAt: '2024-02-15T13:00:00Z'
+    }
+  ],
+  '5': [ // Amit Patel - Developer
+    {
+      id: 'task-dev-1',
+      title: 'Implement UPI Payment Integration',
+      description: 'Develop UPI payment gateway integration for e-commerce platform',
+      type: 'development',
+      priority: 'high',
+      status: 'in-progress',
+      dueDate: '2024-02-21',
+      estimatedHours: 8,
+      projectId: 'proj-1',
+      projectName: 'E-Commerce Platform',
+      assignedBy: 'Priya Mehta',
+      createdAt: '2024-02-13T10:00:00Z'
+    },
+    {
+      id: 'task-dev-2',
+      title: 'Fix Cart Persistence Bug',
+      description: 'Fix issue where cart items are not persisting across sessions',
+      type: 'bug-fix',
+      priority: 'medium',
+      status: 'pending',
+      dueDate: '2024-02-23',
+      estimatedHours: 3,
+      projectId: 'proj-1',
+      projectName: 'E-Commerce Platform',
+      assignedBy: 'Priya Mehta',
+      createdAt: '2024-02-16T14:00:00Z'
+    },
+    {
+      id: 'task-dev-3',
+      title: 'Code Review for Payment Module',
+      description: 'Review payment module code for security and best practices',
+      type: 'review',
+      priority: 'high',
+      status: 'pending',
+      dueDate: '2024-02-19',
+      estimatedHours: 2,
+      projectId: 'proj-1',
+      projectName: 'E-Commerce Platform',
+      assignedBy: 'Technical Lead',
+      createdAt: '2024-02-15T16:00:00Z'
+    }
+  ],
+  '6': [ // Deepak Gupta - Developer
+    {
+      id: 'task-dev-4',
+      title: 'Implement Biometric Authentication',
+      description: 'Add fingerprint and face recognition for mobile banking app',
+      type: 'development',
+      priority: 'critical',
+      status: 'in-progress',
+      dueDate: '2024-02-24',
+      estimatedHours: 12,
+      projectId: 'proj-2',
+      projectName: 'Mobile Banking App',
+      assignedBy: 'Rajesh Kumar',
+      createdAt: '2024-02-12T09:00:00Z'
+    },
+    {
+      id: 'task-dev-5',
+      title: 'Performance Optimization',
+      description: 'Optimize app performance for low-end Android devices',
+      type: 'optimization',
+      priority: 'medium',
+      status: 'pending',
+      dueDate: '2024-02-27',
+      estimatedHours: 6,
+      projectId: 'proj-2',
+      projectName: 'Mobile Banking App',
+      assignedBy: 'Rajesh Kumar',
+      createdAt: '2024-02-14T11:00:00Z'
+    }
+  ],
+  '7': [ // Sneha Joshi - Designer
+    {
+      id: 'task-design-1',
+      title: 'Design Corporate Website Mockups',
+      description: 'Create high-fidelity mockups for corporate website redesign',
+      type: 'design',
+      priority: 'high',
+      status: 'in-progress',
+      dueDate: '2024-02-22',
+      estimatedHours: 8,
+      projectId: 'proj-3',
+      projectName: 'Corporate Website',
+      assignedBy: 'Product Manager',
+      createdAt: '2024-02-13T15:00:00Z'
+    },
+    {
+      id: 'task-design-2',
+      title: 'Mobile Banking UI Updates',
+      description: 'Update mobile banking app UI based on user feedback',
+      type: 'design',
+      priority: 'medium',
+      status: 'pending',
+      dueDate: '2024-02-25',
+      estimatedHours: 5,
+      projectId: 'proj-2',
+      projectName: 'Mobile Banking App',
+      assignedBy: 'Rajesh Kumar',
+      createdAt: '2024-02-15T12:00:00Z'
+    },
+    {
+      id: 'task-design-3',
+      title: 'Create Design System Documentation',
+      description: 'Document design system components and guidelines',
+      type: 'documentation',
+      priority: 'low',
+      status: 'pending',
+      dueDate: '2024-03-01',
+      estimatedHours: 4,
+      projectId: 'proj-3',
+      projectName: 'Corporate Website',
+      assignedBy: 'Design Lead',
+      createdAt: '2024-02-16T10:00:00Z'
+    }
+  ],
+  '8': [ // Vikram Singh - Developer
+    {
+      id: 'task-dev-6',
+      title: 'Database Schema Migration',
+      description: 'Migrate database schema for HR portal to new version',
+      type: 'migration',
+      priority: 'high',
+      status: 'in-progress',
+      dueDate: '2024-02-20',
+      estimatedHours: 6,
+      projectId: 'proj-4',
+      projectName: 'Internal HR Portal',
+      assignedBy: 'Technical Lead',
+      createdAt: '2024-02-14T13:00:00Z'
+    },
+    {
+      id: 'task-dev-7',
+      title: 'API Integration Testing',
+      description: 'Test integration with external payroll service APIs',
+      type: 'testing',
+      priority: 'medium',
+      status: 'pending',
+      dueDate: '2024-02-26',
+      estimatedHours: 4,
+      projectId: 'proj-4',
+      projectName: 'Internal HR Portal',
+      assignedBy: 'QA Lead',
+      createdAt: '2024-02-15T14:00:00Z'
+    }
+  ]
+};
+
 export const mockNotifications: Notification[] = [
   {
     id: 'notif-1',
@@ -248,7 +548,9 @@ export const mockNotifications: Notification[] = [
     priority: 'medium',
     read: false,
     createdAt: '2024-01-16T10:30:00Z',
-    actionUrl: '/tasks/task-2'
+    actionUrl: '/scrum',
+    relatedEntityType: 'task',
+    relatedEntityId: 'task-2'
   },
   {
     id: 'notif-2',
@@ -259,7 +561,9 @@ export const mockNotifications: Notification[] = [
     priority: 'high',
     read: false,
     createdAt: '2024-02-10T09:00:00Z',
-    actionUrl: '/sprints/sprint-2'
+    actionUrl: '/scrum',
+    relatedEntityType: 'sprint',
+    relatedEntityId: 'sprint-2'
   },
   {
     id: 'notif-3',
@@ -270,7 +574,9 @@ export const mockNotifications: Notification[] = [
     priority: 'critical',
     read: false,
     createdAt: '2024-02-08T14:15:00Z',
-    actionUrl: '/team/performance'
+    actionUrl: '/team-allocation',
+    relatedEntityType: 'team',
+    relatedEntityId: 'team-1'
   },
   {
     id: 'notif-4',
@@ -281,7 +587,35 @@ export const mockNotifications: Notification[] = [
     priority: 'medium',
     read: false,
     createdAt: '2024-02-12T11:20:00Z',
-    actionUrl: '/ai-insights'
+    actionUrl: '/ai-insights',
+    relatedEntityType: 'ai-insights',
+    relatedEntityId: 'insight-1'
+  },
+  {
+    id: 'notif-5',
+    userId: '2',
+    title: 'Project Update',
+    message: 'E-Commerce Platform milestone completed successfully',
+    type: 'project-risk',
+    priority: 'low',
+    read: true,
+    createdAt: '2024-02-11T16:45:00Z',
+    actionUrl: '/projects',
+    relatedEntityType: 'project',
+    relatedEntityId: 'project-1'
+  },
+  {
+    id: 'notif-6',
+    userId: '3',
+    title: 'Code Review Request',
+    message: 'Please review the pull request for "User Authentication Module"',
+    type: 'task-assignment',
+    priority: 'medium',
+    read: false,
+    createdAt: '2024-02-13T08:30:00Z',
+    actionUrl: '/scrum',
+    relatedEntityType: 'task',
+    relatedEntityId: 'task-5'
   }
 ];
 
