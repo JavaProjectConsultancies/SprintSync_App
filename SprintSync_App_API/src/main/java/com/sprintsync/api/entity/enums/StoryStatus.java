@@ -22,4 +22,13 @@ public enum StoryStatus {
     public String getValue() {
         return value;
     }
+
+    public static StoryStatus fromValue(String value) {
+        for (StoryStatus status : StoryStatus.values()) {
+            if (status.value.equalsIgnoreCase(value)) {
+                return status;
+            }
+        }
+        throw new IllegalArgumentException("Unknown story status: " + value);
+    }
 }

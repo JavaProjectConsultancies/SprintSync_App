@@ -1,7 +1,9 @@
 package com.sprintsync.api.entity;
 
 import com.sprintsync.api.entity.enums.Priority;
+import com.sprintsync.api.entity.converter.PriorityConverter;
 import com.sprintsync.api.entity.enums.ProjectStatus;
+import com.sprintsync.api.entity.converter.ProjectStatusConverter;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -32,12 +34,12 @@ public class Project extends BaseEntity {
     private String description;
 
     @NotNull(message = "Project status cannot be null")
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = ProjectStatusConverter.class)
     @Column(name = "status", nullable = false)
     private ProjectStatus status;
 
     @NotNull(message = "Project priority cannot be null")
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = PriorityConverter.class)
     @Column(name = "priority", nullable = false)
     private Priority priority;
 
@@ -46,6 +48,9 @@ public class Project extends BaseEntity {
 
     @Column(name = "template")
     private String template; // e.g., web-app, mobile-app, api-service
+
+    @Column(name = "project_type")
+    private String projectType; // e.g., web-development, mobile-development, data-analytics
 
     @Column(name = "department_id")
     private String departmentId;
@@ -143,6 +148,14 @@ public class Project extends BaseEntity {
 
     public void setTemplate(String template) {
         this.template = template;
+    }
+
+    public String getProjectType() {
+        return projectType;
+    }
+
+    public void setProjectType(String projectType) {
+        this.projectType = projectType;
     }
 
     public String getDepartmentId() {

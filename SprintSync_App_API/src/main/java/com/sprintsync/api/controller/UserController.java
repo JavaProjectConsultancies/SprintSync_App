@@ -269,8 +269,8 @@ public class UserController {
     public ResponseEntity<String> getUserStats() {
         long totalUsers = userService.getAllUsers().size();
         long activeUsers = userService.findActiveUsers().size();
-        long managers = userService.countUsersByRole(UserRole.MANAGER);
-        long developers = userService.countUsersByRole(UserRole.DEVELOPER);
+        long managers = userService.countUsersByRole(UserRole.manager);
+        long developers = userService.countUsersByRole(UserRole.developer);
         
         String stats = String.format("Total Users: %d, Active Users: %d, Managers: %d, Developers: %d", 
                                    totalUsers, activeUsers, managers, developers);

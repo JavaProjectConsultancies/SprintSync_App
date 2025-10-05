@@ -1,6 +1,8 @@
 package com.sprintsync.api.entity;
 
 import com.sprintsync.api.entity.enums.UserRole;
+import com.sprintsync.api.entity.enums.ExperienceLevel;
+import com.sprintsync.api.entity.converter.ExperienceLevelConverter;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -46,8 +48,9 @@ public class User extends BaseEntity {
     @Column(name = "avatar_url")
     private String avatarUrl;
 
+    @Convert(converter = ExperienceLevelConverter.class)
     @Column(name = "experience")
-    private String experience;
+    private ExperienceLevel experience;
 
     @Column(name = "hourly_rate", precision = 10, scale = 2)
     private BigDecimal hourlyRate;
@@ -131,11 +134,11 @@ public class User extends BaseEntity {
         this.avatarUrl = avatarUrl;
     }
 
-    public String getExperience() {
+    public ExperienceLevel getExperience() {
         return experience;
     }
 
-    public void setExperience(String experience) {
+    public void setExperience(ExperienceLevel experience) {
         this.experience = experience;
     }
 

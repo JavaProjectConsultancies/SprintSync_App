@@ -1,6 +1,7 @@
 package com.sprintsync.api.entity;
 
 import com.sprintsync.api.entity.enums.SprintStatus;
+import com.sprintsync.api.entity.converter.SprintStatusConverter;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -29,7 +30,7 @@ public class Sprint extends BaseEntity {
     private String goal;
 
     @NotNull(message = "Sprint status cannot be null")
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = SprintStatusConverter.class)
     @Column(name = "status", nullable = false)
     private SprintStatus status;
 
@@ -45,7 +46,8 @@ public class Sprint extends BaseEntity {
     @Column(name = "velocity_points")
     private Integer velocityPoints;
 
-    @Column(name = "is_active", nullable = false)
+    // TODO: Add is_active column to database - temporarily returning true without database column
+    @Transient
     private Boolean isActive = true;
 
     // Constructors

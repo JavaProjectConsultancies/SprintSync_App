@@ -427,4 +427,30 @@ public class ReleaseService {
         
         return stats;
     }
+
+    /**
+     * Create multiple releases for a project in batch.
+     * 
+     * @param projectId the project ID
+     * @param releases list of releases to create
+     * @return list of created releases
+     */
+    public List<Release> createReleasesBatch(String projectId, List<Release> releases) {
+        if (releases == null || releases.isEmpty()) {
+            throw new IllegalArgumentException("Releases list cannot be null or empty");
+        }
+
+        // Set project ID and default values for each release
+        for (Release release : releases) {
+            release.setProjectId(projectId);
+            if (release.getProgress() == null) {
+                release.setProgress(0);
+            }
+            if (release.getStatus() == null) {
+                release.setStatus(ReleaseStatus.PLANNING);
+            }
+        }
+
+        return releaseRepository.saveAll(releases);
+    }
 }

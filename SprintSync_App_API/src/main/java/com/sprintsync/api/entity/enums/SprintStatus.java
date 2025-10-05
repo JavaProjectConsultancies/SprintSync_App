@@ -21,4 +21,13 @@ public enum SprintStatus {
     public String getValue() {
         return value;
     }
+
+    public static SprintStatus fromValue(String value) {
+        for (SprintStatus status : SprintStatus.values()) {
+            if (status.value.equalsIgnoreCase(value)) {
+                return status;
+            }
+        }
+        throw new IllegalArgumentException("Unknown sprint status: " + value);
+    }
 }

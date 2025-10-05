@@ -27,4 +27,13 @@ public enum ProjectStatus {
     public String toString() {
         return value;
     }
+
+    public static ProjectStatus fromValue(String value) {
+        for (ProjectStatus status : ProjectStatus.values()) {
+            if (status.value.equalsIgnoreCase(value)) {
+                return status;
+            }
+        }
+        throw new IllegalArgumentException("Unknown project status: " + value);
+    }
 }

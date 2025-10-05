@@ -26,4 +26,13 @@ public enum Priority {
     public String toString() {
         return value;
     }
+
+    public static Priority fromValue(String value) {
+        for (Priority priority : Priority.values()) {
+            if (priority.value.equalsIgnoreCase(value)) {
+                return priority;
+            }
+        }
+        throw new IllegalArgumentException("Unknown priority: " + value);
+    }
 }

@@ -1,9 +1,11 @@
 package com.sprintsync.api.controller;
 
+import com.sprintsync.api.dto.ProjectDto;
 import com.sprintsync.api.entity.Project;
 import com.sprintsync.api.entity.enums.Priority;
 import com.sprintsync.api.entity.enums.ProjectStatus;
 import com.sprintsync.api.service.ProjectService;
+import com.sprintsync.api.service.ProjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -11,8 +13,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * REST Controller for Project entity operations.
@@ -26,10 +31,12 @@ import java.util.Optional;
 public class ProjectController {
 
     private final ProjectService projectService;
+    private final ProjectMapper projectMapper;
 
     @Autowired
-    public ProjectController(ProjectService projectService) {
+    public ProjectController(ProjectService projectService, ProjectMapper projectMapper) {
         this.projectService = projectService;
+        this.projectMapper = projectMapper;
     }
 
     /**
@@ -52,12 +59,12 @@ public class ProjectController {
      * Get project by ID.
      * 
      * @param id the project ID
-     * @return ResponseEntity containing the project if found
+     * @return ResponseEntity containing the project DTO if found
      */
     @GetMapping("/{id}")
-    public ResponseEntity<Project> getProjectById(@PathVariable String id) {
+    public ResponseEntity<ProjectDto> getProjectById(@PathVariable String id) {
         Optional<Project> project = projectService.findById(id);
-        return project.map(ResponseEntity::ok)
+        return project.map(p -> ResponseEntity.ok(projectMapper.toDto(p)))
                      .orElse(ResponseEntity.notFound().build());
     }
 
@@ -68,17 +75,33 @@ public class ProjectController {
      * @param size page size (default: 10)
      * @param sortBy sort field (default: name)
      * @param sortDir sort direction (default: asc)
-     * @return ResponseEntity containing page of projects
+     * @return ResponseEntity containing page of project DTOs
      */
     @GetMapping
-    public ResponseEntity<org.springframework.data.domain.Page<Project>> getAllProjects(
+    public ResponseEntity<Map<String, Object>> getAllProjects(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "name") String sortBy,
             @RequestParam(defaultValue = "asc") String sortDir) {
         
         org.springframework.data.domain.Page<Project> projects = projectService.getAllProjects(page, size, sortBy, sortDir);
-        return ResponseEntity.ok(projects);
+        
+        // Convert to DTOs
+        org.springframework.data.domain.Page<ProjectDto> projectDtos = projects.map(projectMapper::toDto);
+        
+        // Return in frontend-compatible format
+        Map<String, Object> response = new HashMap<>();
+        response.put("content", projectDtos.getContent());
+        response.put("totalElements", projectDtos.getTotalElements());
+        response.put("totalPages", projectDtos.getTotalPages());
+        response.put("size", projectDtos.getSize());
+        response.put("number", projectDtos.getNumber());
+        response.put("first", projectDtos.isFirst());
+        response.put("last", projectDtos.isLast());
+        response.put("numberOfElements", projectDtos.getNumberOfElements());
+        response.put("empty", projectDtos.isEmpty());
+        
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -87,9 +110,27 @@ public class ProjectController {
      * @return ResponseEntity containing list of all projects
      */
     @GetMapping("/all")
-    public ResponseEntity<List<Project>> getAllProjectsList() {
+    public ResponseEntity<Map<String, Object>> getAllProjectsList() {
         List<Project> projects = projectService.getAllProjects();
-        return ResponseEntity.ok(projects);
+        
+        // Convert to DTOs
+        List<ProjectDto> projectDtos = projects.stream()
+                .map(projectMapper::toDto)
+                .collect(Collectors.toList());
+        
+        // Return in frontend-compatible format
+        Map<String, Object> response = new HashMap<>();
+        response.put("content", projectDtos);
+        response.put("totalElements", (long) projectDtos.size());
+        response.put("totalPages", 1);
+        response.put("size", projectDtos.size());
+        response.put("number", 0);
+        response.put("first", true);
+        response.put("last", true);
+        response.put("numberOfElements", projectDtos.size());
+        response.put("empty", projectDtos.isEmpty());
+        
+        return ResponseEntity.ok(response);
     }
 
     /**

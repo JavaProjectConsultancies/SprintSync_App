@@ -558,4 +558,24 @@ public class EpicController {
                     .body(Map.of("error", "Failed to retrieve epic statistics: " + e.getMessage()));
         }
     }
+
+    /**
+     * Create multiple epics for a project in batch.
+     * 
+     * @param projectId the project ID
+     * @param epics list of epics to create
+     * @return ResponseEntity containing list of created epics
+     */
+    @PostMapping("/project/{projectId}/batch")
+    public ResponseEntity<?> createEpicsBatch(@PathVariable String projectId, @Valid @RequestBody List<Epic> epics) {
+        try {
+            List<Epic> createdEpics = epicService.createEpicsBatch(projectId, epics);
+            return ResponseEntity.status(HttpStatus.CREATED).body(createdEpics);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to create epics batch: " + e.getMessage()));
+        }
+    }
 }

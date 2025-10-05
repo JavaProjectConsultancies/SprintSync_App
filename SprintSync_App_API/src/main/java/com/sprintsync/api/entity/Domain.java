@@ -20,7 +20,8 @@ public class Domain extends BaseEntity {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "is_active", nullable = false)
+    // TODO: Add is_active column to database - temporarily returning true without database column
+    @Transient
     private Boolean isActive = true;
 
     // Constructors

@@ -23,4 +23,13 @@ public enum TaskStatus {
     public String getValue() {
         return value;
     }
+
+    public static TaskStatus fromValue(String value) {
+        for (TaskStatus status : TaskStatus.values()) {
+            if (status.value.equalsIgnoreCase(value)) {
+                return status;
+            }
+        }
+        throw new IllegalArgumentException("Unknown task status: " + value);
+    }
 }
