@@ -21,4 +21,13 @@ public enum StoryPriority {
     public String getValue() {
         return value;
     }
+
+    public static StoryPriority fromValue(String value) {
+        for (StoryPriority priority : StoryPriority.values()) {
+            if (priority.value.equalsIgnoreCase(value)) {
+                return priority;
+            }
+        }
+        throw new IllegalArgumentException("Unknown story priority: " + value);
+    }
 }

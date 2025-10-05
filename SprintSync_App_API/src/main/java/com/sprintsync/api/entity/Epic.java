@@ -2,6 +2,8 @@ package com.sprintsync.api.entity;
 
 import com.sprintsync.api.entity.enums.EpicStatus;
 import com.sprintsync.api.entity.enums.Priority;
+import com.sprintsync.api.entity.converter.EpicStatusConverter;
+import com.sprintsync.api.entity.converter.PriorityConverter;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -39,12 +41,12 @@ public class Epic extends BaseEntity {
     private String summary;
 
     @NotNull(message = "Priority cannot be null")
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = PriorityConverter.class)
     @Column(name = "priority", nullable = false)
     private Priority priority;
 
     @NotNull(message = "Status cannot be null")
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = EpicStatusConverter.class)
     @Column(name = "status", nullable = false)
     private EpicStatus status;
 

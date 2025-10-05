@@ -2,6 +2,8 @@ package com.sprintsync.api.entity;
 
 import com.sprintsync.api.entity.enums.Priority;
 import com.sprintsync.api.entity.enums.TaskStatus;
+import com.sprintsync.api.entity.converter.PriorityConverter;
+import com.sprintsync.api.entity.converter.TaskStatusConverter;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -34,12 +36,12 @@ public class Task extends BaseEntity {
     private String description;
 
     @NotNull(message = "Task status cannot be null")
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = TaskStatusConverter.class)
     @Column(name = "status", nullable = false)
     private TaskStatus status;
 
     @NotNull(message = "Task priority cannot be null")
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = PriorityConverter.class)
     @Column(name = "priority", nullable = false)
     private Priority priority;
 

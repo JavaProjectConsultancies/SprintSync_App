@@ -35,7 +35,7 @@ public class Milestone extends BaseEntity {
     @Column(name = "due_date")
     private LocalDate dueDate;
 
-    @Column(name = "completed", nullable = false)
+    @Transient
     private Boolean completed = false;
 
     @Min(value = 0, message = "Progress percentage cannot be less than 0")

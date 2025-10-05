@@ -1,6 +1,7 @@
 package com.sprintsync.api.entity;
 
 import com.sprintsync.api.entity.enums.ReleaseStatus;
+import com.sprintsync.api.entity.converter.ReleaseStatusConverter;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -32,9 +33,9 @@ public class Release extends BaseEntity {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    @Enumerated(EnumType.STRING)
+    @NotNull(message = "Release status cannot be null")
+    @Convert(converter = ReleaseStatusConverter.class)
     @Column(name = "status", nullable = false)
-    @NotNull
     private ReleaseStatus status;
 
     @Column(name = "release_date")

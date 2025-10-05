@@ -28,4 +28,13 @@ public enum EpicStatus {
     public String toString() {
         return value;
     }
+
+    public static EpicStatus fromValue(String value) {
+        for (EpicStatus status : EpicStatus.values()) {
+            if (status.value.equalsIgnoreCase(value)) {
+                return status;
+            }
+        }
+        throw new IllegalArgumentException("Unknown epic status: " + value);
+    }
 }

@@ -29,4 +29,13 @@ public enum ReleaseStatus {
     public String toString() {
         return value;
     }
+
+    public static ReleaseStatus fromValue(String value) {
+        for (ReleaseStatus status : ReleaseStatus.values()) {
+            if (status.value.equalsIgnoreCase(value)) {
+                return status;
+            }
+        }
+        throw new IllegalArgumentException("Unknown release status: " + value);
+    }
 }

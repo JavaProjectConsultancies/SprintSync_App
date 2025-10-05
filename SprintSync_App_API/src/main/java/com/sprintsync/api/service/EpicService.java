@@ -422,4 +422,39 @@ public class EpicService {
         
         return stats;
     }
+
+    /**
+     * Create multiple epics for a project in batch.
+     * 
+     * @param projectId the project ID
+     * @param epics list of epics to create
+     * @return list of created epics
+     */
+    public List<Epic> createEpicsBatch(String projectId, List<Epic> epics) {
+        if (epics == null || epics.isEmpty()) {
+            throw new IllegalArgumentException("Epics list cannot be null or empty");
+        }
+
+        // Set project ID and default values for each epic
+        for (Epic epic : epics) {
+            epic.setProjectId(projectId);
+            if (epic.getProgress() == null) {
+                epic.setProgress(0);
+            }
+            if (epic.getStoryPoints() == null) {
+                epic.setStoryPoints(0);
+            }
+            if (epic.getCompletedStoryPoints() == null) {
+                epic.setCompletedStoryPoints(0);
+            }
+            if (epic.getStatus() == null) {
+                epic.setStatus(EpicStatus.DRAFT);
+            }
+            if (epic.getPriority() == null) {
+                epic.setPriority(Priority.MEDIUM);
+            }
+        }
+
+        return epicRepository.saveAll(epics);
+    }
 }

@@ -1,8 +1,9 @@
 package com.sprintsync.api.entity;
 
-import com.sprintsync.api.entity.enums.Priority;
 import com.sprintsync.api.entity.enums.StoryPriority;
+import com.sprintsync.api.entity.converter.StoryPriorityConverter;
 import com.sprintsync.api.entity.enums.StoryStatus;
+import com.sprintsync.api.entity.converter.StoryStatusConverter;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -46,12 +47,12 @@ public class Story extends BaseEntity {
     private java.util.List<String> acceptanceCriteria;
 
     @NotNull(message = "Story status cannot be null")
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = StoryStatusConverter.class)
     @Column(name = "status", nullable = false)
     private StoryStatus status;
 
     @NotNull(message = "Story priority cannot be null")
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = StoryPriorityConverter.class)
     @Column(name = "priority", nullable = false)
     private StoryPriority priority;
 

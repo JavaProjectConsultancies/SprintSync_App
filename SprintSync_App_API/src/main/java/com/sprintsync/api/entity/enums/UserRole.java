@@ -7,10 +7,10 @@ package com.sprintsync.api.entity.enums;
  * @author Mayuresh G
  */
 public enum UserRole {
-    ADMIN("admin"),
-    MANAGER("manager"),
-    DEVELOPER("developer"),
-    DESIGNER("designer");
+    admin("admin"),
+    manager("manager"),
+    developer("developer"),
+    designer("designer");
 
     private final String value;
 

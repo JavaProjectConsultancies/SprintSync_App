@@ -562,4 +562,24 @@ public class ReleaseController {
                     .body(Map.of("error", "Failed to retrieve release statistics: " + e.getMessage()));
         }
     }
+
+    /**
+     * Create multiple releases for a project in batch.
+     * 
+     * @param projectId the project ID
+     * @param releases list of releases to create
+     * @return ResponseEntity containing list of created releases
+     */
+    @PostMapping("/project/{projectId}/batch")
+    public ResponseEntity<?> createReleasesBatch(@PathVariable String projectId, @Valid @RequestBody List<Release> releases) {
+        try {
+            List<Release> createdReleases = releaseService.createReleasesBatch(projectId, releases);
+            return ResponseEntity.status(HttpStatus.CREATED).body(createdReleases);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to create releases batch: " + e.getMessage()));
+        }
+    }
 }
