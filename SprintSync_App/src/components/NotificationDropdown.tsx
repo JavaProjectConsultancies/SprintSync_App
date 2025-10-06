@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContextEnhanced';
 import { useNavigation } from '../contexts/NavigationContext';
 import {
   DropdownMenu,

@@ -13,7 +13,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Switch } from '../components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { ScrollArea } from '../components/ui/scroll-area';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContextEnhanced';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import AddStoryDialog from '../components/AddStoryDialog';

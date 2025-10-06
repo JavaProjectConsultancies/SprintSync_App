@@ -1,5 +1,5 @@
 import React from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContextEnhanced';
 import { useNavigation } from '../contexts/NavigationContext';
 import {
   Sidebar,
@@ -43,7 +43,10 @@ import {
   Shield,
   Palette,
   Code,
-  CheckSquare
+  CheckSquare,
+  Plug,
+  Activity,
+  TestTube
 } from 'lucide-react';
 import sprintSyncLogo from 'figma:asset/aadf192e83d08c7cc03896c06b452017e84d04aa.png';
 
@@ -87,6 +90,15 @@ const AppSidebar: React.FC = () => {
         { title: 'Reports', icon: BarChart3, permission: 'view_analytics', id: 'reports' },
       ]
     },
+    // {
+    //   title: 'API INTEGRATION',
+    //   icon: Plug,
+    //   children: [
+    //     { title: 'API Demo', icon: Plug, id: 'api-demo' },
+    //     { title: 'API Status', icon: Activity, id: 'api-status' },
+    //     { title: 'API Test', icon: TestTube, id: 'api-test' },
+    //   ]
+    // },
     {
       title: 'ACCOUNT',
       icon: User,
@@ -130,6 +142,15 @@ const AppSidebar: React.FC = () => {
             { title: 'Reports', icon: BarChart3, id: 'reports' },
           ]
         },
+        // {
+        //   title: 'API INTEGRATION',
+        //   icon: Plug,
+        //   children: [
+        //     { title: 'API Demo', icon: Plug, id: 'api-demo' },
+        //     { title: 'API Status', icon: Activity, id: 'api-status' },
+        //     { title: 'API Test', icon: TestTube, id: 'api-test' },
+        //   ]
+        // },
         {
           title: 'ACCOUNT',
           icon: User,
