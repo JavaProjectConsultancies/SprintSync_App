@@ -1,8 +1,14 @@
 package com.sprintsync.api.service;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import com.sprintsync.api.repository.ProjectRepository;
+import com.sprintsync.api.repository.UserRepository;
+import com.sprintsync.api.repository.DepartmentRepository;
+import com.sprintsync.api.repository.DomainRepository;
 
 import java.util.UUID;
+import java.util.Optional;
 
 /**
  * Service for generating custom IDs according to SprintSync conventions.
@@ -14,6 +20,18 @@ import java.util.UUID;
  */
 @Service
 public class IdGenerationService {
+
+    @Autowired
+    private ProjectRepository projectRepository;
+    
+    @Autowired
+    private UserRepository userRepository;
+    
+    @Autowired
+    private DepartmentRepository departmentRepository;
+    
+    @Autowired
+    private DomainRepository domainRepository;
 
     // Master table prefixes
     private static final String DEPARTMENTS_PREFIX = "DEPT";
@@ -45,18 +63,81 @@ public class IdGenerationService {
     private static final String REPORTS_PREFIX = "REPT";
     private static final String PROJECT_INTEGRATIONS_PREFIX = "PRIN";
 
-    // Counter for master table IDs (in a real application, this would be stored in database)
-    private static final java.util.concurrent.atomic.AtomicLong deptCounter = new java.util.concurrent.atomic.AtomicLong(1);
-    private static final java.util.concurrent.atomic.AtomicLong domnCounter = new java.util.concurrent.atomic.AtomicLong(1);
-    private static final java.util.concurrent.atomic.AtomicLong userCounter = new java.util.concurrent.atomic.AtomicLong(1);
-    private static final java.util.concurrent.atomic.AtomicLong projCounter = new java.util.concurrent.atomic.AtomicLong(1);
-    private static final java.util.concurrent.atomic.AtomicLong epicCounter = new java.util.concurrent.atomic.AtomicLong(1);
-    private static final java.util.concurrent.atomic.AtomicLong relsCounter = new java.util.concurrent.atomic.AtomicLong(1);
-    private static final java.util.concurrent.atomic.AtomicLong mileCounter = new java.util.concurrent.atomic.AtomicLong(1);
-    private static final java.util.concurrent.atomic.AtomicLong requCounter = new java.util.concurrent.atomic.AtomicLong(1);
-    private static final java.util.concurrent.atomic.AtomicLong stakeCounter = new java.util.concurrent.atomic.AtomicLong(1);
-    private static final java.util.concurrent.atomic.AtomicLong riskCounter = new java.util.concurrent.atomic.AtomicLong(1);
-    private static final java.util.concurrent.atomic.AtomicLong avinCounter = new java.util.concurrent.atomic.AtomicLong(1);
+    /**
+     * Get the next available ID number for projects by finding the highest existing ID
+     * 
+     * @return The next available number
+     */
+    private Long getNextProjectNumber() {
+        try {
+            Optional<String> maxId = projectRepository.findMaxId();
+            if (maxId.isPresent() && maxId.get().startsWith(PROJECTS_PREFIX)) {
+                String numericPart = maxId.get().substring(4); // Remove "PROJ" prefix
+                Long currentMax = Long.parseLong(numericPart);
+                return currentMax + 1;
+            }
+            return 1L;
+        } catch (Exception e) {
+            return 1L;
+        }
+    }
+
+    /**
+     * Get the next available ID number for users by finding the highest existing ID
+     * 
+     * @return The next available number
+     */
+    private Long getNextUserNumber() {
+        try {
+            Optional<String> maxId = userRepository.findMaxId();
+            if (maxId.isPresent() && maxId.get().startsWith(USERS_PREFIX)) {
+                String numericPart = maxId.get().substring(4); // Remove "USER" prefix
+                Long currentMax = Long.parseLong(numericPart);
+                return currentMax + 1;
+            }
+            return 1L;
+        } catch (Exception e) {
+            return 1L;
+        }
+    }
+
+    /**
+     * Get the next available ID number for departments by finding the highest existing ID
+     * 
+     * @return The next available number
+     */
+    private Long getNextDepartmentNumber() {
+        try {
+            Optional<String> maxId = departmentRepository.findMaxId();
+            if (maxId.isPresent() && maxId.get().startsWith(DEPARTMENTS_PREFIX)) {
+                String numericPart = maxId.get().substring(4); // Remove "DEPT" prefix
+                Long currentMax = Long.parseLong(numericPart);
+                return currentMax + 1;
+            }
+            return 1L;
+        } catch (Exception e) {
+            return 1L;
+        }
+    }
+
+    /**
+     * Get the next available ID number for domains by finding the highest existing ID
+     * 
+     * @return The next available number
+     */
+    private Long getNextDomainNumber() {
+        try {
+            Optional<String> maxId = domainRepository.findMaxId();
+            if (maxId.isPresent() && maxId.get().startsWith(DOMAINS_PREFIX)) {
+                String numericPart = maxId.get().substring(4); // Remove "DOMN" prefix
+                Long currentMax = Long.parseLong(numericPart);
+                return currentMax + 1;
+            }
+            return 1L;
+        } catch (Exception e) {
+            return 1L;
+        }
+    }
 
     /**
      * Generate a master table ID with format: PREFIX + 12 zeros + increment
@@ -83,21 +164,38 @@ public class IdGenerationService {
     }
 
     // Master table ID generation methods
-    public String generateDepartmentId() {
-        return generateMasterTableId(DEPARTMENTS_PREFIX, deptCounter);
-    }
-
-    public String generateDomainId() {
-        return generateMasterTableId(DOMAINS_PREFIX, domnCounter);
+    public String generateProjectId() {
+        Long nextNumber = getNextProjectNumber();
+        String paddedValue = String.format("%012d", nextNumber);
+        return PROJECTS_PREFIX + paddedValue;
     }
 
     public String generateUserId() {
-        return generateMasterTableId(USERS_PREFIX, userCounter);
+        Long nextNumber = getNextUserNumber();
+        String paddedValue = String.format("%012d", nextNumber);
+        return USERS_PREFIX + paddedValue;
     }
 
-    public String generateProjectId() {
-        return generateMasterTableId(PROJECTS_PREFIX, projCounter);
+    public String generateDepartmentId() {
+        Long nextNumber = getNextDepartmentNumber();
+        String paddedValue = String.format("%012d", nextNumber);
+        return DEPARTMENTS_PREFIX + paddedValue;
     }
+
+    public String generateDomainId() {
+        Long nextNumber = getNextDomainNumber();
+        String paddedValue = String.format("%012d", nextNumber);
+        return DOMAINS_PREFIX + paddedValue;
+    }
+
+    // For other entities, we'll use static counters for now (can be improved later)
+    private static final java.util.concurrent.atomic.AtomicLong epicCounter = new java.util.concurrent.atomic.AtomicLong(1);
+    private static final java.util.concurrent.atomic.AtomicLong relsCounter = new java.util.concurrent.atomic.AtomicLong(1);
+    private static final java.util.concurrent.atomic.AtomicLong mileCounter = new java.util.concurrent.atomic.AtomicLong(1);
+    private static final java.util.concurrent.atomic.AtomicLong requCounter = new java.util.concurrent.atomic.AtomicLong(1);
+    private static final java.util.concurrent.atomic.AtomicLong stakeCounter = new java.util.concurrent.atomic.AtomicLong(1);
+    private static final java.util.concurrent.atomic.AtomicLong riskCounter = new java.util.concurrent.atomic.AtomicLong(1);
+    private static final java.util.concurrent.atomic.AtomicLong avinCounter = new java.util.concurrent.atomic.AtomicLong(1);
 
     public String generateEpicId() {
         return generateMasterTableId(EPICS_PREFIX, epicCounter);

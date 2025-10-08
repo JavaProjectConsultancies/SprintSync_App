@@ -47,22 +47,22 @@ public class Release extends BaseEntity {
     @Column(name = "progress", nullable = false)
     private Integer progress = 0;
 
-    @Column(name = "linked_epics", columnDefinition = "jsonb")
+    @Column(name = "linked_epics", columnDefinition = "TEXT")
     private String linkedEpics;
 
-    @Column(name = "linked_stories", columnDefinition = "jsonb")
+    @Column(name = "linked_stories", columnDefinition = "TEXT")
     private String linkedStories;
 
-    @Column(name = "linked_sprints", columnDefinition = "jsonb")
+    @Column(name = "linked_sprints", columnDefinition = "TEXT")
     private String linkedSprints;
 
     @Column(name = "release_notes", columnDefinition = "TEXT")
     private String releaseNotes;
 
-    @Column(name = "risks", columnDefinition = "jsonb")
+    @Column(name = "risks", columnDefinition = "TEXT")
     private String risks;
 
-    @Column(name = "dependencies", columnDefinition = "jsonb")
+    @Column(name = "dependencies", columnDefinition = "TEXT")
     private String dependencies;
 
     @Column(name = "created_by", nullable = false)

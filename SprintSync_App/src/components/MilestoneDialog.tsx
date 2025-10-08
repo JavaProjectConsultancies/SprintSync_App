@@ -6,6 +6,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
+import { useUsers } from '../hooks/api/useUsers';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -40,14 +41,14 @@ interface MilestoneDialogProps {
   availableEpics?: Epic[];
 }
 
-const MilestoneDialog: React.FC<MilestoneDialogProps> = ({
+const MilestoneDialog = ({
   open,
   onOpenChange,
   milestone,
   projectId,
   onSave,
   availableEpics = []
-}) => {
+}: MilestoneDialogProps) => {
   const [formData, setFormData] = useState<Partial<Milestone>>({
     name: '',
     description: '',
@@ -64,14 +65,8 @@ const MilestoneDialog: React.FC<MilestoneDialogProps> = ({
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [newDeliverable, setNewDeliverable] = useState('');
 
-  // Mock team members - in real app, this would come from project context
-  const teamMembers = [
-    { id: 'user1', name: 'Arjun Patel', role: 'Developer', avatar: '' },
-    { id: 'user2', name: 'Priya Sharma', role: 'Designer', avatar: '' },
-    { id: 'user3', name: 'Rahul Kumar', role: 'Manager', avatar: '' },
-    { id: 'user4', name: 'Sneha Reddy', role: 'Developer', avatar: '' },
-    { id: 'user5', name: 'Vikram Singh', role: 'QA', avatar: '' }
-  ];
+  // Get real team members from API
+  const { data: apiUsers, loading: usersLoading } = useUsers();
 
   useEffect(() => {
     if (milestone) {
@@ -393,22 +388,28 @@ const MilestoneDialog: React.FC<MilestoneDialogProps> = ({
                       <SelectValue placeholder="Assign owner" />
                     </SelectTrigger>
                     <SelectContent>
-                      {teamMembers.map((member) => (
-                        <SelectItem key={member.id} value={member.id}>
-                          <div className="flex items-center space-x-2">
-                            <Avatar className="w-6 h-6">
-                              <AvatarImage src={member.avatar} alt={member.name} />
-                              <AvatarFallback className="text-xs bg-gradient-to-br from-green-100 to-cyan-100">
-                                {getInitials(member.name)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <span className="font-medium">{member.name}</span>
-                              <span className="text-xs text-muted-foreground ml-1">({member.role})</span>
+                      {apiUsers && apiUsers.length > 0 ? (
+                        apiUsers.map((user) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            <div className="flex items-center space-x-2">
+                              <Avatar className="w-6 h-6">
+                                <AvatarImage src={user.avatarUrl || ''} alt={user.name} />
+                                <AvatarFallback className="text-xs bg-gradient-to-br from-green-100 to-cyan-100">
+                                  {getInitials(user.name)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <span className="font-medium">{user.name}</span>
+                                <span className="text-xs text-muted-foreground ml-1">({user.role || 'User'})</span>
+                              </div>
                             </div>
-                          </div>
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="no-users" disabled>
+                          {usersLoading ? 'Loading users...' : 'No users available'}
                         </SelectItem>
-                      ))}
+                      )}
                     </SelectContent>
                   </Select>
                 </div>

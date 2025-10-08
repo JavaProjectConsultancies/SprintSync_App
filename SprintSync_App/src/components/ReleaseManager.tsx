@@ -28,7 +28,6 @@ import {
   Package
 } from 'lucide-react';
 import { Release, ReleaseStatus } from '../types';
-import { mockReleases, getReleaseStatusColor, getQualityGateStatusColor } from '../data/mockReleases';
 
 interface ReleaseManagerProps {
   releases: Release[];
@@ -185,9 +184,9 @@ const ReleaseManager: React.FC<ReleaseManagerProps> = ({
                   className="h-2"
                 />
                 <div className="flex justify-between text-xs text-gray-500">
-                  <span>{release.linkedStories.length} stories</span>
-                  <span>{release.linkedEpics.length} epics</span>
-                  <span>{release.linkedSprints.length} sprints</span>
+                  <span>{release.linkedStories?.length || 0} stories</span>
+                  <span>{release.linkedEpics?.length || 0} epics</span>
+                  <span>{release.linkedSprints?.length || 0} sprints</span>
                 </div>
               </div>
 

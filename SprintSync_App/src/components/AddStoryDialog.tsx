@@ -551,7 +551,7 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
                             <p className="text-sm text-gray-600 line-clamp-2">{selectedEpic.summary}</p>
                             <div className="flex items-center space-x-4 text-xs text-gray-500">
                               <span>{selectedEpic.storyPoints} story points</span>
-                              <span>{selectedEpic.linkedStories.length} stories</span>
+                              <span>{selectedEpic.linkedStories?.length || 0} stories</span>
                               <span>{selectedEpic.progress}% complete</span>
                             </div>
                           </div>

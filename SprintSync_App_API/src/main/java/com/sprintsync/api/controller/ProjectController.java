@@ -1,6 +1,8 @@
 package com.sprintsync.api.controller;
 
 import com.sprintsync.api.dto.ProjectDto;
+import com.sprintsync.api.dto.CreateProjectRequest;
+import com.sprintsync.api.dto.CreateProjectResponse;
 import com.sprintsync.api.entity.Project;
 import com.sprintsync.api.entity.enums.Priority;
 import com.sprintsync.api.entity.enums.ProjectStatus;
@@ -11,6 +13,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -52,6 +55,29 @@ public class ProjectController {
             return ResponseEntity.status(HttpStatus.CREATED).body(createdProject);
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * Create a new project with all related entities in a single request.
+     * 
+     * @param request the comprehensive project creation request
+     * @return ResponseEntity containing the comprehensive project creation response
+     */
+    @PostMapping("/comprehensive")
+    public ResponseEntity<CreateProjectResponse> createProjectComprehensive(@RequestBody CreateProjectRequest request) {
+        try {
+            CreateProjectResponse response = projectService.createProjectWithRelatedEntities(request);
+            if (response.isSuccess()) {
+                return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            } else {
+                return ResponseEntity.badRequest().body(response);
+            }
+        } catch (Exception e) {
+            CreateProjectResponse errorResponse = new CreateProjectResponse();
+            errorResponse.setSuccess(false);
+            errorResponse.setMessage("Failed to create project: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
 

@@ -19,6 +19,11 @@ export class ProjectApiService {
     return apiClient.post<Project>(API_ENDPOINTS.PROJECTS, project);
   }
 
+  // Create new project with all related entities
+  async createProjectComprehensive(projectData: any): Promise<ApiResponse<any>> {
+    return apiClient.post<any>(`${API_ENDPOINTS.PROJECTS}/comprehensive`, projectData);
+  }
+
   // Update project
   async updateProject(id: string, project: Partial<Project>): Promise<ApiResponse<Project>> {
     return apiClient.put<Project>(`${API_ENDPOINTS.PROJECTS}/${id}`, project);

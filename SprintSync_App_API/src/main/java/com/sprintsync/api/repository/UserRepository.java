@@ -151,4 +151,13 @@ public interface UserRepository extends JpaRepository<User, String> {
      */
     @Query("SELECT COUNT(u) FROM User u WHERE u.role = :role AND u.isActive = true")
     long countByRole(@Param("role") UserRole role);
+
+    /**
+     * Find the maximum ID in the users table.
+     * Used for generating the next available user ID.
+     * 
+     * @return the maximum ID as an optional string
+     */
+    @Query("SELECT MAX(u.id) FROM User u")
+    Optional<String> findMaxId();
 }
