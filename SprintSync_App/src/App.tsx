@@ -1,12 +1,14 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContextEnhanced';
+import LoginForm from './components/LoginForm';
 import { NavigationProvider, useNavigation } from './contexts/NavigationContext';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from './components/ui/sidebar';
 import { Separator } from './components/ui/separator';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from './components/ui/breadcrumb';
 import { Button } from './components/ui/button';
 import { Badge } from './components/ui/badge';
+import { Alert, AlertDescription } from './components/ui/alert';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import AppSidebar from './components/AppSidebar';
@@ -17,6 +19,7 @@ import sprintSyncLogo from 'figma:asset/aadf192e83d08c7cc03896c06b452017e84d04aa
 
 // Import page components
 import ProjectsPage from './pages/ProjectsPage';
+import ProjectDetailsPage from './pages/ProjectDetailsPage';
 import BacklogPage from './pages/BacklogPage';
 import ScrumPage from './pages/ScrumPage';
 import TimeTrackingPage from './pages/TimeTrackingPage';
@@ -26,6 +29,11 @@ import ReportsPage from './pages/ReportsPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPanelPage from './pages/AdminPanelPage';
 import TodoListPage from './pages/TodoListPage';
+
+// Import API integration components
+// import ApiIntegrationDemo from './components/ApiIntegrationDemo';
+// import ApiStatusChecker from './components/ApiStatusChecker';
+// import ApiTestComponent from './components/ApiTestComponent';
 
 // Route Protection Component
 const ProtectedRoute: React.FC<{ 
@@ -51,7 +59,7 @@ const ProtectedRoute: React.FC<{
 };
 
 const AppContent: React.FC = () => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, loginError, setAuthState } = useAuth();
   const { navigationState, navigateTo } = useNavigation();
   const location = useLocation();
   const navigate = useNavigate();
@@ -68,7 +76,10 @@ const AppContent: React.FC = () => {
       '/reports': { title: 'Reports', description: 'Performance metrics and analytics', icon: '📈' },
       '/profile': { title: 'Profile', description: 'Your account settings', icon: '👤' },
       '/admin-panel': { title: 'Admin Panel', description: 'System administration', icon: '⚙️' },
-      '/todo-list': { title: 'Todo List', description: 'Personal task management', icon: '✅' }
+      '/todo-list': { title: 'Todo List', description: 'Personal task management', icon: '✅' },
+      // '/api-demo': { title: 'API Demo', description: 'Interactive API integration showcase', icon: '🔌' },
+      // '/api-status': { title: 'API Status', description: 'Monitor API health and connectivity', icon: '📡' },
+      // '/api-test': { title: 'API Test', description: 'Test and validate API endpoints', icon: '🧪' }
     };
     
     const routeInfo = routes[path] || routes['/'];
@@ -133,10 +144,52 @@ const AppContent: React.FC = () => {
   }
 
   if (!user) {
-    return <Login />;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-white to-cyan-50">
+        <div className="w-full max-w-md p-6">
+          <div className="text-center mb-8">
+            <div className="flex justify-center mb-4">
+              <img 
+                src={sprintSyncLogo} 
+                alt="SprintSync" 
+                className="w-16 h-16 object-contain"
+              />
+            </div>
+            <h1 className="text-2xl font-bold text-green-600">SprintSync</h1>
+            <p className="text-muted-foreground">Your Agile Project Management Solution</p>
+          </div>
+          
+          <LoginForm
+            onLoginSuccess={(token, userData) => {
+              console.log('Login successful from LoginForm - Token:', token);
+              console.log('Login successful from LoginForm - User:', userData);
+              
+              // Directly set the auth state with the received data
+              setAuthState(token, userData);
+              console.log('Auth state updated successfully');
+            }}
+            onLoginError={(error) => {
+              console.error('Login failed from LoginForm:', error);
+              // The AuthContext will handle the error state
+            }}
+            isLoading={isLoading}
+          />
+          
+          {loginError && (
+            <div className="mt-4">
+              <Alert className="border-red-200 bg-red-50">
+                <AlertDescription className="text-red-800">
+                  {loginError}
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
+        </div>
+      </div>
+    );
   }
 
-  const firstName = user.name.split(' ')[0];
+  const firstName = user?.name?.split(' ')[0] || 'User';
   const pageInfo = getPageInfo(location.pathname);
 
   // Get role color for badges
@@ -297,6 +350,7 @@ const AppContent: React.FC = () => {
                   
                   {/* Projects - accessible by all roles */}
                   <Route path="/projects" element={<ProjectsPage />} />
+                  <Route path="/projects/:id" element={<ProjectDetailsPage />} />
                   
                   {/* Backlog - accessible by all roles */}
                   <Route path="/backlog" element={<BacklogPage />} />
@@ -348,6 +402,15 @@ const AppContent: React.FC = () => {
                       <TodoListPage />
                     </ProtectedRoute>
                   } />
+                  
+                  {/* API Demo - accessible by all roles */}
+                  {/* <Route path="/api-demo" element={<ApiIntegrationDemo />} /> */}
+                  
+                  {/* API Status - accessible by all roles */}
+                  {/* <Route path="/api-status" element={<ApiStatusChecker />} /> */}
+                  
+                  {/* API Test - accessible by all roles */}
+                  {/* <Route path="/api-test" element={<ApiTestComponent />} /> */}
                   
                   {/* Catch-all route for preview and other unmatched paths */}
                   <Route path="*" element={<Dashboard />} />

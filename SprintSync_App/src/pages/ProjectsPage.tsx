@@ -56,12 +56,15 @@ import MilestoneDialog from '../components/MilestoneDialog';
 import EpicManager from '../components/EpicManager';
 import { mockEpics } from '../data/mockEpics';
 import MilestoneTimeline from '../components/MilestoneTimeline';
-import { mockMilestones } from '../data/mockData';
+// Removed mock milestones import - using API data only
 import { Milestone } from '../types';
 import ReleaseManager from '../components/ReleaseManager';
 import { mockReleases } from '../data/mockReleases';
-import { useAuth } from '../contexts/AuthContext';
-import { mockProjects } from '../data/mockData';
+import { useAuth } from '../contexts/AuthContextEnhanced';
+// Removed mock data import - using API data only
+import { useProjects, useUsers, useDepartments, useDomains, useEpics, useReleases, useSprints, useStories, useTasks } from '../hooks/api';
+import { apiClient } from '../services/api/client';
+import { projectApiService } from '../services/api/entities/projectApi';
 
 interface Stakeholder {
   id: string;
@@ -159,27 +162,97 @@ interface NewProjectForm {
   integrations: Integration[];
   successCriteria: string[];
   objectives: string[];
-  teamMembers: TeamMember[]; // Add team members to form
+  teamMembers: TeamMember[];
+  epics: any[]; // Add epics to form
+  releases: any[]; // Add releases to form
 }
 
 const ProjectsPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  
+  // API authentication is now handled by AuthContext
+  // No need for demo auth setup
+
+  // API hooks for real data
+  const { data: apiProjects, loading: projectsLoading, error: projectsError } = useProjects();
+  const { data: apiUsers, loading: usersLoading, error: usersError } = useUsers();
+  const { data: apiDepartments, loading: departmentsLoading, error: departmentsError } = useDepartments();
+  
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
   const [isMilestoneDialogOpen, setIsMilestoneDialogOpen] = useState(false);
+  const [isStakeholderDialogOpen, setIsStakeholderDialogOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedMilestone, setSelectedMilestone] = useState<Milestone | null>(null);
   const [showProjectDetails, setShowProjectDetails] = useState(false);
   const [milestoneView, setMilestoneView] = useState<'widget' | 'timeline'>('widget');
 
   // Deep link will run after filteredProjects is defined below
-  const [projectMilestones, setProjectMilestones] = useState<Milestone[]>(mockMilestones);
+  const [projectMilestones, setProjectMilestones] = useState<Milestone[]>([]);
   const [activeTab, setActiveTab] = useState('basic');
   const [newRequirement, setNewRequirement] = useState('');
   const [newSuccessCriteria, setNewSuccessCriteria] = useState('');
   const [newObjective, setNewObjective] = useState('');
+  const [newEpic, setNewEpic] = useState('');
+  const [newRelease, setNewRelease] = useState('');
+  const [newRisk, setNewRisk] = useState('');
+  const [newStakeholder, setNewStakeholder] = useState('');
+  const [isEpicDialogOpen, setIsEpicDialogOpen] = useState(false);
+  const [isReleaseDialogOpen, setIsReleaseDialogOpen] = useState(false);
+  const [isRiskDialogOpen, setIsRiskDialogOpen] = useState(false);
+  const [currentEpic, setCurrentEpic] = useState({
+    name: '',
+    description: '',
+    summary: '',
+    theme: '',
+    businessValue: '',
+    priority: 'medium',
+    status: 'draft',
+    startDate: '',
+    endDate: '',
+    assigneeId: '',
+    storyPoints: 0
+  });
+  const [currentRelease, setCurrentRelease] = useState({
+    name: '',
+    description: '',
+    version: '1.0.0',
+    status: 'planned',
+    releaseDate: '',
+    targetDate: '',
+    releaseNotes: '',
+    risks: '',
+    dependencies: '',
+    createdBy: '',
+    progress: 0,
+    linkedEpics: '',
+    linkedStories: '',
+    linkedSprints: '',
+    completedAt: '',
+    // New fields for list management
+    risksList: [] as string[],
+    dependenciesList: [] as string[],
+    newRisk: '',
+    newDependency: '',
+    selectedEpics: [] as string[]
+  });
+  const [currentRisk, setCurrentRisk] = useState({
+    title: '',
+    description: '',
+    probability: 'medium',
+    impact: 'medium',
+    mitigation: '',
+    status: 'identified',
+    owner: ''
+  });
+  const [currentStakeholder, setCurrentStakeholder] = useState({
+    name: '',
+    role: '',
+    responsibilities: [] as string[],
+    newResponsibility: ''
+  });
   const [newProject, setNewProject] = useState<NewProjectForm>({
     name: '',
     description: '',
@@ -199,7 +272,9 @@ const ProjectsPage: React.FC = () => {
     integrations: [],
     successCriteria: [],
     objectives: [],
-    teamMembers: [] // Initialize team members
+    teamMembers: [],
+    epics: [],
+    releases: []
   });
 
   // Project Templates
@@ -271,7 +346,7 @@ const ProjectsPage: React.FC = () => {
   ];
 
   // Project data aligned with AuthContext user assignments - Team sizes 6-7 members
-  const projects = [
+  const mockProjectsData = [
     {
       id: 1,
       name: 'E-Commerce Platform - VNIT',
@@ -490,6 +565,9 @@ const ProjectsPage: React.FC = () => {
     }
   ];
 
+  // Use API data only - no fallback to mock data
+  const projects = apiProjects || [];
+
   const resetNewProjectForm = () => {
     setNewProject({
       name: '',
@@ -510,11 +588,54 @@ const ProjectsPage: React.FC = () => {
       integrations: [],
       successCriteria: [],
       objectives: [],
-      teamMembers: [] // Reset team members
+      teamMembers: [],
+      epics: [],
+      releases: []
     });
     setNewRequirement('');
     setNewSuccessCriteria('');
     setNewObjective('');
+    setNewEpic('');
+    setNewRelease('');
+    setNewRisk('');
+    setNewStakeholder('');
+    setIsEpicDialogOpen(false);
+    setIsReleaseDialogOpen(false);
+    setIsRiskDialogOpen(false);
+    setCurrentEpic({
+      name: '',
+      description: '',
+      summary: '',
+      theme: '',
+      businessValue: '',
+      priority: 'medium',
+      status: 'draft',
+      startDate: '',
+      endDate: '',
+      assigneeId: '',
+      storyPoints: 0
+    });
+    setCurrentRelease({
+      name: '',
+      description: '',
+      version: '1.0.0',
+      status: 'planned',
+      releaseDate: '',
+      targetDate: '',
+      releaseNotes: '',
+      risks: '',
+      dependencies: '',
+      createdBy: ''
+    });
+    setCurrentRisk({
+      title: '',
+      description: '',
+      probability: 'medium',
+      impact: 'medium',
+      mitigation: '',
+      status: 'identified',
+      owner: ''
+    });
     setActiveTab('basic');
   };
 
@@ -541,31 +662,441 @@ const ProjectsPage: React.FC = () => {
     }
   };
 
-  const handleCreateProject = () => {
+  const handleCreateProject = async () => {
+    try {
     console.log('Creating new project:', newProject);
-    // Here you would typically send the data to your backend
+    
+    // Validate required fields
+    if (!newProject.teamLead) {
+      alert('Please select a team lead before creating the project.');
+      return;
+    }
+    
+    if (!newProject.department) {
+      alert('Please select a department before creating the project.');
+      return;
+    }
+      
+      // Prepare the project data for API (matching Project entity structure)
+      const projectData = {
+        name: newProject.name,
+        description: newProject.description,
+        priority: newProject.priority?.toUpperCase(),
+        startDate: newProject.startDate,
+        endDate: newProject.endDate,
+        budget: newProject.budget ? parseFloat(newProject.budget.replace(/[₹,]/g, '')) : null,
+        scope: newProject.scope,
+        methodology: newProject.methodology,
+        template: newProject.template,
+        projectType: newProject.projectType,
+        departmentId: newProject.department,
+        successCriteria: newProject.successCriteria,
+        objectives: newProject.objectives,
+        managerId: newProject.teamLead,
+        // Set default values for required fields
+        status: 'PLANNING',
+        progressPercentage: 0,
+        spent: 0.00,
+        isActive: true
+      };
+
+      // Create project via API
+      const projectResponse = await projectApiService.createProject(projectData);
+      
+      if (projectResponse && projectResponse.id) {
+        console.log('Project created successfully:', projectResponse);
+        const projectId = projectResponse.id;
+
+        // Create related entities
+        await createRelatedEntities(projectId);
+        
+        // Close dialog and reset form
     setIsNewProjectDialogOpen(false);
     resetNewProjectForm();
-    // Do not change any view state when creating project
-  };
-
-  const addSuccessCriteria = () => {
-    if (newSuccessCriteria.trim() && !newProject.successCriteria.includes(newSuccessCriteria.trim())) {
-      setNewProject(prev => ({
-        ...prev,
-        successCriteria: [...prev.successCriteria, newSuccessCriteria.trim()]
-      }));
-      setNewSuccessCriteria('');
+        
+        // Show success message
+        alert('Project and all related entities created successfully!');
+        
+        // Optionally refresh the projects list
+        window.location.reload(); // Simple refresh for now
+        
+      } else {
+        console.error('Failed to create project:', projectResponse);
+        alert('Failed to create project. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error creating project:', error);
+      alert('Error creating project. Please try again.');
     }
   };
 
-  const removeSuccessCriteria = (index: number) => {
+  // Helper function to create related entities
+  const createRelatedEntities = async (projectId: string) => {
+    try {
+      // Create Requirements
+      if (newProject.requirements && newProject.requirements.length > 0) {
+        const requirementsData = newProject.requirements.map(req => ({
+          projectId: projectId,
+          title: req.title,
+          description: req.description,
+          type: req.type,
+          status: req.status,
+          priority: req.priority,
+          module: req.module,
+          acceptanceCriteria: req.acceptanceCriteria,
+          effortPoints: req.effort
+        }));
+        
+        await apiClient.post(`/requirements/project/${projectId}/batch`, requirementsData);
+        console.log('Requirements created successfully');
+      }
+
+      // Create Risks
+      if (newProject.risks && newProject.risks.length > 0) {
+        const risksData = newProject.risks.map(risk => ({
+          projectId: projectId,
+          title: risk.title,
+          description: risk.description,
+          probability: risk.probability,
+          impact: risk.impact,
+          mitigation: risk.mitigation,
+          status: risk.status,
+          owner: risk.owner || newProject.teamLead // Default to project manager
+        }));
+        
+        await apiClient.post(`/risks/project/${projectId}/batch`, risksData);
+        console.log('Risks created successfully');
+      }
+
+      // Create Stakeholders
+      if (newProject.stakeholders && newProject.stakeholders.length > 0) {
+        const stakeholdersData = newProject.stakeholders.map(stakeholder => ({
+          projectId: projectId,
+          name: stakeholder.name,
+          role: stakeholder.role,
+          email: stakeholder.email || '',
+          responsibilities: stakeholder.responsibilities,
+          avatarUrl: stakeholder.avatar
+        }));
+        
+        await apiClient.post(`/stakeholders/project/${projectId}/batch`, stakeholdersData);
+        console.log('Stakeholders created successfully');
+      }
+
+      // Create Team Members (Project Team Members)
+      if (newProject.teamMembers && newProject.teamMembers.length > 0) {
+        const teamMembersData = newProject.teamMembers.map(member => ({
+          projectId: projectId,
+          userId: member.id || member.name, // Use ID if available, otherwise name
+          role: member.role,
+          isTeamLead: member.isTeamLead || false,
+          allocatedHours: member.allocatedHours || 0,
+          startDate: newProject.startDate,
+          endDate: newProject.endDate
+        }));
+        
+        await apiClient.post(`/project-team-members/project/${projectId}/batch`, teamMembersData);
+        console.log('Team members created successfully');
+      }
+
+      // Create Epics
+      if (newProject.epics && newProject.epics.length > 0) {
+        const epicsData = newProject.epics.map(epic => ({
+          projectId: projectId,
+          title: epic.title, // Backend uses 'title' not 'name'
+          description: epic.description,
+          summary: epic.summary,
+          theme: epic.theme,
+          businessValue: epic.businessValue,
+          priority: epic.priority,
+          status: epic.status || 'draft',
+          startDate: epic.startDate || newProject.startDate,
+          endDate: epic.endDate || newProject.endDate,
+          assigneeId: epic.assigneeId,
+          owner: epic.owner || newProject.teamLead,
+          progress: epic.progress || 0,
+          storyPoints: epic.storyPoints || 0
+        }));
+        
+        await apiClient.post(`/epics/project/${projectId}/batch`, epicsData);
+        console.log('Epics created successfully');
+      }
+
+      // Create Releases
+      if (newProject.releases && newProject.releases.length > 0) {
+        const releasesData = newProject.releases.map(release => ({
+          projectId: projectId,
+          name: release.name,
+          description: release.description,
+          version: release.version,
+          status: release.status || 'planned',
+          releaseDate: release.releaseDate || newProject.endDate,
+          targetDate: release.targetDate || newProject.endDate,
+          releaseNotes: release.releaseNotes,
+          risks: release.risks,
+          dependencies: release.dependencies,
+          createdBy: release.createdBy || newProject.teamLead,
+          progress: release.progress || 0
+        }));
+        
+        await apiClient.post(`/releases/project/${projectId}/batch`, releasesData);
+        console.log('Releases created successfully');
+      }
+
+    } catch (error) {
+      console.error('Error creating related entities:', error);
+      // Don't throw error here, just log it - project is already created
+    }
+  };
+
+  // Add Epic
+  const addEpic = () => {
+    setIsEpicDialogOpen(true);
+    setCurrentEpic({
+      name: '',
+      description: '',
+      summary: '',
+      theme: '',
+      businessValue: '',
+      priority: 'medium',
+      status: 'draft',
+      startDate: newProject.startDate || '',
+      endDate: newProject.endDate || '',
+      assigneeId: '',
+      storyPoints: 0
+    });
+  };
+
+  const saveEpic = () => {
+    if (currentEpic.name.trim()) {
+      setNewProject(prev => ({
+        ...prev,
+        epics: [...prev.epics, {
+          id: `epic-${Date.now()}`,
+          title: currentEpic.name.trim(), // Backend uses 'title' not 'name'
+          description: currentEpic.description.trim(),
+          summary: currentEpic.summary.trim(),
+          theme: currentEpic.theme.trim(),
+          businessValue: currentEpic.businessValue.trim(),
+          priority: currentEpic.priority,
+          status: currentEpic.status,
+          startDate: currentEpic.startDate,
+          endDate: currentEpic.endDate,
+          assigneeId: currentEpic.assigneeId,
+          owner: newProject.teamLead || 'USER0000000000001', // Set owner
+          progress: 0,
+          storyPoints: currentEpic.storyPoints || 0
+        }]
+      }));
+      setIsEpicDialogOpen(false);
+      setCurrentEpic({
+        name: '',
+        description: '',
+        priority: 'medium',
+        status: 'draft',
+        startDate: '',
+        endDate: ''
+      });
+    }
+  };
+
+  const removeEpic = (index: number) => {
     setNewProject(prev => ({
       ...prev,
-      successCriteria: prev.successCriteria.filter((_, i) => i !== index)
+      epics: prev.epics.filter((_, i) => i !== index)
     }));
   };
 
+  // Add Release
+  const addRelease = () => {
+    setIsReleaseDialogOpen(true);
+    setCurrentRelease({
+      name: '',
+      description: '',
+      version: '1.0.0',
+      status: 'planned',
+      releaseDate: newProject.endDate || '',
+      targetDate: newProject.endDate || '',
+      releaseNotes: '',
+      risks: '',
+      dependencies: '',
+      createdBy: newProject.teamLead || '',
+      progress: 0,
+      linkedEpics: '',
+      linkedStories: '',
+      linkedSprints: '',
+      completedAt: '',
+      // New fields for list management
+      risksList: [],
+      dependenciesList: [],
+      newRisk: '',
+      newDependency: '',
+      selectedEpics: []
+    });
+  };
+
+  const saveRelease = () => {
+    if (currentRelease.name.trim()) {
+      setNewProject(prev => ({
+        ...prev,
+        releases: [...prev.releases, {
+          id: `release-${Date.now()}`,
+          name: currentRelease.name.trim(),
+          description: currentRelease.description.trim(),
+          version: currentRelease.version,
+          status: currentRelease.status,
+          releaseDate: currentRelease.releaseDate,
+          targetDate: currentRelease.targetDate,
+          releaseNotes: currentRelease.releaseNotes.trim(),
+          risks: JSON.stringify(currentRelease.risksList || []),
+          dependencies: JSON.stringify(currentRelease.dependenciesList || []),
+          createdBy: currentRelease.createdBy || newProject.teamLead || 'USER0000000000001',
+          progress: 0, // Always 0 during project creation
+          linkedEpics: JSON.stringify(currentRelease.selectedEpics || []),
+          linkedStories: '[]', // Empty during project creation
+          linkedSprints: '[]', // Empty during project creation
+          completedAt: currentRelease.completedAt
+        }]
+      }));
+      setIsReleaseDialogOpen(false);
+      setCurrentRelease({
+        name: '',
+        description: '',
+        version: '1.0.0',
+        status: 'planned',
+        releaseDate: '',
+        targetDate: '',
+        releaseNotes: '',
+        risks: '',
+        dependencies: '',
+        createdBy: '',
+        progress: 0,
+        linkedEpics: '',
+        linkedStories: '',
+        linkedSprints: '',
+        completedAt: '',
+        // Reset new fields
+        risksList: [],
+        dependenciesList: [],
+        newRisk: '',
+        newDependency: '',
+        selectedEpics: []
+      });
+    }
+  };
+
+  const removeRelease = (index: number) => {
+    setNewProject(prev => ({
+      ...prev,
+      releases: prev.releases.filter((_, i) => i !== index)
+    }));
+  };
+
+  // Add Risk
+  const addRisk = () => {
+    setIsRiskDialogOpen(true);
+    setCurrentRisk({
+      title: '',
+      description: '',
+      probability: 'medium',
+      impact: 'medium',
+      mitigation: '',
+      status: 'identified',
+      owner: newProject.teamLead || ''
+    });
+  };
+
+  const saveRisk = () => {
+    if (currentRisk.title.trim()) {
+      setNewProject(prev => ({
+        ...prev,
+        risks: [...prev.risks, {
+          id: `risk-${Date.now()}`,
+          title: currentRisk.title.trim(),
+          description: currentRisk.description.trim(),
+          probability: currentRisk.probability,
+          impact: currentRisk.impact,
+          mitigation: currentRisk.mitigation.trim(),
+          status: currentRisk.status,
+          owner: currentRisk.owner || newProject.teamLead || ''
+        }]
+      }));
+      setIsRiskDialogOpen(false);
+      setCurrentRisk({
+        title: '',
+        description: '',
+        probability: 'medium',
+        impact: 'medium',
+        mitigation: '',
+        status: 'identified',
+        owner: ''
+      });
+    }
+  };
+
+  const removeRisk = (index: number) => {
+    setNewProject(prev => ({
+      ...prev,
+      risks: prev.risks.filter((_, i) => i !== index)
+    }));
+  };
+
+  // Add Requirement
+  const addRequirement = () => {
+    if (newRequirement.trim()) {
+      setNewProject(prev => ({
+        ...prev,
+        requirements: [...prev.requirements, {
+          id: `req-${Date.now()}`,
+          title: newRequirement.trim(),
+          description: '',
+          type: 'functional',
+          status: 'draft',
+          priority: 'medium',
+          module: '',
+          acceptanceCriteria: [],
+          effort: 0
+        }]
+      }));
+      setNewRequirement('');
+    }
+  };
+
+  // Add Stakeholder
+  const addStakeholder = () => {
+    setIsStakeholderDialogOpen(true);
+    setCurrentStakeholder({
+      name: '',
+      role: '',
+      responsibilities: [],
+      newResponsibility: ''
+    });
+  };
+
+  const saveStakeholder = () => {
+    if (currentStakeholder.name.trim()) {
+      setNewProject(prev => ({
+        ...prev,
+        stakeholders: [...prev.stakeholders, {
+          id: `stakeholder-${Date.now()}`,
+          name: currentStakeholder.name.trim(),
+          role: currentStakeholder.role.trim(),
+          email: '',
+          responsibilities: currentStakeholder.responsibilities,
+          avatar: ''
+        }]
+      }));
+      setIsStakeholderDialogOpen(false);
+      setCurrentStakeholder({
+        name: '',
+        role: '',
+        responsibilities: [],
+        newResponsibility: ''
+      });
+    }
+  };
+
+  // Add Objective
   const addObjective = () => {
     if (newObjective.trim() && !newProject.objectives.includes(newObjective.trim())) {
       setNewProject(prev => ({
@@ -576,12 +1107,39 @@ const ProjectsPage: React.FC = () => {
     }
   };
 
+  // Add Success Criteria
+  const addSuccessCriteria = () => {
+    if (newSuccessCriteria.trim() && !newProject.successCriteria.includes(newSuccessCriteria.trim())) {
+      setNewProject(prev => ({
+        ...prev,
+        successCriteria: [...prev.successCriteria, newSuccessCriteria.trim()]
+      }));
+      setNewSuccessCriteria('');
+    }
+  };
+
+  // Remove functions
   const removeObjective = (index: number) => {
     setNewProject(prev => ({
       ...prev,
       objectives: prev.objectives.filter((_, i) => i !== index)
     }));
   };
+
+  const removeSuccessCriteria = (index: number) => {
+    setNewProject(prev => ({
+      ...prev,
+      successCriteria: prev.successCriteria.filter((_, i) => i !== index)
+    }));
+  };
+
+  const removeStakeholder = (index: number) => {
+    setNewProject(prev => ({
+      ...prev,
+      stakeholders: prev.stakeholders.filter((_, i) => i !== index)
+    }));
+  };
+
 
   const toggleIntegration = (integrationId: string) => {
     setNewProject(prev => ({
@@ -615,6 +1173,7 @@ const ProjectsPage: React.FC = () => {
   };
 
   const getInitials = (name: string) => {
+    if (!name) return '?';
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
@@ -649,8 +1208,7 @@ const ProjectsPage: React.FC = () => {
   };
 
   const handleProjectClick = (project: Project) => {
-    setSelectedProject(project);
-    setShowProjectDetails(true);
+    navigate(`/projects/${project.id}`);
   };
 
   const getProjectMilestones = (projectId: number) => {
@@ -698,7 +1256,7 @@ const ProjectsPage: React.FC = () => {
     if (!wanted) return;
     
     // Handle both string IDs (from Dashboard) and numeric IDs
-    let match = null;
+    let match: Project | undefined = undefined;
     if (wanted.startsWith('proj-')) {
       // Dashboard passes 'proj-1', we need to convert to numeric ID
       const numericId = parseInt(wanted.replace('proj-', ''));
@@ -1050,7 +1608,8 @@ const ProjectsPage: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Budget Utilization</span>
                   <span className="font-medium">
-                    {Math.round((parseInt(selectedProject.spent.replace(/[^\d]/g, '')) / parseInt(selectedProject.budget.replace(/[^\d]/g, ''))) * 100)}%
+                    {selectedProject.spent && selectedProject.budget ? 
+                      Math.round((parseInt(selectedProject.spent.replace(/[^\d]/g, '')) / parseInt(selectedProject.budget.replace(/[^\d]/g, ''))) * 100) : 0}%
                   </span>
                 </div>
                 
@@ -1140,6 +1699,59 @@ const ProjectsPage: React.FC = () => {
             </Button>
           )}
         </div>
+      </div>
+
+      {/* API Status Indicators */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="border-blue-200">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <div className={`w-3 h-3 rounded-full ${projectsLoading ? 'bg-yellow-500 animate-pulse' : projectsError ? 'bg-red-500' : 'bg-green-500'}`}></div>
+              <span className="text-sm font-medium">Projects API</span>
+              {projectsLoading && <span className="text-xs text-gray-500">Loading...</span>}
+              {projectsError && <span className="text-xs text-red-500">Error</span>}
+              {apiProjects && <span className="text-xs text-green-600">{apiProjects.length} projects</span>}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-blue-200">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <div className={`w-3 h-3 rounded-full ${usersLoading ? 'bg-yellow-500 animate-pulse' : usersError ? 'bg-red-500' : 'bg-green-500'}`}></div>
+              <span className="text-sm font-medium">Users API</span>
+              {usersLoading && <span className="text-xs text-gray-500">Loading...</span>}
+              {usersError && <span className="text-xs text-red-500">Error</span>}
+              {apiUsers && <span className="text-xs text-green-600">{apiUsers.length} users</span>}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-blue-200">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <div className={`w-3 h-3 rounded-full ${departmentsLoading ? 'bg-yellow-500 animate-pulse' : departmentsError ? 'bg-red-500' : 'bg-green-500'}`}></div>
+              <span className="text-sm font-medium">Departments API</span>
+              {departmentsLoading && <span className="text-xs text-gray-500">Loading...</span>}
+              {departmentsError && <span className="text-xs text-red-500">Error</span>}
+              {apiDepartments && <span className="text-xs text-green-600">{apiDepartments.length} departments</span>}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-blue-200">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <div className={`w-3 h-3 rounded-full ${(projectsLoading || usersLoading || departmentsLoading) ? 'bg-yellow-500 animate-pulse' : (projectsError || usersError || departmentsError) ? 'bg-red-500' : 'bg-green-500'}`}></div>
+              <span className="text-sm font-medium">Data Source</span>
+              {apiProjects && apiProjects.length > 0 ? (
+                <span className="text-xs text-green-600">Live API Data</span>
+              ) : (
+                <span className="text-xs text-gray-500">Mock Data</span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Projects Grid/List */}
@@ -1470,32 +2082,37 @@ const ProjectsPage: React.FC = () => {
                     Define large features and initiatives that will be broken down into stories and tasks.
                   </div>
                   
-                  {(() => {
-                    const projectEpics = mockEpics.filter(epic => epic.projectId === `proj-${newProject.id || 'new'}`);
-                    return projectEpics.length > 0 ? (
+                  {newProject.epics.length > 0 ? (
                       <div className="space-y-3">
-                        {projectEpics.map((epic) => (
+                      {newProject.epics.map((epic, index) => (
                           <Card key={epic.id} className="p-4">
                             <div className="flex items-start justify-between">
                               <div className="space-y-2">
                                 <div className="flex items-center space-x-2">
                                   <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                                    {epic.theme}
+                                  {epic.priority || 'medium'}
                                   </Badge>
                                   <Badge variant="outline" className="bg-green-50 text-green-700">
-                                    {epic.storyPoints} pts
+                                  {epic.status || 'draft'}
                                   </Badge>
                                 </div>
                                 <h5 className="font-medium">{epic.title}</h5>
-                                <p className="text-sm text-gray-600 line-clamp-2">{epic.summary}</p>
+                              <p className="text-sm text-gray-600 line-clamp-2">{epic.summary || epic.description || 'No description provided'}</p>
                                 <div className="flex items-center space-x-4 text-xs text-gray-500">
-                                  <span>Status: {epic.status}</span>
-                                  <span>Progress: {epic.progress}%</span>
-                                  <span>{epic.linkedStories.length} stories</span>
+                                <span>Status: {epic.status || 'draft'}</span>
+                                <span>Priority: {epic.priority || 'medium'}</span>
+                                {epic.storyPoints > 0 && <span>{epic.storyPoints} pts</span>}
+                                {epic.theme && <span>Theme: {epic.theme}</span>}
                                 </div>
+                              {(epic.startDate || epic.endDate) && (
+                                <div className="flex items-center space-x-4 text-xs text-gray-500 mt-1">
+                                  {epic.startDate && <span>Start: {epic.startDate}</span>}
+                                  {epic.endDate && <span>End: {epic.endDate}</span>}
                               </div>
-                              <Button variant="ghost" size="sm">
-                                <MoreVertical className="w-4 h-4" />
+                              )}
+                            </div>
+                            <Button variant="ghost" size="sm" onClick={() => removeEpic(index)}>
+                              <X className="w-4 h-4" />
                               </Button>
                             </div>
                           </Card>
@@ -1505,13 +2122,16 @@ const ProjectsPage: React.FC = () => {
                       <div className="text-center py-8 text-gray-500">
                         <Flag className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                         <p>No epics defined yet. Create epics to organize large features.</p>
-                        <Button variant="outline" className="mt-4">
+                    </div>
+                  )}
+
+                  <div className="flex justify-center mt-6">
+                    <Button variant="outline" onClick={addEpic}>
                           <Plus className="w-4 h-4 mr-2" />
                           Add Epic
                         </Button>
                       </div>
-                    );
-                  })()}
+
                 </div>
               </TabsContent>
 
@@ -1522,39 +2142,42 @@ const ProjectsPage: React.FC = () => {
                     Define product releases and deployment cycles for your project.
                   </div>
                   
-                  {(() => {
-                    const projectReleases = mockReleases.filter(release => release.projectId === `proj-${newProject.id || 'new'}`);
-                    return projectReleases.length > 0 ? (
+                  {newProject.releases.length > 0 ? (
                       <div className="space-y-3">
-                        {projectReleases.map((release) => (
+                      {newProject.releases.map((release, index) => (
                           <Card key={release.id} className="p-4">
                             <div className="flex items-start justify-between">
                               <div className="space-y-2">
                                 <div className="flex items-center space-x-2">
                                   <Badge variant="outline" className="bg-purple-50 text-purple-700">
-                                    {release.version}
+                                  {release.version || '1.0.0'}
                                   </Badge>
                                   <Badge variant="outline" className={`${
                                     release.status === 'released' ? 'bg-green-100 text-green-800' :
                                     release.status === 'development' ? 'bg-orange-100 text-orange-800' :
                                     release.status === 'testing' ? 'bg-purple-100 text-purple-800' :
-                                    release.status === 'planning' ? 'bg-blue-100 text-blue-800' :
+                                  release.status === 'planned' ? 'bg-blue-100 text-blue-800' :
                                     'bg-gray-100 text-gray-800'
                                   }`}>
-                                    {release.status.replace('-', ' ')}
+                                  {release.status || 'planned'}
                                   </Badge>
                                 </div>
                                 <h5 className="font-medium">{release.name}</h5>
-                                <p className="text-sm text-gray-600 line-clamp-2">{release.description}</p>
+                              <p className="text-sm text-gray-600 line-clamp-2">{release.releaseNotes || release.description || 'No description provided'}</p>
                                 <div className="flex items-center space-x-4 text-xs text-gray-500">
-                                  <span>Status: {release.status}</span>
-                                  <span>Progress: {release.progress}%</span>
-                                  <span>{release.linkedStories.length} stories</span>
-                                  <span>{release.linkedEpics.length} epics</span>
+                                <span>Status: {release.status || 'planned'}</span>
+                                <span>Version: {release.version || '1.0.0'}</span>
+                                {release.createdBy && <span>By: {release.createdBy}</span>}
                                 </div>
+                              {(release.targetDate || release.releaseDate) && (
+                                <div className="flex items-center space-x-4 text-xs text-gray-500 mt-1">
+                                  {release.targetDate && <span>Target: {release.targetDate}</span>}
+                                  {release.releaseDate && <span>Release: {release.releaseDate}</span>}
                               </div>
-                              <Button variant="ghost" size="sm">
-                                <MoreVertical className="w-4 h-4" />
+                              )}
+                            </div>
+                            <Button variant="ghost" size="sm" onClick={() => removeRelease(index)}>
+                              <X className="w-4 h-4" />
                               </Button>
                             </div>
                           </Card>
@@ -1564,13 +2187,16 @@ const ProjectsPage: React.FC = () => {
                       <div className="text-center py-8 text-gray-500">
                         <Rocket className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                         <p>No releases defined yet. Create releases to organize product deployments.</p>
-                        <Button variant="outline" className="mt-4">
+                    </div>
+                  )}
+
+                  <div className="flex justify-center mt-6">
+                    <Button variant="outline" onClick={addRelease}>
                           <Plus className="w-4 h-4 mr-2" />
                           Add Release
                         </Button>
                       </div>
-                    );
-                  })()}
+
                 </div>
               </TabsContent>
 
@@ -1606,7 +2232,13 @@ const ProjectsPage: React.FC = () => {
                     </div>
                   )}
 
-                  <div className="space-y-4">
+                  <div className="flex justify-center mt-6">
+                    <Button variant="outline" onClick={addRequirement}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Requirement
+                    </Button>
+                  </div>
+
                     <h5 className="font-medium">Success Criteria</h5>
                     <div className="flex space-x-2">
                       <Input
@@ -1664,7 +2296,6 @@ const ProjectsPage: React.FC = () => {
                         ))}
                       </div>
                     )}
-                  </div>
                 </div>
               </TabsContent>
 
@@ -1676,13 +2307,81 @@ const ProjectsPage: React.FC = () => {
                   </p>
 
                   <div className="space-y-2">
-                    <Label htmlFor="teamLead">Team Lead</Label>
-                    <Input
-                      id="teamLead"
-                      placeholder="Assign team lead"
-                      value={newProject.teamLead}
-                      onChange={(e) => setNewProject({ ...newProject, teamLead: e.target.value })}
-                    />
+                    <Label htmlFor="teamLead">Team Lead *</Label>
+                    <Select 
+                      value={newProject.teamLead} 
+                      onValueChange={(value) => {
+                        console.log('Team lead selected:', value);
+                        setNewProject({ ...newProject, teamLead: value });
+                      }}
+                      disabled={usersLoading || !apiUsers || apiUsers.length === 0}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={
+                          usersLoading ? 'Loading users...' : 
+                          !apiUsers || apiUsers.length === 0 ? 'No users available' : 
+                          'Select team lead'
+                        } />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {apiUsers && apiUsers.length > 0 ? (
+                          apiUsers.map((user) => (
+                            <SelectItem key={user.id} value={user.id}>
+                              {user.name} ({user.role})
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="no-users" disabled>
+                            {usersLoading ? 'Loading...' : 'No users available'}
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {/* Debug info */}
+                    {process.env.NODE_ENV === 'development' && (
+                      <div className="text-xs text-muted-foreground">
+                        Debug: Users loaded: {apiUsers?.length || 0}, Loading: {usersLoading ? 'Yes' : 'No'}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-4">
+                  <h4 className="font-medium">Stakeholders</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Identify key stakeholders and their roles in the project.
+                  </p>
+                  
+                  {newProject.stakeholders.length > 0 && (
+                    <div className="space-y-2">
+                      {newProject.stakeholders.map((stakeholder, index) => (
+                        <div key={stakeholder.id} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2 mb-1">
+                              <span className="font-medium">{stakeholder.name}</span>
+                              <Badge variant="outline">{stakeholder.role || 'Stakeholder'}</Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground">{stakeholder.email || 'No email provided'}</p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeStakeholder(index)}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex justify-center mt-6">
+                    <Button variant="outline" onClick={addStakeholder}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Stakeholder
+                    </Button>
                   </div>
                 </div>
 
@@ -1693,6 +2392,41 @@ const ProjectsPage: React.FC = () => {
                   <p className="text-sm text-muted-foreground">
                     Identify and plan mitigation strategies for potential project risks.
                   </p>
+                  
+                  {newProject.risks.length > 0 && (
+                    <div className="space-y-2">
+                      {newProject.risks.map((risk, index) => (
+                        <div key={risk.id} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2 mb-1">
+                              <span className="font-medium">{risk.title}</span>
+                              <Badge variant="outline" className={getPriorityColor(risk.probability)}>
+                                {risk.probability}
+                              </Badge>
+                              <Badge variant="outline" className={getPriorityColor(risk.impact)}>
+                                {risk.impact}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground">Status: {risk.status}</p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeRisk(index)}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex justify-center mt-6">
+                    <Button variant="outline" onClick={addRisk}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Risk
+                    </Button>
+                  </div>
                 </div>
               </TabsContent>
 
@@ -1751,6 +2485,624 @@ const ProjectsPage: React.FC = () => {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Add Epic Dialog */}
+      <Dialog open={isEpicDialogOpen} onOpenChange={setIsEpicDialogOpen}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-4">
+            <DialogTitle>Add New Epic</DialogTitle>
+            <DialogDescription>
+              Create a new epic to organize large features and initiatives.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto space-y-4 px-6 max-h-[60vh]">
+            <div className="space-y-2">
+              <Label htmlFor="epic-name">Epic Name *</Label>
+              <Input
+                id="epic-name"
+                placeholder="Enter epic name"
+                value={currentEpic.name}
+                onChange={(e) => setCurrentEpic(prev => ({ ...prev, name: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="epic-description">Description</Label>
+              <Textarea
+                id="epic-description"
+                placeholder="Describe the epic"
+                value={currentEpic.description}
+                onChange={(e) => setCurrentEpic(prev => ({ ...prev, description: e.target.value }))}
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="epic-summary">Summary</Label>
+              <Input
+                id="epic-summary"
+                placeholder="Brief summary of the epic"
+                value={currentEpic.summary}
+                onChange={(e) => setCurrentEpic(prev => ({ ...prev, summary: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="epic-theme">Theme</Label>
+              <Input
+                id="epic-theme"
+                placeholder="Epic theme or category"
+                value={currentEpic.theme}
+                onChange={(e) => setCurrentEpic(prev => ({ ...prev, theme: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="epic-business-value">Business Value</Label>
+              <Textarea
+                id="epic-business-value"
+                placeholder="Describe the business value"
+                value={currentEpic.businessValue}
+                onChange={(e) => setCurrentEpic(prev => ({ ...prev, businessValue: e.target.value }))}
+                rows={2}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="epic-priority">Priority</Label>
+                <Select value={currentEpic.priority} onValueChange={(value) => setCurrentEpic(prev => ({ ...prev, priority: value }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="critical">Critical</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="epic-status">Status</Label>
+                <Select value={currentEpic.status} onValueChange={(value) => setCurrentEpic(prev => ({ ...prev, status: value }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="planned">Planned</SelectItem>
+                    <SelectItem value="in-progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="epic-assignee">Assignee</Label>
+                <Input
+                  id="epic-assignee"
+                  placeholder="Assign to team member"
+                  value={currentEpic.assigneeId}
+                  onChange={(e) => setCurrentEpic(prev => ({ ...prev, assigneeId: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="epic-story-points">Story Points</Label>
+                <Input
+                  id="epic-story-points"
+                  type="number"
+                  placeholder="Estimated story points"
+                  value={currentEpic.storyPoints}
+                  onChange={(e) => setCurrentEpic(prev => ({ ...prev, storyPoints: parseInt(e.target.value) || 0 }))}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="epic-start-date">Start Date</Label>
+                <Input
+                  id="epic-start-date"
+                  type="date"
+                  value={currentEpic.startDate}
+                  onChange={(e) => setCurrentEpic(prev => ({ ...prev, startDate: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="epic-end-date">End Date</Label>
+                <Input
+                  id="epic-end-date"
+                  type="date"
+                  value={currentEpic.endDate}
+                  onChange={(e) => setCurrentEpic(prev => ({ ...prev, endDate: e.target.value }))}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="flex-shrink-0 px-6 pb-6 pt-4 border-t bg-white">
+            <Button variant="outline" onClick={() => setIsEpicDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={saveEpic} disabled={!currentEpic.name.trim()}>
+              Add Epic
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Release Dialog */}
+      <Dialog open={isReleaseDialogOpen} onOpenChange={setIsReleaseDialogOpen}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-4">
+            <DialogTitle>Add New Release</DialogTitle>
+            <DialogDescription>
+              Create a new release to organize product deployments.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto space-y-4 px-6 max-h-[60vh]">
+            <div className="space-y-2">
+              <Label htmlFor="release-name">Release Name *</Label>
+              <Input
+                id="release-name"
+                placeholder="Enter release name"
+                value={currentRelease.name}
+                onChange={(e) => setCurrentRelease(prev => ({ ...prev, name: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="release-description">Description</Label>
+              <Textarea
+                id="release-description"
+                placeholder="Describe the release"
+                value={currentRelease.description}
+                onChange={(e) => setCurrentRelease(prev => ({ ...prev, description: e.target.value }))}
+                rows={3}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="release-version">Version</Label>
+                <Input
+                  id="release-version"
+                  placeholder="e.g., 1.0.0"
+                  value={currentRelease.version}
+                  onChange={(e) => setCurrentRelease(prev => ({ ...prev, version: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="release-status">Status</Label>
+                <Select value={currentRelease.status} onValueChange={(value) => setCurrentRelease(prev => ({ ...prev, status: value }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="planning">Planning</SelectItem>
+                    <SelectItem value="development">Development</SelectItem>
+                    <SelectItem value="testing">Testing</SelectItem>
+                    <SelectItem value="staging">Staging</SelectItem>
+                    <SelectItem value="ready-for-release">Ready for Release</SelectItem>
+                    <SelectItem value="released">Released</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="release-notes">Release Notes</Label>
+              <Textarea
+                id="release-notes"
+                placeholder="Detailed release notes and changelog"
+                value={currentRelease.releaseNotes}
+                onChange={(e) => setCurrentRelease(prev => ({ ...prev, releaseNotes: e.target.value }))}
+                rows={3}
+              />
+            </div>
+            
+            {/* Risks List */}
+            <div className="space-y-2">
+              <Label>Risks</Label>
+              <div className="space-y-2">
+                {currentRelease.risksList && currentRelease.risksList.length > 0 ? (
+                  <div className="space-y-2">
+                    {currentRelease.risksList.map((risk, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                        <span className="text-sm">{risk}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            const newRisks = currentRelease.risksList.filter((_, i) => i !== index);
+                            setCurrentRelease(prev => ({ ...prev, risksList: newRisks }));
+                          }}
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No risks added yet</p>
+                )}
+                <div className="flex space-x-2">
+                  <Input
+                    placeholder="Add a risk"
+                    value={currentRelease.newRisk}
+                    onChange={(e) => setCurrentRelease(prev => ({ ...prev, newRisk: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && currentRelease.newRisk.trim()) {
+                        const newRisks = [...(currentRelease.risksList || []), currentRelease.newRisk.trim()];
+                        setCurrentRelease(prev => ({ ...prev, risksList: newRisks, newRisk: '' }));
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (currentRelease.newRisk.trim()) {
+                        const newRisks = [...(currentRelease.risksList || []), currentRelease.newRisk.trim()];
+                        setCurrentRelease(prev => ({ ...prev, risksList: newRisks, newRisk: '' }));
+                      }
+                    }}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Dependencies List */}
+            <div className="space-y-2">
+              <Label>Dependencies</Label>
+              <div className="space-y-2">
+                {currentRelease.dependenciesList && currentRelease.dependenciesList.length > 0 ? (
+                  <div className="space-y-2">
+                    {currentRelease.dependenciesList.map((dependency, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                        <span className="text-sm">{dependency}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            const newDependencies = currentRelease.dependenciesList.filter((_, i) => i !== index);
+                            setCurrentRelease(prev => ({ ...prev, dependenciesList: newDependencies }));
+                          }}
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No dependencies added yet</p>
+                )}
+                <div className="flex space-x-2">
+                  <Input
+                    placeholder="Add a dependency"
+                    value={currentRelease.newDependency}
+                    onChange={(e) => setCurrentRelease(prev => ({ ...prev, newDependency: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && currentRelease.newDependency.trim()) {
+                        const newDependencies = [...(currentRelease.dependenciesList || []), currentRelease.newDependency.trim()];
+                        setCurrentRelease(prev => ({ ...prev, dependenciesList: newDependencies, newDependency: '' }));
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (currentRelease.newDependency.trim()) {
+                        const newDependencies = [...(currentRelease.dependenciesList || []), currentRelease.newDependency.trim()];
+                        setCurrentRelease(prev => ({ ...prev, dependenciesList: newDependencies, newDependency: '' }));
+                      }
+                    }}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="release-created-by">Created By</Label>
+                <Input
+                  id="release-created-by"
+                  placeholder="Release creator/owner"
+                  value={currentRelease.createdBy}
+                  onChange={(e) => setCurrentRelease(prev => ({ ...prev, createdBy: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="release-target-date">Target Date</Label>
+                <Input
+                  id="release-target-date"
+                  type="date"
+                  value={currentRelease.targetDate}
+                  onChange={(e) => setCurrentRelease(prev => ({ ...prev, targetDate: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="release-date">Release Date</Label>
+                <Input
+                  id="release-date"
+                  type="date"
+                  value={currentRelease.releaseDate}
+                  onChange={(e) => setCurrentRelease(prev => ({ ...prev, releaseDate: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="release-completed-at">Completed At</Label>
+                <Input
+                  id="release-completed-at"
+                  type="date"
+                  value={currentRelease.completedAt}
+                  onChange={(e) => setCurrentRelease(prev => ({ ...prev, completedAt: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="release-progress">Progress (%)</Label>
+              <Input
+                id="release-progress"
+                type="number"
+                min="0"
+                max="100"
+                value="0"
+                disabled
+                className="bg-muted"
+              />
+              <p className="text-xs text-muted-foreground">Progress starts at 0% during project creation</p>
+            </div>
+            
+            {/* Linked Epics Selection */}
+            <div className="space-y-2">
+              <Label>Linked Epics</Label>
+              <div className="space-y-2">
+                {newProject.epics && newProject.epics.length > 0 ? (
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {newProject.epics.map((epic, index) => (
+                      <div key={epic.id} className="flex items-center space-x-2 p-2 border rounded">
+                        <input
+                          type="checkbox"
+                          id={`epic-${epic.id}`}
+                          checked={currentRelease.selectedEpics?.includes(epic.id) || false}
+                          onChange={(e) => {
+                            const selectedEpics = currentRelease.selectedEpics || [];
+                            if (e.target.checked) {
+                              setCurrentRelease(prev => ({
+                                ...prev,
+                                selectedEpics: [...selectedEpics, epic.id]
+                              }));
+                            } else {
+                              setCurrentRelease(prev => ({
+                                ...prev,
+                                selectedEpics: selectedEpics.filter(id => id !== epic.id)
+                              }));
+                            }
+                          }}
+                          className="rounded"
+                        />
+                        <label htmlFor={`epic-${epic.id}`} className="flex-1 text-sm cursor-pointer">
+                          <span className="font-medium">{epic.title || epic.name}</span>
+                          <span className="text-muted-foreground ml-2">({epic.status})</span>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 border border-dashed rounded-lg text-center">
+                    <p className="text-sm text-muted-foreground">No epics added yet</p>
+                    <p className="text-xs text-muted-foreground mt-1">Add epics first to link them to this release</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="flex-shrink-0 px-6 pb-6 pt-4 border-t bg-white">
+            <Button variant="outline" onClick={() => setIsReleaseDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={saveRelease} disabled={!currentRelease.name.trim()}>
+              Add Release
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Risk Dialog */}
+      <Dialog open={isRiskDialogOpen} onOpenChange={setIsRiskDialogOpen}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-4">
+            <DialogTitle>Add New Risk</DialogTitle>
+            <DialogDescription>
+              Identify and assess potential project risks with mitigation strategies.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto space-y-4 px-6 max-h-[60vh]">
+            <div className="space-y-2">
+              <Label htmlFor="risk-title">Risk Title *</Label>
+              <Input
+                id="risk-title"
+                placeholder="Enter risk title"
+                value={currentRisk.title}
+                onChange={(e) => setCurrentRisk(prev => ({ ...prev, title: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="risk-description">Description</Label>
+              <Textarea
+                id="risk-description"
+                placeholder="Describe the risk in detail"
+                value={currentRisk.description}
+                onChange={(e) => setCurrentRisk(prev => ({ ...prev, description: e.target.value }))}
+                rows={3}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="risk-probability">Probability</Label>
+                <Select value={currentRisk.probability} onValueChange={(value) => setCurrentRisk(prev => ({ ...prev, probability: value }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="risk-impact">Impact</Label>
+                <Select value={currentRisk.impact} onValueChange={(value) => setCurrentRisk(prev => ({ ...prev, impact: value }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="risk-mitigation">Mitigation Strategy</Label>
+              <Textarea
+                id="risk-mitigation"
+                placeholder="Describe how to mitigate this risk"
+                value={currentRisk.mitigation}
+                onChange={(e) => setCurrentRisk(prev => ({ ...prev, mitigation: e.target.value }))}
+                rows={3}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="risk-status">Status</Label>
+                <Select value={currentRisk.status} onValueChange={(value) => setCurrentRisk(prev => ({ ...prev, status: value }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="identified">Identified</SelectItem>
+                    <SelectItem value="mitigated">Mitigated</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="risk-owner">Risk Owner</Label>
+                <Input
+                  id="risk-owner"
+                  placeholder="Assign risk owner"
+                  value={currentRisk.owner}
+                  onChange={(e) => setCurrentRisk(prev => ({ ...prev, owner: e.target.value }))}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="flex-shrink-0 px-6 pb-6 pt-4 border-t bg-white">
+            <Button variant="outline" onClick={() => setIsRiskDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={saveRisk} disabled={!currentRisk.title.trim()}>
+              Add Risk
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Stakeholder Dialog */}
+      <Dialog open={isStakeholderDialogOpen} onOpenChange={setIsStakeholderDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-4">
+            <DialogTitle>Add Stakeholder</DialogTitle>
+            <DialogDescription>
+              Add a new stakeholder to the project with their role and responsibilities.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-y-auto space-y-4 px-6 max-h-[60vh]">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="stakeholder-name">Name *</Label>
+                <Input
+                  id="stakeholder-name"
+                  placeholder="Enter stakeholder name"
+                  value={currentStakeholder.name}
+                  onChange={(e) => setCurrentStakeholder(prev => ({ ...prev, name: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="stakeholder-role">Role *</Label>
+                <Input
+                  id="stakeholder-role"
+                  placeholder="e.g., Product Owner, Sponsor, User"
+                  value={currentStakeholder.role}
+                  onChange={(e) => setCurrentStakeholder(prev => ({ ...prev, role: e.target.value }))}
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Responsibilities</Label>
+              <div className="space-y-2">
+                {currentStakeholder.responsibilities.length > 0 ? (
+                  <div className="space-y-2">
+                    {currentStakeholder.responsibilities.map((responsibility, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                        <span className="text-sm">{responsibility}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            const newResponsibilities = currentStakeholder.responsibilities.filter((_, i) => i !== index);
+                            setCurrentStakeholder(prev => ({ ...prev, responsibilities: newResponsibilities }));
+                          }}
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No responsibilities added yet</p>
+                )}
+                <div className="flex space-x-2">
+                  <Input
+                    placeholder="Add a responsibility"
+                    value={currentStakeholder.newResponsibility}
+                    onChange={(e) => setCurrentStakeholder(prev => ({ ...prev, newResponsibility: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && currentStakeholder.newResponsibility.trim()) {
+                        const newResponsibilities = [...currentStakeholder.responsibilities, currentStakeholder.newResponsibility.trim()];
+                        setCurrentStakeholder(prev => ({ ...prev, responsibilities: newResponsibilities, newResponsibility: '' }));
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (currentStakeholder.newResponsibility.trim()) {
+                        const newResponsibilities = [...currentStakeholder.responsibilities, currentStakeholder.newResponsibility.trim()];
+                        setCurrentStakeholder(prev => ({ ...prev, responsibilities: newResponsibilities, newResponsibility: '' }));
+                      }
+                    }}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter className="flex-shrink-0 px-6 pb-6 pt-4 border-t bg-white">
+            <Button variant="outline" onClick={() => setIsStakeholderDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={saveStakeholder} disabled={!currentStakeholder.name.trim() || !currentStakeholder.role.trim()}>
+              Add Stakeholder
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContextEnhanced';
+import { useUsers } from '../hooks/api';
 import { toast } from 'sonner';
 import { 
   Users, 
@@ -105,8 +106,9 @@ const TeamAllocationPage: React.FC = () => {
     experience: false
   });
 
-  // Get all users from AuthContext and generate realistic team allocation data
-  const allUsers = getAllUsers();
+  // Get all users from API and generate realistic team allocation data
+  const { data: usersResponse } = useUsers();
+  const allUsers = usersResponse?.content || [];
   
   // Enhanced team member data based on real user data from AuthContext
   const teamMembers = useMemo(() => {
@@ -295,9 +297,9 @@ const TeamAllocationPage: React.FC = () => {
   }, [filteredMembers]);
 
   // Get unique values for filters
-  const departments = [...new Set(teamMembers.map(m => m.department))];
-  const domains = [...new Set(teamMembers.map(m => m.domain))];
-  const roles: string[] = [...new Set(teamMembers.map(m => m.role as string))] as string[];
+  const departments = [...new Set(teamMembers.map(m => m.department))].filter(Boolean);
+  const domains = [...new Set(teamMembers.map(m => m.domain))].filter(Boolean);
+  const roles: string[] = [...new Set(teamMembers.map(m => m.role as string))].filter(Boolean) as string[];
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -1029,9 +1031,11 @@ const TeamAllocationPage: React.FC = () => {
                         {validation.isAtCapacity ? 'Team Full' : 'Add Member'}
                       </Button>
                     </div>
-                    <CardDescription className="space-y-2">
-                      <div className="flex items-center space-x-4">
-                        <span>{validation.teamSize}/{validation.maxMembers} team members • {avgAllocation}% avg allocation</span>
+                    <CardDescription>
+                      {getProjectDescription(projectName)}
+                    </CardDescription>
+                    <div className="flex items-center space-x-4 mb-2">
+                      <span className="text-sm text-gray-600">{validation.teamSize}/{validation.maxMembers} team members • {avgAllocation}% avg allocation</span>
                         {validation.hasManager ? (
                           <Badge variant="outline" className="text-xs text-green-600 border-green-200">
                             ✓ Manager Assigned
@@ -1042,10 +1046,6 @@ const TeamAllocationPage: React.FC = () => {
                           </Badge>
                         )}
                       </div>
-                      <div className="text-sm text-gray-600">
-                        {getProjectDescription(projectName)}
-                      </div>
-                    </CardDescription>
                     <div className="flex items-center space-x-4 mt-2">
                       <div className="flex items-center space-x-1">
                         <IndianRupee className="w-4 h-4 text-green-600" />

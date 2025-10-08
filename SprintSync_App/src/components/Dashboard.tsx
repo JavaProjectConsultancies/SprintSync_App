@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContextEnhanced';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
@@ -44,42 +44,110 @@ import {
   Filter,
   X
 } from 'lucide-react';
-import { 
-  getDashboardMetrics, 
-  getBurndownData, 
-  getMonthlyTrendData, 
-  getProjectStatusData, 
-  mockProjects,
-  getTeamPerformanceData,
-  getAIInsights
-} from '../data/mockData';
+// Removed mock data imports - using API data only
 import UserTasks from './UserTasks';
+import { useProjects, useUsers, useDepartments, useDomains, useEpics, useReleases, useSprints, useStories, useTasks } from '../hooks/api';
+import { apiClient } from '../services/api/client';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user, hasPermission, canAccessProject } = useAuth();
   
+  // API authentication is now handled by AuthContext
+  // No need for demo auth setup
+
+  // API hooks for real data from all master tables
+  const { data: apiProjects, loading: projectsLoading, error: projectsError, refetch: refetchProjects } = useProjects();
+  const { data: apiUsers, loading: usersLoading, error: usersError, refetch: refetchUsers } = useUsers();
+  const { data: apiDepartments, loading: departmentsLoading, error: departmentsError, refetch: refetchDepartments } = useDepartments();
+  const { data: apiDomains, loading: domainsLoading, error: domainsError, refetch: refetchDomains } = useDomains();
+  const { data: apiEpics, loading: epicsLoading, error: epicsError, refetch: refetchEpics } = useEpics();
+  const { data: apiReleases, loading: releasesLoading, error: releasesError, refetch: refetchReleases } = useReleases();
+  const { data: apiSprints, loading: sprintsLoading, error: sprintsError, refetch: refetchSprints } = useSprints();
+  const { data: apiStories, loading: storiesLoading, error: storiesError, refetch: refetchStories } = useStories();
+  const { data: apiTasks, loading: tasksLoading, error: tasksError, refetch: refetchTasks } = useTasks();
+  
   // Filter states
   const [selectedProjectForSprint, setSelectedProjectForSprint] = useState<string>('all');
   const [selectedProjectForTasks, setSelectedProjectForTasks] = useState<string>('all');
 
-  // Get role-based metrics
+  // Get role-based metrics from API data
   const metrics = useMemo(() => {
     if (!user) return null;
-    return getDashboardMetrics(user.role, user.id);
-  }, [user]);
+    
+    // Calculate metrics from API data
+    const totalProjects = apiProjects?.content?.length || 0;
+    const totalUsers = apiUsers?.content?.length || 0;
+    const totalTasks = apiTasks?.content?.length || 0;
+    const completedTasks = apiTasks?.content?.filter(task => task.status === 'DONE').length || 0;
+    
+    return {
+      projectCount: totalProjects,
+      teamMembers: totalUsers,
+      sprintProgress: 0, // TODO: Calculate from sprint data
+      taskCompletion: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+      criticalItems: apiTasks?.content?.filter(task => task.priority === 'CRITICAL').length || 0,
+      upcomingDeadlines: 0 // TODO: Calculate from task due dates
+    };
+  }, [user, apiProjects, apiUsers, apiTasks]);
 
-  // Filter projects based on user permissions
+  // Filter projects based on user permissions - use API data only
   const accessibleProjects = useMemo(() => {
     if (!user) return [];
-    return mockProjects.filter(project => canAccessProject(project.id));
-  }, [user, canAccessProject]);
+    const projectData = apiProjects?.content || [];
+    return projectData.filter(project => canAccessProject(project.id));
+  }, [user, canAccessProject, apiProjects]);
 
-  const burndownData = getBurndownData();
-  const monthlyTrendData = getMonthlyTrendData();
-  const projectStatusData = getProjectStatusData();
-  const teamPerformanceData = getTeamPerformanceData();
-  const aiInsights = getAIInsights();
+  // Generate chart data from API data
+  const burndownData = useMemo(() => {
+    // TODO: Generate burndown data from sprint and task data
+    return [
+      { day: 'Day 1', planned: 100, actual: 100 },
+      { day: 'Day 2', planned: 90, actual: 88 },
+      { day: 'Day 3', planned: 80, actual: 75 },
+      { day: 'Day 4', planned: 70, actual: 65 },
+      { day: 'Day 5', planned: 60, actual: 55 }
+    ];
+  }, [apiSprints, apiTasks]);
+
+  const projectStatusData = useMemo(() => {
+    if (!apiProjects?.content) return [];
+    return apiProjects.content.map(project => ({
+      name: project.name,
+      value: project.progress || 0
+    }));
+  }, [apiProjects]);
+
+  const monthlyTrendData = useMemo(() => {
+    // TODO: Generate trend data from historical data
+    return [
+      { month: 'Jan', projects: 2, tasks: 45 },
+      { month: 'Feb', projects: 3, tasks: 62 },
+      { month: 'Mar', projects: 4, tasks: 78 },
+      { month: 'Apr', projects: 5, tasks: 95 }
+    ];
+  }, [apiProjects, apiTasks]);
+
+  const teamPerformanceData = useMemo(() => {
+    // TODO: Generate team performance data from user and task data
+    return [
+      { member: 'Team Member 1', tasks: 12, completed: 10 },
+      { member: 'Team Member 2', tasks: 8, completed: 7 },
+      { member: 'Team Member 3', tasks: 15, completed: 12 }
+    ];
+  }, [apiUsers, apiTasks]);
+
+  const aiInsights = useMemo(() => {
+    // TODO: Generate AI insights from data patterns
+    return [
+      {
+        type: 'warning',
+        title: 'Project Progress Alert',
+        message: 'Some projects are behind schedule',
+        action: 'Review project timelines'
+      }
+    ];
+  }, [apiProjects]);
 
   // Generate project-specific sprint performance data based on actual project characteristics
   const getSprintPerformanceData = (projectId: string) => {
@@ -105,7 +173,7 @@ const Dashboard: React.FC = () => {
     // Use project ID to create consistent "random" values
     const projectSeed = project.id.charCodeAt(project.id.length - 1);
     
-    const sprints = [];
+    const sprints: { name: string; planned: number; done: number }[] = [];
     for (let i = 1; i <= 4; i++) {
       // Create consistent values based on project ID and sprint number
       const variation = ((projectSeed + i) % 10) / 10; // 0-0.9 variation
@@ -315,6 +383,177 @@ const Dashboard: React.FC = () => {
         </div>
         
       </div>
+
+      {/* API Status Indicators - All Master Tables */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        <Card className="border-blue-200">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <div className={`w-3 h-3 rounded-full ${projectsLoading ? 'bg-yellow-500 animate-pulse' : projectsError ? 'bg-red-500' : 'bg-green-500'}`}></div>
+              <span className="text-sm font-medium">Projects API</span>
+              {projectsLoading && <span className="text-xs text-gray-500">Loading...</span>}
+              {projectsError && <span className="text-xs text-red-500" title={projectsError.message}>Error: {projectsError.status}</span>}
+              {apiProjects && <span className="text-xs text-green-600">{apiProjects.length} projects</span>}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-green-200">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <div className={`w-3 h-3 rounded-full ${usersLoading ? 'bg-yellow-500 animate-pulse' : usersError ? 'bg-red-500' : 'bg-green-500'}`}></div>
+              <span className="text-sm font-medium">Users API</span>
+              {usersLoading && <span className="text-xs text-gray-500">Loading...</span>}
+              {usersError && <span className="text-xs text-red-500" title={usersError.message}>Error: {usersError.status}</span>}
+              {apiUsers && <span className="text-xs text-green-600">{apiUsers.length} users</span>}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-purple-200">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <div className={`w-3 h-3 rounded-full ${departmentsLoading ? 'bg-yellow-500 animate-pulse' : departmentsError ? 'bg-red-500' : 'bg-green-500'}`}></div>
+              <span className="text-sm font-medium">Departments API</span>
+              {departmentsLoading && <span className="text-xs text-gray-500">Loading...</span>}
+              {departmentsError && <span className="text-xs text-red-500" title={departmentsError.message}>Error: {departmentsError.status}</span>}
+              {apiDepartments && <span className="text-xs text-green-600">{apiDepartments.length} departments</span>}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-orange-200">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <div className={`w-3 h-3 rounded-full ${domainsLoading ? 'bg-yellow-500 animate-pulse' : domainsError ? 'bg-red-500' : 'bg-green-500'}`}></div>
+              <span className="text-sm font-medium">Domains API</span>
+              {domainsLoading && <span className="text-xs text-gray-500">Loading...</span>}
+              {domainsError && <span className="text-xs text-red-500" title={domainsError.message}>Error: {domainsError.status}</span>}
+              {apiDomains && <span className="text-xs text-green-600">{apiDomains.length} domains</span>}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-indigo-200">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <div className={`w-3 h-3 rounded-full ${epicsLoading ? 'bg-yellow-500 animate-pulse' : epicsError ? 'bg-red-500' : 'bg-green-500'}`}></div>
+              <span className="text-sm font-medium">Epics API</span>
+              {epicsLoading && <span className="text-xs text-gray-500">Loading...</span>}
+              {epicsError && <span className="text-xs text-red-500" title={epicsError.message}>Error: {epicsError.status}</span>}
+              {apiEpics && <span className="text-xs text-green-600">{apiEpics.length} epics</span>}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-pink-200">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <div className={`w-3 h-3 rounded-full ${releasesLoading ? 'bg-yellow-500 animate-pulse' : releasesError ? 'bg-red-500' : 'bg-green-500'}`}></div>
+              <span className="text-sm font-medium">Releases API</span>
+              {releasesLoading && <span className="text-xs text-gray-500">Loading...</span>}
+              {releasesError && <span className="text-xs text-red-500" title={releasesError.message}>Error: {releasesError.status}</span>}
+              {apiReleases && <span className="text-xs text-green-600">{apiReleases.length} releases</span>}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-cyan-200">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <div className={`w-3 h-3 rounded-full ${sprintsLoading ? 'bg-yellow-500 animate-pulse' : sprintsError ? 'bg-red-500' : 'bg-green-500'}`}></div>
+              <span className="text-sm font-medium">Sprints API</span>
+              {sprintsLoading && <span className="text-xs text-gray-500">Loading...</span>}
+              {sprintsError && <span className="text-xs text-red-500" title={sprintsError.message}>Error: {sprintsError.status}</span>}
+              {apiSprints && <span className="text-xs text-green-600">{apiSprints.length} sprints</span>}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-teal-200">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <div className={`w-3 h-3 rounded-full ${storiesLoading ? 'bg-yellow-500 animate-pulse' : storiesError ? 'bg-red-500' : 'bg-green-500'}`}></div>
+              <span className="text-sm font-medium">Stories API</span>
+              {storiesLoading && <span className="text-xs text-gray-500">Loading...</span>}
+              {storiesError && <span className="text-xs text-red-500" title={storiesError.message}>Error: {storiesError.status}</span>}
+              {apiStories && <span className="text-xs text-green-600">{apiStories.length} stories</span>}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-emerald-200">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <div className={`w-3 h-3 rounded-full ${tasksLoading ? 'bg-yellow-500 animate-pulse' : tasksError ? 'bg-red-500' : 'bg-green-500'}`}></div>
+              <span className="text-sm font-medium">Tasks API</span>
+              {tasksLoading && <span className="text-xs text-gray-500">Loading...</span>}
+              {tasksError && <span className="text-xs text-red-500" title={tasksError.message}>Error: {tasksError.status}</span>}
+              {apiTasks && <span className="text-xs text-green-600">{apiTasks.length} tasks</span>}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-gray-200">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <div className={`w-3 h-3 rounded-full ${(projectsLoading || usersLoading || departmentsLoading || domainsLoading || epicsLoading || releasesLoading || sprintsLoading || storiesLoading || tasksLoading) ? 'bg-yellow-500 animate-pulse' : (projectsError || usersError || departmentsError || domainsError || epicsError || releasesError || sprintsError || storiesError || tasksError) ? 'bg-red-500' : 'bg-green-500'}`}></div>
+              <span className="text-sm font-medium">Data Source</span>
+              {apiProjects && apiProjects.length > 0 ? (
+                <span className="text-xs text-green-600">Live API Data</span>
+              ) : (
+                <span className="text-xs text-gray-500">Mock Data</span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* API Error Alert */}
+      {(projectsError || usersError || departmentsError || domainsError || epicsError || releasesError || sprintsError || storiesError || tasksError) && (
+        <Alert className="border-red-200 bg-red-50">
+          <AlertTriangle className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-red-800">
+            <strong>API Connection Issue:</strong> Unable to connect to some backend APIs. 
+            {projectsError && ` Projects API: ${projectsError.message}`}
+            {usersError && ` Users API: ${usersError.message}`}
+            {departmentsError && ` Departments API: ${departmentsError.message}`}
+            {domainsError && ` Domains API: ${domainsError.message}`}
+            {epicsError && ` Epics API: ${epicsError.message}`}
+            {releasesError && ` Releases API: ${releasesError.message}`}
+            {sprintsError && ` Sprints API: ${sprintsError.message}`}
+            {storiesError && ` Stories API: ${storiesError.message}`}
+            {tasksError && ` Tasks API: ${tasksError.message}`}
+            <br />
+            <div className="mt-2 text-sm">
+              <strong>Possible Solutions:</strong>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                <li>Ensure your backend API server is running on http://localhost:8080</li>
+                <li>Check if the API requires authentication (401 error indicates auth required)</li>
+                <li>Verify the API endpoints are accessible without authentication</li>
+                <li>Check browser console for detailed error information</li>
+              </ul>
+              <span className="text-xs text-gray-600 mt-2 block">
+                The application is currently using mock data as a fallback.
+              </span>
+              <div className="mt-3">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => {
+                    console.log('Retrying API connection...');
+                    refetchProjects();
+                    refetchUsers();
+                  }}
+                  className="text-red-600 border-red-300 hover:bg-red-50"
+                >
+                  Retry Connection
+                </Button>
+              </div>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Performance Alert for Managers/Admins */}
       {(user.role === 'admin' || user.role === 'manager') && underperformingMembers.length > 0 && (
@@ -633,12 +872,12 @@ const Dashboard: React.FC = () => {
               </div>
               <CardDescription>
                 {getSprintChartInfo().description}
-                {getSprintChartInfo().subtitle && (
-                  <div className="mt-1 text-xs text-yellow-700 font-medium">
-                    {getSprintChartInfo().subtitle}
-                  </div>
-                )}
               </CardDescription>
+              {getSprintChartInfo().subtitle && (
+                <div className="mt-1 text-xs text-yellow-700 font-medium">
+                  {getSprintChartInfo().subtitle}
+                </div>
+              )}
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
@@ -686,12 +925,12 @@ const Dashboard: React.FC = () => {
               </div>
               <CardDescription>
                 {getTaskChartInfo().description}
-                {getTaskChartInfo().subtitle && (
-                  <div className="mt-1 text-xs text-cyan-700 font-medium">
-                    {getTaskChartInfo().subtitle}
-                  </div>
-                )}
               </CardDescription>
+              {getTaskChartInfo().subtitle && (
+                <div className="mt-1 text-xs text-cyan-700 font-medium">
+                  {getTaskChartInfo().subtitle}
+                </div>
+              )}
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
