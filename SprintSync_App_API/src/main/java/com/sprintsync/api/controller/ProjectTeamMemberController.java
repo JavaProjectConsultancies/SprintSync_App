@@ -5,11 +5,14 @@ import com.sprintsync.api.entity.ProjectTeamMember;
 import com.sprintsync.api.repository.ProjectTeamMemberRepository;
 import com.sprintsync.api.repository.UserRepository;
 import com.sprintsync.api.repository.DepartmentRepository;
+import com.sprintsync.api.service.IdGenerationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -33,6 +36,9 @@ public class ProjectTeamMemberController {
     @Autowired
     private DepartmentRepository departmentRepository;
 
+    @Autowired
+    private IdGenerationService idGenerationService;
+
     /**
      * Get all project team members
      */
@@ -49,10 +55,45 @@ public class ProjectTeamMemberController {
                 dto.setIsTeamLead(teamMember.getIsTeamLead());
                 dto.setAvailability(teamMember.getAllocationPercentage());
                 
+                // Set additional user fields
+                dto.setHourlyRate(user.getHourlyRate() != null ? user.getHourlyRate().doubleValue() : 0.0);
+                dto.setExperience(user.getExperience() != null ? user.getExperience().name() : "mid");
+                dto.setAvatar(user.getAvatarUrl());
+                
+                // Set default values for missing fields
+                dto.setWorkload(0); // Default workload
+                dto.setPerformance(85); // Default performance
+                
+                // Set skills from user (skills is stored as JSON string)
+                if (user.getSkills() != null && !user.getSkills().trim().isEmpty()) {
+                    try {
+                        // Parse JSON string to array (simple approach for now)
+                        String skillsJson = user.getSkills().trim();
+                        if (skillsJson.startsWith("[") && skillsJson.endsWith("]")) {
+                            // Remove brackets and split by comma
+                            String skillsStr = skillsJson.substring(1, skillsJson.length() - 1);
+                            String[] skillsArray = skillsStr.split(",");
+                            // Clean up quotes and whitespace
+                            for (int i = 0; i < skillsArray.length; i++) {
+                                skillsArray[i] = skillsArray[i].trim().replaceAll("^\"|\"$", "");
+                            }
+                            dto.setSkills(skillsArray);
+                        } else {
+                            dto.setSkills(new String[]{skillsJson});
+                        }
+                    } catch (Exception e) {
+                        dto.setSkills(new String[]{"General"});
+                    }
+                } else {
+                    dto.setSkills(new String[]{"General"}); // Default skill
+                }
+                
                 // Get department name
                 if (user.getDepartmentId() != null) {
                     departmentRepository.findById(user.getDepartmentId())
                         .ifPresent(dept -> dto.setDepartment(dept.getName()));
+                } else {
+                    dto.setDepartment("Unassigned");
                 }
                 
                 teamMembers.add(dto);
@@ -78,10 +119,45 @@ public class ProjectTeamMemberController {
                 dto.setIsTeamLead(teamMember.getIsTeamLead());
                 dto.setAvailability(teamMember.getAllocationPercentage());
                 
+                // Set additional user fields
+                dto.setHourlyRate(user.getHourlyRate() != null ? user.getHourlyRate().doubleValue() : 0.0);
+                dto.setExperience(user.getExperience() != null ? user.getExperience().name() : "mid");
+                dto.setAvatar(user.getAvatarUrl());
+                
+                // Set default values for missing fields
+                dto.setWorkload(0); // Default workload
+                dto.setPerformance(85); // Default performance
+                
+                // Set skills from user (skills is stored as JSON string)
+                if (user.getSkills() != null && !user.getSkills().trim().isEmpty()) {
+                    try {
+                        // Parse JSON string to array (simple approach for now)
+                        String skillsJson = user.getSkills().trim();
+                        if (skillsJson.startsWith("[") && skillsJson.endsWith("]")) {
+                            // Remove brackets and split by comma
+                            String skillsStr = skillsJson.substring(1, skillsJson.length() - 1);
+                            String[] skillsArray = skillsStr.split(",");
+                            // Clean up quotes and whitespace
+                            for (int i = 0; i < skillsArray.length; i++) {
+                                skillsArray[i] = skillsArray[i].trim().replaceAll("^\"|\"$", "");
+                            }
+                            dto.setSkills(skillsArray);
+                        } else {
+                            dto.setSkills(new String[]{skillsJson});
+                        }
+                    } catch (Exception e) {
+                        dto.setSkills(new String[]{"General"});
+                    }
+                } else {
+                    dto.setSkills(new String[]{"General"}); // Default skill
+                }
+                
                 // Get department name
                 if (user.getDepartmentId() != null) {
                     departmentRepository.findById(user.getDepartmentId())
                         .ifPresent(dept -> dto.setDepartment(dept.getName()));
+                } else {
+                    dto.setDepartment("Unassigned");
                 }
                 
                 teamMembers.add(dto);
@@ -97,6 +173,19 @@ public class ProjectTeamMemberController {
     @PostMapping
     public ResponseEntity<ProjectTeamMember> createProjectTeamMember(@RequestBody ProjectTeamMember teamMember) {
         try {
+            // Generate ID if not provided
+            if (teamMember.getId() == null || teamMember.getId().isEmpty()) {
+                teamMember.setId(idGenerationService.generateProjectTeamMemberId());
+            }
+            
+            // Set timestamps
+            if (teamMember.getCreatedAt() == null) {
+                teamMember.setCreatedAt(LocalDateTime.now());
+            }
+            if (teamMember.getJoinedAt() == null) {
+                teamMember.setJoinedAt(LocalDateTime.now());
+            }
+            
             ProjectTeamMember savedTeamMember = projectTeamMemberRepository.save(teamMember);
             return ResponseEntity.ok(savedTeamMember);
         } catch (Exception e) {
@@ -136,6 +225,46 @@ public class ProjectTeamMemberController {
     }
 
     /**
+     * Remove team member from project by user ID
+     */
+    @DeleteMapping("/project/{projectId}/user/{userId}")
+    public ResponseEntity<Map<String, Object>> removeTeamMemberFromProject(
+            @PathVariable String projectId,
+            @PathVariable String userId) {
+        try {
+            // Find the project team member record
+            List<ProjectTeamMember> teamMembers = projectTeamMemberRepository.findByProjectId(projectId);
+            Optional<ProjectTeamMember> teamMemberOpt = teamMembers.stream()
+                    .filter(tm -> tm.getUserId().equals(userId))
+                    .findFirst();
+            
+            if (teamMemberOpt.isPresent()) {
+                projectTeamMemberRepository.deleteById(teamMemberOpt.get().getId());
+                
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", true);
+                response.put("message", "Team member removed successfully");
+                response.put("removedUserId", userId);
+                response.put("projectId", projectId);
+                
+                return ResponseEntity.ok(response);
+            } else {
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", false);
+                response.put("message", "Team member not found in project");
+                
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "Error removing team member: " + e.getMessage());
+            
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    /**
      * Add team member to project (convenience endpoint)
      */
     @PostMapping("/add-to-project")
@@ -148,12 +277,15 @@ public class ProjectTeamMemberController {
             Integer allocationPercentage = (Integer) request.getOrDefault("allocationPercentage", 100);
             
             ProjectTeamMember teamMember = new ProjectTeamMember();
+            teamMember.setId(idGenerationService.generateProjectTeamMemberId());
             teamMember.setProjectId(projectId);
             teamMember.setUserId(userId);
             teamMember.setRole(role);
             teamMember.setIsTeamLead(isTeamLead);
             teamMember.setAllocationPercentage(allocationPercentage);
             teamMember.setIsActive(true);
+            teamMember.setCreatedAt(LocalDateTime.now());
+            teamMember.setJoinedAt(LocalDateTime.now());
             
             ProjectTeamMember savedTeamMember = projectTeamMemberRepository.save(teamMember);
             
@@ -167,6 +299,43 @@ public class ProjectTeamMemberController {
                 "success", false,
                 "message", "Failed to add team member: " + e.getMessage()
             ));
+        }
+    }
+
+    /**
+     * Add multiple team members to a project
+     */
+    @PostMapping("/project/{projectId}/batch")
+    public ResponseEntity<List<ProjectTeamMember>> addTeamMembersToProject(
+            @PathVariable String projectId, 
+            @RequestBody List<Map<String, Object>> teamMembers) {
+        try {
+            List<ProjectTeamMember> savedTeamMembers = new ArrayList<>();
+            
+            for (Map<String, Object> memberData : teamMembers) {
+                String userId = (String) memberData.get("userId");
+                String role = (String) memberData.get("role");
+                Boolean isTeamLead = (Boolean) memberData.getOrDefault("isTeamLead", false);
+                Integer allocationPercentage = (Integer) memberData.getOrDefault("allocationPercentage", 100);
+                
+                ProjectTeamMember teamMember = new ProjectTeamMember();
+                teamMember.setId(idGenerationService.generateProjectTeamMemberId());
+                teamMember.setProjectId(projectId);
+                teamMember.setUserId(userId);
+                teamMember.setRole(role);
+                teamMember.setIsTeamLead(isTeamLead);
+                teamMember.setAllocationPercentage(allocationPercentage);
+                teamMember.setIsActive(true);
+                teamMember.setCreatedAt(LocalDateTime.now());
+                teamMember.setJoinedAt(LocalDateTime.now());
+                
+                ProjectTeamMember savedTeamMember = projectTeamMemberRepository.save(teamMember);
+                savedTeamMembers.add(savedTeamMember);
+            }
+            
+            return ResponseEntity.ok(savedTeamMembers);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
         }
     }
 }

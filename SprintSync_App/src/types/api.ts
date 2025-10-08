@@ -65,12 +65,20 @@ export type ProjectStatus = 'PLANNING' | 'ACTIVE' | 'ON_HOLD' | 'COMPLETED' | 'C
 
 // Epic entity
 export interface Epic extends BaseEntity {
-  name: string;
+  title: string;
   description: string;
+  summary?: string;
+  theme?: string;
+  businessValue?: string;
   projectId: string;
   status: EpicStatus;
   priority: Priority;
-  createdBy: string;
+  owner: string;
+  assigneeId?: string;
+  startDate?: string;
+  endDate?: string;
+  storyPoints?: number;
+  progress?: number;
   isActive: boolean;
 }
 
