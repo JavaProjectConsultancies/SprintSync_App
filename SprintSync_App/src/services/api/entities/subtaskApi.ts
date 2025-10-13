@@ -5,7 +5,7 @@ const BASE_URL = '/subtasks';
 
 export const subtaskApiService = {
   // Basic CRUD operations
-  createSubtask: (subtask: Subtask) => 
+  createSubtask: (subtask: Omit<Subtask, 'id' | 'createdAt' | 'updatedAt'>) => 
     apiClient.post<Subtask>(BASE_URL, subtask),
   
   getSubtaskById: (id: string) => 
@@ -19,6 +19,9 @@ export const subtaskApiService = {
   
   updateSubtask: (id: string, subtask: Partial<Subtask>) => 
     apiClient.put<Subtask>(`${BASE_URL}/${id}`, subtask),
+  
+  updateSubtaskActualHours: (id: string, actualHours: number) =>
+    apiClient.patch<Subtask>(`${BASE_URL}/${id}/actual-hours`, { actualHours }),
   
   deleteSubtask: (id: string) => 
     apiClient.delete<void>(`${BASE_URL}/${id}`),

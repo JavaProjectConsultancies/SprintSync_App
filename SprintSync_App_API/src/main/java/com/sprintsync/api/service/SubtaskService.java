@@ -124,6 +124,20 @@ public class SubtaskService {
     }
 
     /**
+     * Update subtask actual hours (for effort logging)
+     */
+    public Subtask updateSubtaskActualHours(String id, java.math.BigDecimal actualHours) {
+        Optional<Subtask> optionalSubtask = subtaskRepository.findById(id);
+        if (optionalSubtask.isPresent()) {
+            Subtask subtask = optionalSubtask.get();
+            subtask.setActualHours(actualHours);
+            subtask.setUpdatedAt(LocalDateTime.now());
+            return subtaskRepository.save(subtask);
+        }
+        return null;
+    }
+
+    /**
      * Get subtask statistics
      */
     public Map<String, Object> getSubtaskStatistics() {

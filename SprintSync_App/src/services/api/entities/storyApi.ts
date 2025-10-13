@@ -1,24 +1,44 @@
 import apiClient from '../client';
-import { Story, Page } from '../../types/api';
+import { Story } from '../../../types/api';
 
 const BASE_URL = '/stories';
+
+// Helper to sanitize story data before sending to API
+const sanitizeStoryData = (story: any) => {
+  return {
+    ...story,
+    // Convert acceptanceCriteria to array if it's a string
+    acceptanceCriteria: story.acceptanceCriteria 
+      ? (typeof story.acceptanceCriteria === 'string' 
+          ? story.acceptanceCriteria.split('\n').filter((line: string) => line.trim())
+          : story.acceptanceCriteria)
+      : [],
+    // Convert empty strings to null for optional fields
+    epicId: story.epicId || null,
+    releaseId: story.releaseId || null,
+    sprintId: story.sprintId || null,
+    assigneeId: story.assigneeId || null,
+    reporterId: story.reporterId || null,
+    labels: (story.labels && story.labels.length > 0) ? story.labels : null,
+  };
+};
 
 export const storyApiService = {
   // Basic CRUD operations
   createStory: (story: Story) => 
-    apiClient.post<Story>(BASE_URL, story),
+    apiClient.post<Story>(BASE_URL, sanitizeStoryData(story)),
   
   getStoryById: (id: string) => 
     apiClient.get<Story>(`${BASE_URL}/${id}`),
   
   getStories: (params?: any) => 
-    apiClient.get<Page<Story>>(BASE_URL, { params }),
+    apiClient.get<Story[]>(BASE_URL, params),
   
   getAllStories: () => 
     apiClient.get<Story[]>(`${BASE_URL}/all`),
   
   updateStory: (id: string, story: Partial<Story>) => 
-    apiClient.put<Story>(`${BASE_URL}/${id}`, story),
+    apiClient.put<Story>(`${BASE_URL}/${id}`, sanitizeStoryData(story)),
   
   deleteStory: (id: string) => 
     apiClient.delete<void>(`${BASE_URL}/${id}`),
@@ -43,18 +63,14 @@ export const storyApiService = {
 
   // Status operations
   updateStoryStatus: (id: string, status: string) => 
-    apiClient.patch<Story>(`${BASE_URL}/${id}/status`, null, { 
-      params: { status } 
-    }),
+    apiClient.patch<Story>(`${BASE_URL}/${id}/status`, { status }),
 
   getStoriesByStatus: (status: string, params?: any) => 
     apiClient.get<Story[]>(`${BASE_URL}/status/${status}`, { params }),
 
   // Assignee operations
   updateStoryAssignee: (id: string, assigneeId: string) => 
-    apiClient.patch<Story>(`${BASE_URL}/${id}/assignee`, null, { 
-      params: { assigneeId } 
-    }),
+    apiClient.patch<Story>(`${BASE_URL}/${id}/assignee`, { assigneeId }),
 
   getStoriesByAssignee: (assigneeId: string, params?: any) => 
     apiClient.get<Story[]>(`${BASE_URL}/assignee/${assigneeId}`, { params }),
@@ -80,4 +96,16 @@ export const storyApiService = {
   // Statistics
   getStoryStatistics: (id: string) => 
     apiClient.get<any>(`${BASE_URL}/${id}/statistics`),
+
+  // Release operations
+  getStoriesByRelease: (releaseId: string, params?: any) => 
+    apiClient.get<Story[]>(`${BASE_URL}/release/${releaseId}`, { params }),
+
+  // Backlog operations
+  getBacklogStories: (projectId: string, params?: any) => 
+    apiClient.get<Story[]>(`${BASE_URL}/project/${projectId}/without-sprint`, { params }),
+
+  // Sprint assignment
+  moveStoryToSprint: (id: string, sprintId: string) => 
+    apiClient.patch<Story>(`${BASE_URL}/${id}/sprint`, { sprintId }),
 };
