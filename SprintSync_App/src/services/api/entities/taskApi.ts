@@ -1,5 +1,5 @@
 import apiClient from '../client';
-import { Task, Page } from '../../types/api';
+import { Task } from '../../../types/api';
 
 const BASE_URL = '/tasks';
 
@@ -12,7 +12,7 @@ export const taskApiService = {
     apiClient.get<Task>(`${BASE_URL}/${id}`),
   
   getTasks: (params?: any) => 
-    apiClient.get<Page<Task>>(BASE_URL, { params }),
+    apiClient.get<Task[]>(BASE_URL, { params }),
   
   getAllTasks: () => 
     apiClient.get<Task[]>(`${BASE_URL}/all`),
@@ -34,19 +34,18 @@ export const taskApiService = {
     }),
 
   // Status operations
-  updateTaskStatus: (id: string, status: string) => 
-    apiClient.patch<Task>(`${BASE_URL}/${id}/status`, null, { 
-      params: { status } 
-    }),
+  updateTaskStatus: (id: string, status: string) => {
+    console.log('updateTaskStatus called with:', { id, status });
+    console.log('Sending body:', { status });
+    return apiClient.patch<Task>(`${BASE_URL}/${id}/status`, { status });
+  },
 
   getTasksByStatus: (status: string, params?: any) => 
     apiClient.get<Task[]>(`${BASE_URL}/status/${status}`, { params }),
 
   // Assignee operations
   updateTaskAssignee: (id: string, assigneeId: string) => 
-    apiClient.patch<Task>(`${BASE_URL}/${id}/assignee`, null, { 
-      params: { assigneeId } 
-    }),
+    apiClient.patch<Task>(`${BASE_URL}/${id}/assignee`, { assigneeId }),
 
   getTasksByAssignee: (assigneeId: string, params?: any) => 
     apiClient.get<Task[]>(`${BASE_URL}/assignee/${assigneeId}`, { params }),
@@ -74,6 +73,9 @@ export const taskApiService = {
     apiClient.patch<Task>(`${BASE_URL}/${id}/time`, { 
       hours, description 
     }),
+
+  updateTaskActualHours: (id: string, actualHours: number) =>
+    apiClient.patch<Task>(`${BASE_URL}/${id}/actual-hours`, { actualHours }),
 
   // Statistics
   getTaskStatistics: (id: string) => 
