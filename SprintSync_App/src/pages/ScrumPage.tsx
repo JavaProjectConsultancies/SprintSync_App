@@ -850,18 +850,18 @@ const ScrumPage: React.FC = () => {
   // Add Task Handler
   const handleAddTask = async () => {
     const taskData = {
-      storyId: newTask.storyId,
-      title: newTask.title,
-      description: newTask.description,
-      status: 'TODO' as TaskStatus,
-      priority: newTask.priority,
-      assigneeId: newTask.assigneeId,
-      reporterId: user?.id || '',
-      estimatedHours: newTask.estimatedHours,
-      actualHours: 0,
-      orderIndex: 0,
-      dueDate: newTask.dueDate,
-      labels: []
+        storyId: newTask.storyId,
+        title: newTask.title,
+        description: newTask.description,
+        status: 'TODO' as TaskStatus,
+        priority: newTask.priority,
+        assigneeId: newTask.assigneeId,
+        reporterId: user?.id || '',
+        estimatedHours: newTask.estimatedHours,
+        actualHours: 0,
+        orderIndex: 0,
+        dueDate: newTask.dueDate,
+        labels: []
     };
     
     createTaskMutate(taskData);
@@ -886,20 +886,20 @@ const ScrumPage: React.FC = () => {
         console.error('Failed to log activity:', error);
       }
     }, 1000);
-    
-    toast.success('Task created successfully');
-    refetchSprintStories();
-    
-    setNewTask({
-      title: '',
-      description: '',
-      storyId: '',
-      priority: 'MEDIUM',
-      assigneeId: '',
-      estimatedHours: 0,
-      dueDate: ''
-    });
-    setIsAddTaskDialogOpen(false);
+      
+      toast.success('Task created successfully');
+      refetchSprintStories();
+      
+      setNewTask({
+        title: '',
+        description: '',
+        storyId: '',
+        priority: 'MEDIUM',
+        assigneeId: '',
+        estimatedHours: 0,
+        dueDate: ''
+      });
+      setIsAddTaskDialogOpen(false);
   };
 
   // View Task Details Handler (JIRA-style) - will be defined in component scope
@@ -938,7 +938,7 @@ const ScrumPage: React.FC = () => {
             userAgent: undefined
           });
         }
-      } catch (error) {
+    } catch (error) {
         console.error('Failed to log activity:', error);
       }
       
@@ -1039,7 +1039,7 @@ const ScrumPage: React.FC = () => {
               <p className="text-xs text-gray-400 mt-1">Activity will appear here as you work on this task</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
               {activityLogs.map((log) => (
                 <div key={log.id} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                   <div className="flex-shrink-0 mt-0.5">
@@ -1281,20 +1281,20 @@ const ScrumPage: React.FC = () => {
             story.priority === 'HIGH' ? 'border-l-orange-500 bg-orange-50/30' :
             story.priority === 'MEDIUM' ? 'border-l-blue-500 bg-blue-50/30' :
             'border-l-green-500 bg-green-50/30'
-          } hover:shadow-md transition-shadow rounded-lg`}>
+          } hover:shadow-md transition-shadow rounded-lg overflow-hidden`}>
             <CardContent className="p-4">
               {/* Story Header */}
               <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center space-x-2">
-            <GripVertical className="w-4 h-4 text-gray-400" />
+                <div className="flex items-center space-x-2 flex-wrap gap-1">
+                  <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0" />
                   <Badge variant="outline" className={`text-xs px-2 py-1 ${getPriorityColor(story.priority)} font-medium`}>
                     {story.priority}
                   </Badge>
                   <Badge variant="secondary" className="text-xs px-2 py-1 bg-gray-100 text-gray-700 font-medium">
                     ST#{index + 1}
-            </Badge>
-          </div>
-                <div className="flex items-center space-x-1">
+                  </Badge>
+                </div>
+                <div className="flex items-center space-x-1 flex-shrink-0 ml-2">
                   <Button 
                     variant="ghost" 
                     size="sm" 
@@ -1307,21 +1307,21 @@ const ScrumPage: React.FC = () => {
                   >
                     <Eye className="w-4 h-4 text-blue-600" />
                   </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-gray-100">
-                <MoreHorizontal className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem>
-                <TrendingUp className="w-4 h-4 mr-2" />
-                Story Insights
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                        <MoreHorizontal className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem>
+                        <TrendingUp className="w-4 h-4 mr-2" />
+                        Story Insights
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
-        </div>
+              </div>
         
               {/* Story Title */}
               <h4 className="font-semibold text-base mb-3 line-clamp-2 leading-tight text-gray-800">
@@ -1329,11 +1329,11 @@ const ScrumPage: React.FC = () => {
               </h4>
               
               {/* Story Footer */}
-              <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                <div className="flex items-center space-x-2">
+              <div className="flex items-center justify-between pt-2 border-t border-gray-100 gap-2">
+                <div className="flex items-center space-x-2 flex-wrap gap-1">
                   <Badge variant="secondary" className="text-xs font-medium bg-gray-100 text-gray-700">
-            {story.storyPoints} pts
-          </Badge>
+                    {story.storyPoints} pts
+                  </Badge>
                   <Badge variant="outline" className={`text-xs ${getStatusColor(story.status)} font-medium`}>
                     {story.status.replace('_', ' ')}
                   </Badge>
@@ -1342,13 +1342,32 @@ const ScrumPage: React.FC = () => {
                       {storyTasks.length} task{storyTasks.length !== 1 ? 's' : ''}
                     </Badge>
                   )}
-        </div>
-                <div className="text-xs text-gray-500">
+                </div>
+                <div className="flex items-center space-x-2 flex-shrink-0">
+                  {/* Add Task Button */}
+                  {canAddTasks && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2 text-xs border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 whitespace-nowrap"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setNewTask(prev => ({ ...prev, storyId: story.id }));
+                        setIsAddTaskDialogOpen(true);
+                      }}
+                      title={`Add task to ${story.title}`}
+                    >
+                      <Plus className="w-3 h-3 mr-1" />
+                      Add Task
+                    </Button>
+                  )}
                   {storyTasks.length > 0 && (
-                    <span className="flex items-center">
-                      <div className="w-1 h-1 bg-blue-400 rounded-full mr-1"></div>
-                      {storyTasks.length} in workflow
-                    </span>
+                    <div className="text-xs text-gray-500 whitespace-nowrap">
+                      <span className="flex items-center">
+                        <div className="w-1 h-1 bg-blue-400 rounded-full mr-1"></div>
+                        {storyTasks.length}
+                      </span>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1454,11 +1473,11 @@ const ScrumPage: React.FC = () => {
             </h4>
 
             {/* Task Stats Row */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center space-x-2 flex-wrap gap-1">
                 {/* Time Tracking - JIRA style (Roll-up from subtasks) */}
-                <div className="flex items-center space-x-1 text-xs bg-white px-2 py-1 rounded border border-gray-200">
-                  <Clock className="w-3 h-3 text-gray-500" />
+                <div className="flex items-center space-x-1 text-xs bg-white px-2 py-1 rounded border border-gray-200 whitespace-nowrap">
+                  <Clock className="w-3 h-3 text-gray-500 flex-shrink-0" />
                   <span className="text-gray-700 font-medium">{estimatedHours}h</span>
                   {actualHours > 0 && (
                     <>
@@ -1474,13 +1493,13 @@ const ScrumPage: React.FC = () => {
                 
                 {/* Subtask Counter */}
                 {totalSubtasks > 0 && (
-                  <Badge variant="outline" className="text-xs px-2 py-0.5 bg-purple-50 text-purple-700 border-purple-300 font-medium">
-                    <Layers3 className="w-3 h-3 mr-1" />
+                  <Badge variant="outline" className="text-xs px-2 py-0.5 bg-purple-50 text-purple-700 border-purple-300 font-medium whitespace-nowrap">
+                    <Layers3 className="w-3 h-3 mr-1 flex-shrink-0" />
                     {completedSubtasks}/{totalSubtasks}
                   </Badge>
                 )}
               </div>
-              <div className="flex items-center space-x-1">
+              <div className="flex items-center space-x-1 flex-shrink-0">
                 {/* Assignee */}
                 {task.assigneeId && (
                   <Avatar className="h-6 w-6 border-2 border-white shadow-sm">
@@ -1779,188 +1798,193 @@ const ScrumPage: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="scrum-board" className="mt-0 flex-1">
-          {/* Enhanced Horizontal Scrollable Board Container */}
+          {/* Story-Row Aligned Grid Scrum Board */}
           {sprintStoriesLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
           ) : (
             <div className="relative border rounded-lg overflow-hidden bg-gradient-to-br from-white to-green-50/30">
-              <div className="w-full h-[calc(100vh-300px)] overflow-x-auto overflow-y-hidden kanban-scroll border-0">
-                <div className="story-grid">
-                  {/* Column Headers */}
-                  <DropZone
-                    status="stories"
-                    title="Stories"
-                    icon={<BookOpen className="w-5 h-5 text-green-600" />}
-                    count={getStoriesByStatus('stories').length}
-                    colorClass="bg-green-100/80"
-                  >
+              {/* Fixed Column Headers */}
+              <div className="sticky top-0 z-10 grid grid-cols-6 gap-0 bg-gray-100 border-b shadow-sm">
+                <div className="p-3 bg-green-100/80 border-r border-gray-200">
+                  <div className="flex items-center space-x-2">
+                    <BookOpen className="w-4 h-4 text-green-600" />
+                    <span className="font-semibold text-sm">Stories</span>
+                    <Badge variant="secondary" className="text-xs">{sprintStories.length}</Badge>
+                  </div>
+                </div>
+                <div className="p-3 bg-blue-100/80 border-r border-gray-200">
+                  <div className="flex items-center space-x-2">
+                    <Timer className="w-4 h-4 text-blue-600" />
+                    <span className="font-semibold text-sm">To Do</span>
+                    <Badge variant="secondary" className="text-xs">{getTasksByStatus('todo').length}</Badge>
+                  </div>
+                </div>
+                <div className="p-3 bg-orange-100/80 border-r border-gray-200">
+                  <div className="flex items-center space-x-2">
+                    <PlayCircle className="w-4 h-4 text-orange-600" />
+                    <span className="font-semibold text-sm">In Progress</span>
+                    <Badge variant="secondary" className="text-xs">{getTasksByStatus('inprogress').length}</Badge>
+                  </div>
+                </div>
+                <div className="p-3 bg-purple-100/80 border-r border-gray-200">
+                  <div className="flex items-center space-x-2">
+                    <Shield className="w-4 h-4 text-purple-600" />
+                    <span className="font-semibold text-sm">QA</span>
+                    <Badge variant="secondary" className="text-xs">{getTasksByStatus('qa').length}</Badge>
+                  </div>
+                </div>
+                <div className="p-3 bg-emerald-100/80 border-r border-gray-200">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span className="font-semibold text-sm">Done</span>
+                    <Badge variant="secondary" className="text-xs">{getTasksByStatus('done').length}</Badge>
+                  </div>
+                </div>
+                <div className="p-3 bg-gray-100/80 flex items-center justify-center">
                     {canManageSprintsAndStories && (
-                      <div className="p-2">
                         <Button
                           variant="outline"
                           size="sm"
-                          className="w-full border-dashed"
+                      className="h-7 text-xs border-dashed"
                           onClick={() => setIsAddStoryDialogOpen(true)}
                         >
-                          <Plus className="w-4 h-4 mr-2" />
+                      <Plus className="w-3 h-3 mr-1" />
                           Add Story
                         </Button>
-                      </div>
-                    )}
-                    {getStoriesByStatus('stories').map((story, index) => (
-                      <React.Fragment key={story.id}>
-                        <DraggableStory story={story} index={index} />
-                        {/* Visual separator line after each story */}
-                        {index < getStoriesByStatus('stories').length - 1 && (
-                          <div className="mx-4 my-2 border-b border-gray-200"></div>
-                        )}
-                      </React.Fragment>
-                    ))}
-                  </DropZone>
-
-                  <DropZone
-                    status="todo"
-                    title="To Do"
-                    icon={<Timer className="w-5 h-5 text-blue-600" />}
-                    count={getTasksByStatus('todo').length}
-                    colorClass="bg-blue-100/80"
-                  >
-                    {canAddTasks && (
-                      <div className="p-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full border-dashed"
-                          onClick={() => setIsAddTaskDialogOpen(true)}
-                        >
-                          <Plus className="w-4 h-4 mr-2" />
-                          Add Task
-                        </Button>
-                      </div>
-                    )}
-                    {Object.entries(getTasksGroupedByStory('todo')).map(([storyTitle, group]) => {
-                      const { story, tasks } = group as { story?: Story; tasks: Task[] };
-                      return (
-                        <div key={storyTitle} className="mb-4">
-                          {/* Story Group Header */}
-                          <div className="flex items-center mb-2 px-2">
-                            <div className="flex items-center space-x-2 text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded">
-                              <BookOpen className="w-3 h-3" />
-                              <span className="font-medium">{storyTitle}</span>
-                              <Badge variant="secondary" className="text-xs px-1 py-0">
-                                {tasks.length} task{tasks.length !== 1 ? 's' : ''}
-                              </Badge>
-                            </div>
-                          </div>
-                          {/* Tasks for this story */}
-                          <div className="space-y-2">
-                            {tasks.map((task, index) => (
-                              <DraggableTask key={task.id} task={task} index={index} />
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </DropZone>
-
-                  <DropZone
-                    status="inprogress"
-                    title="In Progress"
-                    icon={<PlayCircle className="w-5 h-5 text-orange-600" />}
-                    count={getTasksByStatus('inprogress').length}
-                    colorClass="bg-orange-100/80"
-                  >
-                    {Object.entries(getTasksGroupedByStory('inprogress')).map(([storyTitle, group]) => {
-                      const { story, tasks } = group as { story?: Story; tasks: Task[] };
-                      return (
-                        <div key={storyTitle} className="mb-4">
-                          {/* Story Group Header */}
-                          <div className="flex items-center mb-2 px-2">
-                            <div className="flex items-center space-x-2 text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded">
-                              <BookOpen className="w-3 h-3" />
-                              <span className="font-medium">{storyTitle}</span>
-                              <Badge variant="secondary" className="text-xs px-1 py-0">
-                                {tasks.length} task{tasks.length !== 1 ? 's' : ''}
-                              </Badge>
-                            </div>
-                          </div>
-                          {/* Tasks for this story */}
-                          <div className="space-y-2">
-                            {tasks.map((task, index) => (
-                              <DraggableTask key={task.id} task={task} index={index} />
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </DropZone>
-
-                  <DropZone
-                    status="qa"
-                    title="QA"
-                    icon={<Shield className="w-5 h-5 text-purple-600" />}
-                    count={getTasksByStatus('qa').length}
-                    colorClass="bg-purple-100/80"
-                  >
-                    {Object.entries(getTasksGroupedByStory('qa')).map(([storyTitle, group]) => {
-                      const { story, tasks } = group as { story?: Story; tasks: Task[] };
-                      return (
-                        <div key={storyTitle} className="mb-4">
-                          {/* Story Group Header */}
-                          <div className="flex items-center mb-2 px-2">
-                            <div className="flex items-center space-x-2 text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded">
-                              <BookOpen className="w-3 h-3" />
-                              <span className="font-medium">{storyTitle}</span>
-                              <Badge variant="secondary" className="text-xs px-1 py-0">
-                                {tasks.length} task{tasks.length !== 1 ? 's' : ''}
-                              </Badge>
-                            </div>
-                          </div>
-                          {/* Tasks for this story */}
-                          <div className="space-y-2">
-                            {tasks.map((task, index) => (
-                              <DraggableTask key={task.id} task={task} index={index} />
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </DropZone>
-
-                  <DropZone
-                    status="done"
-                    title="Done"
-                    icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />}
-                    count={getTasksByStatus('done').length}
-                    colorClass="bg-emerald-100/80"
-                  >
-                    {Object.entries(getTasksGroupedByStory('done')).map(([storyTitle, group]) => {
-                      const { story, tasks } = group as { story?: Story; tasks: Task[] };
-                      return (
-                        <div key={storyTitle} className="mb-4">
-                          {/* Story Group Header */}
-                          <div className="flex items-center mb-2 px-2">
-                            <div className="flex items-center space-x-2 text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded">
-                              <BookOpen className="w-3 h-3" />
-                              <span className="font-medium">{storyTitle}</span>
-                              <Badge variant="secondary" className="text-xs px-1 py-0">
-                                {tasks.length} task{tasks.length !== 1 ? 's' : ''}
-                              </Badge>
-                            </div>
-                          </div>
-                          {/* Tasks for this story */}
-                          <div className="space-y-2">
-                            {tasks.map((task, index) => (
-                              <DraggableTask key={task.id} task={task} index={index} />
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </DropZone>
+                  )}
                 </div>
+              </div>
+
+              {/* Story Rows Content */}
+              <div className="w-full h-[calc(100vh-350px)] overflow-y-auto">
+                {sprintStories.length === 0 ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                      <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                      <h3 className="font-medium text-gray-600 mb-2">No stories in sprint</h3>
+                      <p className="text-sm text-gray-500">Add stories to see the grid layout</p>
+                    </div>
+                  </div>
+                ) : (
+                  sprintStories.map((story, storyIndex) => {
+                    // Get tasks for this story by status
+                    // Backend returns: to_do, in_progress, qa_review, done, blocked, cancelled
+                    const todoTasks = allTasks.filter(task => 
+                      task.storyId === story.id && 
+                      (task.status === 'to_do' || task.status === 'TO_DO' || task.status === 'todo' || task.status === 'TODO')
+                    );
+                    const inProgressTasks = allTasks.filter(task => 
+                      task.storyId === story.id && 
+                      (task.status === 'in_progress' || task.status === 'IN_PROGRESS' || task.status === 'inprogress' || task.status === 'INPROGRESS')
+                    );
+                    const qaTasks = allTasks.filter(task => 
+                      task.storyId === story.id && 
+                      (task.status === 'qa_review' || task.status === 'QA_REVIEW' || task.status === 'qa' || task.status === 'QA')
+                    );
+                    const doneTasks = allTasks.filter(task => 
+                      task.storyId === story.id && 
+                      (task.status === 'done' || task.status === 'DONE')
+                    );
+                    const maxTaskCount = Math.max(todoTasks.length, inProgressTasks.length, qaTasks.length, doneTasks.length, 1);
+
+                    // Debug logging
+                    console.log(`Story ${story.id} (${story.title}):`, {
+                      allTasksCount: allTasks.length,
+                      storyTasks: allTasks.filter(t => t.storyId === story.id),
+                      todoTasks: todoTasks.length,
+                      inProgressTasks: inProgressTasks.length,
+                      qaTasks: qaTasks.length,
+                      doneTasks: doneTasks.length,
+                      allTaskStatuses: allTasks.map(t => ({ id: t.id, storyId: t.storyId, status: t.status, statusType: typeof t.status }))
+                    });
+
+                    // Drop zone component for each cell
+                    const TaskDropZone: React.FC<{ status: string; tasks: Task[]; bgClass: string }> = ({ status, tasks, bgClass }) => {
+                      const [{ isOver }, drop] = useDrop(() => ({
+                        accept: ItemTypes.TASK,
+                        drop: (item: { id: string; type: string }) => {
+                          moveItem(item.id, status, item.type);
+                        },
+                        collect: (monitor) => ({
+                          isOver: monitor.isOver(),
+                        }),
+                      }));
+
+                      return (
+                        <div 
+                          ref={drop}
+                          className={`p-3 border-r border-gray-200 ${bgClass} ${isOver ? 'bg-blue-100 ring-2 ring-blue-400 ring-inset' : ''} transition-all`}
+                        >
+                          <div className="space-y-2 min-h-[80px]">
+                            {tasks.map((task, taskIndex) => (
+                              <DraggableTask key={task.id} task={task} index={taskIndex} />
+                            ))}
+                            {tasks.length === 0 && !isOver && (
+                              <div className="text-center py-6 text-gray-300 text-xs">
+                                Drop here
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    };
+
+                    return (
+                      <div key={story.id} className={`grid grid-cols-6 gap-0 border-b border-gray-200 ${storyIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
+                        {/* Story Column */}
+                        <div className="p-4 border-r border-gray-200 bg-green-50/20" style={{ minHeight: `${maxTaskCount * 120}px` }}>
+                          <DraggableStory story={story} index={storyIndex} />
+                        </div>
+
+                        {/* To Do Column */}
+                        <TaskDropZone status="todo" tasks={todoTasks} bgClass="bg-blue-50/10" />
+
+                        {/* In Progress Column */}
+                        <TaskDropZone status="inprogress" tasks={inProgressTasks} bgClass="bg-orange-50/10" />
+
+                        {/* QA Column */}
+                        <TaskDropZone status="qa" tasks={qaTasks} bgClass="bg-purple-50/10" />
+
+                        {/* Done Column */}
+                        <TaskDropZone status="done" tasks={doneTasks} bgClass="bg-emerald-50/10" />
+
+                        {/* Actions Column */}
+                        <div className="p-3 bg-gray-50/30 border-r-0">
+                          <div className="sticky top-16 space-y-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="w-full text-xs justify-start"
+                              onClick={() => {
+                                setSelectedStoryForDetails(story);
+                                setIsStoryDetailsOpen(true);
+                              }}
+                            >
+                              <Eye className="w-3 h-3 mr-1" />
+                              View
+                            </Button>
+                            {canAddTasks && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full h-7 text-xs border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50"
+                                onClick={() => {
+                                  setNewTask(prev => ({ ...prev, storyId: story.id }));
+                                  setIsAddTaskDialogOpen(true);
+                                }}
+                              >
+                                <Plus className="w-3 h-3 mr-1" />
+                                Add Task
+                              </Button>
+                            )}
+                </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
           )}
