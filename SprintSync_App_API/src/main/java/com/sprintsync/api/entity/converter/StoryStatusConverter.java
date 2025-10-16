@@ -12,7 +12,8 @@ public class StoryStatusConverter implements AttributeConverter<StoryStatus, Str
         if (attribute == null) {
             return null;
         }
-        return attribute.getValue();
+        // Convert to lowercase for database storage
+        return attribute.getValue().toLowerCase();
     }
 
     @Override
@@ -20,6 +21,7 @@ public class StoryStatusConverter implements AttributeConverter<StoryStatus, Str
         if (dbData == null) {
             return null;
         }
-        return StoryStatus.fromValue(dbData);
+        // Handle both lowercase (from database) and uppercase (from JSON) values
+        return StoryStatus.fromValue(dbData.toUpperCase());
     }
 }
