@@ -38,10 +38,10 @@ public class ActivityLog {
     @Column(name = "action", nullable = false, length = 100)
     private String action;
 
-    @Column(name = "old_values", columnDefinition = "jsonb")
+    @Column(name = "old_values", columnDefinition = "TEXT")
     private String oldValues;
 
-    @Column(name = "new_values", columnDefinition = "jsonb")
+    @Column(name = "new_values", columnDefinition = "TEXT")
     private String newValues;
 
     @Column(name = "description", columnDefinition = "TEXT")
