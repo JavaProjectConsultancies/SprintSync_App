@@ -181,6 +181,37 @@ public class SubtaskController {
     }
 
     /**
+     * Update subtask actual hours (for effort logging)
+     */
+    @PatchMapping("/{id}/actual-hours")
+    public ResponseEntity<Subtask> updateSubtaskActualHours(@PathVariable String id, @RequestBody Map<String, Object> update) {
+        try {
+            Object actualHoursObj = update.get("actualHours");
+            java.math.BigDecimal actualHours;
+            
+            // Convert to BigDecimal, handling both Integer and Double types
+            if (actualHoursObj instanceof Integer) {
+                actualHours = java.math.BigDecimal.valueOf((Integer) actualHoursObj);
+            } else if (actualHoursObj instanceof Double) {
+                actualHours = java.math.BigDecimal.valueOf((Double) actualHoursObj);
+            } else if (actualHoursObj instanceof java.math.BigDecimal) {
+                actualHours = (java.math.BigDecimal) actualHoursObj;
+            } else {
+                return ResponseEntity.badRequest().build();
+            }
+            
+            Subtask updatedSubtask = subtaskService.updateSubtaskActualHours(id, actualHours);
+            if (updatedSubtask != null) {
+                return ResponseEntity.ok(updatedSubtask);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
+
+    /**
      * Get subtask statistics
      */
     @GetMapping("/statistics")

@@ -25,7 +25,7 @@ export function useStory(id: string) {
 // Hook for creating a story
 export function useCreateStory() {
   return useApiMutation<Story, Omit<Story, 'id' | 'createdAt' | 'updatedAt'>>(
-    (story) => storyApiService.createStory(story)
+    (story) => storyApiService.createStory(story as Story)
   );
 }
 
@@ -54,23 +54,29 @@ export function usePaginatedStories(initialParams?: PaginationParams) {
 // Hook for searching stories
 export function useSearchStories() {
   return useSearchApi<Story>(
-    (query, params) => storyApiService.searchStories(query, undefined, params)
+    (query, params) => storyApiService.searchStories(query, params)
   );
 }
 
 // Hook for stories by project
 export function useStoriesByProject(projectId: string, params?: PaginationParams) {
   return useApi(
-    () => storyApiService.getStoriesByProject(projectId, params),
-    [projectId, JSON.stringify(params)]
+    () => projectId && projectId !== 'SKIP' 
+      ? storyApiService.getStoriesByProject(projectId, params) 
+      : Promise.resolve({ data: [] as Story[], success: true, message: '', status: 200 }),
+    [projectId, JSON.stringify(params)],
+    !!(projectId && projectId !== 'SKIP') // Only execute if projectId is valid
   );
 }
 
 // Hook for stories by sprint
 export function useStoriesBySprint(sprintId: string, params?: PaginationParams) {
   return useApi(
-    () => storyApiService.getStoriesBySprint(sprintId, params),
-    [sprintId, JSON.stringify(params)]
+    () => sprintId && sprintId !== 'SKIP' 
+      ? storyApiService.getStoriesBySprint(sprintId, params) 
+      : Promise.resolve({ data: [] as Story[], success: true, message: '', status: 200 }),
+    [sprintId, JSON.stringify(params)],
+    !!(sprintId && sprintId !== 'SKIP') // Only execute if sprintId is valid
   );
 }
 

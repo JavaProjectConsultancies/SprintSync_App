@@ -2,6 +2,7 @@ package com.sprintsync.api.repository;
 
 import com.sprintsync.api.entity.Department;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -71,4 +72,13 @@ public interface DepartmentRepository extends JpaRepository<Department, String> 
     //  * @return count of departments
     //  */
     // long countByIsActive(boolean isActive);
+
+    /**
+     * Find the maximum ID in the departments table.
+     * Used for generating the next available department ID.
+     * 
+     * @return the maximum ID as an optional string
+     */
+    @Query("SELECT MAX(d.id) FROM Department d")
+    Optional<String> findMaxId();
 }

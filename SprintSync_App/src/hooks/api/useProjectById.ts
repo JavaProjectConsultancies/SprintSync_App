@@ -38,6 +38,8 @@ export interface ProjectDetails {
   risks?: any[];
   integrations?: any[];
   milestones?: any[];
+  epics?: any[];
+  releases?: any[];
   successCriteria?: string[];
   totalTasks?: number;
   completedTasks?: number;
@@ -86,6 +88,8 @@ export const useProjectById = (projectId: string | number) => {
           risks: apiData.risks || [],
           integrations: apiData.integrations || [],
           milestones: apiData.milestones || [],
+          epics: apiData.epics || [],
+          releases: apiData.releases || [],
           successCriteria: apiData.successCriteria || [],
           totalTasks: apiData.totalTasks || 0,
           completedTasks: apiData.completedTasks || 0

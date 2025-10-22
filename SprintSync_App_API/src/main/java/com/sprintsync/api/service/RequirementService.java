@@ -18,10 +18,12 @@ import java.util.Optional;
 public class RequirementService {
 
     private final RequirementRepository requirementRepository;
+    private final IdGenerationService idGenerationService;
 
     @Autowired
-    public RequirementService(RequirementRepository requirementRepository) {
+    public RequirementService(RequirementRepository requirementRepository, IdGenerationService idGenerationService) {
         this.requirementRepository = requirementRepository;
+        this.idGenerationService = idGenerationService;
     }
 
     /**
@@ -31,6 +33,10 @@ public class RequirementService {
      * @return the created requirement
      */
     public Requirement createRequirement(Requirement requirement) {
+        // Generate custom ID if not provided
+        if (requirement.getId() == null || requirement.getId().isEmpty()) {
+            requirement.setId(idGenerationService.generateRequirementId());
+        }
         return requirementRepository.save(requirement);
     }
 
@@ -41,6 +47,12 @@ public class RequirementService {
      * @return list of created requirements
      */
     public List<Requirement> createRequirements(List<Requirement> requirements) {
+        // Generate IDs for requirements that don't have them
+        requirements.forEach(req -> {
+            if (req.getId() == null || req.getId().isEmpty()) {
+                req.setId(idGenerationService.generateRequirementId());
+            }
+        });
         return requirementRepository.saveAll(requirements);
     }
 

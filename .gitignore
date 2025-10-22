@@ -447,3 +447,7 @@ dist/
 # Local development
 .local/
 .cache/
+
+# Java build artifacts
+target/
+*.class

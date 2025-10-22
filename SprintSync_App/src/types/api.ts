@@ -65,12 +65,20 @@ export type ProjectStatus = 'PLANNING' | 'ACTIVE' | 'ON_HOLD' | 'COMPLETED' | 'C
 
 // Epic entity
 export interface Epic extends BaseEntity {
-  name: string;
+  title: string;
   description: string;
+  summary?: string;
+  theme?: string;
+  businessValue?: string;
   projectId: string;
   status: EpicStatus;
   priority: Priority;
-  createdBy: string;
+  owner: string;
+  assigneeId?: string;
+  startDate?: string;
+  endDate?: string;
+  storyPoints?: number;
+  progress?: number;
   isActive: boolean;
 }
 
@@ -110,15 +118,20 @@ export type SprintStatus = 'PLANNING' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
 export interface Story extends BaseEntity {
   title: string;
   description: string;
-  acceptanceCriteria: string;
+  acceptanceCriteria: string[]; // Changed to array to match backend
   projectId: string;
-  epicId: string;
-  sprintId: string;
-  releaseId: string;
-  assigneeId: string;
-  storyPoints: number;
+  epicId?: string;
+  sprintId?: string;
+  releaseId?: string;
+  assigneeId?: string;
+  reporterId?: string;
+  storyPoints?: number;
   priority: Priority;
   status: StoryStatus;
+  labels?: string[];
+  orderIndex?: number;
+  estimatedHours?: number;
+  actualHours?: number;
   isActive: boolean;
 }
 
@@ -140,7 +153,7 @@ export interface Task extends BaseEntity {
   labels?: string[];
 }
 
-export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE';
+export type TaskStatus = 'TO_DO' | 'IN_PROGRESS' | 'QA_REVIEW' | 'DONE' | 'BLOCKED' | 'CANCELLED';
 
 // Subtask entity
 export interface Subtask extends BaseEntity {
@@ -155,21 +168,28 @@ export interface Subtask extends BaseEntity {
   dueDate?: string;
   bugType?: string;
   severity?: string;
+  priority?: Priority;
+  status?: TaskStatus;
   labels?: string[];
 }
 
 // Time Entry entity
 export interface TimeEntry extends BaseEntity {
-  taskId: string;
   userId: string;
+  projectId?: string;
+  storyId?: string;
+  taskId?: string;
+  subtaskId?: string;
   description: string;
-  hours: number;
-  date: string;
-  type: TimeEntryType;
-  isActive: boolean;
+  entryType: TimeEntryType;
+  hoursWorked: number;
+  workDate: string;
+  startTime?: string;
+  endTime?: string;
+  isBillable: boolean;
 }
 
-export type TimeEntryType = 'DEVELOPMENT' | 'TESTING' | 'REVIEW' | 'MEETING' | 'OTHER';
+export type TimeEntryType = 'development' | 'testing' | 'design' | 'review' | 'meeting' | 'research' | 'documentation' | 'bug_fix' | 'refactoring' | 'deployment' | 'training' | 'administrative';
 
 // Quality Gate entity
 export interface QualityGate extends BaseEntity {
@@ -279,4 +299,19 @@ export interface BatchOperationResult {
   failed: number;
   errors: string[];
   results: any[];
+}
+
+// Activity Log entity
+export interface ActivityLog {
+  id: string;
+  userId?: string;
+  entityType: string;
+  entityId: string;
+  action: string;
+  oldValues?: string;
+  newValues?: string;
+  description?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  createdAt: string;
 }

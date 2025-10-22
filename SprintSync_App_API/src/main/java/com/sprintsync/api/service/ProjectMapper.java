@@ -56,6 +56,12 @@ public class ProjectMapper {
     @Autowired
     private com.sprintsync.api.repository.AvailableIntegrationRepository availableIntegrationRepository;
 
+    @Autowired
+    private com.sprintsync.api.repository.EpicRepository epicRepository;
+
+    @Autowired
+    private com.sprintsync.api.repository.ReleaseRepository releaseRepository;
+
     /**
      * Convert Project entity to ProjectDto
      */
@@ -113,6 +119,8 @@ public class ProjectMapper {
                dto.setStakeholders(getStakeholders(project.getId()));
                dto.setRisks(getRisks(project.getId()));
                dto.setIntegrations(getIntegrations(project.getId()));
+               dto.setEpics(getEpics(project.getId()));
+               dto.setReleases(getReleases(project.getId()));
 
         return dto;
     }
@@ -594,6 +602,84 @@ public class ProjectMapper {
         }
 
         return integrations;
+    }
+
+    /**
+     * Get epics for a project
+     */
+    private List<com.sprintsync.api.dto.EpicDto> getEpics(String projectId) {
+        List<com.sprintsync.api.dto.EpicDto> epics = new ArrayList<>();
+        
+        try {
+            List<com.sprintsync.api.entity.Epic> epicEntities = epicRepository.findByProjectId(projectId);
+            
+            for (com.sprintsync.api.entity.Epic epic : epicEntities) {
+                com.sprintsync.api.dto.EpicDto dto = new com.sprintsync.api.dto.EpicDto();
+                dto.setId(epic.getId());
+                dto.setProjectId(epic.getProjectId());
+                dto.setTitle(epic.getTitle());
+                dto.setDescription(epic.getDescription());
+                dto.setSummary(epic.getSummary());
+                dto.setTheme(epic.getTheme());
+                dto.setBusinessValue(epic.getBusinessValue());
+                dto.setPriority(epic.getPriority() != null ? epic.getPriority().getValue() : "medium");
+                dto.setStatus(epic.getStatus() != null ? epic.getStatus().getValue() : "draft");
+                dto.setProgress(epic.getProgress() != null ? epic.getProgress() : 0);
+                dto.setStoryPoints(epic.getStoryPoints() != null ? epic.getStoryPoints() : 0);
+                dto.setAssigneeId(epic.getAssigneeId());
+                dto.setOwner(epic.getOwner());
+                dto.setStartDate(epic.getStartDate() != null ? epic.getStartDate().toString() : "");
+                dto.setEndDate(epic.getEndDate() != null ? epic.getEndDate().toString() : "");
+                dto.setCreatedAt(epic.getCreatedAt() != null ? epic.getCreatedAt().toString() : "");
+                dto.setUpdatedAt(epic.getUpdatedAt() != null ? epic.getUpdatedAt().toString() : "");
+                
+                epics.add(dto);
+            }
+        } catch (Exception e) {
+            System.err.println("Error fetching epics for project " + projectId + ": " + e.getMessage());
+        }
+
+        return epics;
+    }
+
+    /**
+     * Get releases for a project
+     */
+    private List<com.sprintsync.api.dto.ReleaseDto> getReleases(String projectId) {
+        List<com.sprintsync.api.dto.ReleaseDto> releases = new ArrayList<>();
+        
+        try {
+            List<com.sprintsync.api.entity.Release> releaseEntities = releaseRepository.findByProjectId(projectId);
+            
+            for (com.sprintsync.api.entity.Release release : releaseEntities) {
+                com.sprintsync.api.dto.ReleaseDto dto = new com.sprintsync.api.dto.ReleaseDto();
+                dto.setId(release.getId());
+                dto.setProjectId(release.getProjectId());
+                dto.setName(release.getName());
+                dto.setDescription(release.getDescription());
+                dto.setVersion(release.getVersion());
+                dto.setStatus(release.getStatus() != null ? release.getStatus().getValue() : "planning");
+                dto.setProgress(release.getProgress() != null ? release.getProgress() : 0);
+                dto.setReleaseDate(release.getReleaseDate() != null ? release.getReleaseDate().toString() : "");
+                dto.setTargetDate(release.getTargetDate() != null ? release.getTargetDate().toString() : "");
+                dto.setCompletedAt(release.getCompletedAt() != null ? release.getCompletedAt().toString() : "");
+                dto.setReleaseNotes(release.getReleaseNotes());
+                dto.setRisks(release.getRisks());
+                dto.setDependencies(release.getDependencies());
+                dto.setCreatedBy(release.getCreatedBy());
+                dto.setLinkedEpics(release.getLinkedEpics());
+                dto.setLinkedStories(release.getLinkedStories());
+                dto.setLinkedSprints(release.getLinkedSprints());
+                dto.setCreatedAt(release.getCreatedAt() != null ? release.getCreatedAt().toString() : "");
+                dto.setUpdatedAt(release.getUpdatedAt() != null ? release.getUpdatedAt().toString() : "");
+                
+                releases.add(dto);
+            }
+        } catch (Exception e) {
+            System.err.println("Error fetching releases for project " + projectId + ": " + e.getMessage());
+        }
+
+        return releases;
     }
 
 }

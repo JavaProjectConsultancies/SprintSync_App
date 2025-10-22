@@ -182,6 +182,7 @@ const ProjectsPage: React.FC = () => {
   
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [isMilestoneDialogOpen, setIsMilestoneDialogOpen] = useState(false);
   const [isStakeholderDialogOpen, setIsStakeholderDialogOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -276,6 +277,7 @@ const ProjectsPage: React.FC = () => {
     epics: [],
     releases: []
   });
+  const [hasUserAddedRequirements, setHasUserAddedRequirements] = useState(false);
 
   // Project Templates
   const projectTemplates = [
@@ -349,7 +351,7 @@ const ProjectsPage: React.FC = () => {
   const mockProjectsData = [
     {
       id: 1,
-      name: 'E-Commerce Platform - VNIT',
+      name: 'E-Commerce Platform',
       description: 'Modern online shopping experience with AI recommendations',
       status: 'active',
       progress: 85,
@@ -357,7 +359,7 @@ const ProjectsPage: React.FC = () => {
       startDate: '2024-01-15',
       endDate: '2024-03-15',
       managerId: '3', // Priya Mehta (manager: proj-1, proj-2)
-      department: 'VNIT',
+      department: 'DEPT0000000000001', // Engineering
       teamMembers: [
         { name: 'Rohit Kumar', role: 'Angular Developer', avatar: '' }, // ID 7: assigned proj-1, proj-3
         { name: 'Sneha Patel', role: 'Designer', avatar: '' }, // ID 31: assigned proj-1, proj-2
@@ -403,7 +405,7 @@ const ProjectsPage: React.FC = () => {
     },
     {
       id: 3,
-      name: 'AI Chat Support - VNIT',
+      name: 'AI Chat Support',
       description: 'Intelligent customer support automation',
       status: 'completed',
       progress: 100,
@@ -411,7 +413,7 @@ const ProjectsPage: React.FC = () => {
       startDate: '2023-10-01',
       endDate: '2024-01-15',
       managerId: '4', // Rajesh Gupta (manager: proj-3, proj-4)
-      department: 'VNIT',
+      department: 'DEPT0000000000001', // Engineering
       teamMembers: [
         { name: 'Rohit Kumar', role: 'Angular Developer', avatar: '' }, // ID 7: assigned proj-1, proj-3
         { name: 'Ravi Sharma', role: 'Java Developer', avatar: '' }, // ID 12: assigned proj-1, proj-3
@@ -484,7 +486,7 @@ const ProjectsPage: React.FC = () => {
     },
     {
       id: 6,
-      name: 'Learning Management System - VNIT',
+      name: 'Learning Management System',
       description: 'Online education platform with video streaming',
       status: 'planning',
       progress: 10,
@@ -492,7 +494,7 @@ const ProjectsPage: React.FC = () => {
       startDate: '2024-04-01',
       endDate: '2024-07-01',
       managerId: '5', // Anita Verma (manager: proj-5, proj-6)
-      department: 'VNIT',
+      department: 'DEPT0000000000001', // Engineering
       teamMembers: [
         { name: 'Neha Agarwal', role: 'Angular Developer', avatar: '' }, // ID 8: assigned proj-5, proj-6
         { name: 'Karthik Nair', role: 'Java Developer', avatar: '' }, // ID 14: assigned proj-6, proj-8
@@ -592,6 +594,7 @@ const ProjectsPage: React.FC = () => {
       epics: [],
       releases: []
     });
+    setHasUserAddedRequirements(false); // Reset the flag
     setNewRequirement('');
     setNewSuccessCriteria('');
     setNewObjective('');
@@ -647,7 +650,8 @@ const ProjectsPage: React.FC = () => {
         template: templateId,
         projectType: templateId,
         scope: template.defaultScope,
-        requirements: template.defaultRequirements.map((req, index) => ({
+        // Only set default requirements if user hasn't added any custom requirements
+        requirements: !hasUserAddedRequirements ? template.defaultRequirements.map((req, index) => ({
           id: `req-${Date.now()}-${index}`,
           title: req.title,
           description: '',
@@ -657,110 +661,206 @@ const ProjectsPage: React.FC = () => {
           acceptanceCriteria: [],
           status: 'draft' as const,
           effort: 0
-        }))
+        })) : prev.requirements
       }));
     }
   };
 
   const handleCreateProject = async () => {
+    // Prevent multiple submissions
+    if (isCreatingProject) {
+      console.log('Project creation already in progress...');
+      return;
+    }
+
     try {
-    console.log('Creating new project:', newProject);
-    
-    // Validate required fields
-    if (!newProject.teamLead) {
-      alert('Please select a team lead before creating the project.');
-      return;
-    }
-    
-    if (!newProject.department) {
-      alert('Please select a department before creating the project.');
-      return;
-    }
+      setIsCreatingProject(true);
+      console.log('Creating comprehensive project:', newProject);
       
-      // Prepare the project data for API (matching Project entity structure)
-      const projectData = {
+      // Validate required fields
+      if (!newProject.teamLead) {
+        alert('Please select a team lead before creating the project.');
+        setIsCreatingProject(false);
+        return;
+      }
+      
+      if (!newProject.department) {
+        alert('Please select a department before creating the project.');
+        setIsCreatingProject(false);
+        return;
+      }
+      
+      // Prepare comprehensive project data for the new API
+      const comprehensiveProjectData = {
         name: newProject.name,
         description: newProject.description,
-        priority: newProject.priority?.toUpperCase(),
+        priority: newProject.priority?.toLowerCase(),
         startDate: newProject.startDate,
         endDate: newProject.endDate,
-        budget: newProject.budget ? parseFloat(newProject.budget.replace(/[₹,]/g, '')) : null,
+        budget: newProject.budget ? parseFloat(newProject.budget.replace(/[₹,]/g, '')).toString() : '0',
         scope: newProject.scope,
         methodology: newProject.methodology,
         template: newProject.template,
         projectType: newProject.projectType,
         departmentId: newProject.department,
-        successCriteria: newProject.successCriteria,
-        objectives: newProject.objectives,
         managerId: newProject.teamLead,
         // Set default values for required fields
-        status: 'PLANNING',
-        progressPercentage: 0,
-        spent: 0.00,
-        isActive: true
+        status: 'planning',
+        progress: 0,
+        spent: '0',
+        
+        // Requirements
+        requirements: newProject.requirements.map(req => ({
+          title: req.title,
+          description: req.description || '',
+          type: req.type?.toLowerCase().replace('-', '_'),
+          status: req.status?.toLowerCase() || 'draft',
+          priority: req.priority?.toLowerCase(),
+          module: req.module || '',
+          acceptanceCriteria: JSON.stringify(req.acceptanceCriteria || []),
+          effortPoints: req.effort || 0
+        })),
+
+        // Risks
+        risks: newProject.risks.map(risk => ({
+          title: risk.title,
+          description: risk.description || '',
+          probability: risk.probability?.toLowerCase(),
+          impact: risk.impact?.toLowerCase(),
+          mitigation: risk.mitigation || '',
+          status: risk.status?.toLowerCase() || 'identified',
+          owner: risk.owner || ''
+        })),
+
+        // Stakeholders
+        stakeholders: newProject.stakeholders.map(stakeholder => ({
+          name: stakeholder.name,
+          role: stakeholder.role,
+          email: stakeholder.email || '',
+          responsibilities: JSON.stringify(stakeholder.responsibilities || [])
+        })),
+
+        // Team Members
+        teamMembers: newProject.teamMembers.map(member => ({
+          userId: member.id || member.name,
+          role: member.role,
+          isTeamLead: member.isTeamLead || false,
+          allocatedHours: member.allocatedHours || 0,
+          startDate: '',
+          endDate: ''
+        })),
+
+        // Epics
+        epics: newProject.epics.map(epic => ({
+          title: epic.title || epic.name,
+          description: epic.description || '',
+          summary: epic.summary || '',
+          theme: epic.theme || '',
+          businessValue: epic.businessValue || '',
+          priority: epic.priority?.toLowerCase(),
+          status: (epic.status?.toLowerCase() === 'planned' ? 'planning' : epic.status?.toLowerCase()) || 'draft',
+          startDate: epic.startDate || '',
+          endDate: epic.endDate || '',
+          assigneeId: epic.assigneeId || '',
+          owner: epic.owner || '',
+          progress: epic.progress || 0,
+          storyPoints: epic.storyPoints || 0
+        })),
+
+        // Releases
+        releases: newProject.releases.map(release => ({
+          name: release.name,
+          description: release.description || '',
+          version: release.version || '1.0.0',
+          status: (release.status?.toLowerCase() === 'planned' ? 'planning' : release.status?.toLowerCase()) || 'planning',
+          releaseDate: release.releaseDate || '',
+          targetDate: release.targetDate || '',
+          releaseNotes: release.releaseNotes || '',
+          risks: release.risks || '[]',
+          dependencies: release.dependencies || '[]',
+          createdBy: release.createdBy || '',
+          progress: release.progress || 0,
+          linkedEpics: release.linkedEpics || '[]',
+          linkedStories: release.linkedStories || '[]',
+          linkedSprints: release.linkedSprints || '[]',
+          completedAt: release.completedAt || null
+        })),
+
+        // Success Criteria and Objectives
+        successCriteria: newProject.successCriteria || [],
+        objectives: newProject.objectives || []
       };
 
-      // Create project via API
-      const projectResponse = await projectApiService.createProject(projectData);
-      
-      if (projectResponse && projectResponse.id) {
-        console.log('Project created successfully:', projectResponse);
-        const projectId = projectResponse.id;
+      console.log('Sending comprehensive project data:', comprehensiveProjectData);
 
-        // Create related entities
-        await createRelatedEntities(projectId);
+      // Create project with all related entities in one API call
+      const response = await projectApiService.createProjectComprehensive(comprehensiveProjectData);
+      
+      if (response && response.success) {
+        console.log('Project and all entities created successfully:', response);
         
         // Close dialog and reset form
     setIsNewProjectDialogOpen(false);
     resetNewProjectForm();
         
         // Show success message
-        alert('Project and all related entities created successfully!');
+        alert(`Project and all related entities created successfully! Total entities created: ${response.data?.totalEntitiesCreated || 'Unknown'}`);
         
         // Optionally refresh the projects list
         window.location.reload(); // Simple refresh for now
         
       } else {
-        console.error('Failed to create project:', projectResponse);
-        alert('Failed to create project. Please try again.');
+        console.error('Failed to create comprehensive project:', response);
+        alert(`Failed to create project: ${response.message || 'Unknown error'}`);
       }
     } catch (error) {
-      console.error('Error creating project:', error);
+      console.error('Error creating comprehensive project:', error);
       alert('Error creating project. Please try again.');
+    } finally {
+      setIsCreatingProject(false);
     }
   };
 
   // Helper function to create related entities
-  const createRelatedEntities = async (projectId: string) => {
+  const createRelatedEntities = async (projectId: string, epics: any[], releases: any[], requirements: any[], risks: any[], stakeholders: any[], teamMembers: any[]) => {
     try {
+      console.log('Creating related entities for project:', projectId);
+      console.log('Epics to create:', epics);
+      console.log('Releases to create:', releases);
+      console.log('Requirements to create:', requirements);
+      console.log('Risks to create:', risks);
+      console.log('Stakeholders to create:', stakeholders);
+      console.log('Team members to create:', teamMembers);
+
       // Create Requirements
-      if (newProject.requirements && newProject.requirements.length > 0) {
-        const requirementsData = newProject.requirements.map(req => ({
+      if (requirements && requirements.length > 0) {
+        const requirementsData = requirements.map(req => ({
           projectId: projectId,
           title: req.title,
-          description: req.description,
-          type: req.type,
-          status: req.status,
-          priority: req.priority,
-          module: req.module,
-          acceptanceCriteria: req.acceptanceCriteria,
-          effortPoints: req.effort
+          description: req.description || '',
+          type: req.type?.toUpperCase().replace('-', '_'),
+          status: req.status?.toUpperCase(),
+          priority: req.priority?.toUpperCase(),
+          module: req.module || '',
+          acceptanceCriteria: JSON.stringify(req.acceptanceCriteria || []),
+          effortPoints: req.effort || 0
         }));
         
+        console.log('Requirements data to send:', requirementsData);
         await apiClient.post(`/requirements/project/${projectId}/batch`, requirementsData);
         console.log('Requirements created successfully');
       }
 
       // Create Risks
-      if (newProject.risks && newProject.risks.length > 0) {
-        const risksData = newProject.risks.map(risk => ({
+      if (risks && risks.length > 0) {
+        const risksData = risks.map(risk => ({
           projectId: projectId,
           title: risk.title,
-          description: risk.description,
-          probability: risk.probability,
-          impact: risk.impact,
-          mitigation: risk.mitigation,
-          status: risk.status,
+          description: risk.description || '',
+          probability: risk.probability?.toUpperCase(),
+          impact: risk.impact?.toUpperCase(),
+          mitigation: risk.mitigation || '',
+          status: risk.status?.toUpperCase(),
           owner: risk.owner || newProject.teamLead // Default to project manager
         }));
         
@@ -769,14 +869,14 @@ const ProjectsPage: React.FC = () => {
       }
 
       // Create Stakeholders
-      if (newProject.stakeholders && newProject.stakeholders.length > 0) {
-        const stakeholdersData = newProject.stakeholders.map(stakeholder => ({
+      if (stakeholders && stakeholders.length > 0) {
+        const stakeholdersData = stakeholders.map(stakeholder => ({
           projectId: projectId,
           name: stakeholder.name,
           role: stakeholder.role,
           email: stakeholder.email || '',
-          responsibilities: stakeholder.responsibilities,
-          avatarUrl: stakeholder.avatar
+          responsibilities: JSON.stringify(stakeholder.responsibilities || []),
+          avatarUrl: stakeholder.avatar || ''
         }));
         
         await apiClient.post(`/stakeholders/project/${projectId}/batch`, stakeholdersData);
@@ -784,15 +884,15 @@ const ProjectsPage: React.FC = () => {
       }
 
       // Create Team Members (Project Team Members)
-      if (newProject.teamMembers && newProject.teamMembers.length > 0) {
-        const teamMembersData = newProject.teamMembers.map(member => ({
+      if (teamMembers && teamMembers.length > 0) {
+        const teamMembersData = teamMembers.map(member => ({
           projectId: projectId,
           userId: member.id || member.name, // Use ID if available, otherwise name
           role: member.role,
           isTeamLead: member.isTeamLead || false,
           allocatedHours: member.allocatedHours || 0,
-          startDate: newProject.startDate,
-          endDate: newProject.endDate
+          startDate: '',
+          endDate: ''
         }));
         
         await apiClient.post(`/project-team-members/project/${projectId}/batch`, teamMembersData);
@@ -800,47 +900,63 @@ const ProjectsPage: React.FC = () => {
       }
 
       // Create Epics
-      if (newProject.epics && newProject.epics.length > 0) {
-        const epicsData = newProject.epics.map(epic => ({
+      if (epics && epics.length > 0) {
+        console.log('Creating epics for project:', projectId);
+        console.log('Epics to create:', epics);
+        
+        const epicsData = epics.map(epic => ({
           projectId: projectId,
-          title: epic.title, // Backend uses 'title' not 'name'
-          description: epic.description,
-          summary: epic.summary,
-          theme: epic.theme,
-          businessValue: epic.businessValue,
-          priority: epic.priority,
-          status: epic.status || 'draft',
-          startDate: epic.startDate || newProject.startDate,
-          endDate: epic.endDate || newProject.endDate,
-          assigneeId: epic.assigneeId,
-          owner: epic.owner || newProject.teamLead,
+          title: epic.title || epic.name, // Backend uses 'title' not 'name'
+          description: epic.description || '',
+          summary: epic.summary || '',
+          theme: epic.theme || '',
+          businessValue: epic.businessValue || '',
+          priority: epic.priority?.toUpperCase(),
+          status: epic.status?.toUpperCase() || 'DRAFT',
+          startDate: epic.startDate || '',
+          endDate: epic.endDate || '',
+          assigneeId: epic.assigneeId || '',
+          owner: epic.owner || '',
           progress: epic.progress || 0,
           storyPoints: epic.storyPoints || 0
         }));
         
+        console.log('Epics data to send:', epicsData);
+        
         await apiClient.post(`/epics/project/${projectId}/batch`, epicsData);
         console.log('Epics created successfully');
+      } else {
+        console.log('No epics to create for project:', projectId);
       }
 
       // Create Releases
-      if (newProject.releases && newProject.releases.length > 0) {
-        const releasesData = newProject.releases.map(release => ({
+      if (releases && releases.length > 0) {
+        console.log('Creating releases for project:', projectId);
+        console.log('Releases to create (from state):', releases);
+        const releasesData = releases.map(release => ({
           projectId: projectId,
           name: release.name,
-          description: release.description,
-          version: release.version,
-          status: release.status || 'planned',
-          releaseDate: release.releaseDate || newProject.endDate,
-          targetDate: release.targetDate || newProject.endDate,
-          releaseNotes: release.releaseNotes,
-          risks: release.risks,
-          dependencies: release.dependencies,
-          createdBy: release.createdBy || newProject.teamLead,
-          progress: release.progress || 0
+          description: release.description || '',
+          version: release.version || '1.0.0',
+          status: release.status?.toUpperCase() || 'PLANNING',
+          releaseDate: release.releaseDate || '',
+          targetDate: release.targetDate || '',
+          releaseNotes: release.releaseNotes || '',
+          risks: release.risks || '[]',
+          dependencies: release.dependencies || '[]',
+          createdBy: release.createdBy || '',
+          progress: release.progress || 0,
+          linkedEpics: release.linkedEpics || '[]',
+          linkedStories: release.linkedStories || '[]',
+          linkedSprints: release.linkedSprints || '[]',
+          completedAt: release.completedAt || null
         }));
+        console.log('Releases data to send:', releasesData);
         
         await apiClient.post(`/releases/project/${projectId}/batch`, releasesData);
         console.log('Releases created successfully');
+      } else {
+        console.log('No releases to create.');
       }
 
     } catch (error) {
@@ -869,25 +985,34 @@ const ProjectsPage: React.FC = () => {
 
   const saveEpic = () => {
     if (currentEpic.name.trim()) {
-      setNewProject(prev => ({
-        ...prev,
-        epics: [...prev.epics, {
-          id: `epic-${Date.now()}`,
-          title: currentEpic.name.trim(), // Backend uses 'title' not 'name'
-          description: currentEpic.description.trim(),
-          summary: currentEpic.summary.trim(),
-          theme: currentEpic.theme.trim(),
-          businessValue: currentEpic.businessValue.trim(),
-          priority: currentEpic.priority,
-          status: currentEpic.status,
-          startDate: currentEpic.startDate,
-          endDate: currentEpic.endDate,
-          assigneeId: currentEpic.assigneeId,
-          owner: newProject.teamLead || 'USER0000000000001', // Set owner
-          progress: 0,
-          storyPoints: currentEpic.storyPoints || 0
-        }]
-      }));
+      const newEpic = {
+        id: `epic-${Date.now()}`,
+        title: currentEpic.name.trim(), // Backend uses 'title' not 'name'
+        description: currentEpic.description.trim(),
+        summary: currentEpic.summary.trim(),
+        theme: currentEpic.theme.trim(),
+        businessValue: currentEpic.businessValue.trim(),
+        priority: currentEpic.priority,
+        status: currentEpic.status,
+        startDate: currentEpic.startDate,
+        endDate: currentEpic.endDate,
+        assigneeId: currentEpic.assigneeId,
+        owner: newProject.teamLead || 'USER0000000000001', // Set owner
+        progress: 0,
+        storyPoints: currentEpic.storyPoints || 0
+      };
+      
+      console.log('Adding epic:', newEpic);
+      
+      setNewProject(prev => {
+        const updatedProject = {
+          ...prev,
+          epics: [...prev.epics, newEpic]
+        };
+        console.log('Updated project epics:', updatedProject.epics);
+        return updatedProject;
+      });
+      
       setIsEpicDialogOpen(false);
       setCurrentEpic({
         name: '',
@@ -901,8 +1026,8 @@ const ProjectsPage: React.FC = () => {
   };
 
   const removeEpic = (index: number) => {
-    setNewProject(prev => ({
-      ...prev,
+      setNewProject(prev => ({
+        ...prev,
       epics: prev.epics.filter((_, i) => i !== index)
     }));
   };
@@ -1044,6 +1169,7 @@ const ProjectsPage: React.FC = () => {
   // Add Requirement
   const addRequirement = () => {
     if (newRequirement.trim()) {
+      setHasUserAddedRequirements(true); // Mark that user has added requirements
       setNewProject(prev => ({
         ...prev,
         requirements: [...prev.requirements, {
@@ -1060,6 +1186,21 @@ const ProjectsPage: React.FC = () => {
       }));
       setNewRequirement('');
     }
+  };
+
+  // Remove Requirement
+  const removeRequirement = (index: number) => {
+    setNewProject(prev => {
+      const newRequirements = prev.requirements.filter((_, i) => i !== index);
+      // If no requirements left, reset the flag so template can populate defaults
+      if (newRequirements.length === 0) {
+        setHasUserAddedRequirements(false);
+      }
+      return {
+        ...prev,
+        requirements: newRequirements
+      };
+    });
   };
 
   // Add Stakeholder
@@ -1477,8 +1618,8 @@ const ProjectsPage: React.FC = () => {
                               <p className="text-xs text-gray-600 line-clamp-2">{epic.summary}</p>
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-4 text-xs text-gray-500">
-                                  <span>{epic.linkedStories.length} stories</span>
-                                  <span>{epic.linkedMilestones.length} milestones</span>
+                                  <span>{epic.linkedStories?.length || 0} stories</span>
+                                  <span>{epic.linkedMilestones?.length || 0} milestones</span>
                                 </div>
                                 <div className="flex items-center space-x-2">
                                   <span className="text-xs text-gray-500">{epic.progress}%</span>
@@ -1557,9 +1698,9 @@ const ProjectsPage: React.FC = () => {
                               <p className="text-xs text-gray-600 line-clamp-2">{release.description}</p>
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-4 text-xs text-gray-500">
-                                  <span>{release.linkedStories.length} stories</span>
-                                  <span>{release.linkedEpics.length} epics</span>
-                                  <span>{release.linkedSprints.length} sprints</span>
+                                  <span>{release.linkedStories?.length || 0} stories</span>
+                                  <span>{release.linkedEpics?.length || 0} epics</span>
+                                  <span>{release.linkedSprints?.length || 0} sprints</span>
                                 </div>
                                 <div className="flex items-center space-x-2">
                                   <span className="text-xs text-gray-500">{release.progress}%</span>
@@ -1969,10 +2110,19 @@ const ProjectsPage: React.FC = () => {
                         <SelectValue placeholder="Select department" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="VNIT">VNIT</SelectItem>
-                        <SelectItem value="Dinshaw">Dinshaw</SelectItem>
-                        <SelectItem value="Hospy">Hospy</SelectItem>
-                        <SelectItem value="Pharma">Pharma</SelectItem>
+                        {departmentsLoading ? (
+                          <SelectItem value="loading" disabled>Loading departments...</SelectItem>
+                        ) : departmentsError ? (
+                          <SelectItem value="error" disabled>Error loading departments</SelectItem>
+                        ) : apiDepartments && apiDepartments.length > 0 ? (
+                          apiDepartments.map((dept) => (
+                            <SelectItem key={dept.id} value={dept.id}>
+                              {dept.name}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="no-departments" disabled>No departments available</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -2309,7 +2459,7 @@ const ProjectsPage: React.FC = () => {
                   <div className="space-y-2">
                     <Label htmlFor="teamLead">Team Lead *</Label>
                     <Select 
-                      value={newProject.teamLead} 
+                      value={newProject.teamLead}
                       onValueChange={(value) => {
                         console.log('Team lead selected:', value);
                         setNewProject({ ...newProject, teamLead: value });
@@ -2476,10 +2626,17 @@ const ProjectsPage: React.FC = () => {
               </Button>
               <Button 
                 onClick={handleCreateProject}
-                disabled={!newProject.name || !newProject.description || !newProject.priority}
+                disabled={!newProject.name || !newProject.description || !newProject.priority || isCreatingProject}
                 className="bg-gradient-to-r from-green-600 to-cyan-600 hover:from-green-700 hover:to-cyan-700"
               >
-                Create Project
+                {isCreatingProject ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Creating...
+                  </>
+                ) : (
+                  'Create Project'
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -2576,12 +2733,27 @@ const ProjectsPage: React.FC = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="epic-assignee">Assignee</Label>
-                <Input
-                  id="epic-assignee"
-                  placeholder="Assign to team member"
+                <Select
                   value={currentEpic.assigneeId}
-                  onChange={(e) => setCurrentEpic(prev => ({ ...prev, assigneeId: e.target.value }))}
-                />
+                  onValueChange={(value) => setCurrentEpic(prev => ({ ...prev, assigneeId: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select assignee" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {apiUsers && apiUsers.length > 0 ? (
+                      apiUsers.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="no-users" disabled>
+                        No users available
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="epic-story-points">Story Points</Label>

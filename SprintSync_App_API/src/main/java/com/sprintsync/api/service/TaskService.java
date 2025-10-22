@@ -132,6 +132,20 @@ public class TaskService {
     }
 
     /**
+     * Update task actual hours (for effort logging)
+     */
+    public Task updateTaskActualHours(String id, java.math.BigDecimal actualHours) {
+        Optional<Task> optionalTask = taskRepository.findById(id);
+        if (optionalTask.isPresent()) {
+            Task task = optionalTask.get();
+            task.setActualHours(actualHours);
+            task.setUpdatedAt(LocalDateTime.now());
+            return taskRepository.save(task);
+        }
+        return null;
+    }
+
+    /**
      * Get task statistics
      */
     public Map<String, Object> getTaskStatistics() {
