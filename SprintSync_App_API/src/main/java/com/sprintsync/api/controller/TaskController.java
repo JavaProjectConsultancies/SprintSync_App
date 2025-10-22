@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -184,6 +185,37 @@ public class TaskController {
         try {
             String assigneeId = assignment.get("assigneeId");
             Task updatedTask = taskService.assignTask(id, assigneeId);
+            if (updatedTask != null) {
+                return ResponseEntity.ok(updatedTask);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
+
+    /**
+     * Update task actual hours (for effort logging)
+     */
+    @PatchMapping("/{id}/actual-hours")
+    public ResponseEntity<Task> updateTaskActualHours(@PathVariable String id, @RequestBody Map<String, Object> update) {
+        try {
+            Object actualHoursObj = update.get("actualHours");
+            BigDecimal actualHours;
+            
+            // Convert to BigDecimal, handling both Integer and Double types
+            if (actualHoursObj instanceof Integer) {
+                actualHours = BigDecimal.valueOf((Integer) actualHoursObj);
+            } else if (actualHoursObj instanceof Double) {
+                actualHours = BigDecimal.valueOf((Double) actualHoursObj);
+            } else if (actualHoursObj instanceof BigDecimal) {
+                actualHours = (BigDecimal) actualHoursObj;
+            } else {
+                return ResponseEntity.badRequest().build();
+            }
+            
+            Task updatedTask = taskService.updateTaskActualHours(id, actualHours);
             if (updatedTask != null) {
                 return ResponseEntity.ok(updatedTask);
             } else {

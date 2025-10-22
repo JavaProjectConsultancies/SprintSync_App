@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -30,8 +30,10 @@ import {
   CheckCircle2,
   Crown
 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
+import { userApiService } from '../services/api/entities/userApi';
 
 interface TeamMember {
   id: string;
@@ -61,168 +63,12 @@ interface TeamManagerProps {
   projectDuration?: number; // in days
   projectId?: string;
   onTeamChange?: (members: TeamMember[]) => void;
+  onAddMember?: (userId: string, role: string, isTeamLead?: boolean) => Promise<void>;
+  onRemoveMember?: (userId: string) => Promise<void>;
 }
 
-// Pool of available team members - Updated with diverse roles ensuring no admin/manager in developer role
-const availableTeamMembers: TeamMember[] = [
-  {
-    id: 'tm-1',
-    name: 'Priya Mehta',
-    role: 'manager',
-    skills: ['Project Management', 'Agile', 'Scrum', 'Leadership', 'Strategy'],
-    availability: 85,
-    department: 'VNIT',
-    experience: 'lead',
-    hourlyRate: 2500,
-    isTeamLead: true,
-    performance: { velocity: 120, taskCompletion: 98, codeQuality: 4.9, rating: 'excellent' },
-    workload: 70,
-    projects: 3
-  },
-  {
-    id: 'tm-2',
-    name: 'Rajesh Gupta',
-    role: 'manager',
-    skills: ['Project Management', 'Java Architecture', 'Team Leadership', 'Risk Management'],
-    availability: 90,
-    department: 'Dinshaw',
-    experience: 'senior',
-    hourlyRate: 2200,
-    performance: { velocity: 115, taskCompletion: 94, codeQuality: 4.7, rating: 'excellent' },
-    workload: 60,
-    projects: 2
-  },
-  {
-    id: 'tm-3',
-    name: 'Rohit Kumar',
-    role: 'developer',
-    skills: ['Angular', 'TypeScript', 'Python', 'PostgreSQL', 'Docker'],
-    availability: 95,
-    department: 'VNIT',
-    experience: 'mid',
-    hourlyRate: 1800,
-    performance: { velocity: 105, taskCompletion: 91, codeQuality: 4.4, rating: 'good' },
-    workload: 55,
-    projects: 1
-  },
-  {
-    id: 'tm-4',
-    name: 'Sneha Patel',
-    role: 'designer',
-    skills: ['UI/UX Design', 'Figma', 'Adobe Creative Suite', 'Prototyping', 'Marketing'],
-    availability: 80,
-    department: 'VNIT',
-    experience: 'senior',
-    hourlyRate: 2000,
-    performance: { velocity: 110, taskCompletion: 96, codeQuality: 4.8, rating: 'excellent' },
-    workload: 75,
-    projects: 4
-  },
-  {
-    id: 'tm-5',
-    name: 'Amit Patel',
-    role: 'developer',
-    skills: ['Java', 'Spring Boot', 'MySQL', 'Microservices'],
-    availability: 70,
-    department: 'Dinshaw',
-    experience: 'junior',
-    hourlyRate: 1500,
-    performance: { velocity: 65, taskCompletion: 42, codeQuality: 3.2, rating: 'needs_attention' },
-    workload: 85,
-    projects: 2
-  },
-  {
-    id: 'tm-6',
-    name: 'Neha Agarwal',
-    role: 'developer',
-    skills: ['Database Design', 'SQL', 'MongoDB', 'Data Analysis'],
-    availability: 88,
-    department: 'VNIT',
-    experience: 'mid',
-    hourlyRate: 1700,
-    performance: { velocity: 100, taskCompletion: 89, codeQuality: 4.3, rating: 'good' },
-    workload: 45,
-    projects: 1
-  },
-  {
-    id: 'tm-7',
-    name: 'Vikram Singh',
-    role: 'developer',
-    skills: ['Maui', 'C#', '.NET', 'Mobile Development'],
-    availability: 92,
-    department: 'Hospy',
-    experience: 'senior',
-    hourlyRate: 1900,
-    performance: { velocity: 108, taskCompletion: 93, codeQuality: 4.5, rating: 'good' },
-    workload: 50,
-    projects: 2
-  },
-  {
-    id: 'tm-8',
-    name: 'Ravi Sharma',
-    role: 'developer',
-    skills: ['Testing', 'Quality Assurance', 'Automation', 'Manual Testing'],
-    availability: 85,
-    department: 'Pharma',
-    experience: 'senior',
-    hourlyRate: 2400,
-    performance: { velocity: 118, taskCompletion: 97, codeQuality: 4.9, rating: 'excellent' },
-    workload: 65,
-    projects: 3
-  },
-  {
-    id: 'tm-9',
-    name: 'Pooja Yadav',
-    role: 'developer',
-    skills: ['Implementation', 'System Integration', 'API Development', 'Backend'],
-    availability: 75,
-    department: 'Dinshaw',
-    experience: 'mid',
-    hourlyRate: 1600,
-    performance: { velocity: 95, taskCompletion: 87, codeQuality: 4.2, rating: 'good' },
-    workload: 60,
-    projects: 2
-  },
-  {
-    id: 'tm-10',
-    name: 'Aarti Jain',
-    role: 'designer',
-    skills: ['Marketing Design', 'Brand Identity', 'UI/UX', 'Graphic Design'],
-    availability: 90,
-    department: 'Dinshaw',
-    experience: 'senior',
-    hourlyRate: 2100,
-    performance: { velocity: 112, taskCompletion: 95, codeQuality: 4.6, rating: 'excellent' },
-    workload: 55,
-    projects: 2
-  },
-  {
-    id: 'tm-11',
-    name: 'Kiran Nair',
-    role: 'designer',
-    skills: ['Marketing', 'Brand Design', 'Creative Direction', 'Digital Marketing'],
-    availability: 85,
-    department: 'Hospy',
-    experience: 'mid',
-    hourlyRate: 1800,
-    performance: { velocity: 95, taskCompletion: 88, codeQuality: 4.3, rating: 'good' },
-    workload: 70,
-    projects: 3
-  },
-  {
-    id: 'tm-12',
-    name: 'Sonia Kapoor',
-    role: 'designer',
-    skills: ['HR Design', 'Employee Experience', 'Training Materials', 'Documentation'],
-    availability: 80,
-    department: 'Pharma',
-    experience: 'senior',
-    hourlyRate: 1900,
-    performance: { velocity: 100, taskCompletion: 92, codeQuality: 4.4, rating: 'good' },
-    workload: 65,
-    projects: 2
-  }
-];
+// Mock data removed - only real API data will be used
+const availableTeamMembers: TeamMember[] = [];
 
 // Drag and Drop Item Types
 const ItemType = {
@@ -230,18 +76,26 @@ const ItemType = {
 };
 
 // Draggable Team Member Card
-const DraggableTeamMember: React.FC<{ 
+const DraggableTeamMember = ({ member, isSelected, onSelect, onViewDetails }: { 
   member: TeamMember; 
   isSelected: boolean; 
   onSelect?: () => void;
   onViewDetails?: () => void;
-}> = ({ member, isSelected, onSelect, onViewDetails }) => {
+}) => {
   const [{ isDragging }, drag] = useDrag({
     type: ItemType.TEAM_MEMBER,
-    item: { member },
+    item: () => {
+      console.log('Drag started for:', member.name);
+      return { member };
+    },
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
+    end: (item, monitor) => {
+      if (!monitor.didDrop()) {
+        console.log('Drag cancelled for:', member.name);
+      }
+    }
   });
 
   const getRoleColor = (role: string) => {
@@ -256,7 +110,16 @@ const DraggableTeamMember: React.FC<{
     }
   };
 
-  const getPerformanceColor = (rating: string) => {
+  const getPerformanceColor = (rating: string | number) => {
+    // Handle numeric performance (percentage)
+    if (typeof rating === 'number') {
+      if (rating >= 90) return 'text-green-600';
+      if (rating >= 75) return 'text-blue-600';
+      if (rating >= 60) return 'text-yellow-600';
+      return 'text-red-600';
+    }
+    
+    // Handle string rating
     switch (rating) {
       case 'excellent': return 'text-green-600';
       case 'good': return 'text-blue-600';
@@ -282,7 +145,10 @@ const DraggableTeamMember: React.FC<{
       className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
         isDragging ? 'opacity-50 rotate-2 scale-105' : ''
       }`}
-      onClick={onSelect}
+      onClick={() => {
+        console.log('Card clicked for member:', member.name);
+        onSelect?.();
+      }}
     >
       <Card 
         className={`h-full ${isSelected ? 'ring-2 ring-primary bg-gradient-light' : ''}`}
@@ -317,9 +183,18 @@ const DraggableTeamMember: React.FC<{
               variant="ghost" 
               size="sm" 
               className="h-6 w-6 p-0 flex-shrink-0"
+              title="View user details"
               onClick={(e) => {
                 e.stopPropagation();
-                onViewDetails?.();
+                console.log('=== EYE BUTTON CLICKED ===');
+                console.log('Eye button clicked for:', member.name);
+                console.log('onViewDetails function:', onViewDetails);
+                if (onViewDetails) {
+                  onViewDetails();
+                  console.log('onViewDetails called successfully');
+                } else {
+                  console.log('ERROR: onViewDetails is undefined!');
+                }
               }}
             >
               <Eye className="w-3 h-3" />
@@ -340,8 +215,10 @@ const DraggableTeamMember: React.FC<{
             {member.performance && (
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">Performance</span>
-                <span className={getPerformanceColor(member.performance.rating)}>
-                  {member.performance.rating.replace('_', ' ')}
+                <span className={getPerformanceColor(typeof member.performance === 'number' ? member.performance : member.performance?.rating || 0)}>
+                  {typeof member.performance === 'number' 
+                    ? `${member.performance}%` 
+                    : member.performance?.rating?.replace('_', ' ') || 'N/A'}
                 </span>
               </div>
             )}
@@ -351,7 +228,7 @@ const DraggableTeamMember: React.FC<{
               <span className="text-muted-foreground">Rate</span>
               <div className="flex items-center space-x-1">
                 <IndianRupee className="w-3 h-3" />
-                <span>{member.hourlyRate.toLocaleString()}/hr</span>
+                <span>{(member.hourlyRate || 0).toLocaleString()}/hr</span>
               </div>
             </div>
 
@@ -376,21 +253,28 @@ const DraggableTeamMember: React.FC<{
 };
 
 // Drop Zone for Selected Team
-const SelectedTeamDropZone: React.FC<{ 
+const SelectedTeamDropZone = ({ selectedMembers, onDrop, onRemove, onViewDetails, projectBudget, projectDuration }: { 
   selectedMembers: TeamMember[];
   onDrop: (member: TeamMember) => void;
   onRemove: (memberId: string) => void;
+  onViewDetails: (member: TeamMember) => void;
   projectBudget?: number;
   projectDuration?: number;
-}> = ({ selectedMembers, onDrop, onRemove, projectBudget, projectDuration }) => {
+}) => {
   const [{ isOver }, drop] = useDrop({
     accept: ItemType.TEAM_MEMBER,
-    drop: (item: { member: TeamMember }) => {
+    drop: (item: { member: TeamMember }, monitor) => {
+      console.log('Drop received for:', item.member.name);
+      console.log('Drop zone onDrop function:', onDrop);
       onDrop(item.member);
+      console.log('Drop handled successfully');
     },
     collect: (monitor) => ({
       isOver: monitor.isOver(),
     }),
+    hover: () => {
+      console.log('Hovering over drop zone');
+    }
   });
 
   // Calculate team composition analysis
@@ -420,7 +304,7 @@ const SelectedTeamDropZone: React.FC<{
     }, 0) / (selectedMembers.length || 1);
 
     const avgPerformance = selectedMembers.reduce((sum, member) => 
-      sum + (member.performance?.velocity || 80), 0
+      sum + (typeof member.performance === 'number' ? member.performance : (member.performance?.velocity || 80)), 0
     ) / (selectedMembers.length || 1);
 
     return {
@@ -458,7 +342,7 @@ const SelectedTeamDropZone: React.FC<{
           <p className="text-sm text-muted-foreground mt-1">or click on members to add them</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="h-[500px] overflow-y-auto space-y-4 pr-4">
           {/* Selected Members Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {selectedMembers.map((member) => (
@@ -466,13 +350,17 @@ const SelectedTeamDropZone: React.FC<{
                 <DraggableTeamMember 
                   member={member}
                   isSelected={true}
-                  onViewDetails={() => {/* Handle view details */}}
+                    onViewDetails={() => onViewDetails(member)}
                 />
                 <Button
                   variant="destructive"
                   size="sm"
                   className="absolute top-1 right-1 h-5 w-5 p-0 rounded-full z-10"
-                  onClick={() => onRemove(member.id)}
+                  onClick={() => {
+                    console.log('Remove button clicked for:', member.name);
+                    console.log('onRemove function:', onRemove);
+                    onRemove(member.id);
+                  }}
                 >
                   <X className="w-3 h-3" />
                 </Button>
@@ -509,7 +397,7 @@ const SelectedTeamDropZone: React.FC<{
                     <div className="flex items-center space-x-1 mt-1">
                       <IndianRupee className="w-3 h-3" />
                       <span className="text-sm font-medium">
-                        {teamAnalysis.totalCost.toLocaleString()}
+                        {(teamAnalysis.totalCost || 0).toLocaleString()}
                       </span>
                     </div>
                   </div>
@@ -573,27 +461,220 @@ const SelectedTeamDropZone: React.FC<{
   );
 };
 
-const TeamManager: React.FC<TeamManagerProps> = ({ 
+const TeamManager = ({ 
   selectedMembers: propSelectedMembers, 
   onMembersChange, 
   projectBudget,
   projectDuration,
   projectId,
-  onTeamChange
-}) => {
-  const [internalSelectedMembers, setInternalSelectedMembers] = useState<TeamMember[]>([]);
+  onTeamChange,
+  onAddMember,
+  onRemoveMember
+}: TeamManagerProps) => {
+  
+
+  const [internalSelectedMembers, setInternalSelectedMembers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [roleFilter, setRoleFilter] = useState<string>('all');
-  const [experienceFilter, setExperienceFilter] = useState<string>('all');
-  const [availabilityFilter, setAvailabilityFilter] = useState<string>('all');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [experienceFilter, setExperienceFilter] = useState('all');
+  const [availabilityFilter, setAvailabilityFilter] = useState('all');
   const [activeTab, setActiveTab] = useState('build');
+  const [availableUsers, setAvailableUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [hasLoadedRealData, setHasLoadedRealData] = useState(false);
+
+  // Use useRef to persist modal state across re-renders
+  const modalStateRef = React.useRef({
+    selectedUser: null as TeamMember | null,
+    isOpen: false
+  });
+  
+  const [selectedUserForDetails, setSelectedUserForDetails] = useState<TeamMember | null>(null);
+  const [isUserDetailsOpen, setIsUserDetailsOpen] = useState(false);
+  
+  // Sync state with ref to prevent reset on re-renders
+  React.useEffect(() => {
+    // If ref has modal state but local state doesn't, restore it
+    if (modalStateRef.current.isOpen && modalStateRef.current.selectedUser && !isUserDetailsOpen) {
+      console.log('=== RESTORING MODAL STATE FROM REF ===');
+      console.log('Restoring user:', modalStateRef.current.selectedUser.name);
+      setIsUserDetailsOpen(true);
+      setSelectedUserForDetails(modalStateRef.current.selectedUser);
+    }
+  }); // Run on every render to catch re-renders from parent
+  
+  // Use a key to force Dialog to remount when user changes, preventing auto-close
+  const dialogKey = selectedUserForDetails?.id || 'no-user';
+
+  // Fetch real users from API
+  useEffect(() => {
+    const fetchUsers = async (retryCount = 0) => {
+      try {
+        console.log(`TeamManager: Fetching users from API... (attempt ${retryCount + 1})`);
+        setLoadingUsers(true);
+        
+        // Get fresh token from localStorage or use the hardcoded one
+        const token = localStorage.getItem('authToken') || 'eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJkb21haW4iOiJET01OMDAwMDAwMDAwMDAwMSIsIm5hbWUiOiJBZG1pbiBVc2VyIiwiZGVwYXJ0bWVudCI6IkRFUFQwMDAwMDAwMDAwMDEiLCJ1c2VySWQiOiJVU0VSMDAwMDAwMDAwMDAxIiwic3ViIjoiYWRtaW5Ac3ByaW50c3luYy5jb20iLCJpYXQiOjE3NTk3NDg0NjUsImV4cCI6MTc1OTgzNDg2NX0.QdwUhiS_AvtqzTefTe14N7TKWB1jzrQg01Sz_lNOGBleAPqfVAgTHf97-JmCUQKZyXtAqkhYD-HN3YAMDywxRg';
+        
+        console.log('TeamManager: Making API request to:', 'http://localhost:8080/api/users');
+        console.log('TeamManager: Using token:', token.substring(0, 20) + '...');
+        
+        const testResponse = await fetch('http://localhost:8080/api/users', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        console.log('TeamManager: Response status:', testResponse.status);
+        console.log('TeamManager: Response ok:', testResponse.ok);
+        
+        if (!testResponse.ok) {
+          const errorText = await testResponse.text();
+          console.error('TeamManager: Error response:', errorText);
+          throw new Error(`HTTP error! status: ${testResponse.status} - ${errorText}`);
+        }
+        
+        const testData = await testResponse.json();
+        console.log('TeamManager: Direct fetch response:', testData);
+        
+        // Use direct fetch data instead of userApiService
+        if (testData && testData.content && Array.isArray(testData.content)) {
+          console.log('TeamManager: Found', testData.content.length, 'users from direct fetch');
+          console.log('TeamManager: Raw user data:', testData.content[0]); // Log first user for debugging
+          
+          // Map API users to TeamMember format
+          const mappedUsers: TeamMember[] = testData.content.map((user: any) => {
+            // Parse skills from JSON string
+            let skillsArray: string[] = [];
+            if (user.skills) {
+              try {
+                if (typeof user.skills === 'string') {
+                  skillsArray = JSON.parse(user.skills);
+                } else if (Array.isArray(user.skills)) {
+                  skillsArray = user.skills;
+                }
+              } catch (e) {
+                console.warn('Failed to parse skills for user:', user.name, user.skills);
+                skillsArray = ['General'];
+              }
+            }
+            
+            return {
+              id: user.id,
+              name: user.name,
+              role: user.role?.toLowerCase() || 'developer',
+              skills: skillsArray,
+              availability: user.availabilityPercentage || 100,
+              department: user.departmentId || 'Unknown', // Use departmentId since department name might not be available
+              experience: user.experience?.toLowerCase() || 'mid',
+              hourlyRate: user.hourlyRate || 0,
+              avatar: user.avatarUrl || '',
+              isTeamLead: false,
+              workload: 0,
+              projects: 0
+            };
+          });
+          
+          console.log('TeamManager: Mapped users:', mappedUsers);
+          setAvailableUsers(mappedUsers);
+          setHasLoadedRealData(true);
+          console.log('TeamManager: Successfully loaded real data from API');
+        } else {
+          console.log('TeamManager: No users found in direct fetch response');
+          setAvailableUsers([]);
+          setHasLoadedRealData(false);
+        }
+      } catch (error: any) {
+        console.error('TeamManager: Error fetching users:', error);
+        console.error('TeamManager: Error details:', {
+          message: error.message,
+          status: error.status,
+          response: error.response?.data
+        });
+        
+        // Retry logic - only retry once
+        if (retryCount === 0) {
+          console.log('TeamManager: Retrying API call...');
+          setTimeout(() => fetchUsers(1), 2000); // Retry after 2 seconds
+          return;
+        }
+        
+        // API failed after retry - show empty state
+        console.log('TeamManager: API failed after retry, showing empty state');
+        setAvailableUsers([]);
+        setHasLoadedRealData(false);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+
+    fetchUsers();
+  }, []); // Empty dependency array means this runs once on mount
+
+  // Also try to load real data whenever the component becomes visible
+  useEffect(() => {
+    if (!hasLoadedRealData && !loadingUsers) {
+      console.log('TeamManager: No real data loaded yet, attempting secondary load...');
+      const fetchUsers = async () => {
+        try {
+          setLoadingUsers(true);
+          const token = localStorage.getItem('authToken') || 'eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJkb21haW4iOiJET01OMDAwMDAwMDAwMDAwMSIsIm5hbWUiOiJBZG1pbiBVc2VyIiwiZGVwYXJ0bWVudCI6IkRFUFQwMDAwMDAwMDAwMDEiLCJ1c2VySWQiOiJVU0VSMDAwMDAwMDAwMDAxIiwic3ViIjoiYWRtaW5Ac3ByaW50c3luYy5jb20iLCJpYXQiOjE3NTk3NDg0NjUsImV4cCI6MTc1OTgzNDg2NX0.QdwUhiS_AvtqzTefTe14N7TKWB1jzrQg01Sz_lNOGBleAPqfVAgTHf97-JmCUQKZyXtAqkhYD-HN3YAMDywxRg';
+          
+          console.log('TeamManager: Secondary load - making API request...');
+          const response = await fetch('http://localhost:8080/api/users', {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          console.log('TeamManager: Secondary load - response status:', response.status);
+          if (response.ok) {
+            const data = await response.json();
+            if (data && data.content && Array.isArray(data.content)) {
+              const mappedUsers = data.content.map((user: any) => ({
+                id: user.id,
+                name: user.name,
+                role: user.role?.toLowerCase() || 'developer',
+                skills: user.skills ? (typeof user.skills === 'string' ? JSON.parse(user.skills) : user.skills) : [],
+                availability: user.availabilityPercentage || 100,
+                department: user.departmentId || 'Unknown',
+                experience: user.experience?.toLowerCase() || 'mid',
+                hourlyRate: user.hourlyRate || 0,
+                avatar: user.avatarUrl || '',
+                isTeamLead: false,
+                workload: 0,
+                projects: 0
+              }));
+              console.log('TeamManager: Secondary load successful:', mappedUsers.length, 'users');
+              setAvailableUsers(mappedUsers);
+              setHasLoadedRealData(true);
+            }
+          }
+        } catch (error) {
+          console.log('TeamManager: Secondary load failed:', error);
+          console.log('TeamManager: Secondary load error details:', error);
+        } finally {
+          setLoadingUsers(false);
+        }
+      };
+      
+      fetchUsers();
+    }
+  }, [hasLoadedRealData, loadingUsers]);
 
   // Use prop selectedMembers if provided, otherwise use internal state
   const selectedMembers = propSelectedMembers || internalSelectedMembers;
 
-  // Filter available members
+  // Filter available members - only use real data
   const filteredMembers = useMemo(() => {
-    return availableTeamMembers.filter(member => {
+    // Only use real API data - no mock data fallback
+    console.log('TeamManager: Using only real API data');
+    console.log('TeamManager: Has loaded real data:', hasLoadedRealData);
+    console.log('TeamManager: Available users count:', availableUsers.length);
+    console.log('TeamManager: Members to filter:', availableUsers.length, 'members');
+    return availableUsers.filter(member => {
       const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            member.skills.some(skill => skill.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesRole = roleFilter === 'all' || member.role === roleFilter;
@@ -605,45 +686,108 @@ const TeamManager: React.FC<TeamManagerProps> = ({
       
       return matchesSearch && matchesRole && matchesExperience && matchesAvailability;
     });
-  }, [searchTerm, roleFilter, experienceFilter, availabilityFilter]);
+  }, [availableUsers, searchTerm, roleFilter, experienceFilter, availabilityFilter]);
 
   const handleAddMember = (member: TeamMember) => {
+    console.log('=== handleAddMember START ===');
+    console.log('handleAddMember called for:', member.name);
+    console.log('Current selected members:', selectedMembers?.length || 0);
+    
     if (!selectedMembers?.find(m => m.id === member.id)) {
       const newMembers = [...(selectedMembers || []), member];
+      console.log('Adding member, new count:', newMembers.length);
       
       // Update internal state if using internal state management
       if (!propSelectedMembers) {
         setInternalSelectedMembers(newMembers);
+        console.log('Updated internal selected members');
       }
       
       // Call appropriate callback
       if (onMembersChange) {
+        console.log('Calling onMembersChange with new members array');
         onMembersChange(newMembers);
+        console.log('Called onMembersChange');
       } else if (onTeamChange) {
+        console.log('Calling onTeamChange with new members array');
         onTeamChange(newMembers);
+        console.log('Called onTeamChange');
       }
+      
+      // Also call the onAddMember callback if it exists (to trigger API call)
+      if (onAddMember && projectId) {
+        console.log('Calling onAddMember API callback for userId:', member.id);
+        console.log('Member role:', member.role);
+        console.log('Is team lead:', member.isTeamLead || false);
+        onAddMember(member.id, member.role, member.isTeamLead || false);
+      }
+    } else {
+      console.log('Member already selected:', member.name);
     }
+    console.log('=== handleAddMember END ===');
   };
 
   const handleRemoveMember = (memberId: string) => {
+    console.log('=== handleRemoveMember START ===');
+    console.log('handleRemoveMember called for ID:', memberId);
+    console.log('Member ID type:', typeof memberId);
+    
     const newMembers = (selectedMembers || []).filter(m => m.id !== memberId);
+    console.log('Removing member, new count:', newMembers.length);
     
     // Update internal state if using internal state management
     if (!propSelectedMembers) {
       setInternalSelectedMembers(newMembers);
+      console.log('Updated internal selected members after removal');
     }
     
     // Call appropriate callback
     if (onMembersChange) {
+      console.log('Calling onMembersChange with new members array');
       onMembersChange(newMembers);
+      console.log('Called onMembersChange for removal');
     } else if (onTeamChange) {
+      console.log('Calling onTeamChange with new members array');
       onTeamChange(newMembers);
+      console.log('Called onTeamChange for removal');
     }
+    
+    // Also call the onRemoveMember callback if it exists (to trigger API call)
+    if (onRemoveMember) {
+      console.log('Calling onRemoveMember API callback for userId:', memberId);
+      onRemoveMember(memberId);
+    }
+    console.log('=== handleRemoveMember END ===');
   };
 
   const isSelected = (memberId: string) => {
     return selectedMembers?.some(m => m.id === memberId) || false;
   };
+
+  const handleViewUserDetails = (member: TeamMember) => {
+    console.log('=== handleViewUserDetails START ===');
+    console.log('handleViewUserDetails called for:', member.name);
+    console.log('Setting selectedUserForDetails to:', member);
+    
+    // Update ref to persist across re-renders
+    modalStateRef.current = {
+      selectedUser: member,
+      isOpen: true
+    };
+    
+    setSelectedUserForDetails(member);
+    console.log('Setting isUserDetailsOpen to: true');
+    setIsUserDetailsOpen(true);
+    console.log('User details modal state updated');
+    console.log('=== handleViewUserDetails END ===');
+  };
+
+  // Debug: Track modal state changes
+  useEffect(() => {
+    console.log('=== MODAL STATE CHANGED ===');
+    console.log('isUserDetailsOpen:', isUserDetailsOpen);
+    console.log('selectedUserForDetails:', selectedUserForDetails?.name || 'null');
+  }, [isUserDetailsOpen, selectedUserForDetails]);
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -660,10 +804,70 @@ const TeamManager: React.FC<TeamManagerProps> = ({
               {/* Available Members */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
                   <h3 className="font-medium">Available Team Members</h3>
+                    {hasLoadedRealData ? (
+                      <Badge variant="default" className="bg-green-100 text-green-800">
+                        Real Data
+                      </Badge>
+                    ) : loadingUsers ? (
+                      <Badge variant="outline" className="bg-blue-100 text-blue-800">
+                        Loading...
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-red-100 text-red-800">
+                        No Data
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
                   <Badge variant="secondary">
-                    {filteredMembers.length} available
+                      {loadingUsers ? 'Loading...' : `${filteredMembers.length} available`}
                   </Badge>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => {
+                        console.log('Manual refresh triggered');
+                        setLoadingUsers(true);
+                        // Trigger re-fetch
+                        const token = localStorage.getItem('authToken') || 'eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJkb21haW4iOiJET01OMDAwMDAwMDAwMDAwMSIsIm5hbWUiOiJBZG1pbiBVc2VyIiwiZGVwYXJ0bWVudCI6IkRFUFQwMDAwMDAwMDAwMDEiLCJ1c2VySWQiOiJVU0VSMDAwMDAwMDAwMDAxIiwic3ViIjoiYWRtaW5Ac3ByaW50c3luYy5jb20iLCJpYXQiOjE3NTk3NDg0NjUsImV4cCI6MTc1OTgzNDg2NX0.QdwUhiS_AvtqzTefTe14N7TKWB1jzrQg01Sz_lNOGBleAPqfVAgTHf97-JmCUQKZyXtAqkhYD-HN3YAMDywxRg';
+                        fetch('http://localhost:8080/api/users', {
+                          headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                          }
+                        }).then(response => response.json()).then(data => {
+                          if (data && data.content && Array.isArray(data.content)) {
+                            const mappedUsers = data.content.map((user: any) => ({
+                              id: user.id,
+                              name: user.name,
+                              role: user.role?.toLowerCase() || 'developer',
+                              skills: user.skills ? (typeof user.skills === 'string' ? JSON.parse(user.skills) : user.skills) : [],
+                              availability: user.availabilityPercentage || 100,
+                              department: user.departmentId || 'Unknown',
+                              experience: user.experience?.toLowerCase() || 'mid',
+                              hourlyRate: user.hourlyRate || 0,
+                              avatar: user.avatarUrl || '',
+                              isTeamLead: false,
+                              workload: 0,
+                              projects: 0
+                            }));
+                            console.log('Manual refresh: Loaded', mappedUsers.length, 'real users');
+                            setAvailableUsers(mappedUsers);
+                            setHasLoadedRealData(true);
+                          }
+                          setLoadingUsers(false);
+                        }).catch(error => {
+                          console.error('Manual refresh failed:', error);
+                          setLoadingUsers(false);
+                        });
+                      }}
+                      disabled={loadingUsers}
+                    >
+                      🔄
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Filters */}
@@ -722,19 +926,30 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                 </div>
 
                 {/* Available Members List */}
-                <ScrollArea className="h-[600px]">
-                  <div className="space-y-3 pr-4">
-                    {filteredMembers.map((member) => (
+                <div className="h-[500px] overflow-y-auto space-y-3 pr-4">
+                    {loadingUsers ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                        Loading users from database...
+                      </div>
+                    ) : filteredMembers.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                        <p className="text-lg font-medium mb-2">No users available</p>
+                        <p className="text-sm">Click the refresh button to load users from database</p>
+                      </div>
+                    ) : (
+                      filteredMembers.map((member) => (
                       <DraggableTeamMember
                         key={member.id}
                         member={member}
                         isSelected={isSelected(member.id)}
                         onSelect={() => handleAddMember(member)}
-                        onViewDetails={() => {/* Handle view details */}}
+                          onViewDetails={() => handleViewUserDetails(member)}
                       />
-                    ))}
+                      ))
+                    )}
                   </div>
-                </ScrollArea>
               </div>
 
               {/* Selected Team */}
@@ -743,6 +958,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                   selectedMembers={selectedMembers}
                   onDrop={handleAddMember}
                   onRemove={handleRemoveMember}
+                  onViewDetails={handleViewUserDetails}
                   projectBudget={projectBudget}
                   projectDuration={projectDuration}
                 />
@@ -786,6 +1002,132 @@ const TeamManager: React.FC<TeamManagerProps> = ({
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* User Details Modal */}
+        <Dialog 
+          key={dialogKey}
+          open={isUserDetailsOpen} 
+          onOpenChange={(open) => {
+            console.log('=== DIALOG onOpenChange ===', open);
+            console.log('Current state:', isUserDetailsOpen);
+            console.log('New state:', open);
+            console.log('Dialog key:', dialogKey);
+            
+            // Only allow manual closing (when user clicks close or outside)
+            if (!open) {
+              console.log('Dialog is being closed');
+              modalStateRef.current = { selectedUser: null, isOpen: false };
+              setSelectedUserForDetails(null);
+            }
+            setIsUserDetailsOpen(open);
+          }}
+          modal={true}
+        >
+          <DialogContent 
+            className="max-w-2xl" 
+            onInteractOutside={(e) => {
+              console.log('=== INTERACT OUTSIDE DETECTED ===');
+              e.preventDefault(); // Prevent closing on outside click for debugging
+            }}
+            onEscapeKeyDown={(e) => {
+              console.log('=== ESCAPE KEY DETECTED ===');
+              // Allow escape to close
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>User Details</DialogTitle>
+              <DialogDescription>
+                View detailed information about the team member
+              </DialogDescription>
+            </DialogHeader>
+            {selectedUserForDetails ? (
+              (() => {
+                console.log('=== RENDERING DIALOG CONTENT FOR ===', selectedUserForDetails.name);
+                return (
+              <div className="space-y-6">
+                {/* User Header */}
+                <div className="flex items-center space-x-4">
+                  <Avatar className="h-16 w-16">
+                    <AvatarFallback className="text-lg">
+                      {selectedUserForDetails.name.split(' ').map(n => n[0]).join('')}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <h3 className="text-xl font-semibold">{selectedUserForDetails.name}</h3>
+                    <p className="text-muted-foreground capitalize">{selectedUserForDetails.role}</p>
+                    <p className="text-sm text-muted-foreground">{selectedUserForDetails.department}</p>
+                  </div>
+                </div>
+
+                {/* User Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <div className="text-2xl font-bold text-blue-600">{selectedUserForDetails.availability}%</div>
+                      <div className="text-sm text-muted-foreground">Availability</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <div className="text-2xl font-bold text-green-600">
+                        {typeof selectedUserForDetails.performance === 'number' 
+                          ? `${selectedUserForDetails.performance}%` 
+                          : selectedUserForDetails.performance?.rating || 'N/A'}
+                      </div>
+                      <div className="text-sm text-muted-foreground">Performance</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <div className="text-2xl font-bold text-purple-600">₹{selectedUserForDetails.hourlyRate}</div>
+                      <div className="text-sm text-muted-foreground">Hourly Rate</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <div className="text-2xl font-bold text-orange-600 capitalize">{selectedUserForDetails.experience}</div>
+                      <div className="text-sm text-muted-foreground">Experience</div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Skills */}
+                <div>
+                  <h4 className="text-lg font-medium mb-3">Skills</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedUserForDetails.skills.map((skill, index) => (
+                      <Badge key={index} variant="secondary" className="text-sm">
+                        {skill}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Additional Info */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Current Workload</h4>
+                    <div className="flex items-center space-x-2">
+                      <Progress value={selectedUserForDetails.workload || 0} className="flex-1" />
+                      <span className="text-sm">{selectedUserForDetails.workload || 0}%</span>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Active Projects</h4>
+                    <div className="text-lg font-semibold">{selectedUserForDetails.projects || 0}</div>
+                  </div>
+                </div>
+              </div>
+                );
+              })()
+            ) : (
+              (() => {
+                console.log('=== NO USER SELECTED FOR DIALOG ===');
+                return null;
+              })()
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </DndProvider>
   );

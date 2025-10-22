@@ -12,6 +12,9 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { useCreateEpic } from '../hooks/api/useEpics';
+import { useUsers } from '../hooks/api/useUsers';
+import { Epic as ApiEpic } from '../types/api';
 import { 
   Plus,
   Search,
@@ -48,35 +51,47 @@ interface EpicManagerProps {
   currentUserId: string;
 }
 
-const EpicManager: React.FC<EpicManagerProps> = ({
+const EpicManager = ({
   epics,
   onAddEpic,
   onUpdateEpic,
   onDeleteEpic,
   projectId,
   currentUserId
-}) => {
+}: EpicManagerProps) => {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<EpicStatus | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'planned' | 'in-progress' | 'completed'>('all');
   const [priorityFilter, setPriorityFilter] = useState<'all' | 'low' | 'medium' | 'high' | 'critical'>('all');
   const [selectedTemplate, setSelectedTemplate] = useState<EpicTemplate | null>(null);
+  
+  // API integration
+  const { createEpic: createEpicApi, loading: createLoading, error: createError } = useCreateEpic();
+  const { data: apiUsers, loading: usersLoading, error: usersError } = useUsers();
 
-  // Mock team members
-  const teamMembers = [
-    { id: 'user1', name: 'Arjun Patel', role: 'Product Manager', avatar: '' },
-    { id: 'user2', name: 'Priya Sharma', role: 'Tech Lead', avatar: '' },
-    { id: 'user3', name: 'Rahul Kumar', role: 'Scrum Master', avatar: '' },
-    { id: 'user4', name: 'Sneha Reddy', role: 'Architect', avatar: '' },
-    { id: 'user5', name: 'Vikram Singh', role: 'DevOps Lead', avatar: '' }
-  ];
+  // Form state for creating new epic (matching project creation structure)
+  const [newEpic, setNewEpic] = useState({
+    name: '',
+    description: '',
+    summary: '',
+    theme: '',
+    businessValue: '',
+    priority: 'medium' as 'low' | 'medium' | 'high' | 'critical',
+    status: 'draft' as 'draft' | 'planned' | 'in-progress' | 'completed',
+    startDate: '',
+    endDate: '',
+    assigneeId: 'unassigned',
+    storyPoints: 0
+  });
 
   // Filter epics based on search and filters
   const filteredEpics = epics.filter(epic => {
-    const matchesSearch = epic.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         epic.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         epic.theme?.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!epic) return false;
+    
+    const matchesSearch = (epic.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                         (epic.description?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                         (epic.theme?.toLowerCase() || '').includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || epic.status === statusFilter;
     const matchesPriority = priorityFilter === 'all' || epic.priority === priorityFilter;
     
@@ -161,6 +176,87 @@ const EpicManager: React.FC<EpicManagerProps> = ({
       setSelectedTemplate(null);
       setShowTemplateDialog(false);
     }
+  };
+
+  // Handle creating epic manually
+  const handleCreateEpic = async () => {
+    if (newEpic.name.trim()) {
+      try {
+        // Map form data to API structure
+        const apiEpicData: Omit<ApiEpic, 'id' | 'createdAt' | 'updatedAt'> = {
+          title: newEpic.name.trim(),
+          description: newEpic.description.trim(),
+          summary: newEpic.summary.trim(),
+          theme: newEpic.theme.trim(),
+          businessValue: newEpic.businessValue.trim(),
+          projectId: projectId,
+          status: mapStatusToApi(newEpic.status),
+          priority: mapPriorityToApi(newEpic.priority),
+          owner: currentUserId,
+          assigneeId: newEpic.assigneeId === 'unassigned' ? undefined : newEpic.assigneeId,
+          startDate: newEpic.startDate || undefined,
+          endDate: newEpic.endDate || undefined,
+          storyPoints: newEpic.storyPoints || 0,
+          progress: 0,
+          isActive: true
+        };
+
+        const createdEpic = await createEpicApi(apiEpicData);
+        console.log('Epic created successfully:', createdEpic);
+        
+        // Call the parent callback to refresh the epic list with the created epic
+        onAddEpic(createdEpic);
+        
+        setShowAddDialog(false);
+        
+        // Reset form
+        setNewEpic({
+          name: '',
+          description: '',
+          summary: '',
+          theme: '',
+          businessValue: '',
+          priority: 'medium',
+          status: 'draft',
+          startDate: '',
+          endDate: '',
+          assigneeId: 'unassigned',
+          storyPoints: 0
+        });
+      } catch (error) {
+        console.error('Failed to create epic:', error);
+        // Error is already handled by the hook
+      }
+    }
+  };
+
+  // Helper functions to map form values to API enum values
+  const mapStatusToApi = (status: string): 'PLANNING' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED' => {
+    switch (status) {
+      case 'draft': return 'PLANNING';
+      case 'planned': return 'PLANNING';
+      case 'in-progress': return 'ACTIVE';
+      case 'completed': return 'COMPLETED';
+      default: return 'PLANNING';
+    }
+  };
+
+  const mapPriorityToApi = (priority: string): 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' => {
+    switch (priority) {
+      case 'low': return 'LOW';
+      case 'medium': return 'MEDIUM';
+      case 'high': return 'HIGH';
+      case 'critical': return 'CRITICAL';
+      default: return 'MEDIUM';
+    }
+  };
+
+  // Handle input changes
+  const handleInputChange = (field: string, value: any) => {
+    setNewEpic(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
   const getInitials = (name: string) => {
@@ -336,8 +432,8 @@ const EpicManager: React.FC<EpicManagerProps> = ({
                   className="h-2"
                 />
                 <div className="flex justify-between text-xs text-gray-500">
-                  <span>{epic.completedStoryPoints}/{epic.storyPoints} points</span>
-                  <span>{epic.linkedStories.length} stories</span>
+                  <span>{epic.completedStoryPoints || 0}/{epic.storyPoints || 0} points</span>
+                  <span>{epic.linkedStories?.length || 0} stories</span>
                 </div>
               </div>
 
@@ -358,31 +454,31 @@ const EpicManager: React.FC<EpicManagerProps> = ({
                 <div className="flex items-center space-x-2">
                   <Avatar className="h-6 w-6">
                     <AvatarFallback className="text-xs">
-                      {getInitials(teamMembers.find(m => m.id === epic.owner)?.name || 'Unknown')}
+                      {getInitials(apiUsers?.find(u => u.id === epic.owner)?.name || 'Unknown')}
                     </AvatarFallback>
                   </Avatar>
                   <span className="text-sm text-gray-600">
-                    {teamMembers.find(m => m.id === epic.owner)?.name || 'Unknown'}
+                    {apiUsers?.find(u => u.id === epic.owner)?.name || 'Unknown'}
                   </span>
                 </div>
-                {epic.linkedMilestones.length > 0 && (
+                {(epic.linkedMilestones?.length || 0) > 0 && (
                   <Badge variant="outline" className="text-xs">
-                    {epic.linkedMilestones.length} milestones
+                    {epic.linkedMilestones?.length || 0} milestones
                   </Badge>
                 )}
               </div>
 
               {/* Labels */}
-              {epic.labels.length > 0 && (
+              {(epic.labels?.length || 0) > 0 && (
                 <div className="flex flex-wrap gap-1">
-                  {epic.labels.slice(0, 3).map((label, index) => (
+                  {epic.labels?.slice(0, 3).map((label, index) => (
                     <Badge key={index} variant="outline" className="text-xs bg-gray-50">
                       {label}
                     </Badge>
                   ))}
-                  {epic.labels.length > 3 && (
+                  {(epic.labels?.length || 0) > 3 && (
                     <Badge variant="outline" className="text-xs bg-gray-50">
-                      +{epic.labels.length - 3}
+                      +{(epic.labels?.length || 0) - 3}
                     </Badge>
                   )}
                 </div>
@@ -451,7 +547,7 @@ const EpicManager: React.FC<EpicManagerProps> = ({
                     <span className="text-gray-500">{template.estimatedDuration} weeks</span>
                   </div>
                   <div className="flex flex-wrap gap-1">
-                    {template.labels.slice(0, 3).map((label, index) => (
+                    {template.labels?.slice(0, 3).map((label, index) => (
                       <Badge key={index} variant="outline" className="text-xs">
                         {label}
                       </Badge>
@@ -477,60 +573,160 @@ const EpicManager: React.FC<EpicManagerProps> = ({
 
       {/* Add Epic Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Create New Epic</DialogTitle>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-4">
+            <DialogTitle>Add New Epic</DialogTitle>
             <DialogDescription>
-              Create a new epic to organize and track large features or initiatives.
+              Create a new epic to organize large features and initiatives.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="flex-1 overflow-y-auto space-y-4 px-6 max-h-[60vh]">
+            {createError && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                <p className="text-sm text-red-600">{createError}</p>
+              </div>
+            )}
             <div className="space-y-2">
-              <Label htmlFor="title">Epic Title *</Label>
-              <Input id="title" placeholder="Enter epic title..." />
+              <Label htmlFor="epic-name">Epic Name *</Label>
+              <Input
+                id="epic-name"
+                placeholder="Enter epic name"
+                value={newEpic.name}
+                onChange={(e) => handleInputChange('name', e.target.value)}
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="summary">Summary *</Label>
-              <Textarea id="summary" placeholder="Brief description of the epic..." rows={2} />
+              <Label htmlFor="epic-description">Description</Label>
+              <Textarea
+                id="epic-description"
+                placeholder="Describe the epic"
+                value={newEpic.description}
+                onChange={(e) => handleInputChange('description', e.target.value)}
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="epic-summary">Summary</Label>
+              <Input
+                id="epic-summary"
+                placeholder="Brief summary of the epic"
+                value={newEpic.summary}
+                onChange={(e) => handleInputChange('summary', e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="epic-theme">Theme</Label>
+              <Input
+                id="epic-theme"
+                placeholder="Epic theme or category"
+                value={newEpic.theme}
+                onChange={(e) => handleInputChange('theme', e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="epic-business-value">Business Value</Label>
+              <Textarea
+                id="epic-business-value"
+                placeholder="Describe the business value"
+                value={newEpic.businessValue}
+                onChange={(e) => handleInputChange('businessValue', e.target.value)}
+                rows={2}
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Priority</Label>
-                <Select>
+                <Label htmlFor="epic-priority">Priority</Label>
+                <Select value={newEpic.priority} onValueChange={(value) => handleInputChange('priority', value)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select priority" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
                     <SelectItem value="critical">Critical</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Owner</Label>
-                <Select>
+                <Label htmlFor="epic-status">Status</Label>
+                <Select value={newEpic.status} onValueChange={(value) => handleInputChange('status', value)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select owner" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {teamMembers.map((member) => (
-                      <SelectItem key={member.id} value={member.id}>
-                        {member.name}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="planned">Planned</SelectItem>
+                    <SelectItem value="in-progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="epic-assignee">Assignee</Label>
+                <Select
+                  value={newEpic.assigneeId}
+                  onValueChange={(value) => handleInputChange('assigneeId', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select assignee" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {apiUsers && apiUsers.length > 0 ? (
+                      apiUsers.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="no-users" disabled>
+                        {usersLoading ? 'Loading users...' : 'No users available'}
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="epic-story-points">Story Points</Label>
+                <Input
+                  id="epic-story-points"
+                  type="number"
+                  placeholder="Estimated story points"
+                  value={newEpic.storyPoints}
+                  onChange={(e) => handleInputChange('storyPoints', parseInt(e.target.value) || 0)}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="epic-start-date">Start Date</Label>
+                <Input
+                  id="epic-start-date"
+                  type="date"
+                  value={newEpic.startDate}
+                  onChange={(e) => handleInputChange('startDate', e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="epic-end-date">End Date</Label>
+                <Input
+                  id="epic-end-date"
+                  type="date"
+                  value={newEpic.endDate}
+                  onChange={(e) => handleInputChange('endDate', e.target.value)}
+                />
+              </div>
+            </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-shrink-0 px-6 pb-6 pt-4 border-t bg-white">
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={() => setShowAddDialog(false)}>
-              Create Epic
+            <Button onClick={handleCreateEpic} disabled={!newEpic.name.trim() || createLoading}>
+              {createLoading ? 'Creating...' : 'Add Epic'}
             </Button>
           </DialogFooter>
         </DialogContent>

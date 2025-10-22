@@ -61,8 +61,11 @@ export function useSearchSprints() {
 // Hook for sprints by project
 export function useSprintsByProject(projectId: string, params?: PaginationParams) {
   return useApi(
-    () => sprintApiService.getSprintsByProject(projectId, params),
-    [projectId, JSON.stringify(params)]
+    () => projectId && projectId !== 'SKIP' 
+      ? sprintApiService.getSprintsByProject(projectId, params) 
+      : Promise.resolve({ data: [] as Sprint[], success: true, message: '', status: 200 }),
+    [projectId, JSON.stringify(params)],
+    !!(projectId && projectId !== 'SKIP') // Only execute if projectId is valid
   );
 }
 
@@ -116,8 +119,11 @@ export function useSprintVelocity(id: string) {
 // Hook for sprint burndown
 export function useSprintBurndown(id: string) {
   return useApi(
-    () => sprintApiService.getSprintBurndown(id),
-    [id]
+    () => id && id !== 'SKIP' 
+      ? sprintApiService.getSprintBurndown(id) 
+      : Promise.resolve({ data: null, success: true, message: '', status: 200 }),
+    [id],
+    !!(id && id !== 'SKIP') // Only execute if id is valid
   );
 }
 

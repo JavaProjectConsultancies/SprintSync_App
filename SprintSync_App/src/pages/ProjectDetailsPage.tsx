@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -12,7 +12,13 @@ import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { useProjectById } from '../hooks/api/useProjectById';
+import { useRequirements } from '../hooks/api/useRequirements';
+import { useTeamMembers } from '../hooks/api/useTeamMembers';
+import EpicManager from '../components/EpicManager';
+import TeamManager from '../components/TeamManager';
+import { useAuth } from '../contexts/AuthContextEnhanced';
 import { 
   ArrowLeft,
   Calendar,
@@ -61,9 +67,64 @@ const ProjectDetailsPage = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   
   // Fetch real project data from API
-  const { project, loading, error } = useProjectById(id || '');
+  const { project, loading, error, refetch } = useProjectById(id || '');
+  
+  // Fetch requirements for the project
+  const { requirements, createRequirement, loading: requirementsLoading } = useRequirements(id || '');
+  
+  // Fetch team members for the project
+  const { 
+    teamMembers: apiTeamMembers, 
+    loading: teamLoading, 
+    addTeamMemberToProject, 
+    removeTeamMemberFromProject, 
+    refreshTeamMembers 
+  } = useTeamMembers(id || '');
+  
+  // Local state for epics to handle real-time updates
+  const [localEpics, setLocalEpics] = useState<any[]>([]);
+  const [localRequirements, setLocalRequirements] = useState<any[]>([]);
+  const [isAddRequirementDialogOpen, setIsAddRequirementDialogOpen] = useState(false);
+  
+  // Team management state
+  const [isTeamManagerOpen, setIsTeamManagerOpen] = useState(false);
+  const [localTeamMembers, setLocalTeamMembers] = useState<any[]>([]);
+  
+  // Requirement form state
+  const [requirementForm, setRequirementForm] = useState({
+    title: '',
+    description: '',
+    priority: 'medium',
+    type: 'functional',
+    acceptanceCriteria: ''
+  });
+  
+  // Update local epics when project data changes
+  useEffect(() => {
+    if (project?.epics) {
+      setLocalEpics(project.epics);
+    }
+  }, [project?.epics]);
+
+  // Update local requirements when API data changes
+  useEffect(() => {
+    setLocalRequirements(requirements);
+  }, [requirements]);
+
+  // Update local team members when API data changes
+  useEffect(() => {
+    if (apiTeamMembers.length > 0) {
+      setLocalTeamMembers(apiTeamMembers);
+    } else if (project?.teamMembers && project.teamMembers.length > 0) {
+      // Fallback to project team members if API data is not available
+      setLocalTeamMembers(project.teamMembers);
+    } else {
+      setLocalTeamMembers([]);
+    }
+  }, [apiTeamMembers, project?.teamMembers]);
 
   // Loading state
   if (loading) {
@@ -143,20 +204,64 @@ const ProjectDetailsPage = () => {
     };
   }) || [];
 
-  // Use real team members from project data with real workload and performance
-  const teamMembers = project.teamMembers.map(member => ({
-    name: member.name,
-    role: member.role,
-    avatar: member.avatar || '',
-    workload: member.workload || 0, // Real workload data from API
-    performance: member.performance || 85, // Real performance data from API, default to 85
-    department: member.department || '',
-    experience: member.experience || 'mid',
-    hourlyRate: member.hourlyRate || 0,
-    availability: member.availability || 100,
-    isTeamLead: member.isTeamLead || false,
-    skills: member.skills || [] // Include skills from API
-  }));
+  // Team management handlers
+  const handleTeamMembersChange = async (newTeamMembers: any[]) => {
+    setLocalTeamMembers(newTeamMembers);
+    
+    // Refresh the team members from API to get updated data
+    await refreshTeamMembers();
+    
+    // Also refresh the project data to update the team count
+    await refetch();
+  };
+
+  const handleAddTeamMember = async (userId: string, role: string, isTeamLead: boolean = false) => {
+    if (!id) return;
+    
+    try {
+      await addTeamMemberToProject(id, userId, role, isTeamLead);
+      await handleTeamMembersChange(localTeamMembers);
+    } catch (error) {
+      console.error('Error adding team member:', error);
+    }
+  };
+
+  const handleRemoveTeamMember = async (userId: string) => {
+    if (!id) return;
+    
+    try {
+      await removeTeamMemberFromProject(id, userId);
+      await handleTeamMembersChange(localTeamMembers);
+    } catch (error) {
+      console.error('Error removing team member:', error);
+    }
+  };
+
+  // Use local team members with real workload and performance
+  const teamMembers = localTeamMembers.map(member => {
+    // Handle performance - it can be a number or an object
+    let performanceValue = 85; // Default
+    if (typeof member.performance === 'number') {
+      performanceValue = member.performance;
+    } else if (member.performance && typeof member.performance === 'object') {
+      // If it's an object, extract a numeric value (e.g., from velocity or a rating)
+      performanceValue = member.performance.velocity || member.performance.rating || 85;
+    }
+    
+    return {
+      name: member.name,
+      role: member.role,
+      avatar: member.avatar || '',
+      workload: member.workload || 0, // Real workload data from API
+      performance: performanceValue, // Normalized performance value
+      department: member.department || '',
+      experience: member.experience || 'mid',
+      hourlyRate: member.hourlyRate || 0,
+      availability: member.availability || 100,
+      isTeamLead: member.isTeamLead || false,
+      skills: member.skills || [] // Include skills from API
+    };
+  });
 
 
   const getRiskColor = (level: string) => {
@@ -255,7 +360,7 @@ const ProjectDetailsPage = () => {
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <div className="text-2xl font-semibold text-blue-600">{project.teamMembers.length}</div>
+            <div className="text-2xl font-semibold text-blue-600">{localTeamMembers.length}</div>
             <div className="text-sm text-muted-foreground">Team Size</div>
           </CardContent>
         </Card>
@@ -294,8 +399,9 @@ const ProjectDetailsPage = () => {
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-8">
+        <TabsList className="inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground w-full">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="epics">Epics</TabsTrigger>
           <TabsTrigger value="requirements">Requirements</TabsTrigger>
           <TabsTrigger value="milestones">Milestones</TabsTrigger>
           <TabsTrigger value="team">Team</TabsTrigger>
@@ -305,12 +411,37 @@ const ProjectDetailsPage = () => {
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6">
+        <TabsContent value="overview" className="space-y-8">
+          {/* Project Header */}
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
+            <div className="flex items-center justify-between">
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold text-gray-900">{project.name}</h2>
+                <p className="text-gray-600 max-w-2xl">{project.description}</p>
+                <div className="flex items-center space-x-4 mt-4">
+                  <Badge className={`${getStatusColor(project.status)} text-sm px-3 py-1`}>
+                    {project.status?.replace('-', ' ').toUpperCase()}
+                  </Badge>
+                  <Badge variant="outline" className="text-sm px-3 py-1">
+                    {project.priority?.toUpperCase()} Priority
+                  </Badge>
+                  <Badge variant="outline" className="text-sm px-3 py-1">
+                    {project.methodology?.toUpperCase()}
+                  </Badge>
+                </div>
+              </div>
+              <div className="text-right space-y-2">
+                <div className="text-3xl font-bold text-blue-600">{project.progress}%</div>
+                <div className="text-sm text-gray-500">Complete</div>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Project Progress */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
+            <Card className="hover:shadow-lg transition-shadow duration-200">
+              <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b border-green-200">
+                <CardTitle className="flex items-center space-x-2 text-green-800">
                   <TrendingUp className="w-5 h-5" />
                   <span>Project Progress</span>
                 </CardTitle>
@@ -346,9 +477,9 @@ const ProjectDetailsPage = () => {
             </Card>
 
             {/* Budget Overview */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
+            <Card className="hover:shadow-lg transition-shadow duration-200">
+              <CardHeader className="bg-gradient-to-r from-purple-50 to-violet-50 border-b border-purple-200">
+                <CardTitle className="flex items-center space-x-2 text-purple-800">
                   <BarChart3 className="w-5 h-5" />
                   <span>Budget Overview</span>
                 </CardTitle>
@@ -476,27 +607,86 @@ const ProjectDetailsPage = () => {
           </Card>
         </TabsContent>
 
+        <TabsContent value="epics" className="space-y-6">
+          <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg p-6 border border-orange-200 mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-semibold text-orange-800">Epics Management</h3>
+                <p className="text-orange-600 mt-1">Manage and track project epics and their progress</p>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-orange-600">
+                  {project.epics?.length || 0}
+                </div>
+                <div className="text-sm text-orange-500">Total Epics</div>
+              </div>
+            </div>
+          </div>
+          <EpicManager 
+            epics={localEpics}
+            projectId={id || ''}
+            currentUserId={user?.id || ''}
+            onAddEpic={(epic) => {
+              console.log('Adding epic:', epic);
+              // Add the new epic to local state immediately for real-time update
+              setLocalEpics(prev => [...prev, epic]);
+              // Optionally refresh the full project data from API
+              setTimeout(() => refetch(), 1000);
+            }}
+            onUpdateEpic={(epic) => {
+              console.log('Updating epic:', epic);
+              // Update the epic in local state
+              setLocalEpics(prev => prev.map(e => e.id === epic.id ? epic : e));
+              // Optionally refresh the full project data from API
+              setTimeout(() => refetch(), 1000);
+            }}
+            onDeleteEpic={(epicId) => {
+              console.log('Deleting epic:', epicId);
+              // Remove the epic from local state
+              setLocalEpics(prev => prev.filter(e => e.id !== epicId));
+              // Optionally refresh the full project data from API
+              setTimeout(() => refetch(), 1000);
+            }}
+          />
+        </TabsContent>
+
         <TabsContent value="requirements" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold">Project Requirements ({project.requirements?.length || 0})</h3>
-            <Button variant="outline" size="sm">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Requirement
-            </Button>
+          <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-6 border border-blue-200 mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-semibold text-blue-800">Project Requirements</h3>
+                <p className="text-blue-600 mt-1">Define and track project requirements and acceptance criteria</p>
+              </div>
+              <div className="flex items-center space-x-4">
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-blue-600">{localRequirements?.length || 0}</div>
+                  <div className="text-sm text-blue-500">Total Requirements</div>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="bg-white hover:bg-blue-50"
+                  onClick={() => setIsAddRequirementDialogOpen(true)}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Requirement
+                </Button>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {project.requirements?.map((requirement: any) => (
+            {localRequirements?.map((requirement: any) => (
               <Card key={requirement.id} className="hover:shadow-md transition-shadow">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base">{requirement.title}</CardTitle>
                     <div className="flex items-center space-x-2">
                       <Badge variant="outline" className={getPriorityColor(requirement.priority)}>
-                        {requirement.priority.toUpperCase()}
+                        {requirement.priority?.toLowerCase() || 'Unknown'}
                       </Badge>
                       <Badge variant="outline" className={getStatusColor(requirement.status)}>
-                        {requirement.status.replace('-', ' ')}
+                        {requirement.status?.toLowerCase().replace('_', ' ') || 'Unknown'}
                       </Badge>
                     </div>
                   </div>
@@ -508,32 +698,44 @@ const ProjectDetailsPage = () => {
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div className="space-y-1">
                       <div className="text-muted-foreground text-xs">Type</div>
-                      <div className="font-medium">{requirement.type}</div>
+                      <div className="font-medium">{requirement.type?.toLowerCase().replace('_', '-') || 'Unknown'}</div>
                     </div>
                     <div className="space-y-1">
                       <div className="text-muted-foreground text-xs">Module</div>
-                      <div className="font-medium">{requirement.module}</div>
+                      <div className="font-medium">{requirement.module || 'N/A'}</div>
                     </div>
                     <div className="space-y-1">
                       <div className="text-muted-foreground text-xs">Effort Points</div>
-                      <div className="font-medium">{requirement.effortPoints}</div>
+                      <div className="font-medium">{requirement.effortPoints || 0}</div>
                     </div>
                     <div className="space-y-1">
                       <div className="text-muted-foreground text-xs">Status</div>
-                      <div className="font-medium">{requirement.status}</div>
+                      <div className="font-medium">{requirement.status?.toLowerCase().replace('_', ' ') || 'Unknown'}</div>
                     </div>
                   </div>
 
-                  {requirement.acceptanceCriteria && requirement.acceptanceCriteria.length > 0 && (
+                  {requirement.acceptanceCriteria && (
                     <div className="space-y-2">
                       <div className="text-xs text-muted-foreground">Acceptance Criteria</div>
                       <ul className="space-y-1">
-                        {requirement.acceptanceCriteria.map((criteria: string, index: number) => (
-                          <li key={index} className="text-sm flex items-start space-x-2">
-                            <CheckCircle2 className="w-3 h-3 text-green-600 mt-0.5 flex-shrink-0" />
-                            <span>{criteria}</span>
-                          </li>
-                        ))}
+                        {(() => {
+                          // Handle both string and array formats for acceptanceCriteria
+                          let criteriaList: string[] = [];
+                          if (typeof requirement.acceptanceCriteria === 'string') {
+                            criteriaList = requirement.acceptanceCriteria ? [requirement.acceptanceCriteria] : [];
+                          } else if (Array.isArray(requirement.acceptanceCriteria)) {
+                            criteriaList = requirement.acceptanceCriteria;
+                          }
+                          
+                          return criteriaList.length > 0 ? criteriaList.map((criteria: string, index: number) => (
+                            <li key={index} className="text-sm flex items-start space-x-2">
+                              <CheckCircle2 className="w-3 h-3 text-green-600 mt-0.5 flex-shrink-0" />
+                              <span>{criteria}</span>
+                            </li>
+                          )) : (
+                            <li className="text-sm text-muted-foreground">No criteria defined</li>
+                          );
+                        })()}
                       </ul>
                     </div>
                   )}
@@ -594,7 +796,11 @@ const ProjectDetailsPage = () => {
         <TabsContent value="team" className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold">Team Members ({teamMembers.length})</h3>
-            <Button variant="outline" size="sm">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setIsTeamManagerOpen(true)}
+            >
               <Users className="w-4 h-4 mr-2" />
               Manage Team
             </Button>
@@ -614,7 +820,7 @@ const ProjectDetailsPage = () => {
                     <div className="flex-1 space-y-2">
                       <div>
                         <div className="flex items-center space-x-2">
-                          <h4 className="font-medium text-sm">{member.name}</h4>
+                        <h4 className="font-medium text-sm">{member.name}</h4>
                           {member.isTeamLead && (
                             <Badge variant="secondary" className="text-xs">Lead</Badge>
                           )}
@@ -943,7 +1149,7 @@ const ProjectDetailsPage = () => {
                       <div className="flex items-center space-x-3">
                         <div className="w-5 h-5 bg-gray-400 rounded flex items-center justify-center">
                           <span className="text-white text-xs font-bold">?</span>
-                        </div>
+                      </div>
                         <span className="font-medium text-sm text-muted-foreground">{integration.name}</span>
                       </div>
                     </div>
@@ -979,6 +1185,172 @@ const ProjectDetailsPage = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Add Requirement Dialog */}
+      <Dialog open={isAddRequirementDialogOpen} onOpenChange={setIsAddRequirementDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add New Requirement</DialogTitle>
+            <DialogDescription>
+              Define a new project requirement with acceptance criteria.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="requirement-title">Requirement Title *</Label>
+              <Input
+                id="requirement-title"
+                placeholder="e.g., User Authentication System"
+                value={requirementForm.title}
+                onChange={(e) => setRequirementForm(prev => ({ ...prev, title: e.target.value }))}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="requirement-description">Description</Label>
+              <Textarea
+                id="requirement-description"
+                placeholder="Describe the requirement in detail..."
+                rows={3}
+                value={requirementForm.description}
+                onChange={(e) => setRequirementForm(prev => ({ ...prev, description: e.target.value }))}
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="requirement-priority">Priority</Label>
+                <Select value={requirementForm.priority} onValueChange={(value) => setRequirementForm(prev => ({ ...prev, priority: value }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="requirement-type">Type</Label>
+                <Select value={requirementForm.type} onValueChange={(value) => setRequirementForm(prev => ({ ...prev, type: value }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="functional">Functional</SelectItem>
+                    <SelectItem value="non-functional">Non-functional</SelectItem>
+                    <SelectItem value="technical">Technical</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="acceptance-criteria">Acceptance Criteria</Label>
+              <Textarea
+                id="acceptance-criteria"
+                placeholder="Define the acceptance criteria for this requirement..."
+                rows={2}
+                value={requirementForm.acceptanceCriteria}
+                onChange={(e) => setRequirementForm(prev => ({ ...prev, acceptanceCriteria: e.target.value }))}
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsAddRequirementDialogOpen(false);
+              // Reset form
+              setRequirementForm({
+                title: '',
+                description: '',
+                priority: 'medium',
+                type: 'functional',
+                acceptanceCriteria: ''
+              });
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={async () => {
+              // Validate form
+              if (!requirementForm.title.trim()) {
+                alert('Please enter a requirement title.');
+                return;
+              }
+              
+              if (!id) {
+                alert('Project ID not found.');
+                return;
+              }
+              
+              try {
+                // Create requirement via API
+                const newRequirement = await createRequirement({
+                  projectId: id,
+                  title: requirementForm.title.trim(),
+                  description: requirementForm.description.trim() || undefined,
+                  type: requirementForm.type.toUpperCase().replace('-', '_') as 'FUNCTIONAL' | 'NON_FUNCTIONAL' | 'TECHNICAL',
+                  priority: requirementForm.priority.toUpperCase() as 'HIGH' | 'MEDIUM' | 'LOW',
+                  acceptanceCriteria: requirementForm.acceptanceCriteria.trim() || undefined,
+                  status: 'DRAFT'
+                });
+                
+                if (newRequirement) {
+                  console.log('Requirement created successfully:', newRequirement);
+                  
+                  // Reset form and close dialog
+                  setRequirementForm({
+                    title: '',
+                    description: '',
+                    priority: 'medium',
+                    type: 'functional',
+                    acceptanceCriteria: ''
+                  });
+                  setIsAddRequirementDialogOpen(false);
+                } else {
+                  alert('Failed to create requirement. Please try again.');
+                }
+              } catch (error) {
+                console.error('Error creating requirement:', error);
+                alert('Failed to create requirement. Please try again.');
+              }
+            }}>
+              Add Requirement
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Team Management Dialog */}
+      <Dialog open={isTeamManagerOpen} onOpenChange={setIsTeamManagerOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle>Manage Team - {project?.name}</DialogTitle>
+            <DialogDescription>
+              Add, remove, and manage team members for this project
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto min-h-0">
+            <TeamManager
+              selectedMembers={localTeamMembers}
+              onMembersChange={handleTeamMembersChange}
+              projectBudget={project?.budget || 0}
+              projectDuration={project?.duration || 30}
+              projectId={id || ''}
+              onAddMember={handleAddTeamMember}
+              onRemoveMember={handleRemoveTeamMember}
+            />
+          </div>
+          <DialogFooter className="flex-shrink-0">
+            <Button variant="outline" onClick={() => setIsTeamManagerOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 

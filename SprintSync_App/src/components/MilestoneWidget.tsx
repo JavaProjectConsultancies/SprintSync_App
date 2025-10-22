@@ -4,6 +4,7 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Progress } from './ui/progress';
+import { useUsers } from '../hooks/api/useUsers';
 import { ScrollArea } from './ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { 
@@ -34,12 +35,12 @@ interface MilestoneWidgetProps {
   onMilestoneClick: (milestone: Milestone) => void;
 }
 
-const MilestoneWidget: React.FC<MilestoneWidgetProps> = ({
+const MilestoneWidget = ({
   projectId,
   milestones,
   onAddMilestone,
   onMilestoneClick
-}) => {
+}: MilestoneWidgetProps) => {
   const [filter, setFilter] = useState<'all' | 'active' | 'completed' | 'delayed'>('all');
   const [sortBy, setSortBy] = useState<'dueDate' | 'priority' | 'status'>('dueDate');
 
@@ -163,16 +164,13 @@ const MilestoneWidget: React.FC<MilestoneWidgetProps> = ({
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
-  // Mock user data - in real app, this would come from user context
+  // Get real users from API
+  const { data: apiUsers, loading: usersLoading } = useUsers();
+
+  // Get user by ID from API data
   const getUserById = (userId: string) => {
-    const users: { [key: string]: { name: string; avatar?: string } } = {
-      'user1': { name: 'Arjun Patel', avatar: '' },
-      'user2': { name: 'Priya Sharma', avatar: '' },
-      'user3': { name: 'Rahul Kumar', avatar: '' },
-      'user4': { name: 'Sneha Reddy', avatar: '' },
-      'user5': { name: 'Vikram Singh', avatar: '' }
-    };
-    return users[userId] || { name: 'Unknown User' };
+    const user = apiUsers?.find(u => u.id === userId);
+    return user ? { name: user.name, avatar: user.avatarUrl || '' } : { name: 'Unknown User', avatar: '' };
   };
 
   return (

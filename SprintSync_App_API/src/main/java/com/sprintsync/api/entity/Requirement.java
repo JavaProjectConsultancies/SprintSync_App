@@ -50,7 +50,7 @@ public class Requirement {
     @Column(name = "module")
     private String module;
 
-    @Column(name = "acceptance_criteria", columnDefinition = "jsonb")
+    @Column(name = "acceptance_criteria", columnDefinition = "TEXT")
     private String acceptanceCriteria;
 
     @Column(name = "effort_points")
@@ -74,6 +74,16 @@ public class Requirement {
         this.projectId = projectId;
         this.title = title;
         this.description = description;
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.createdAt == null) {
+            this.createdAt = LocalDateTime.now();
+        }
+        if (this.updatedAt == null) {
+            this.updatedAt = LocalDateTime.now();
+        }
     }
 
     @PreUpdate
