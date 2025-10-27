@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 import React, { useMemo, useState, useEffect } from 'react';
-=======
-import React, { useMemo, useState } from 'react';
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContextEnhanced';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -48,36 +44,17 @@ import {
   Filter,
   X
 } from 'lucide-react';
-<<<<<<< HEAD
 // Removed mock data imports - using API data only
 import UserTasks from './UserTasks';
 import { useProjects, useUsers, useDepartments, useDomains, useEpics, useReleases, useSprints, useStories, useTasks } from '../hooks/api';
 import { apiClient } from '../services/api/client';
-=======
-import { 
-  getDashboardMetrics, 
-  getBurndownData, 
-  getMonthlyTrendData, 
-  getProjectStatusData, 
-  mockProjects,
-  getTeamPerformanceData,
-  getAIInsights
-} from '../data/mockData';
-import UserTasks from './UserTasks';
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user, hasPermission, canAccessProject } = useAuth();
   
-<<<<<<< HEAD
   // API authentication is now handled by AuthContext
   // No need for demo auth setup
-=======
-  // Filter states
-  const [selectedProjectForSprint, setSelectedProjectForSprint] = useState<string>('all');
-  const [selectedProjectForTasks, setSelectedProjectForTasks] = useState<string>('all');
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 
   // API hooks for real data from all master tables
   const { data: apiProjects, loading: projectsLoading, error: projectsError, refetch: refetchProjects } = useProjects();
@@ -197,180 +174,6 @@ const Dashboard: React.FC = () => {
     const projectSeed = project.id.charCodeAt(project.id.length - 1);
     
     const sprints: { name: string; planned: number; done: number }[] = [];
-    for (let i = 1; i <= 4; i++) {
-      // Create consistent values based on project ID and sprint number
-      const variation = ((projectSeed + i) % 10) / 10; // 0-0.9 variation
-      const planned = Math.round(baseVelocity * priorityMultiplier * (0.8 + variation * 0.4));
-      const done = Math.round(planned * (0.7 + progressFactor * 0.3) * (0.8 + variation * 0.4));
-      sprints.push({
-        name: `Sprint ${i}`,
-        planned,
-        done: Math.min(done, planned)
-      });
-    }
-    
-    return sprints;
-  };
-
-  // Generate project-specific task distribution data based on project status and progress
-  const getTaskDistributionData = (projectId: string) => {
-    const project = accessibleProjects.find(p => p.id === projectId);
-    
-    if (projectId === 'all') {
-      // Aggregate data from all accessible projects
-      return [
-        { name: 'To Do', value: 28, percentage: 19 },
-        { name: 'In Progress', value: 35, percentage: 24 },
-        { name: 'QA', value: 15, percentage: 10 },
-        { name: 'Done', value: 67, percentage: 46 }
-      ];
-    }
-
-    if (!project) return [];
-
-    // Generate data based on project characteristics
-    const totalTasks = 100;
-    const progress = project.progress;
-    const status = project.status;
-    
-    let todo, inProgress, qa, done;
-    
-    if (status === 'completed') {
-      // Completed projects have most tasks done
-      done = Math.round(totalTasks * 0.9);
-      qa = Math.round(totalTasks * 0.05);
-      inProgress = Math.round(totalTasks * 0.03);
-      todo = totalTasks - done - qa - inProgress;
-    } else if (status === 'planning') {
-      // Planning projects have most tasks in todo
-      todo = Math.round(totalTasks * 0.6);
-      inProgress = Math.round(totalTasks * 0.2);
-      qa = Math.round(totalTasks * 0.1);
-      done = totalTasks - todo - inProgress - qa;
-    } else if (status === 'active') {
-      // Active projects have balanced distribution based on progress
-      done = Math.round(totalTasks * (progress / 100) * 0.8);
-      qa = Math.round(totalTasks * 0.15);
-      inProgress = Math.round(totalTasks * 0.25);
-      todo = totalTasks - done - qa - inProgress;
-    } else {
-      // Default distribution
-      done = Math.round(totalTasks * 0.3);
-      qa = Math.round(totalTasks * 0.15);
-      inProgress = Math.round(totalTasks * 0.3);
-      todo = totalTasks - done - qa - inProgress;
-    }
-
-    const total = todo + inProgress + qa + done;
-    
-    return [
-      { 
-        name: 'To Do', 
-        value: todo, 
-        percentage: Math.round((todo / total) * 100) 
-      },
-      { 
-        name: 'In Progress', 
-        value: inProgress, 
-        percentage: Math.round((inProgress / total) * 100) 
-      },
-      { 
-        name: 'QA', 
-        value: qa, 
-        percentage: Math.round((qa / total) * 100) 
-      },
-      { 
-        name: 'Done', 
-        value: done, 
-        percentage: Math.round((done / total) * 100) 
-      }
-    ];
-  };
-
-  // Get filtered data based on selected projects
-  const sprintPerformanceData = useMemo(() => 
-    getSprintPerformanceData(selectedProjectForSprint), 
-    [selectedProjectForSprint]
-  );
-  
-  const taskDistributionData = useMemo(() => 
-    getTaskDistributionData(selectedProjectForTasks), 
-    [selectedProjectForTasks]
-  );
-
-  // Reset filters
-  const resetFilters = () => {
-    setSelectedProjectForSprint('all');
-    setSelectedProjectForTasks('all');
-  };
-
-  // Check if any filters are active
-  const hasActiveFilters = selectedProjectForSprint !== 'all' || selectedProjectForTasks !== 'all';
-
-  // Get project-specific chart information
-  const getSprintChartInfo = () => {
-    if (selectedProjectForSprint === 'all') {
-      return {
-        title: 'Sprint Performance',
-        description: 'Planned vs Done comparison across all projects',
-        subtitle: 'Aggregated view of all accessible projects'
-      };
-    }
-    
-    const project = accessibleProjects.find(p => p.id === selectedProjectForSprint);
-    if (!project) return { title: 'Sprint Performance', description: 'Planned vs Done comparison', subtitle: '' };
-    
-    return {
-      title: `Sprint Performance - ${project.name}`,
-      description: `Planned vs Done comparison for ${project.name}`,
-      subtitle: `${project.status} • ${project.progress}% complete • ${project.teamMembers.length} team members`
-    };
-  };
-
-  const getTaskChartInfo = () => {
-    if (selectedProjectForTasks === 'all') {
-      return {
-        title: 'Task Distribution',
-        description: 'Current sprint task breakdown across all projects',
-        subtitle: 'Aggregated view of all accessible projects'
-      };
-    }
-    
-    const project = accessibleProjects.find(p => p.id === selectedProjectForTasks);
-    if (!project) return { title: 'Task Distribution', description: 'Current sprint task breakdown', subtitle: '' };
-    
-    return {
-      title: `Task Distribution - ${project.name}`,
-      description: `Current sprint task breakdown for ${project.name}`,
-      subtitle: `${project.status} • ${project.progress}% complete • ${project.priority} priority`
-    };
-  };
-
-  // Generate project-specific sprint performance data based on actual project characteristics
-  const getSprintPerformanceData = (projectId: string) => {
-    const project = accessibleProjects.find(p => p.id === projectId);
-    
-    if (projectId === 'all') {
-      // Aggregate data from all accessible projects
-      return [
-        { name: 'Sprint 12', planned: 45, done: 42 },
-        { name: 'Sprint 13', planned: 50, done: 48 },
-        { name: 'Sprint 14', planned: 40, done: 35 },
-        { name: 'Sprint 15', planned: 35, done: 28 }
-      ];
-    }
-
-    if (!project) return [];
-
-    // Generate data based on project characteristics
-    const baseVelocity = project.teamMembers.length * 8; // Base velocity per team member
-    const progressFactor = project.progress / 100;
-    const priorityMultiplier = project.priority === 'critical' ? 1.2 : project.priority === 'high' ? 1.1 : 1.0;
-    
-    // Use project ID to create consistent "random" values
-    const projectSeed = project.id.charCodeAt(project.id.length - 1);
-    
-    const sprints = [];
     for (let i = 1; i <= 4; i++) {
       // Create consistent values based on project ID and sprint number
       const variation = ((projectSeed + i) % 10) / 10; // 0-0.9 variation
@@ -1069,21 +872,12 @@ const Dashboard: React.FC = () => {
               </div>
               <CardDescription>
                 {getSprintChartInfo().description}
-<<<<<<< HEAD
               </CardDescription>
               {getSprintChartInfo().subtitle && (
                 <div className="mt-1 text-xs text-yellow-700 font-medium">
                   {getSprintChartInfo().subtitle}
                 </div>
               )}
-=======
-                {getSprintChartInfo().subtitle && (
-                  <div className="mt-1 text-xs text-yellow-700 font-medium">
-                    {getSprintChartInfo().subtitle}
-                  </div>
-                )}
-              </CardDescription>
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
@@ -1131,21 +925,12 @@ const Dashboard: React.FC = () => {
               </div>
               <CardDescription>
                 {getTaskChartInfo().description}
-<<<<<<< HEAD
               </CardDescription>
               {getTaskChartInfo().subtitle && (
                 <div className="mt-1 text-xs text-cyan-700 font-medium">
                   {getTaskChartInfo().subtitle}
                 </div>
               )}
-=======
-                {getTaskChartInfo().subtitle && (
-                  <div className="mt-1 text-xs text-cyan-700 font-medium">
-                    {getTaskChartInfo().subtitle}
-                  </div>
-                )}
-              </CardDescription>
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
