@@ -1,8 +1,11 @@
 package com.sprintsync.api.entity.enums;
 
+<<<<<<< HEAD
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
+=======
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 /**
  * Time entry type enumeration for the SprintSync application.
  * Defines the different types of work that can be tracked.
@@ -29,6 +32,7 @@ public enum TimeEntryType {
         this.value = value;
     }
 
+<<<<<<< HEAD
     @JsonValue
     public String getValue() {
         return value; // Return lowercase value for JSON output
@@ -43,5 +47,9 @@ public enum TimeEntryType {
             }
         }
         throw new IllegalArgumentException("Unknown TimeEntryType: " + value);
+=======
+    public String getValue() {
+        return value;
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     }
 }

@@ -2,7 +2,10 @@ package com.sprintsync.api.controller;
 
 import com.sprintsync.api.entity.User;
 import com.sprintsync.api.entity.enums.UserRole;
+<<<<<<< HEAD
 import com.sprintsync.api.entity.enums.ExperienceLevel;
+=======
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 import com.sprintsync.api.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -14,8 +17,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+<<<<<<< HEAD
 import java.util.Map;
 import java.util.HashMap;
+=======
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 import java.util.Optional;
 
 /**
@@ -279,6 +285,7 @@ public class UserController {
                                    totalUsers, activeUsers, managers, developers);
         return ResponseEntity.ok(stats);
     }
+<<<<<<< HEAD
 
     /**
      * Get all available experience levels.
@@ -320,4 +327,6 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
+=======
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 }

@@ -32,7 +32,11 @@ public class Stakeholder {
     @Column(name = "email")
     private String email;
 
+<<<<<<< HEAD
     @Column(name = "responsibilities", columnDefinition = "TEXT")
+=======
+    @Column(name = "responsibilities", columnDefinition = "jsonb")
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     private String responsibilities;
 
     @Column(name = "avatar_url")

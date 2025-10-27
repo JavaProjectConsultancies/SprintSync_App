@@ -141,8 +141,13 @@ public class AuthService {
             claims.put("userId", savedUser.getId());
             claims.put("name", savedUser.getName());
             claims.put("role", savedUser.getRole().name());
+<<<<<<< HEAD
             claims.put("department", savedUser.getDepartmentId());
             claims.put("domain", savedUser.getDomainId());
+=======
+            claims.put("department", savedUser.getDepartment());
+            claims.put("domain", savedUser.getDomain());
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
             
             String token = jwtUtil.generateToken(userDetails, claims);
             

@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+<<<<<<< HEAD
 import { useAuth } from '../contexts/AuthContextEnhanced';
+=======
+import { useAuth } from '../contexts/AuthContext';
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 import { useNavigation } from '../contexts/NavigationContext';
 import {
   DropdownMenu,

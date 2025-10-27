@@ -50,7 +50,11 @@ public class Requirement {
     @Column(name = "module")
     private String module;
 
+<<<<<<< HEAD
     @Column(name = "acceptance_criteria", columnDefinition = "TEXT")
+=======
+    @Column(name = "acceptance_criteria", columnDefinition = "jsonb")
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     private String acceptanceCriteria;
 
     @Column(name = "effort_points")
@@ -76,6 +80,7 @@ public class Requirement {
         this.description = description;
     }
 
+<<<<<<< HEAD
     @PrePersist
     protected void onCreate() {
         if (this.createdAt == null) {
@@ -86,6 +91,8 @@ public class Requirement {
         }
     }
 
+=======
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();

@@ -132,6 +132,7 @@ public class TaskService {
     }
 
     /**
+<<<<<<< HEAD
      * Update task actual hours (for effort logging)
      */
     public Task updateTaskActualHours(String id, java.math.BigDecimal actualHours) {
@@ -146,6 +147,8 @@ public class TaskService {
     }
 
     /**
+=======
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
      * Get task statistics
      */
     public Map<String, Object> getTaskStatistics() {

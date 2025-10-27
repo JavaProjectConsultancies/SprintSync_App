@@ -47,6 +47,7 @@ public class Release extends BaseEntity {
     @Column(name = "progress", nullable = false)
     private Integer progress = 0;
 
+<<<<<<< HEAD
     @Column(name = "linked_epics", columnDefinition = "TEXT")
     private String linkedEpics;
 
@@ -54,15 +55,31 @@ public class Release extends BaseEntity {
     private String linkedStories;
 
     @Column(name = "linked_sprints", columnDefinition = "TEXT")
+=======
+    @Column(name = "linked_epics", columnDefinition = "jsonb")
+    private String linkedEpics;
+
+    @Column(name = "linked_stories", columnDefinition = "jsonb")
+    private String linkedStories;
+
+    @Column(name = "linked_sprints", columnDefinition = "jsonb")
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     private String linkedSprints;
 
     @Column(name = "release_notes", columnDefinition = "TEXT")
     private String releaseNotes;
 
+<<<<<<< HEAD
     @Column(name = "risks", columnDefinition = "TEXT")
     private String risks;
 
     @Column(name = "dependencies", columnDefinition = "TEXT")
+=======
+    @Column(name = "risks", columnDefinition = "jsonb")
+    private String risks;
+
+    @Column(name = "dependencies", columnDefinition = "jsonb")
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     private String dependencies;
 
     @Column(name = "created_by", nullable = false)

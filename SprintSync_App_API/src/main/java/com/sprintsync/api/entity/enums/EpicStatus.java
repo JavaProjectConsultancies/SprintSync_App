@@ -12,8 +12,12 @@ public enum EpicStatus {
     IN_PROGRESS("in-progress"),
     REVIEW("review"),
     COMPLETED("completed"),
+<<<<<<< HEAD
     CANCELLED("cancelled"),
 	DRAFT("draft");
+=======
+    CANCELLED("cancelled");
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 
     private final String value;
 

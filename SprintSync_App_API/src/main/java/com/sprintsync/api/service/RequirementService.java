@@ -1,7 +1,10 @@
 package com.sprintsync.api.service;
 
 import com.sprintsync.api.entity.Requirement;
+<<<<<<< HEAD
 import com.sprintsync.api.entity.enums.RequirementStatus;
+=======
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 import com.sprintsync.api.repository.RequirementRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -19,12 +22,19 @@ import java.util.Optional;
 public class RequirementService {
 
     private final RequirementRepository requirementRepository;
+<<<<<<< HEAD
     private final IdGenerationService idGenerationService;
 
     @Autowired
     public RequirementService(RequirementRepository requirementRepository, IdGenerationService idGenerationService) {
         this.requirementRepository = requirementRepository;
         this.idGenerationService = idGenerationService;
+=======
+
+    @Autowired
+    public RequirementService(RequirementRepository requirementRepository) {
+        this.requirementRepository = requirementRepository;
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     }
 
     /**
@@ -34,10 +44,13 @@ public class RequirementService {
      * @return the created requirement
      */
     public Requirement createRequirement(Requirement requirement) {
+<<<<<<< HEAD
         // Generate custom ID if not provided
         if (requirement.getId() == null || requirement.getId().isEmpty()) {
             requirement.setId(idGenerationService.generateRequirementId());
         }
+=======
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
         return requirementRepository.save(requirement);
     }
 
@@ -48,12 +61,15 @@ public class RequirementService {
      * @return list of created requirements
      */
     public List<Requirement> createRequirements(List<Requirement> requirements) {
+<<<<<<< HEAD
         // Generate IDs for requirements that don't have them
         requirements.forEach(req -> {
             if (req.getId() == null || req.getId().isEmpty()) {
                 req.setId(idGenerationService.generateRequirementId());
             }
         });
+=======
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
         return requirementRepository.saveAll(requirements);
     }
 
@@ -94,8 +110,12 @@ public class RequirementService {
      * @return list of requirements with the specified status
      */
     public List<Requirement> findByProjectIdAndStatus(String projectId, String status) {
+<<<<<<< HEAD
         RequirementStatus requirementStatus = RequirementStatus.valueOf(status.toUpperCase());
         return requirementRepository.findByProjectIdAndStatus(projectId, requirementStatus);
+=======
+        return requirementRepository.findByProjectIdAndStatus(projectId, status);
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     }
 
     /**
@@ -132,7 +152,11 @@ public class RequirementService {
      * @return count of requirements for the project
      */
     public long countByProjectId(String projectId) {
+<<<<<<< HEAD
         return requirementRepository.findByProjectId(projectId).size();
+=======
+        return requirementRepository.countByProjectId(projectId);
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     }
 
     /**
@@ -143,7 +167,11 @@ public class RequirementService {
      * @return count of requirements with the specified status
      */
     public long countByProjectIdAndStatus(String projectId, String status) {
+<<<<<<< HEAD
         RequirementStatus requirementStatus = RequirementStatus.valueOf(status.toUpperCase());
         return requirementRepository.countByProjectIdAndStatus(projectId, requirementStatus);
+=======
+        return requirementRepository.countByProjectIdAndStatus(projectId, status);
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     }
 }

@@ -59,7 +59,11 @@ const ProtectedRoute: React.FC<{
 };
 
 const AppContent: React.FC = () => {
+<<<<<<< HEAD
   const { user, isLoading, loginError, setAuthState } = useAuth();
+=======
+  const { user, isLoading } = useAuth();
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
   const { navigationState, navigateTo } = useNavigation();
   const location = useLocation();
   const navigate = useNavigate();

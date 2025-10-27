@@ -83,6 +83,7 @@ public class UserService {
         if (!userRepository.existsById(user.getId())) {
             throw new IllegalArgumentException("User not found with ID: " + user.getId());
         }
+<<<<<<< HEAD
         
         // Fetch existing user to merge data
         User existingUser = userRepository.findById(user.getId())
@@ -130,6 +131,9 @@ public class UserService {
         existingUser.setUpdatedAt(java.time.LocalDateTime.now());
         
         return userRepository.save(existingUser);
+=======
+        return userRepository.save(user);
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     }
 
     /**

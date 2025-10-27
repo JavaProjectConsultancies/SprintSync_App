@@ -1,7 +1,10 @@
 package com.sprintsync.api.service;
 
 import com.sprintsync.api.entity.Risk;
+<<<<<<< HEAD
 import com.sprintsync.api.entity.enums.RiskStatus;
+=======
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 import com.sprintsync.api.repository.RiskRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -82,8 +85,12 @@ public class RiskService {
      * @return list of risks with the specified status
      */
     public List<Risk> findByProjectIdAndStatus(String projectId, String status) {
+<<<<<<< HEAD
         RiskStatus riskStatus = RiskStatus.valueOf(status.toUpperCase());
         return riskRepository.findByProjectIdAndStatus(projectId, riskStatus);
+=======
+        return riskRepository.findByProjectIdAndStatus(projectId, status);
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     }
 
     /**
@@ -120,7 +127,11 @@ public class RiskService {
      * @return count of risks for the project
      */
     public long countByProjectId(String projectId) {
+<<<<<<< HEAD
         return riskRepository.findByProjectId(projectId).size();
+=======
+        return riskRepository.countByProjectId(projectId);
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     }
 
     /**
@@ -131,7 +142,11 @@ public class RiskService {
      * @return count of risks with the specified status
      */
     public long countByProjectIdAndStatus(String projectId, String status) {
+<<<<<<< HEAD
         RiskStatus riskStatus = RiskStatus.valueOf(status.toUpperCase());
         return riskRepository.countByProjectIdAndStatus(projectId, riskStatus);
+=======
+        return riskRepository.countByProjectIdAndStatus(projectId, status);
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     }
 }

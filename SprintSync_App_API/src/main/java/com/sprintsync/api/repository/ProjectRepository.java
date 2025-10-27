@@ -12,7 +12,10 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
+<<<<<<< HEAD
 import java.util.Optional;
+=======
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 
 /**
  * Repository interface for Project entity operations.
@@ -175,6 +178,7 @@ public interface ProjectRepository extends JpaRepository<Project, String> {
     @Query("SELECT p FROM Project p WHERE p.endDate BETWEEN :startDate AND :endDate")
     List<Project> findProjectsEndingBetween(@Param("startDate") LocalDate startDate,
                                            @Param("endDate") LocalDate endDate);
+<<<<<<< HEAD
 
     /**
      * Find the maximum ID in the projects table.
@@ -184,4 +188,6 @@ public interface ProjectRepository extends JpaRepository<Project, String> {
      */
     @Query("SELECT MAX(p.id) FROM Project p")
     Optional<String> findMaxId();
+=======
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 }

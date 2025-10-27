@@ -2,7 +2,10 @@ package com.sprintsync.api.repository;
 
 import com.sprintsync.api.entity.Domain;
 import org.springframework.data.jpa.repository.JpaRepository;
+<<<<<<< HEAD
 import org.springframework.data.jpa.repository.Query;
+=======
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -72,6 +75,7 @@ public interface DomainRepository extends JpaRepository<Domain, String> {
     //  * @return count of domains
     //  */
     // long countByIsActive(boolean isActive);
+<<<<<<< HEAD
 
     /**
      * Find the maximum ID in the domains table.
@@ -81,4 +85,6 @@ public interface DomainRepository extends JpaRepository<Domain, String> {
      */
     @Query("SELECT MAX(d.id) FROM Domain d")
     Optional<String> findMaxId();
+=======
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 }

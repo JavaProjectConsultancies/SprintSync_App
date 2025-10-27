@@ -132,7 +132,11 @@ public interface UserRepository extends JpaRepository<User, String> {
      * 
      * @return list of users with manager role
      */
+<<<<<<< HEAD
     @Query("SELECT u FROM User u WHERE u.role = 'manager' AND u.isActive = true")
+=======
+    @Query("SELECT u FROM User u WHERE u.role = 'MANAGER' AND u.isActive = true")
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     List<User> findProjectManagers();
 
     /**
@@ -140,7 +144,11 @@ public interface UserRepository extends JpaRepository<User, String> {
      * 
      * @return list of active developers
      */
+<<<<<<< HEAD
     @Query("SELECT u FROM User u WHERE u.role = 'developer' AND u.isActive = true")
+=======
+    @Query("SELECT u FROM User u WHERE u.role = 'DEVELOPER' AND u.isActive = true")
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     List<User> findActiveDevelopers();
 
     /**
@@ -151,6 +159,7 @@ public interface UserRepository extends JpaRepository<User, String> {
      */
     @Query("SELECT COUNT(u) FROM User u WHERE u.role = :role AND u.isActive = true")
     long countByRole(@Param("role") UserRole role);
+<<<<<<< HEAD
 
     /**
      * Find the maximum ID in the users table.
@@ -160,4 +169,6 @@ public interface UserRepository extends JpaRepository<User, String> {
      */
     @Query("SELECT MAX(u.id) FROM User u")
     Optional<String> findMaxId();
+=======
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 }

@@ -94,9 +94,13 @@ public class DepartmentService {
      * @return list of active departments
      */
     public List<Department> findActiveDepartments() {
+<<<<<<< HEAD
         return departmentRepository.findAll().stream()
             .filter(d -> d.getIsActive() != null && d.getIsActive())
             .toList();
+=======
+        return departmentRepository.findByIsActiveTrue();
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     }
 
     /**

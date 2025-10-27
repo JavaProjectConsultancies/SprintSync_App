@@ -181,6 +181,7 @@ public class SubtaskController {
     }
 
     /**
+<<<<<<< HEAD
      * Update subtask actual hours (for effort logging)
      */
     @PatchMapping("/{id}/actual-hours")
@@ -212,6 +213,8 @@ public class SubtaskController {
     }
 
     /**
+=======
+>>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
      * Get subtask statistics
      */
     @GetMapping("/statistics")
