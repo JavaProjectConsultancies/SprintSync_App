@@ -2,13 +2,9 @@ package com.sprintsync.api.entity;
 
 import com.sprintsync.api.entity.enums.UserRole;
 import com.sprintsync.api.entity.enums.ExperienceLevel;
-<<<<<<< HEAD
 // Removed unused converters after switching to JdbcTypeCode enum mapping
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
-=======
-import com.sprintsync.api.entity.converter.ExperienceLevelConverter;
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -41,12 +37,8 @@ public class User extends BaseEntity {
     private String name;
 
     @Enumerated(EnumType.STRING)
-<<<<<<< HEAD
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "role", nullable = false, columnDefinition = "user_role")
-=======
-    @Column(name = "role", nullable = false)
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     @NotNull
     private UserRole role;
 
@@ -59,14 +51,9 @@ public class User extends BaseEntity {
     @Column(name = "avatar_url")
     private String avatarUrl;
 
-<<<<<<< HEAD
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "experience", columnDefinition = "experience_level")
-=======
-    @Convert(converter = ExperienceLevelConverter.class)
-    @Column(name = "experience")
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     private ExperienceLevel experience;
 
     @Column(name = "hourly_rate", precision = 10, scale = 2)

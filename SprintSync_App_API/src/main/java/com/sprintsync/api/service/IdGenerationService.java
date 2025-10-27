@@ -1,6 +1,5 @@
 package com.sprintsync.api.service;
 
-<<<<<<< HEAD
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import com.sprintsync.api.repository.ProjectRepository;
@@ -10,11 +9,6 @@ import com.sprintsync.api.repository.DomainRepository;
 
 import java.util.UUID;
 import java.util.Optional;
-=======
-import org.springframework.stereotype.Service;
-
-import java.util.UUID;
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 
 /**
  * Service for generating custom IDs according to SprintSync conventions.
@@ -27,7 +21,6 @@ import java.util.UUID;
 @Service
 public class IdGenerationService {
 
-<<<<<<< HEAD
     @Autowired
     private ProjectRepository projectRepository;
     
@@ -40,8 +33,6 @@ public class IdGenerationService {
     @Autowired
     private DomainRepository domainRepository;
 
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     // Master table prefixes
     private static final String DEPARTMENTS_PREFIX = "DEPT";
     private static final String DOMAINS_PREFIX = "DOMN";
@@ -72,7 +63,6 @@ public class IdGenerationService {
     private static final String REPORTS_PREFIX = "REPT";
     private static final String PROJECT_INTEGRATIONS_PREFIX = "PRIN";
 
-<<<<<<< HEAD
     /**
      * Get the next available ID number for projects by finding the highest existing ID
      * 
@@ -148,20 +138,6 @@ public class IdGenerationService {
             return 1L;
         }
     }
-=======
-    // Counter for master table IDs (in a real application, this would be stored in database)
-    private static final java.util.concurrent.atomic.AtomicLong deptCounter = new java.util.concurrent.atomic.AtomicLong(1);
-    private static final java.util.concurrent.atomic.AtomicLong domnCounter = new java.util.concurrent.atomic.AtomicLong(1);
-    private static final java.util.concurrent.atomic.AtomicLong userCounter = new java.util.concurrent.atomic.AtomicLong(1);
-    private static final java.util.concurrent.atomic.AtomicLong projCounter = new java.util.concurrent.atomic.AtomicLong(1);
-    private static final java.util.concurrent.atomic.AtomicLong epicCounter = new java.util.concurrent.atomic.AtomicLong(1);
-    private static final java.util.concurrent.atomic.AtomicLong relsCounter = new java.util.concurrent.atomic.AtomicLong(1);
-    private static final java.util.concurrent.atomic.AtomicLong mileCounter = new java.util.concurrent.atomic.AtomicLong(1);
-    private static final java.util.concurrent.atomic.AtomicLong requCounter = new java.util.concurrent.atomic.AtomicLong(1);
-    private static final java.util.concurrent.atomic.AtomicLong stakeCounter = new java.util.concurrent.atomic.AtomicLong(1);
-    private static final java.util.concurrent.atomic.AtomicLong riskCounter = new java.util.concurrent.atomic.AtomicLong(1);
-    private static final java.util.concurrent.atomic.AtomicLong avinCounter = new java.util.concurrent.atomic.AtomicLong(1);
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 
     /**
      * Generate a master table ID with format: PREFIX + 12 zeros + increment
@@ -188,7 +164,6 @@ public class IdGenerationService {
     }
 
     // Master table ID generation methods
-<<<<<<< HEAD
     public String generateProjectId() {
         Long nextNumber = getNextProjectNumber();
         String paddedValue = String.format("%012d", nextNumber);
@@ -221,23 +196,6 @@ public class IdGenerationService {
     private static final java.util.concurrent.atomic.AtomicLong stakeCounter = new java.util.concurrent.atomic.AtomicLong(1);
     private static final java.util.concurrent.atomic.AtomicLong riskCounter = new java.util.concurrent.atomic.AtomicLong(1);
     private static final java.util.concurrent.atomic.AtomicLong avinCounter = new java.util.concurrent.atomic.AtomicLong(1);
-=======
-    public String generateDepartmentId() {
-        return generateMasterTableId(DEPARTMENTS_PREFIX, deptCounter);
-    }
-
-    public String generateDomainId() {
-        return generateMasterTableId(DOMAINS_PREFIX, domnCounter);
-    }
-
-    public String generateUserId() {
-        return generateMasterTableId(USERS_PREFIX, userCounter);
-    }
-
-    public String generateProjectId() {
-        return generateMasterTableId(PROJECTS_PREFIX, projCounter);
-    }
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 
     public String generateEpicId() {
         return generateMasterTableId(EPICS_PREFIX, epicCounter);

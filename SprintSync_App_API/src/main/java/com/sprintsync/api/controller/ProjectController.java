@@ -1,11 +1,8 @@
 package com.sprintsync.api.controller;
 
 import com.sprintsync.api.dto.ProjectDto;
-<<<<<<< HEAD
 import com.sprintsync.api.dto.CreateProjectRequest;
 import com.sprintsync.api.dto.CreateProjectResponse;
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 import com.sprintsync.api.entity.Project;
 import com.sprintsync.api.entity.enums.Priority;
 import com.sprintsync.api.entity.enums.ProjectStatus;
@@ -16,10 +13,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-<<<<<<< HEAD
 import jakarta.validation.Valid;
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -65,7 +59,6 @@ public class ProjectController {
     }
 
     /**
-<<<<<<< HEAD
      * Create a new project with all related entities in a single request.
      * 
      * @param request the comprehensive project creation request
@@ -89,8 +82,6 @@ public class ProjectController {
     }
 
     /**
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
      * Get project by ID.
      * 
      * @param id the project ID

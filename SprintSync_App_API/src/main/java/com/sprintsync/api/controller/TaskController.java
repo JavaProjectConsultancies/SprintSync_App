@@ -11,10 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-<<<<<<< HEAD
 import java.math.BigDecimal;
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 import java.util.List;
 import java.util.Map;
 
@@ -199,7 +196,6 @@ public class TaskController {
     }
 
     /**
-<<<<<<< HEAD
      * Update task actual hours (for effort logging)
      */
     @PatchMapping("/{id}/actual-hours")
@@ -231,8 +227,6 @@ public class TaskController {
     }
 
     /**
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
      * Get task statistics
      */
     @GetMapping("/statistics")

@@ -5,21 +5,14 @@ import com.sprintsync.api.entity.ProjectTeamMember;
 import com.sprintsync.api.repository.ProjectTeamMemberRepository;
 import com.sprintsync.api.repository.UserRepository;
 import com.sprintsync.api.repository.DepartmentRepository;
-<<<<<<< HEAD
 import com.sprintsync.api.service.IdGenerationService;
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-<<<<<<< HEAD
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
-=======
-import java.util.ArrayList;
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -43,12 +36,9 @@ public class ProjectTeamMemberController {
     @Autowired
     private DepartmentRepository departmentRepository;
 
-<<<<<<< HEAD
     @Autowired
     private IdGenerationService idGenerationService;
 
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     /**
      * Get all project team members
      */
@@ -65,7 +55,6 @@ public class ProjectTeamMemberController {
                 dto.setIsTeamLead(teamMember.getIsTeamLead());
                 dto.setAvailability(teamMember.getAllocationPercentage());
                 
-<<<<<<< HEAD
                 // Set additional user fields
                 dto.setHourlyRate(user.getHourlyRate() != null ? user.getHourlyRate().doubleValue() : 0.0);
                 dto.setExperience(user.getExperience() != null ? user.getExperience().name() : "mid");
@@ -99,17 +88,12 @@ public class ProjectTeamMemberController {
                     dto.setSkills(new String[]{"General"}); // Default skill
                 }
                 
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
                 // Get department name
                 if (user.getDepartmentId() != null) {
                     departmentRepository.findById(user.getDepartmentId())
                         .ifPresent(dept -> dto.setDepartment(dept.getName()));
-<<<<<<< HEAD
                 } else {
                     dto.setDepartment("Unassigned");
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
                 }
                 
                 teamMembers.add(dto);
@@ -135,7 +119,6 @@ public class ProjectTeamMemberController {
                 dto.setIsTeamLead(teamMember.getIsTeamLead());
                 dto.setAvailability(teamMember.getAllocationPercentage());
                 
-<<<<<<< HEAD
                 // Set additional user fields
                 dto.setHourlyRate(user.getHourlyRate() != null ? user.getHourlyRate().doubleValue() : 0.0);
                 dto.setExperience(user.getExperience() != null ? user.getExperience().name() : "mid");
@@ -169,17 +152,12 @@ public class ProjectTeamMemberController {
                     dto.setSkills(new String[]{"General"}); // Default skill
                 }
                 
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
                 // Get department name
                 if (user.getDepartmentId() != null) {
                     departmentRepository.findById(user.getDepartmentId())
                         .ifPresent(dept -> dto.setDepartment(dept.getName()));
-<<<<<<< HEAD
                 } else {
                     dto.setDepartment("Unassigned");
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
                 }
                 
                 teamMembers.add(dto);
@@ -195,7 +173,6 @@ public class ProjectTeamMemberController {
     @PostMapping
     public ResponseEntity<ProjectTeamMember> createProjectTeamMember(@RequestBody ProjectTeamMember teamMember) {
         try {
-<<<<<<< HEAD
             // Generate ID if not provided
             if (teamMember.getId() == null || teamMember.getId().isEmpty()) {
                 teamMember.setId(idGenerationService.generateProjectTeamMemberId());
@@ -209,8 +186,6 @@ public class ProjectTeamMemberController {
                 teamMember.setJoinedAt(LocalDateTime.now());
             }
             
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
             ProjectTeamMember savedTeamMember = projectTeamMemberRepository.save(teamMember);
             return ResponseEntity.ok(savedTeamMember);
         } catch (Exception e) {
@@ -250,7 +225,6 @@ public class ProjectTeamMemberController {
     }
 
     /**
-<<<<<<< HEAD
      * Remove team member from project by user ID
      */
     @DeleteMapping("/project/{projectId}/user/{userId}")
@@ -291,8 +265,6 @@ public class ProjectTeamMemberController {
     }
 
     /**
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
      * Add team member to project (convenience endpoint)
      */
     @PostMapping("/add-to-project")
@@ -305,21 +277,15 @@ public class ProjectTeamMemberController {
             Integer allocationPercentage = (Integer) request.getOrDefault("allocationPercentage", 100);
             
             ProjectTeamMember teamMember = new ProjectTeamMember();
-<<<<<<< HEAD
             teamMember.setId(idGenerationService.generateProjectTeamMemberId());
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
             teamMember.setProjectId(projectId);
             teamMember.setUserId(userId);
             teamMember.setRole(role);
             teamMember.setIsTeamLead(isTeamLead);
             teamMember.setAllocationPercentage(allocationPercentage);
             teamMember.setIsActive(true);
-<<<<<<< HEAD
             teamMember.setCreatedAt(LocalDateTime.now());
             teamMember.setJoinedAt(LocalDateTime.now());
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
             
             ProjectTeamMember savedTeamMember = projectTeamMemberRepository.save(teamMember);
             
@@ -335,7 +301,6 @@ public class ProjectTeamMemberController {
             ));
         }
     }
-<<<<<<< HEAD
 
     /**
      * Add multiple team members to a project
@@ -373,6 +338,4 @@ public class ProjectTeamMemberController {
             return ResponseEntity.badRequest().build();
         }
     }
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 }

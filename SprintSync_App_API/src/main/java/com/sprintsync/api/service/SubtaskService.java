@@ -124,7 +124,6 @@ public class SubtaskService {
     }
 
     /**
-<<<<<<< HEAD
      * Update subtask actual hours (for effort logging)
      */
     public Subtask updateSubtaskActualHours(String id, java.math.BigDecimal actualHours) {
@@ -139,8 +138,6 @@ public class SubtaskService {
     }
 
     /**
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
      * Get subtask statistics
      */
     public Map<String, Object> getSubtaskStatistics() {

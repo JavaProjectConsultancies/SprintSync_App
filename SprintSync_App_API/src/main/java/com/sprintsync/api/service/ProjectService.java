@@ -1,6 +1,5 @@
 package com.sprintsync.api.service;
 
-<<<<<<< HEAD
 import com.sprintsync.api.dto.CreateProjectRequest;
 import com.sprintsync.api.dto.CreateProjectResponse;
 import com.sprintsync.api.entity.Project;
@@ -22,12 +21,6 @@ import com.sprintsync.api.entity.enums.ReleaseStatus;
 import com.sprintsync.api.repository.ProjectRepository;
 import com.sprintsync.api.repository.ProjectTeamMemberRepository;
 import java.math.BigDecimal;
-=======
-import com.sprintsync.api.entity.Project;
-import com.sprintsync.api.entity.enums.Priority;
-import com.sprintsync.api.entity.enums.ProjectStatus;
-import com.sprintsync.api.repository.ProjectRepository;
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -35,10 +28,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-<<<<<<< HEAD
 import com.fasterxml.jackson.databind.ObjectMapper;
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 
 import java.time.LocalDate;
 import java.util.List;
@@ -56,7 +46,6 @@ public class ProjectService {
 
     private final ProjectRepository projectRepository;
     private final IdGenerationService idGenerationService;
-<<<<<<< HEAD
     private final RequirementService requirementService;
     private final RiskService riskService;
     private final StakeholderService stakeholderService;
@@ -78,13 +67,6 @@ public class ProjectService {
         this.projectTeamMemberRepository = projectTeamMemberRepository;
         this.epicService = epicService;
         this.releaseService = releaseService;
-=======
-
-    @Autowired
-    public ProjectService(ProjectRepository projectRepository, IdGenerationService idGenerationService) {
-        this.projectRepository = projectRepository;
-        this.idGenerationService = idGenerationService;
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     }
 
     /**
@@ -102,7 +84,6 @@ public class ProjectService {
     }
 
     /**
-<<<<<<< HEAD
      * Create a new project with all related entities in a single transaction.
      * 
      * @param request the comprehensive project creation request
@@ -311,8 +292,6 @@ public class ProjectService {
     }
 
     /**
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
      * Find project by ID.
      * 
      * @param id the project ID

@@ -37,11 +37,7 @@ public class Task extends BaseEntity {
 
     @NotNull(message = "Task status cannot be null")
     @Convert(converter = TaskStatusConverter.class)
-<<<<<<< HEAD
     @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
-=======
-    @Column(name = "status", nullable = false)
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     private TaskStatus status;
 
     @NotNull(message = "Task priority cannot be null")

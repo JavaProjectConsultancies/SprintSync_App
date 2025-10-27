@@ -27,19 +27,12 @@ import java.util.Optional;
 public class EpicService {
 
     private final EpicRepository epicRepository;
-<<<<<<< HEAD
     private final IdGenerationService idGenerationService;
 
     @Autowired
     public EpicService(EpicRepository epicRepository, IdGenerationService idGenerationService) {
         this.epicRepository = epicRepository;
         this.idGenerationService = idGenerationService;
-=======
-
-    @Autowired
-    public EpicService(EpicRepository epicRepository) {
-        this.epicRepository = epicRepository;
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     }
 
     /**
@@ -49,12 +42,9 @@ public class EpicService {
      * @return the created epic
      */
     public Epic createEpic(Epic epic) {
-<<<<<<< HEAD
         // Generate ID before saving
         epic.setId(idGenerationService.generateEpicId());
         
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
         // Set default values if not provided
         if (epic.getProgress() == null) {
             epic.setProgress(0);

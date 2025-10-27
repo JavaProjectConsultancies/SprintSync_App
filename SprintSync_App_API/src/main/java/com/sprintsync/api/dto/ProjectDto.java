@@ -29,11 +29,8 @@ public class ProjectDto {
     private List<RiskDto> risks;
     private List<IntegrationDto> integrations;
     private List<MilestoneDto> milestones;
-<<<<<<< HEAD
     private List<EpicDto> epics;
     private List<ReleaseDto> releases;
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     private String template;
     private String projectType;
     private String methodology;
@@ -264,7 +261,6 @@ public class ProjectDto {
     public void setSuccessCriteria(List<String> successCriteria) {
         this.successCriteria = successCriteria;
     }
-<<<<<<< HEAD
 
     public List<EpicDto> getEpics() {
         return epics;
@@ -281,6 +277,4 @@ public class ProjectDto {
     public void setReleases(List<ReleaseDto> releases) {
         this.releases = releases;
     }
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 }

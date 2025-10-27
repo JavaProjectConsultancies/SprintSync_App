@@ -56,15 +56,12 @@ public class ProjectMapper {
     @Autowired
     private com.sprintsync.api.repository.AvailableIntegrationRepository availableIntegrationRepository;
 
-<<<<<<< HEAD
     @Autowired
     private com.sprintsync.api.repository.EpicRepository epicRepository;
 
     @Autowired
     private com.sprintsync.api.repository.ReleaseRepository releaseRepository;
 
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
     /**
      * Convert Project entity to ProjectDto
      */
@@ -122,11 +119,8 @@ public class ProjectMapper {
                dto.setStakeholders(getStakeholders(project.getId()));
                dto.setRisks(getRisks(project.getId()));
                dto.setIntegrations(getIntegrations(project.getId()));
-<<<<<<< HEAD
                dto.setEpics(getEpics(project.getId()));
                dto.setReleases(getReleases(project.getId()));
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 
         return dto;
     }
@@ -610,7 +604,6 @@ public class ProjectMapper {
         return integrations;
     }
 
-<<<<<<< HEAD
     /**
      * Get epics for a project
      */
@@ -689,6 +682,4 @@ public class ProjectMapper {
         return releases;
     }
 
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 }

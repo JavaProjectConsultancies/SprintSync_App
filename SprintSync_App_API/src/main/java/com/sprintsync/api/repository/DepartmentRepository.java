@@ -2,10 +2,7 @@ package com.sprintsync.api.repository;
 
 import com.sprintsync.api.entity.Department;
 import org.springframework.data.jpa.repository.JpaRepository;
-<<<<<<< HEAD
 import org.springframework.data.jpa.repository.Query;
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -75,7 +72,6 @@ public interface DepartmentRepository extends JpaRepository<Department, String> 
     //  * @return count of departments
     //  */
     // long countByIsActive(boolean isActive);
-<<<<<<< HEAD
 
     /**
      * Find the maximum ID in the departments table.
@@ -85,6 +81,4 @@ public interface DepartmentRepository extends JpaRepository<Department, String> 
      */
     @Query("SELECT MAX(d.id) FROM Department d")
     Optional<String> findMaxId();
-=======
->>>>>>> 018053f8a541a4295fcab50b1b95f6af8a882dc3
 }
