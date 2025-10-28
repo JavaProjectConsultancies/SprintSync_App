@@ -69,7 +69,8 @@ public class AuthService {
             }
             
             User user = userOpt.get();
-            if (!user.getPasswordHash().equals(authRequest.getPassword())) {
+            // Use password encoder to match passwords (handles BCrypt hashing)
+            if (!passwordEncoder.matches(authRequest.getPassword(), user.getPasswordHash())) {
                 logger.warn("Password mismatch for user: {}", authRequest.getEmail());
                 throw new RuntimeException("Invalid email or password");
             }
