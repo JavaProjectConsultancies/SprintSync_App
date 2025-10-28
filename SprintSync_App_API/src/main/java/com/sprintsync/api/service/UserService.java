@@ -83,7 +83,53 @@ public class UserService {
         if (!userRepository.existsById(user.getId())) {
             throw new IllegalArgumentException("User not found with ID: " + user.getId());
         }
-        return userRepository.save(user);
+        
+        // Fetch existing user to merge data
+        User existingUser = userRepository.findById(user.getId())
+                .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + user.getId()));
+        
+        // Update only provided fields
+        if (user.getName() != null) {
+            existingUser.setName(user.getName());
+        }
+        if (user.getEmail() != null) {
+            existingUser.setEmail(user.getEmail());
+        }
+        if (user.getPasswordHash() != null && !user.getPasswordHash().isEmpty()) {
+            existingUser.setPasswordHash(user.getPasswordHash());
+        }
+        if (user.getRole() != null) {
+            existingUser.setRole(user.getRole());
+        }
+        if (user.getDepartmentId() != null) {
+            existingUser.setDepartmentId(user.getDepartmentId());
+        }
+        if (user.getDomainId() != null) {
+            existingUser.setDomainId(user.getDomainId());
+        }
+        if (user.getAvatarUrl() != null) {
+            existingUser.setAvatarUrl(user.getAvatarUrl());
+        }
+        if (user.getExperience() != null) {
+            existingUser.setExperience(user.getExperience());
+        }
+        if (user.getHourlyRate() != null) {
+            existingUser.setHourlyRate(user.getHourlyRate());
+        }
+        if (user.getAvailabilityPercentage() != null) {
+            existingUser.setAvailabilityPercentage(user.getAvailabilityPercentage());
+        }
+        if (user.getSkills() != null) {
+            existingUser.setSkills(user.getSkills());
+        }
+        if (user.getIsActive() != null) {
+            existingUser.setIsActive(user.getIsActive());
+        }
+        
+        // Update the updatedAt timestamp
+        existingUser.setUpdatedAt(java.time.LocalDateTime.now());
+        
+        return userRepository.save(existingUser);
     }
 
     /**

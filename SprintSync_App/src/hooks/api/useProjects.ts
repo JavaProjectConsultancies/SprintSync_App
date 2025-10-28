@@ -18,22 +18,49 @@ export const useProjects = (): UseProjectsReturn => {
   const [error, setError] = useState<Error | null>(null);
 
   const fetchProjects = async () => {
+    const startTime = Date.now();
     try {
       setLoading(true);
       setError(null);
-      console.log('Fetching projects from API...');
+      console.log('🔵 [useProjects] Starting fetch from:', 'http://localhost:8080/api/projects');
+      console.log('🔵 [useProjects] Start time:', new Date().toISOString());
+      
       const response = await projectApiService.getProjects();
-      console.log('Projects API response:', response);
+      
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+      console.log('✅ [useProjects] Success! Duration:', duration, 'seconds');
+      console.log('✅ [useProjects] Raw response:', response);
+      console.log('✅ [useProjects] Response data structure:', {
+        hasData: !!response.data,
+        hasContent: !!(response.data as any)?.content,
+        isArray: Array.isArray(response.data),
+        dataType: typeof response.data
+      });
+      
       // Handle the new API response format: { content: Project[], totalElements: number, ... }
-      const projectsData = response.data?.content || response.data || [];
-      console.log('Processed projects data:', projectsData);
-      setData(projectsData);
-    } catch (err) {
-      console.error('Error fetching projects:', err);
+      // The backend might return paginated response or array directly
+      const projectsData = (response.data as any)?.content || response.data || [];
+      console.log('✅ [useProjects] Processed projects:', {
+        count: Array.isArray(projectsData) ? projectsData.length : 0,
+        projects: projectsData
+      });
+      
+      setData(Array.isArray(projectsData) ? projectsData : []);
+    } catch (err: any) {
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+      console.error('❌ [useProjects] ERROR after', duration, 'seconds');
+      console.error('❌ [useProjects] Error details:', {
+        message: err?.message,
+        code: err?.code,
+        status: err?.status,
+        fullError: err
+      });
+      
       setError(err instanceof Error ? err : new Error('Failed to fetch projects'));
       setData(null);
     } finally {
       setLoading(false);
+      console.log('🏁 [useProjects] Fetch complete');
     }
   };
 

@@ -2,6 +2,7 @@ package com.sprintsync.api.controller;
 
 import com.sprintsync.api.entity.User;
 import com.sprintsync.api.entity.enums.UserRole;
+import com.sprintsync.api.entity.enums.ExperienceLevel;
 import com.sprintsync.api.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -13,6 +14,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Optional;
 
 /**
@@ -275,5 +278,46 @@ public class UserController {
         String stats = String.format("Total Users: %d, Active Users: %d, Managers: %d, Developers: %d", 
                                    totalUsers, activeUsers, managers, developers);
         return ResponseEntity.ok(stats);
+    }
+
+    /**
+     * Get all available experience levels.
+     * 
+     * @return ResponseEntity containing list of experience levels
+     */
+    @GetMapping("/experience-levels")
+    public ResponseEntity<ExperienceLevel[]> getExperienceLevels() {
+        return ResponseEntity.ok(ExperienceLevel.values());
+    }
+
+    /**
+     * Get user statistics.
+     * 
+     * @return ResponseEntity containing user statistics
+     */
+    @GetMapping("/statistics")
+    public ResponseEntity<Map<String, Object>> getUserStatistics() {
+        try {
+            long totalUsers = userService.getAllUsers().size();
+            long activeUsers = userService.findActiveUsers().size();
+            
+            // Count roles manually to avoid potential issues
+            long managers = userService.getAllUsers().stream()
+                .filter(user -> user.getRole() == UserRole.manager)
+                .count();
+            long developers = userService.getAllUsers().stream()
+                .filter(user -> user.getRole() == UserRole.developer)
+                .count();
+            
+            Map<String, Object> stats = new HashMap<>();
+            stats.put("totalUsers", totalUsers);
+            stats.put("activeUsers", activeUsers);
+            stats.put("managers", managers);
+            stats.put("developers", developers);
+            
+            return ResponseEntity.ok(stats);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 }
