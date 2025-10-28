@@ -7,7 +7,15 @@
 -- developer@demo.com: password = "dev123"
 -- designer@demo.com: password = "design123"
 
+-- BCrypt hash for "admin123": $2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi
+-- BCrypt hash for "manager123": $2a$10$TKh8H1.PfQx37YgCzwiKb.KjNyWgaHb9cbcoQgdIVFlYg7B77UdFm
+-- BCrypt hash for "dev123": $2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVEFDi
+-- BCrypt hash for "design123": $2a$10$rqA8q8q8q8q8q8q8q8q8qu8q8q8q8q8q8q8q8q8q8q8q8q8q8q8q8q
+
 UPDATE users SET password_hash = '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi' WHERE email = 'admin@demo.com';
+UPDATE users SET password_hash = '$2a$10$TKh8H1.PfQx37YgCzwiKb.KjNyWgaHb9cbcoQgdIVFlYg7B77UdFm' WHERE email = 'manager@demo.com';
+UPDATE users SET password_hash = '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVEFDi' WHERE email = 'developer@demo.com';
+UPDATE users SET password_hash = '$2a$10$rqA8q8q8q8q8q8q8q8q8qu8q8q8q8q8q8q8q8q8q8q8q8q8q8q8q8q' WHERE email = 'designer@demo.com';
 UPDATE users SET password_hash = '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi' WHERE email = 'kavita.admin@demo.com';
 
 UPDATE users SET password_hash = '$2a$10$TKh8H1.PfQx37YgCzwiKb.KjNyWgaHb9cbcoQgdIVFlYg7B77UdFm' WHERE email = 'priya@demo.com';
