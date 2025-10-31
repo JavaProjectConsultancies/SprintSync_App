@@ -3,6 +3,8 @@ package com.sprintsync.api.controller;
 import com.sprintsync.api.dto.TeamMemberDto;
 import com.sprintsync.api.entity.ProjectTeamMember;
 import com.sprintsync.api.repository.ProjectTeamMemberRepository;
+import com.sprintsync.api.service.ProjectService;
+import com.sprintsync.api.entity.Project;
 import com.sprintsync.api.repository.UserRepository;
 import com.sprintsync.api.repository.DepartmentRepository;
 import com.sprintsync.api.service.IdGenerationService;
@@ -38,6 +40,9 @@ public class ProjectTeamMemberController {
 
     @Autowired
     private IdGenerationService idGenerationService;
+
+    @Autowired
+    private ProjectService projectService;
 
     /**
      * Get all project team members
@@ -239,7 +244,52 @@ public class ProjectTeamMemberController {
                     .findFirst();
             
             if (teamMemberOpt.isPresent()) {
+                // Check if the user being removed is the current project manager
+                Optional<Project> projectOpt = projectService.findById(projectId);
+                if (projectOpt.isEmpty()) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "message", "Project not found"
+                    ));
+                }
+
+                Project project = projectOpt.get();
+
+                boolean removedIsManager = userId.equals(project.getManagerId());
+
+                // Delete the association
                 projectTeamMemberRepository.deleteById(teamMemberOpt.get().getId());
+
+                // If removed user was manager, reassign manager to another member
+                if (removedIsManager) {
+                    // Refresh remaining members after deletion
+                    List<ProjectTeamMember> remaining = projectTeamMemberRepository.findByProjectId(projectId);
+
+                    // Prefer another member with role 'manager'
+                    Optional<ProjectTeamMember> replacementManager = remaining.stream()
+                        .filter(tm -> "manager".equalsIgnoreCase(String.valueOf(tm.getRole())))
+                        .findFirst();
+
+                    String replacementUserId = null;
+                    if (replacementManager.isPresent()) {
+                        replacementUserId = replacementManager.get().getUserId();
+                    } else if (!remaining.isEmpty()) {
+                        // Otherwise pick the first remaining member
+                        replacementUserId = remaining.get(0).getUserId();
+                    }
+
+                    if (replacementUserId == null || replacementUserId.isEmpty()) {
+                        // No replacement available; reject to keep invariant that managerId is not null
+                        return ResponseEntity.badRequest().body(Map.of(
+                            "success", false,
+                            "message", "Cannot remove manager: no replacement team member available"
+                        ));
+                    }
+
+                    // Update project manager
+                    project.setManagerId(replacementUserId);
+                    projectService.updateProject(project);
+                }
                 
                 Map<String, Object> response = new HashMap<>();
                 response.put("success", true);

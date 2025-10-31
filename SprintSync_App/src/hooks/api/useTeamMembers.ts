@@ -35,19 +35,17 @@ export const useTeamMembers = (projectId?: string): UseTeamMembersResult => {
     }
   };
 
-  const createTeamMember = async (teamMember: CreateTeamMemberRequest): Promise<TeamMember | null> => {
+  const createTeamMember = async (teamMember: CreateTeamMemberRequest): Promise<boolean> => {
     try {
       setError(null);
-      const newTeamMember = await teamMemberApi.createTeamMember(teamMember);
-      
-      // Add to local state
-      setTeamMembers(prev => [...prev, newTeamMember]);
-      
-      return newTeamMember;
+      await teamMemberApi.createTeamMember(teamMember);
+      // Always refresh from server to ensure state matches DB and DTO shape
+      await fetchTeamMembers();
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create team member');
       console.error('Error creating team member:', err);
-      return null;
+      return false;
     }
   };
 
@@ -92,7 +90,7 @@ export const useTeamMembers = (projectId?: string): UseTeamMembersResult => {
     userId: string, 
     role: string, 
     isTeamLead: boolean = false
-  ): Promise<TeamMember | null> => {
+  ): Promise<boolean> => {
     try {
       setError(null);
       const teamMemberRequest: CreateTeamMemberRequest = {
@@ -103,16 +101,14 @@ export const useTeamMembers = (projectId?: string): UseTeamMembersResult => {
         allocationPercentage: 100
       };
       
-      const newTeamMember = await teamMemberApi.createTeamMember(teamMemberRequest);
-      
-      // Add to local state
-      setTeamMembers(prev => [...prev, newTeamMember]);
-      
-      return newTeamMember;
+      await teamMemberApi.createTeamMember(teamMemberRequest);
+      // Refresh from server to reflect DB
+      await fetchTeamMembers();
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add team member to project');
       console.error('Error adding team member to project:', err);
-      return null;
+      return false;
     }
   };
 

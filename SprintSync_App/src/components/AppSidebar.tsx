@@ -269,23 +269,7 @@ const AppSidebar: React.FC = () => {
           </div>
         </div>
 
-        {/* Current Project Context */}
-        <div className="mx-2 mb-2">
-          <div className="bg-gradient-light rounded-lg p-3 border">
-            <div className="flex items-center space-x-2 mb-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="text-sm font-medium">E-Commerce Platform</span>
-            </div>
-            <p className="text-xs text-muted-foreground mb-2">Sprint: Sprint 1 (5 days left)</p>
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs">
-                <span>Progress</span>
-                <span>85%</span>
-              </div>
-              <Progress value={85} className="h-1.5" />
-            </div>
-          </div>
-        </div>
+        {/* Current Project Context removed per request */}
       </SidebarHeader>
 
       <SidebarContent>

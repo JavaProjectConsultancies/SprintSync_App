@@ -467,13 +467,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    // Demo authentication - accept any password for demo users
+    // Demo authentication - use backend-compatible passwords
     const demoUser = DEMO_USERS.find(u => u.email === email);
     
-    if (demoUser && password === 'demo123') {
-      setUser(demoUser);
-      localStorage.setItem('sprintsync_user', JSON.stringify(demoUser));
-      return true;
+    if (demoUser) {
+      // Check password based on user role/email
+      let validPassword = false;
+      
+      if (email === 'admin@demo.com' || email === 'kavita.admin@demo.com') {
+        validPassword = password === 'admin123';
+      } else if (email.includes('manager') || email === 'priya@demo.com') {
+        validPassword = password === 'manager123';
+      } else if (email.includes('developer') || email === 'rohit@demo.com') {
+        validPassword = password === 'dev123';
+      } else if (email.includes('designer') || email === 'designer@demo.com') {
+        validPassword = password === 'design123';
+      } else {
+        // Fallback for other users - use demo123
+        validPassword = password === 'demo123';
+      }
+      
+      if (validPassword) {
+        setUser(demoUser);
+        localStorage.setItem('sprintsync_user', JSON.stringify(demoUser));
+        return true;
+      }
     }
     
     return false;
