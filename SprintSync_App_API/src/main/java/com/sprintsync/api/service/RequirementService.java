@@ -94,8 +94,8 @@ public class RequirementService {
      * @return list of requirements with the specified status
      */
     public List<Requirement> findByProjectIdAndStatus(String projectId, String status) {
-        RequirementStatus requirementStatus = RequirementStatus.valueOf(status.toUpperCase());
-        return requirementRepository.findByProjectIdAndStatus(projectId, requirementStatus);
+        RequirementStatus statusEnum = RequirementStatus.fromValue(status);
+        return requirementRepository.findByProjectIdAndStatus(projectId, statusEnum);
     }
 
     /**
@@ -132,7 +132,7 @@ public class RequirementService {
      * @return count of requirements for the project
      */
     public long countByProjectId(String projectId) {
-        return requirementRepository.findByProjectId(projectId).size();
+        return requirementRepository.countByProjectId(projectId);
     }
 
     /**
@@ -143,7 +143,7 @@ public class RequirementService {
      * @return count of requirements with the specified status
      */
     public long countByProjectIdAndStatus(String projectId, String status) {
-        RequirementStatus requirementStatus = RequirementStatus.valueOf(status.toUpperCase());
-        return requirementRepository.countByProjectIdAndStatus(projectId, requirementStatus);
+        RequirementStatus statusEnum = RequirementStatus.fromValue(status);
+        return requirementRepository.countByProjectIdAndStatus(projectId, statusEnum);
     }
 }

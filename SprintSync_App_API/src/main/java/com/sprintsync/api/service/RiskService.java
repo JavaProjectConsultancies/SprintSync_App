@@ -82,8 +82,8 @@ public class RiskService {
      * @return list of risks with the specified status
      */
     public List<Risk> findByProjectIdAndStatus(String projectId, String status) {
-        RiskStatus riskStatus = RiskStatus.valueOf(status.toUpperCase());
-        return riskRepository.findByProjectIdAndStatus(projectId, riskStatus);
+        RiskStatus statusEnum = RiskStatus.fromValue(status);
+        return riskRepository.findByProjectIdAndStatus(projectId, statusEnum);
     }
 
     /**
@@ -120,7 +120,7 @@ public class RiskService {
      * @return count of risks for the project
      */
     public long countByProjectId(String projectId) {
-        return riskRepository.findByProjectId(projectId).size();
+        return riskRepository.countByProjectId(projectId);
     }
 
     /**
@@ -131,7 +131,7 @@ public class RiskService {
      * @return count of risks with the specified status
      */
     public long countByProjectIdAndStatus(String projectId, String status) {
-        RiskStatus riskStatus = RiskStatus.valueOf(status.toUpperCase());
-        return riskRepository.countByProjectIdAndStatus(projectId, riskStatus);
+        RiskStatus statusEnum = RiskStatus.fromValue(status);
+        return riskRepository.countByProjectIdAndStatus(projectId, statusEnum);
     }
 }

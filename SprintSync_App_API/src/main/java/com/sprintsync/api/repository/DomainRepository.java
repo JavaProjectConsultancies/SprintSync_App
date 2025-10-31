@@ -53,12 +53,14 @@ public interface DomainRepository extends JpaRepository<Domain, String> {
      */
     List<Domain> findByNameContainingIgnoreCaseOrDescriptionContainingIgnoreCase(String name, String description);
     
-    // TODO: Add is_active column to database and uncomment these methods
-    // /**
-    //  * Find active domains
-    //  * @return list of active domains
-    //  */
-    // List<Domain> findByIsActiveTrue();
+    /**
+     * Find active domains
+     * Note: Since isActive is @Transient, this returns all domains
+     * (isActive defaults to true for all domains currently)
+     * @return list of active domains
+     */
+    @Query("SELECT d FROM Domain d")
+    List<Domain> findByIsActiveTrue();
     
     // /**
     //  * Find inactive domains

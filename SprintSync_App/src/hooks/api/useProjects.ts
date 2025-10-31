@@ -18,49 +18,92 @@ export const useProjects = (): UseProjectsReturn => {
   const [error, setError] = useState<Error | null>(null);
 
   const fetchProjects = async () => {
-    const startTime = Date.now();
     try {
       setLoading(true);
       setError(null);
-      console.log('🔵 [useProjects] Starting fetch from:', 'http://localhost:8080/api/projects');
-      console.log('🔵 [useProjects] Start time:', new Date().toISOString());
+      console.log('Fetching projects from API...');
       
-      const response = await projectApiService.getProjects();
+      // Try /all endpoint first, fallback to paginated with large size
+      let response;
+      try {
+        console.log('Attempting to fetch from /all endpoint...');
+        response = await projectApiService.getAllProjects();
+        console.log('Projects API response from /all endpoint:', response);
+        console.log('Response data type:', typeof response.data);
+        console.log('Response data is array:', Array.isArray(response.data));
+      } catch (err: any) {
+        console.warn('Failed to fetch from /all endpoint, trying paginated:', err);
+        console.warn('Error details:', {
+          message: err?.message,
+          status: err?.status,
+          code: err?.code,
+          details: err?.details
+        });
+        
+        // If timeout, try with smaller page size and timeout handling
+        if (err?.code === 'TIMEOUT' || err?.status === 408) {
+          console.log('Timeout occurred, trying with smaller page size...');
+          try {
+            response = await projectApiService.getProjects({ page: 0, size: 10 });
+            console.log('Projects API response from paginated endpoint (small page):', response);
+          } catch (timeoutErr: any) {
+            console.error('Small page size also timed out:', timeoutErr);
+            throw timeoutErr;
+          }
+        } else {
+          // For other errors, try paginated endpoint with large page size
+          try {
+            response = await projectApiService.getProjects({ page: 0, size: 1000 });
+            console.log('Projects API response from paginated endpoint:', response);
+            console.log('Response data type:', typeof response.data);
+            console.log('Response data is array:', Array.isArray(response.data));
+          } catch (secondErr: any) {
+            console.error('Both endpoints failed:', {
+              firstError: err,
+              secondError: secondErr
+            });
+            throw secondErr; // Throw the second error to be caught by outer catch
+          }
+        }
+      }
       
-      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-      console.log('✅ [useProjects] Success! Duration:', duration, 'seconds');
-      console.log('✅ [useProjects] Raw response:', response);
-      console.log('✅ [useProjects] Response data structure:', {
-        hasData: !!response.data,
-        hasContent: !!(response.data as any)?.content,
-        isArray: Array.isArray(response.data),
-        dataType: typeof response.data
-      });
+      // projectApiService should normalize the response to an array
+      // response.data should be an array after normalization
+      let projectsData: Project[] = [];
       
-      // Handle the new API response format: { content: Project[], totalElements: number, ... }
-      // The backend might return paginated response or array directly
-      const projectsData = (response.data as any)?.content || response.data || [];
-      console.log('✅ [useProjects] Processed projects:', {
-        count: Array.isArray(projectsData) ? projectsData.length : 0,
-        projects: projectsData
-      });
+      if (Array.isArray(response.data)) {
+        projectsData = response.data;
+      } else if (response?.data?.content && Array.isArray(response.data.content)) {
+        // Fallback: if normalization didn't work, extract from content
+        projectsData = response.data.content;
+      } else {
+        console.warn('Unexpected response format:', response);
+        projectsData = [];
+      }
       
-      setData(Array.isArray(projectsData) ? projectsData : []);
+      console.log('Processed projects data:', projectsData);
+      console.log('Projects count:', projectsData.length);
+      console.log('First project:', projectsData[0]);
+      
+      if (projectsData.length === 0) {
+        console.warn('No projects found. This might be expected if the database is empty.');
+      }
+      
+      setData(projectsData);
     } catch (err: any) {
-      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-      console.error('❌ [useProjects] ERROR after', duration, 'seconds');
-      console.error('❌ [useProjects] Error details:', {
+      console.error('Error fetching projects:', err);
+      console.error('Error details:', {
         message: err?.message,
-        code: err?.code,
         status: err?.status,
-        fullError: err
+        code: err?.code,
+        details: err?.details,
+        stack: err?.stack
       });
-      
-      setError(err instanceof Error ? err : new Error('Failed to fetch projects'));
+      const errorMessage = err?.message || 'Failed to fetch projects';
+      setError(new Error(errorMessage));
       setData(null);
     } finally {
       setLoading(false);
-      console.log('🏁 [useProjects] Fetch complete');
     }
   };
 

@@ -45,4 +45,10 @@ public interface RiskRepository extends JpaRepository<Risk, String> {
      */
     @Query("SELECT r FROM Risk r WHERE r.projectId = :projectId AND (r.probability = 'HIGH' OR r.impact = 'HIGH') ORDER BY r.createdAt DESC")
     List<Risk> findHighPriorityRisksByProjectId(@Param("projectId") String projectId);
+    
+    /**
+     * Count risks by project ID
+     */
+    @Query("SELECT COUNT(r) FROM Risk r WHERE r.projectId = :projectId")
+    long countByProjectId(@Param("projectId") String projectId);
 }

@@ -4,9 +4,42 @@ import { Project, Epic, Release } from '../../../types/api';
 
 // Project API Service
 export class ProjectApiService {
-  // Get all projects
+  // Get all projects (with pagination support)
   async getProjects(params?: PaginationParams): Promise<ApiResponse<Project[]>> {
-    return apiClient.get<Project[]>(API_ENDPOINTS.PROJECTS, params);
+    const response = await apiClient.get<any>(API_ENDPOINTS.PROJECTS, params);
+    console.log('getProjects raw response:', response);
+    
+    // Backend returns { content: [...], totalElements: ..., ... }
+    let normalized: Project[] = [];
+    if (Array.isArray(response.data)) {
+      normalized = response.data;
+    } else if (response.data && typeof response.data === 'object' && Array.isArray(response.data.content)) {
+      normalized = response.data.content;
+    } else if (response.data?.content && Array.isArray(response.data.content)) {
+      normalized = response.data.content;
+    }
+    
+    console.log('getProjects normalized:', normalized);
+    return { ...response, data: normalized } as ApiResponse<Project[]>;
+  }
+
+  // Get all projects without pagination
+  async getAllProjects(): Promise<ApiResponse<Project[]>> {
+    const response = await apiClient.get<any>(`${API_ENDPOINTS.PROJECTS}/all`);
+    console.log('getAllProjects raw response:', response);
+    
+    // Backend returns { content: [...], totalElements: ..., ... }
+    let normalized: Project[] = [];
+    if (Array.isArray(response.data)) {
+      normalized = response.data;
+    } else if (response.data && typeof response.data === 'object' && Array.isArray(response.data.content)) {
+      normalized = response.data.content;
+    } else if (response.data?.content && Array.isArray(response.data.content)) {
+      normalized = response.data.content;
+    }
+    
+    console.log('getAllProjects normalized:', normalized);
+    return { ...response, data: normalized } as ApiResponse<Project[]>;
   }
 
   // Get project by ID

@@ -25,10 +25,12 @@ import {
   ExternalLink,
   Play,
   Edit,
-  CheckSquare
+  CheckSquare,
+  Loader2
 } from 'lucide-react';
 import { UserTask } from '../types';
-import { mockUserTasks } from '../data/mockData';
+import { useTasksByAssignee } from '../hooks/api/useTasks';
+import { Task } from '../types/api';
 
 interface UserTasksProps {
   userId: string;
@@ -40,10 +42,54 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
   const navigate = useNavigate();
   const { navigateTo } = useNavigation();
 
-  // Get user's tasks
+  // Fetch user's tasks from API
+  const { data: assignedTasksData, loading: tasksLoading, error: tasksError } = useTasksByAssignee(userId);
+
+  // Extract tasks from API response
+  const assignedTasks = useMemo(() => {
+    if (!assignedTasksData) return [];
+    return Array.isArray(assignedTasksData) 
+      ? assignedTasksData 
+      : (assignedTasksData as any).data || (assignedTasksData as any).content || [];
+  }, [assignedTasksData]);
+
+  // Map API Task data to UserTask format
   const userTasks = useMemo(() => {
-    return mockUserTasks[userId as keyof typeof mockUserTasks] || [];
-  }, [userId]);
+    if (!assignedTasks || assignedTasks.length === 0) return [];
+
+    return assignedTasks.map((task: Task) => {
+      // Map API status to display status
+      const statusMap: Record<string, 'pending' | 'in-progress' | 'completed'> = {
+        'TO_DO': 'pending',
+        'IN_PROGRESS': 'in-progress',
+        'QA_REVIEW': 'in-progress',
+        'DONE': 'completed',
+        'BLOCKED': 'pending',
+        'CANCELLED': 'completed'
+      };
+
+      // Map API priority to display priority
+      const priorityMap: Record<string, 'critical' | 'high' | 'medium' | 'low'> = {
+        'CRITICAL': 'critical',
+        'HIGH': 'high',
+        'MEDIUM': 'medium',
+        'LOW': 'low'
+      };
+
+      return {
+        id: task.id,
+        title: task.title,
+        description: task.description || 'No description provided',
+        status: statusMap[task.status] || 'pending',
+        priority: priorityMap[task.priority] || 'medium',
+        dueDate: task.dueDate || new Date().toISOString(),
+        estimatedHours: task.estimatedHours || 0,
+        projectId: task.storyId || 'unknown',
+        projectName: `Task ${task.id.slice(-4)}`, // Fallback if no story info
+        type: 'development' // Default type
+      } as UserTask;
+    });
+  }, [assignedTasks]);
 
   // Navigation handlers
   const handleTaskClick = (task: UserTask) => {
@@ -204,6 +250,62 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
     }
   };
 
+  // Loading state
+  if (tasksLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Clock className="w-5 h-5 text-blue-600" />
+            <span>My Tasks & Pending Work</span>
+            <Badge variant="outline" className="ml-2">
+              {userRole}
+            </Badge>
+          </CardTitle>
+          <CardDescription>
+            {userName}'s current workload and task progress
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            <span className="ml-3 text-muted-foreground">Loading your tasks...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Error state
+  if (tasksError) {
+    return (
+      <Card className="border-red-200">
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2 text-red-600">
+            <AlertTriangle className="w-5 h-5" />
+            <span>Error Loading Tasks</span>
+          </CardTitle>
+          <CardDescription className="text-red-700">
+            Unable to fetch tasks for {userName}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-4">
+            <p className="text-sm text-red-600 mb-4">{tasksError.message || 'An error occurred while loading tasks'}</p>
+            <Button 
+              variant="outline" 
+              onClick={() => window.location.reload()}
+              className="text-red-600 border-red-300 hover:bg-red-50"
+            >
+              Retry
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // No tasks state
   if (totalTasks === 0) {
     return (
       <Card>
@@ -211,16 +313,19 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
           <CardTitle className="flex items-center space-x-2">
             <Clock className="w-5 h-5 text-blue-600" />
             <span>My Tasks & Pending Work</span>
+            <Badge variant="outline" className="ml-2">
+              {userRole}
+            </Badge>
           </CardTitle>
           <CardDescription>
-            No tasks assigned to {userName} ({userRole})
+            {userName}'s current workload and task progress
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8 text-muted-foreground">
             <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>No tasks assigned yet</p>
-            <p className="text-sm">Check back later for new assignments</p>
+            <p className="text-sm">When tasks are assigned to you, they will appear here</p>
           </div>
         </CardContent>
       </Card>

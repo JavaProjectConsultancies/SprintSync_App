@@ -376,8 +376,8 @@ const EpicManager = ({
 
       {/* Epic Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredEpics.map((epic) => (
-          <Card key={epic.id} className="hover:shadow-lg transition-shadow">
+        {filteredEpics.map((epic, index) => (
+          <Card key={epic.id || (epic as any)._id || `${epic.title || 'epic'}-${index}`} className="hover:shadow-lg transition-shadow">
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div className="flex-1">

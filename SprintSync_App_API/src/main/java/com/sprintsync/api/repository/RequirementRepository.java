@@ -38,4 +38,10 @@ public interface RequirementRepository extends JpaRepository<Requirement, String
      */
     @Query("SELECT r FROM Requirement r WHERE r.projectId = :projectId ORDER BY r.priority DESC, r.createdAt ASC")
     List<Requirement> findByProjectIdOrderByPriorityAndCreatedAt(@Param("projectId") String projectId);
+    
+    /**
+     * Count requirements by project ID
+     */
+    @Query("SELECT COUNT(r) FROM Requirement r WHERE r.projectId = :projectId")
+    long countByProjectId(@Param("projectId") String projectId);
 }

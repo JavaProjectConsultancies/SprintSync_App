@@ -9,9 +9,14 @@ export interface TeamMember {
   isTeamLead?: boolean;
   email?: string;
   avatar?: string;
-  skills?: string[];
+  avatarUrl?: string;
+  skills?: string[] | string;
   hourlyRate?: number;
   performance?: number;
+  workload?: number;
+  experience?: string;
+  allocationPercentage?: number;
+  userId?: string;
 }
 
 export interface CreateTeamMemberRequest {
@@ -52,7 +57,18 @@ export const teamMemberApi = {
   async getTeamMembersByProject(projectId: string): Promise<TeamMember[]> {
     try {
       const response = await apiClient.get<TeamMember[]>(`/project-team-members/project/${projectId}`);
-      return response.data;
+      // Handle both direct array and wrapped responses
+      if (Array.isArray(response.data)) {
+        return response.data;
+      } else if (response.data && Array.isArray(response.data.data)) {
+        return response.data.data;
+      } else if (response.data && Array.isArray(response.data.content)) {
+        return response.data.content;
+      } else if (Array.isArray(response.data)) {
+        return response.data;
+      }
+      console.warn('Unexpected team members response format:', response);
+      return [];
     } catch (error) {
       console.error('Error fetching team members for project:', error);
       throw error;

@@ -96,6 +96,7 @@ import { useProjects } from '../hooks/api/useProjects';
 import { useEpics } from '../hooks/api/useEpics';
 import { useReleases } from '../hooks/api/useReleases';
 import { Sprint, Story, Task, Subtask, TimeEntry, ActivityLog, Priority, SprintStatus, StoryStatus, TaskStatus } from '../types/api';
+import AddTaskDialog from '../components/AddTaskDialog';
 
 // Drag item types
 const ItemTypes = {
@@ -119,6 +120,19 @@ const ScrumPage: React.FC = () => {
   const [selectedSprintForDetails, setSelectedSprintForDetails] = useState<Sprint | null>(null);
   const [isTaskDetailsOpen, setIsTaskDetailsOpen] = useState(false);
   const [selectedTaskForDetails, setSelectedTaskForDetails] = useState<Task | null>(null);
+  
+  // Epics state and dialogs (local epics list for bottom section)
+  const [projectEpics, setProjectEpics] = useState<any[]>([]);
+  const [isEpicTemplateDialogOpen, setIsEpicTemplateDialogOpen] = useState(false);
+  const [isAddEpicDialogOpen, setIsAddEpicDialogOpen] = useState(false);
+  const [newEpic, setNewEpic] = useState({
+    title: '',
+    description: '',
+    priority: 'MEDIUM' as Priority,
+    status: 'PLANNING' as any,
+    startDate: '',
+    endDate: ''
+  });
   
   // Effort logging state (JIRA-style: log on subtasks)
   const [isLogEffortDialogOpen, setIsLogEffortDialogOpen] = useState(false);
@@ -195,6 +209,26 @@ const ScrumPage: React.FC = () => {
     assigneeId: '',
     estimatedHours: 0
   });
+  
+  // Fetch epics for selected project
+  useEffect(() => {
+    const fetchEpicsForProject = async () => {
+      try {
+        if (!selectedProject) {
+          setProjectEpics([]);
+          return;
+        }
+        const { epicApiService } = await import('../services/api/entities/epicApi');
+        const res = await epicApiService.getEpicsByProject(selectedProject);
+        // apiClient returns {data}, handle both shapes
+        setProjectEpics((res as any).data ?? (Array.isArray(res) ? res : []));
+      } catch (e) {
+        console.error('Failed to fetch epics by project', e);
+        setProjectEpics([]);
+      }
+    };
+    fetchEpicsForProject();
+  }, [selectedProject]);
 
   // API Hooks - Projects
   const { data: projectsData, loading: projectsLoading } = useProjects();
@@ -202,6 +236,13 @@ const ScrumPage: React.FC = () => {
   
   // Extract projects list
   const projects = projectsData || [];
+
+  // Ensure a project is selected by default once projects load
+  useEffect(() => {
+    if (!selectedProject && projects && projects.length > 0) {
+      setSelectedProject((projects[0] as any).id || '');
+    }
+  }, [projects, selectedProject]);
 
   // API Hooks - Epics and Releases
   const { data: epicsData, loading: epicsLoading } = useEpics();
@@ -847,59 +888,122 @@ const ScrumPage: React.FC = () => {
       setIsAddStoryDialogOpen(false);
   };
 
-  // Add Task Handler
-  const handleAddTask = async () => {
-    const taskData = {
-        storyId: newTask.storyId,
-        title: newTask.title,
-        description: newTask.description,
-        status: 'TODO' as TaskStatus,
-        priority: newTask.priority,
-        assigneeId: newTask.assigneeId,
+  // Add Task Handler - Updated to accept AddTaskDialog format
+  // AddTaskDialog now returns assignee as user ID
+  const handleAddTask = async (taskDataFromDialog: any) => {
+    try {
+      // The dialog now sends assignee as user ID directly
+      let assigneeId: string | undefined = undefined;
+      const assigneeValue = taskDataFromDialog.assignee;
+      if (assigneeValue) {
+        // If it's already an ID (starts with 'USER' or is a valid ID format), use it directly
+        // Otherwise, try to map name to ID for backward compatibility
+        if (assigneeValue.startsWith('USER') || assigneeValue.length > 10) {
+          assigneeId = assigneeValue;
+        } else {
+          // Fallback: find user by name (for backward compatibility)
+          const foundUser = users.find((u: any) => {
+            const userName = `${u.firstName || ''} ${u.lastName || ''}`.trim();
+            const emailUser = u.email?.split('@')[0].replace(/\./g, ' ');
+            return userName === assigneeValue || 
+                   emailUser?.toLowerCase() === assigneeValue.toLowerCase() ||
+                   u.name === assigneeValue ||
+                   `${u.name || ''} Manager`.toLowerCase() === assigneeValue.toLowerCase();
+          });
+          assigneeId = foundUser?.id || foundUser?.userId;
+        }
+      }
+
+      // Map priority from dialog format (high/medium/low) to API format (HIGH/MEDIUM/LOW)
+      const priorityMap: Record<string, Priority> = {
+        'high': 'HIGH',
+        'medium': 'MEDIUM',
+        'low': 'LOW'
+      };
+      const apiPriority = priorityMap[taskDataFromDialog.priority?.toLowerCase() || 'medium'] || 'MEDIUM';
+
+      // Map status from dialog format (todo/inprogress/qa/done) to API format
+      const statusMap: Record<string, TaskStatus> = {
+        'todo': 'TO_DO',
+        'inprogress': 'IN_PROGRESS',
+        'qa': 'QA_REVIEW',
+        'review': 'QA_REVIEW',
+        'done': 'DONE'
+      };
+      const apiStatus = statusMap[taskDataFromDialog.status?.toLowerCase() || 'todo'] || 'TO_DO';
+
+      // Map due date format (dd/MM/yy) to ISO string
+      let dueDate: string | undefined = undefined;
+      if (taskDataFromDialog.dueDate) {
+        try {
+          // Try parsing dd/MM/yy format
+          const [day, month, year] = taskDataFromDialog.dueDate.split('/');
+          if (day && month && year) {
+            const fullYear = parseInt(year) < 100 ? 2000 + parseInt(year) : parseInt(year);
+            const date = new Date(fullYear, parseInt(month) - 1, parseInt(day));
+            if (!isNaN(date.getTime())) {
+              dueDate = date.toISOString().split('T')[0];
+            }
+          }
+        } catch (e) {
+          // If parsing fails, try using as-is if it's already ISO format
+          dueDate = taskDataFromDialog.dueDate;
+        }
+      }
+
+      // Create task data in API format
+      const taskData = {
+        storyId: taskDataFromDialog.storyId || '',
+        title: taskDataFromDialog.title,
+        description: taskDataFromDialog.description || '',
+        status: apiStatus,
+        priority: apiPriority,
+        assigneeId: assigneeId,
         reporterId: user?.id || '',
-        estimatedHours: newTask.estimatedHours,
+        estimatedHours: taskDataFromDialog.estimatedHours || 0,
         actualHours: 0,
         orderIndex: 0,
-        dueDate: newTask.dueDate,
+        dueDate: dueDate,
         labels: []
-    };
-    
-    createTaskMutate(taskData);
-    
-    // Log activity (use timeout to ensure task is created first)
-    setTimeout(async () => {
-      try {
-        const createdTask = allTasks.find(t => t.title === newTask.title);
-        if (createdTask) {
+      };
+      
+      // Create task via API
+      const response = await createTaskMutate(taskData);
+      
+      if (response && response.data) {
+        // Log activity
+        try {
           await activityLogApiService.createActivityLog({
             userId: user?.id || '',
             entityType: 'tasks',
-            entityId: createdTask.id,
+            entityId: response.data.id,
             action: 'created',
-            description: `Created task "${newTask.title}"`,
+            description: `Created task "${taskDataFromDialog.title}"`,
             newValues: JSON.stringify(taskData),
             ipAddress: undefined,
             userAgent: undefined
           });
+        } catch (error) {
+          console.error('Failed to log activity:', error);
         }
-      } catch (error) {
-        console.error('Failed to log activity:', error);
+
+        toast.success('Task created successfully');
+        
+        // Refresh tasks and stories
+        refetchSprintStories();
+        if (taskData.storyId) {
+          // Refetch tasks for the story
+          setTimeout(() => {
+            fetchAllTasks(sprintStories);
+          }, 500);
+        }
+      } else {
+        throw new Error('Failed to create task');
       }
-    }, 1000);
-      
-      toast.success('Task created successfully');
-      refetchSprintStories();
-      
-      setNewTask({
-        title: '',
-        description: '',
-        storyId: '',
-        priority: 'MEDIUM',
-        assigneeId: '',
-        estimatedHours: 0,
-        dueDate: ''
-      });
-      setIsAddTaskDialogOpen(false);
+    } catch (error: any) {
+      console.error('Error creating task:', error);
+      toast.error(error?.message || 'Failed to create task. Please try again.');
+    }
   };
 
   // View Task Details Handler (JIRA-style) - will be defined in component scope
@@ -1073,6 +1177,135 @@ const ScrumPage: React.FC = () => {
                       </div>
                     )}
                   </div>
+          
+          {/* Epic Template Dialog */}
+          <Dialog open={isEpicTemplateDialogOpen} onOpenChange={setIsEpicTemplateDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Select Epic Template</DialogTitle>
+                <DialogDescription>Choose a template to create an epic for this project.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2">
+                {[
+                  { id: 'tpl-auth', title: 'User Authentication', summary: 'Implement secure login/registration', priority: 'HIGH', status: 'PLANNING' },
+                  { id: 'tpl-payments', title: 'Payment Gateway Integration', summary: 'Integrate multiple payment providers', priority: 'CRITICAL', status: 'PLANNING' },
+                  { id: 'tpl-dashboard', title: 'Analytics Dashboard', summary: 'Interactive charts and KPIs', priority: 'MEDIUM', status: 'PLANNING' },
+                ].map(tpl => (
+                  <Card key={tpl.id} className="cursor-pointer hover:shadow" onClick={async () => {
+                    if (!selectedProject) { toast.error('Select a project first'); return; }
+                    try {
+                      const payload: any = {
+                        title: tpl.title,
+                        description: tpl.summary,
+                        summary: tpl.summary,
+                        projectId: selectedProject,
+                        status: tpl.status,
+                        priority: tpl.priority,
+                        owner: user?.id || '',
+                        isActive: true
+                      };
+                      const { epicApiService } = await import('../services/api/entities/epicApi');
+                      await epicApiService.createEpic(payload);
+                      const list = await epicApiService.getEpicsByProject(selectedProject);
+                      setProjectEpics((list as any).data ?? (Array.isArray(list) ? list : []));
+                      setIsEpicTemplateDialogOpen(false);
+                      toast.success('Epic created from template');
+                    } catch (e: any) {
+                      console.error(e);
+                      toast.error(e?.message || 'Failed to create epic');
+                    }
+                  }}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h4 className="font-medium">{tpl.title}</h4>
+                          <p className="text-sm text-muted-foreground">{tpl.summary}</p>
+                        </div>
+                        <Badge variant="outline" className="text-xs">{tpl.priority.toString().toLowerCase()}</Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Add Epic Dialog */}
+          <Dialog open={isAddEpicDialogOpen} onOpenChange={setIsAddEpicDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create Epic</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div>
+                  <Label>Title</Label>
+                  <Input value={newEpic.title} onChange={(e) => setNewEpic(prev => ({ ...prev, title: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>Description</Label>
+                  <Textarea value={newEpic.description} onChange={(e) => setNewEpic(prev => ({ ...prev, description: e.target.value }))} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Priority</Label>
+                    <Select value={newEpic.priority} onValueChange={(v) => setNewEpic(prev => ({ ...prev, priority: v as any }))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="LOW">Low</SelectItem>
+                        <SelectItem value="MEDIUM">Medium</SelectItem>
+                        <SelectItem value="HIGH">High</SelectItem>
+                        <SelectItem value="CRITICAL">Critical</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Status</Label>
+                    <Select value={newEpic.status} onValueChange={(v) => setNewEpic(prev => ({ ...prev, status: v as any }))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PLANNING">Planning</SelectItem>
+                        <SelectItem value="ACTIVE">Active</SelectItem>
+                        <SelectItem value="COMPLETED">Completed</SelectItem>
+                        <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAddEpicDialogOpen(false)}>Cancel</Button>
+                <Button onClick={async () => {
+                  if (!selectedProject) { toast.error('Select a project first'); return; }
+                  if (!newEpic.title.trim()) { toast.error('Title is required'); return; }
+                  try {
+                    const payload: any = {
+                      title: newEpic.title,
+                      description: newEpic.description,
+                      projectId: selectedProject,
+                      status: newEpic.status,
+                      priority: newEpic.priority,
+                      owner: user?.id || '',
+                      isActive: true
+                    };
+                    const { epicApiService } = await import('../services/api/entities/epicApi');
+                    await epicApiService.createEpic(payload);
+              const list = await epicApiService.getEpicsByProject(selectedProject);
+              setProjectEpics((list as any).data ?? (Array.isArray(list) ? list : []));
+                    setIsAddEpicDialogOpen(false);
+                    setNewEpic({ title: '', description: '', priority: 'MEDIUM', status: 'PLANNING', startDate: '', endDate: '' });
+                    toast.success('Epic created');
+                  } catch (e: any) {
+                    console.error(e);
+                    toast.error(e?.message || 'Failed to create epic');
+                  }
+                }}>Create</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
                 </div>
               ))}
             </div>
@@ -1714,15 +1947,17 @@ const ScrumPage: React.FC = () => {
                     <p className="text-sm text-muted-foreground">{currentSprint.goal}</p>
                   </div>
                   <div className="flex items-center space-x-4 text-sm">
-                    <div className="text-center">
-                      <div className="font-semibold text-green-600">
-                        {currentSprint.endDate ? 
-                          Math.ceil((new Date(currentSprint.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
-                          : 0
-                        }
-                      </div>
-                      <div className="text-xs text-muted-foreground">Days Left</div>
-                    </div>
+                    {(() => {
+                      const daysLeft = currentSprint.endDate 
+                        ? Math.ceil((new Date(currentSprint.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+                        : 0;
+                      return daysLeft > 0 ? (
+                        <div className="text-center">
+                          <div className="font-semibold text-green-600">{daysLeft}</div>
+                          <div className="text-xs text-muted-foreground">Days Left</div>
+                        </div>
+                      ) : null;
+                    })()}
                     <div className="text-center">
                       <div className="font-semibold text-blue-600">{currentSprint.velocityPoints || 0}</div>
                       <div className="text-xs text-muted-foreground">Velocity Points</div>
@@ -1732,6 +1967,49 @@ const ScrumPage: React.FC = () => {
               </CardContent>
             </Card>
           )}
+
+          {/* Epics Section */}
+          <div className="mt-6 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Epics</h3>
+              <div className="space-x-2">
+                <Button variant="outline" size="sm" onClick={() => setIsEpicTemplateDialogOpen(true)}>
+                  From Template
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setIsAddEpicDialogOpen(true)}>
+                  Add Epic
+                </Button>
+              </div>
+            </div>
+            {projectEpics && projectEpics.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {projectEpics.map((epic: any) => (
+                  <Card key={epic.id} className="border-green-200">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant="outline" className="text-xs">
+                              {(epic.priority || 'MEDIUM').toString().toLowerCase()}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              {(epic.status || 'PLANNING').toString().toLowerCase()}
+                            </Badge>
+                          </div>
+                          <h4 className="font-medium mt-1">{epic.title}</h4>
+                          <p className="text-sm text-muted-foreground line-clamp-2">{epic.summary || epic.description || 'No description'}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card className="border-dashed">
+                <CardContent className="p-6 text-center text-muted-foreground text-sm">No epics yet</CardContent>
+              </Card>
+            )}
+          </div>
         </div>
 
         <TabsContent value="backlog" className="mt-0 flex-1">
@@ -3498,6 +3776,39 @@ const ScrumPage: React.FC = () => {
           </DialogContent>
         </Dialog>
       </Tabs>
+
+      {/* Add Task Dialog */}
+      <AddTaskDialog
+        isOpen={isAddTaskDialogOpen}
+        onClose={() => {
+          setIsAddTaskDialogOpen(false);
+          setNewTask({
+            title: '',
+            description: '',
+            storyId: newTask.storyId, // Keep storyId if set from button click
+            priority: 'MEDIUM',
+            assigneeId: '',
+            estimatedHours: 0,
+            dueDate: ''
+          });
+        }}
+        onSubmit={handleAddTask}
+        stories={sprintStories.map(story => ({
+          id: story.id,
+          title: story.title,
+          priority: (story.priority?.toLowerCase() || 'medium') as 'high' | 'medium' | 'low',
+          points: story.storyPoints || 0,
+          status: story.status?.toLowerCase()?.includes('backlog') ? 'stories' : 
+                 story.status?.toLowerCase()?.includes('todo') ? 'todo' :
+                 story.status?.toLowerCase()?.includes('progress') ? 'inprogress' :
+                 story.status?.toLowerCase()?.includes('review') ? 'qa' :
+                 story.status?.toLowerCase()?.includes('done') ? 'done' : 'stories' as 'stories' | 'todo' | 'inprogress' | 'qa' | 'done',
+          assignee: undefined
+        }))}
+        defaultStatus={newTask.storyId ? 'todo' : 'todo'}
+        defaultStoryId={newTask.storyId || undefined}
+        users={users}
+      />
     </DndProvider>
   );
 };

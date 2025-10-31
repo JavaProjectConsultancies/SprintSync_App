@@ -268,8 +268,6 @@ const AppSidebar: React.FC = () => {
             <p className="text-xs text-muted-foreground">AI Project Management</p>
           </div>
         </div>
-
-        {/* Current Project Context removed per request */}
       </SidebarHeader>
 
       <SidebarContent>

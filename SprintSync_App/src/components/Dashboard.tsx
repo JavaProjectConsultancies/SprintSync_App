@@ -75,22 +75,35 @@ const Dashboard: React.FC = () => {
   const metrics = useMemo(() => {
     if (!user) return null;
     
-    // Calculate metrics from API data
+    // Calculate metrics from API data - data is an array, not an object with content
     const totalProjects = Array.isArray(apiProjects) ? apiProjects.length : 0;
     const totalUsers = Array.isArray(apiUsers) ? apiUsers.length : 0;
-    const tasksArray = Array.isArray(apiTasks) ? apiTasks : [];
-    const totalTasks = tasksArray.length;
-    const completedTasks = tasksArray.filter(task => task.status === 'DONE').length;
+    const totalTasks = Array.isArray(apiTasks) ? apiTasks.length : 0;
+    const completedTasks = Array.isArray(apiTasks) ? apiTasks.filter(task => task.status === 'DONE').length : 0;
+    
+    // Calculate sprint progress from completed vs total sprints
+    const totalSprints = Array.isArray(apiSprints) ? apiSprints.length : 0;
+    const completedSprints = Array.isArray(apiSprints) ? apiSprints.filter(sprint => sprint.status === 'COMPLETED').length : 0;
+    const sprintProgressValue = totalSprints > 0 ? Math.round((completedSprints / totalSprints) * 100) : 0;
+    
+    // Calculate upcoming deadlines (tasks due in next 7 days)
+    const today = new Date();
+    const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const upcomingDeadlines = Array.isArray(apiTasks) ? apiTasks.filter(task => {
+      if (!task.dueDate) return false;
+      const dueDate = new Date(task.dueDate);
+      return dueDate >= today && dueDate <= nextWeek;
+    }).length : 0;
     
     return {
       projectCount: totalProjects,
       teamMembers: totalUsers,
-      sprintProgress: 0, // TODO: Calculate from sprint data
+      sprintProgress: sprintProgressValue,
       taskCompletion: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
-      criticalItems: tasksArray.filter(task => task.priority === 'CRITICAL').length,
-      upcomingDeadlines: 0 // TODO: Calculate from task due dates
+      criticalItems: Array.isArray(apiTasks) ? apiTasks.filter(task => task.priority === 'CRITICAL').length : 0,
+      upcomingDeadlines
     };
-  }, [user, apiProjects, apiUsers, apiTasks]);
+  }, [user, apiProjects, apiUsers, apiTasks, apiSprints]);
 
   // Filter projects based on user permissions - use API data only
   const accessibleProjects = useMemo(() => {
@@ -98,6 +111,25 @@ const Dashboard: React.FC = () => {
     const projectData = Array.isArray(apiProjects) ? apiProjects : [];
     return projectData.filter(project => canAccessProject(project.id));
   }, [user, canAccessProject, apiProjects]);
+
+  // Helpers to normalize API Project fields for charts/UI
+  const getProjectProgress = (project: any): number => {
+    return typeof project?.progressPercentage === 'number' ? project.progressPercentage : (project?.progress ?? 0);
+  };
+
+  const getProjectPriorityLower = (project: any): string => {
+    return (project?.priority || '').toString().toLowerCase();
+  };
+
+  const getProjectStatusLower = (project: any): string => {
+    return (project?.status || '').toString().toLowerCase();
+  };
+
+  const getProjectTeamSize = (project: any): number => {
+    if (Array.isArray(project?.teamMembers)) return project.teamMembers.length;
+    if (typeof project?.teamSize === 'number') return project.teamSize;
+    return 5;
+  };
 
   // Generate chart data from API data
   const burndownData = useMemo(() => {
@@ -115,7 +147,7 @@ const Dashboard: React.FC = () => {
     if (!Array.isArray(apiProjects)) return [];
     return apiProjects.map(project => ({
       name: project.name,
-      value: project.progressPercentage || 0
+      value: getProjectProgress(project)
     }));
   }, [apiProjects]);
 
@@ -168,7 +200,7 @@ const Dashboard: React.FC = () => {
 
     // Generate data based on project characteristics
     const baseVelocity = project.teamMembers.length * 8; // Base velocity per team member
-    const progressFactor = project.progressPercentage / 100;
+    const progressFactor = project.progress / 100;
     const priorityMultiplier = project.priority === 'critical' ? 1.2 : project.priority === 'high' ? 1.1 : 1.0;
     
     // Use project ID to create consistent "random" values
@@ -208,7 +240,7 @@ const Dashboard: React.FC = () => {
 
     // Generate data based on project characteristics
     const totalTasks = 100;
-    const progress = project.progressPercentage;
+    const progress = project.progress;
     const status = project.status;
     
     let todo, inProgress, qa, done;
@@ -301,7 +333,7 @@ const Dashboard: React.FC = () => {
     return {
       title: `Sprint Performance - ${project.name}`,
       description: `Planned vs Done comparison for ${project.name}`,
-      subtitle: `${project.status} • ${project.progressPercentage}% complete • ${project.teamMembers.length} team members`
+      subtitle: `${project.status} • ${project.progress}% complete • ${project.teamMembers.length} team members`
     };
   };
 
@@ -320,7 +352,7 @@ const Dashboard: React.FC = () => {
     return {
       title: `Task Distribution - ${project.name}`,
       description: `Current sprint task breakdown for ${project.name}`,
-      subtitle: `${project.status} • ${project.progressPercentage}% complete • ${project.priority} priority`
+      subtitle: `${project.status} • ${project.progress}% complete • ${project.priority} priority`
     };
   };
 
@@ -393,8 +425,8 @@ const Dashboard: React.FC = () => {
               <div className={`w-3 h-3 rounded-full ${projectsLoading ? 'bg-yellow-500 animate-pulse' : projectsError ? 'bg-red-500' : 'bg-green-500'}`}></div>
               <span className="text-sm font-medium">Projects API</span>
               {projectsLoading && <span className="text-xs text-gray-500">Loading...</span>}
-              {projectsError && <span className="text-xs text-red-500" title={projectsError.message}>Error: {(projectsError as any)?.status || 'Unknown'}</span>}
-              {Array.isArray(apiProjects) && <span className="text-xs text-green-600">{apiProjects.length} projects</span>}
+              {projectsError && <span className="text-xs text-red-500" title={projectsError.message}>Error: {projectsError.status}</span>}
+              {apiProjects && <span className="text-xs text-green-600">{apiProjects.length} projects</span>}
             </div>
           </CardContent>
         </Card>
@@ -405,8 +437,8 @@ const Dashboard: React.FC = () => {
               <div className={`w-3 h-3 rounded-full ${usersLoading ? 'bg-yellow-500 animate-pulse' : usersError ? 'bg-red-500' : 'bg-green-500'}`}></div>
               <span className="text-sm font-medium">Users API</span>
               {usersLoading && <span className="text-xs text-gray-500">Loading...</span>}
-              {usersError && <span className="text-xs text-red-500" title={usersError.message}>Error: {(usersError as any)?.status || 'Unknown'}</span>}
-              {Array.isArray(apiUsers) && <span className="text-xs text-green-600">{apiUsers.length} users</span>}
+              {usersError && <span className="text-xs text-red-500" title={usersError.message}>Error: {usersError.status}</span>}
+              {apiUsers && <span className="text-xs text-green-600">{apiUsers.length} users</span>}
             </div>
           </CardContent>
         </Card>
@@ -417,8 +449,8 @@ const Dashboard: React.FC = () => {
               <div className={`w-3 h-3 rounded-full ${departmentsLoading ? 'bg-yellow-500 animate-pulse' : departmentsError ? 'bg-red-500' : 'bg-green-500'}`}></div>
               <span className="text-sm font-medium">Departments API</span>
               {departmentsLoading && <span className="text-xs text-gray-500">Loading...</span>}
-              {departmentsError && <span className="text-xs text-red-500" title={departmentsError.message}>Error: {(departmentsError as any)?.status || 'Unknown'}</span>}
-              {Array.isArray(apiDepartments) && <span className="text-xs text-green-600">{apiDepartments.length} departments</span>}
+              {departmentsError && <span className="text-xs text-red-500" title={departmentsError.message}>Error: {departmentsError.status}</span>}
+              {apiDepartments && <span className="text-xs text-green-600">{apiDepartments.length} departments</span>}
             </div>
           </CardContent>
         </Card>
@@ -429,8 +461,8 @@ const Dashboard: React.FC = () => {
               <div className={`w-3 h-3 rounded-full ${domainsLoading ? 'bg-yellow-500 animate-pulse' : domainsError ? 'bg-red-500' : 'bg-green-500'}`}></div>
               <span className="text-sm font-medium">Domains API</span>
               {domainsLoading && <span className="text-xs text-gray-500">Loading...</span>}
-              {domainsError && <span className="text-xs text-red-500" title={domainsError.message}>Error: {(domainsError as any)?.status || 'Unknown'}</span>}
-              {Array.isArray(apiDomains) && <span className="text-xs text-green-600">{apiDomains.length} domains</span>}
+              {domainsError && <span className="text-xs text-red-500" title={domainsError.message}>Error: {domainsError.status}</span>}
+              {apiDomains && <span className="text-xs text-green-600">{apiDomains.length} domains</span>}
             </div>
           </CardContent>
         </Card>
@@ -441,8 +473,8 @@ const Dashboard: React.FC = () => {
               <div className={`w-3 h-3 rounded-full ${epicsLoading ? 'bg-yellow-500 animate-pulse' : epicsError ? 'bg-red-500' : 'bg-green-500'}`}></div>
               <span className="text-sm font-medium">Epics API</span>
               {epicsLoading && <span className="text-xs text-gray-500">Loading...</span>}
-              {epicsError && <span className="text-xs text-red-500" title={epicsError.message}>Error: {(epicsError as any)?.status || 'Unknown'}</span>}
-              {Array.isArray(apiEpics) && <span className="text-xs text-green-600">{apiEpics.length} epics</span>}
+              {epicsError && <span className="text-xs text-red-500" title={epicsError.message}>Error: {epicsError.status}</span>}
+              {apiEpics && <span className="text-xs text-green-600">{apiEpics.length} epics</span>}
             </div>
           </CardContent>
         </Card>
@@ -453,8 +485,8 @@ const Dashboard: React.FC = () => {
               <div className={`w-3 h-3 rounded-full ${releasesLoading ? 'bg-yellow-500 animate-pulse' : releasesError ? 'bg-red-500' : 'bg-green-500'}`}></div>
               <span className="text-sm font-medium">Releases API</span>
               {releasesLoading && <span className="text-xs text-gray-500">Loading...</span>}
-              {releasesError && <span className="text-xs text-red-500" title={releasesError.message}>Error: {(releasesError as any)?.status || 'Unknown'}</span>}
-              {Array.isArray(apiReleases) && <span className="text-xs text-green-600">{apiReleases.length} releases</span>}
+              {releasesError && <span className="text-xs text-red-500" title={releasesError.message}>Error: {releasesError.status}</span>}
+              {apiReleases && <span className="text-xs text-green-600">{apiReleases.length} releases</span>}
             </div>
           </CardContent>
         </Card>
@@ -465,8 +497,8 @@ const Dashboard: React.FC = () => {
               <div className={`w-3 h-3 rounded-full ${sprintsLoading ? 'bg-yellow-500 animate-pulse' : sprintsError ? 'bg-red-500' : 'bg-green-500'}`}></div>
               <span className="text-sm font-medium">Sprints API</span>
               {sprintsLoading && <span className="text-xs text-gray-500">Loading...</span>}
-              {sprintsError && <span className="text-xs text-red-500" title={sprintsError.message}>Error: {(sprintsError as any)?.status || 'Unknown'}</span>}
-              {Array.isArray(apiSprints) && <span className="text-xs text-green-600">{apiSprints.length} sprints</span>}
+              {sprintsError && <span className="text-xs text-red-500" title={sprintsError.message}>Error: {sprintsError.status}</span>}
+              {apiSprints && <span className="text-xs text-green-600">{apiSprints.length} sprints</span>}
             </div>
           </CardContent>
         </Card>
@@ -477,8 +509,8 @@ const Dashboard: React.FC = () => {
               <div className={`w-3 h-3 rounded-full ${storiesLoading ? 'bg-yellow-500 animate-pulse' : storiesError ? 'bg-red-500' : 'bg-green-500'}`}></div>
               <span className="text-sm font-medium">Stories API</span>
               {storiesLoading && <span className="text-xs text-gray-500">Loading...</span>}
-              {storiesError && <span className="text-xs text-red-500" title={storiesError.message}>Error: {(storiesError as any)?.status || 'Unknown'}</span>}
-              {Array.isArray(apiStories) && <span className="text-xs text-green-600">{apiStories.length} stories</span>}
+              {storiesError && <span className="text-xs text-red-500" title={storiesError.message}>Error: {storiesError.status}</span>}
+              {apiStories && <span className="text-xs text-green-600">{apiStories.length} stories</span>}
             </div>
           </CardContent>
         </Card>
@@ -489,8 +521,8 @@ const Dashboard: React.FC = () => {
               <div className={`w-3 h-3 rounded-full ${tasksLoading ? 'bg-yellow-500 animate-pulse' : tasksError ? 'bg-red-500' : 'bg-green-500'}`}></div>
               <span className="text-sm font-medium">Tasks API</span>
               {tasksLoading && <span className="text-xs text-gray-500">Loading...</span>}
-              {tasksError && <span className="text-xs text-red-500" title={tasksError.message}>Error: {(tasksError as any)?.status || 'Unknown'}</span>}
-              {Array.isArray(apiTasks) && <span className="text-xs text-green-600">{apiTasks.length} tasks</span>}
+              {tasksError && <span className="text-xs text-red-500" title={tasksError.message}>Error: {tasksError.status}</span>}
+              {apiTasks && <span className="text-xs text-green-600">{apiTasks.length} tasks</span>}
             </div>
           </CardContent>
         </Card>
@@ -500,7 +532,7 @@ const Dashboard: React.FC = () => {
             <div className="flex items-center space-x-2">
               <div className={`w-3 h-3 rounded-full ${(projectsLoading || usersLoading || departmentsLoading || domainsLoading || epicsLoading || releasesLoading || sprintsLoading || storiesLoading || tasksLoading) ? 'bg-yellow-500 animate-pulse' : (projectsError || usersError || departmentsError || domainsError || epicsError || releasesError || sprintsError || storiesError || tasksError) ? 'bg-red-500' : 'bg-green-500'}`}></div>
               <span className="text-sm font-medium">Data Source</span>
-              {Array.isArray(apiProjects) && apiProjects.length > 0 ? (
+              {apiProjects && apiProjects.length > 0 ? (
                 <span className="text-xs text-green-600">Live API Data</span>
               ) : (
                 <span className="text-xs text-gray-500">Mock Data</span>
@@ -594,8 +626,8 @@ const Dashboard: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {aiInsights.map((insight, index) => (
-              <div key={insight.id || `insight-${index}`} className="flex items-start space-x-3 p-3 bg-white rounded-lg border">
+            {aiInsights.map((insight) => (
+              <div key={insight.id} className="flex items-start space-x-3 p-3 bg-white rounded-lg border">
                 <div className="flex-shrink-0">
                   {insight.priority === 'positive' ? (
                     <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
@@ -647,8 +679,8 @@ const Dashboard: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-900">{metrics.projectCount}</div>
-            <p className="text-xs text-blue-700">of 12 total</p>
-            <Progress value={67} className="mt-2 h-1.5" />
+            <p className="text-xs text-blue-700">Total projects</p>
+            <Progress value={metrics.projectCount > 0 ? 100 : 0} className="mt-2 h-1.5" />
           </CardContent>
         </Card>
 
@@ -662,9 +694,9 @@ const Dashboard: React.FC = () => {
             <CheckCircle className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-900">0</div>
-            <p className="text-xs text-green-700">of 0 total</p>
-            <Progress value={0} className="mt-2 h-1.5" />
+            <div className="text-2xl font-bold text-green-900">{metrics.taskCompletion}%</div>
+            <p className="text-xs text-green-700">Task completion rate</p>
+            <Progress value={metrics.taskCompletion} className="mt-2 h-1.5" />
           </CardContent>
         </Card>
 
@@ -679,8 +711,8 @@ const Dashboard: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-purple-900">{metrics.teamMembers}</div>
-            <p className="text-xs text-purple-700">of 24 total</p>
-            <Progress value={75} className="mt-2 h-1.5" />
+            <p className="text-xs text-purple-700">Active users</p>
+            <Progress value={100} className="mt-2 h-1.5" />
           </CardContent>
         </Card>
 
@@ -690,15 +722,16 @@ const Dashboard: React.FC = () => {
           title="View sprint management"
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sprint Velocity</CardTitle>
+            <CardTitle className="text-sm font-medium">Sprint Progress</CardTitle>
             <Zap className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-900">28</div>
+            <div className="text-2xl font-bold text-orange-900">{metrics.sprintProgress}%</div>
             <div className="flex items-center text-xs text-orange-700">
               <TrendingUp className="w-3 h-3 mr-1" />
-              +12%
+              Completed sprints
             </div>
+            <Progress value={metrics.sprintProgress} className="mt-2 h-1.5" />
           </CardContent>
         </Card>
       </div>
@@ -720,8 +753,8 @@ const Dashboard: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {underperformingMembers.map((member, index) => (
-                <Card key={member.id || `member-${index}`} className="p-4">
+              {underperformingMembers.map((member) => (
+                <Card key={member.id} className="p-4">
                   <div className="flex items-start justify-between">
                     <div className="space-y-3">
                       <div className="flex items-center space-x-3">
@@ -1018,8 +1051,8 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-right space-y-2">
-                  <div className="text-sm font-medium">{project.progressPercentage}%</div>
-                  <Progress value={project.progressPercentage} className="w-20" />
+                  <div className="text-sm font-medium">{project.progress}%</div>
+                  <Progress value={project.progress} className="w-20" />
                 </div>
               </div>
             ))}
@@ -1037,9 +1070,9 @@ const Dashboard: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {hasPermission('manage_projects') && (
               <Button
-                className="h-auto p-4 flex flex-col items-center space-y-2 bg-white hover:bg-gray-50 text-foreground border shadow-sm"
-                onClick={() => navigate('/projects')}
-                title="Go to Projects"
+                className="h-auto p-4 flex flex-col items-center space-y-2 bg-gradient-to-r from-green-600 to-cyan-600 hover:from-green-700 hover:to-cyan-700 text-white border-0 shadow-sm"
+                onClick={() => navigate('/projects?create=true')}
+                title="Create New Project"
               >
                 <FolderKanban className="w-6 h-6" />
                 <span>Create Project</span>

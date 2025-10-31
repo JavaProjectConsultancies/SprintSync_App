@@ -589,10 +589,12 @@ const ScrumPage: React.FC = () => {
                     <p className="text-sm text-muted-foreground">{currentSprint.goal}</p>
                   </div>
                   <div className="flex items-center space-x-4 text-sm">
-                    <div className="text-center">
-                      <div className="font-semibold text-green-600">{currentSprint.daysLeft}</div>
-                      <div className="text-xs text-muted-foreground">Days Left</div>
-                    </div>
+                    {currentSprint.daysLeft > 0 && (
+                      <div className="text-center">
+                        <div className="font-semibold text-green-600">{currentSprint.daysLeft}</div>
+                        <div className="text-xs text-muted-foreground">Days Left</div>
+                      </div>
+                    )}
                     <div className="text-center">
                       <div className="font-semibold text-blue-600">{currentSprint.points}</div>
                       <div className="text-xs text-muted-foreground">Story Points</div>

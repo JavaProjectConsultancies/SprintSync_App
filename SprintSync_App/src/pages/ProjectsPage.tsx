@@ -47,9 +47,11 @@ import {
   Link,
   Star,
   Flag,
-  Rocket
+  Rocket,
+  Trash2,
+  Loader2
 } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../components/ui/dropdown-menu';
 import TeamManager from '../components/TeamManager';
 import MilestoneWidget from '../components/MilestoneWidget';
 import MilestoneDialog from '../components/MilestoneDialog';
@@ -176,7 +178,7 @@ const ProjectsPage: React.FC = () => {
   // No need for demo auth setup
 
   // API hooks for real data
-  const { data: apiProjects, loading: projectsLoading, error: projectsError } = useProjects();
+  const { data: apiProjects, loading: projectsLoading, error: projectsError, deleteProject, refetch } = useProjects();
   const { data: apiUsers, loading: usersLoading, error: usersError } = useUsers();
   const { data: apiDepartments, loading: departmentsLoading, error: departmentsError } = useDepartments();
   
@@ -203,6 +205,9 @@ const ProjectsPage: React.FC = () => {
   const [isEpicDialogOpen, setIsEpicDialogOpen] = useState(false);
   const [isReleaseDialogOpen, setIsReleaseDialogOpen] = useState(false);
   const [isRiskDialogOpen, setIsRiskDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [currentEpic, setCurrentEpic] = useState({
     name: '',
     description: '',
@@ -567,8 +572,11 @@ const ProjectsPage: React.FC = () => {
     }
   ];
 
-  // Use API data only - no fallback to mock data
-  const projects = apiProjects || [];
+  // Use API data only - normalize projects: ensure teamMembers is always an array
+  const projects = (apiProjects || []).map(project => ({
+    ...project,
+    teamMembers: Array.isArray((project as any).teamMembers) ? (project as any).teamMembers : []
+  }));
 
   const resetNewProjectForm = () => {
     setNewProject({
@@ -690,6 +698,30 @@ const ProjectsPage: React.FC = () => {
         return;
       }
       
+      // Debug: Log the team lead value before sending
+      console.log('Team Lead Selection Debug:', {
+        teamLead: newProject.teamLead,
+        teamLeadType: typeof newProject.teamLead,
+        selectedUser: apiUsers?.find(u => u.id === newProject.teamLead),
+        allUsers: apiUsers?.map(u => ({ id: u.id, name: u.name, role: u.role }))
+      });
+      
+      // Validate that team lead is selected and exists
+      if (!newProject.teamLead || newProject.teamLead.trim() === '') {
+        alert('Please select a team lead before creating the project.');
+        setIsCreatingProject(false);
+        return;
+      }
+      
+      // Verify the selected team lead exists in the users list
+      const selectedTeamLeadUser = apiUsers?.find(u => u.id === newProject.teamLead);
+      if (!selectedTeamLeadUser) {
+        console.error('Selected team lead not found in users list:', newProject.teamLead);
+        alert(`Error: Selected team lead (${newProject.teamLead}) not found. Please select a valid team lead.`);
+        setIsCreatingProject(false);
+        return;
+      }
+      
       // Prepare comprehensive project data for the new API
       const comprehensiveProjectData = {
         name: newProject.name,
@@ -703,23 +735,50 @@ const ProjectsPage: React.FC = () => {
         template: newProject.template,
         projectType: newProject.projectType,
         departmentId: newProject.department,
-        managerId: newProject.teamLead,
+        managerId: newProject.teamLead, // Use the selected team lead ID
         // Set default values for required fields
         status: 'planning',
         progress: 0,
         spent: '0',
         
         // Requirements
-        requirements: newProject.requirements.map(req => ({
-          title: req.title,
-          description: req.description || '',
-          type: req.type?.toLowerCase().replace('-', '_'),
-          status: req.status?.toLowerCase() || 'draft',
-          priority: req.priority?.toLowerCase(),
-          module: req.module || '',
-          acceptanceCriteria: JSON.stringify(req.acceptanceCriteria || []),
-          effortPoints: req.effort || 0
-        })),
+        requirements: newProject.requirements.map(req => {
+          // Normalize requirement type: backend expects "functional", "non-functional", "technical"
+          let reqType = req.type?.toLowerCase() || 'functional';
+          // Convert common variations to backend format
+          if (reqType === 'non_functional' || reqType === 'nonfunctional') {
+            reqType = 'non-functional';
+          } else if (reqType === 'non-functional') {
+            reqType = 'non-functional'; // Already correct
+          } else if (reqType !== 'functional' && reqType !== 'technical') {
+            reqType = 'functional'; // Default fallback
+          }
+          
+          // Normalize requirement status - backend expects: draft, approved, in-development, completed, pending
+          let reqStatus = req.status?.toLowerCase() || 'draft';
+          if (reqStatus === 'in_progress' || reqStatus === 'inprogress') {
+            reqStatus = 'in-development';
+          } else if (!['draft', 'approved', 'in-development', 'completed', 'pending'].includes(reqStatus)) {
+            reqStatus = 'draft'; // Default fallback
+          }
+          
+          // Normalize priority - backend expects: low, medium, high, critical
+          let reqPriority = req.priority?.toLowerCase() || 'medium';
+          if (!['low', 'medium', 'high', 'critical'].includes(reqPriority)) {
+            reqPriority = 'medium'; // Default fallback
+          }
+          
+          return {
+            title: req.title,
+            description: req.description || '',
+            type: reqType, // Use normalized type (functional, non-functional, technical)
+            status: reqStatus, // Use normalized status
+            priority: reqPriority, // Use normalized priority
+            module: req.module || '',
+            acceptanceCriteria: req.acceptanceCriteria ? (typeof req.acceptanceCriteria === 'string' ? req.acceptanceCriteria : JSON.stringify(req.acceptanceCriteria)) : '[]',
+            effortPoints: req.effort || 0
+          };
+        }),
 
         // Risks
         risks: newProject.risks.map(risk => ({
@@ -740,15 +799,46 @@ const ProjectsPage: React.FC = () => {
           responsibilities: JSON.stringify(stakeholder.responsibilities || [])
         })),
 
-        // Team Members
-        teamMembers: newProject.teamMembers.map(member => ({
-          userId: member.id || member.name,
-          role: member.role,
-          isTeamLead: member.isTeamLead || false,
-          allocatedHours: member.allocatedHours || 0,
-          startDate: '',
-          endDate: ''
-        })),
+        // Team Members - Include the selected team lead if not already in the list
+        teamMembers: (() => {
+          const existingTeamMembers = newProject.teamMembers || [];
+          const teamLeadInList = existingTeamMembers.find(m => (m.id || m.name) === newProject.teamLead);
+          
+          // If team lead is not in the list, add them
+          if (newProject.teamLead && !teamLeadInList) {
+            const teamLeadUser = apiUsers?.find(u => u.id === newProject.teamLead);
+            if (teamLeadUser) {
+              return [
+                {
+                  userId: teamLeadUser.id,
+                  role: teamLeadUser.role || 'manager',
+                  isTeamLead: true,
+                  allocatedHours: 0,
+                  startDate: '',
+                  endDate: ''
+                },
+                ...existingTeamMembers.map(member => ({
+                  userId: member.id || member.name,
+                  role: member.role,
+                  isTeamLead: member.isTeamLead || false,
+                  allocatedHours: member.allocatedHours || 0,
+                  startDate: '',
+                  endDate: ''
+                }))
+              ];
+            }
+          }
+          
+          // If team lead is already in list, ensure isTeamLead is set correctly
+          return existingTeamMembers.map(member => ({
+            userId: member.id || member.name,
+            role: member.role,
+            isTeamLead: (member.id || member.name) === newProject.teamLead || member.isTeamLead || false,
+            allocatedHours: member.allocatedHours || 0,
+            startDate: '',
+            endDate: ''
+          }));
+        })(),
 
         // Epics
         epics: newProject.epics.map(epic => ({
@@ -792,6 +882,11 @@ const ProjectsPage: React.FC = () => {
       };
 
       console.log('Sending comprehensive project data:', comprehensiveProjectData);
+      console.log('Team Lead being sent:', {
+        managerId: comprehensiveProjectData.managerId,
+        teamMembersWithLead: comprehensiveProjectData.teamMembers?.filter(tm => tm.isTeamLead),
+        totalTeamMembers: comprehensiveProjectData.teamMembers?.length || 0
+      });
 
       // Create project with all related entities in one API call
       const response = await projectApiService.createProjectComprehensive(comprehensiveProjectData);
@@ -813,9 +908,10 @@ const ProjectsPage: React.FC = () => {
         console.error('Failed to create comprehensive project:', response);
         alert(`Failed to create project: ${response.message || 'Unknown error'}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating comprehensive project:', error);
-      alert('Error creating project. Please try again.');
+      const errorMessage = error?.message || error?.details?.message || 'Unknown error occurred';
+      alert(`Error creating project: ${errorMessage}\n\nPlease check:\n1. All required fields are filled\n2. Date formats are correct\n3. Status and priority values are valid`);
     } finally {
       setIsCreatingProject(false);
     }
@@ -1352,9 +1448,47 @@ const ProjectsPage: React.FC = () => {
     navigate(`/projects/${project.id}`);
   };
 
+  // Handle delete project
+  const handleDeleteClick = (project: Project, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setProjectToDelete(project);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!projectToDelete) return;
+    
+    try {
+      setIsDeleting(true);
+      await deleteProject(projectToDelete.id.toString());
+      
+      // Close dialogs and reset state
+      setIsDeleteDialogOpen(false);
+      setProjectToDelete(null);
+      
+      // Refresh projects list
+      refetch();
+      
+      // Close project details if it was the deleted project
+      if (selectedProject && selectedProject.id === projectToDelete.id) {
+        setSelectedProject(null);
+        setShowProjectDetails(false);
+      }
+      
+      // Show success message (you can use toast if available)
+      alert(`Project "${projectToDelete.name}" has been deleted successfully.`);
+    } catch (error: any) {
+      console.error('Error deleting project:', error);
+      alert(`Failed to delete project: ${error?.message || 'Unknown error'}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const getProjectMilestones = (projectId: number) => {
     return projectMilestones.filter(m => m.projectId === `proj-${projectId}`);
   };
+
 
   // Filter projects based on user role and access
   const getFilteredProjects = () => {
@@ -1386,7 +1520,7 @@ const ProjectsPage: React.FC = () => {
     user: user,
     projectsCount: projects.length,
     filteredProjectsCount: filteredProjects.length,
-    projects: projects.map(p => ({ id: p.id, name: p.name }))
+    projects: projects.map(p => ({ id: p.id, name: p.name, teamMembersCount: (p.teamMembers || []).length }))
   });
 
   // Deep link: open a project by id via ?open= query from dashboard
@@ -1420,6 +1554,16 @@ const ProjectsPage: React.FC = () => {
   const canAddProject = () => {
     return user?.role === 'admin' || user?.role === 'manager';
   };
+
+  // Handle create project query param from Dashboard
+  useEffect(() => {
+    const createParam = searchParams.get('create');
+    if (createParam === 'true' && canAddProject() && !isNewProjectDialogOpen) {
+      setIsNewProjectDialogOpen(true);
+      // Remove the query param from URL
+      navigate('/projects', { replace: true });
+    }
+  }, [searchParams, canAddProject, isNewProjectDialogOpen, navigate]);
 
   // Render different views based on state
   if (showProjectDetails && selectedProject) {
@@ -1497,21 +1641,25 @@ const ProjectsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Team Members</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedProject.teamMembers.map((member, index) => (
-                      <div key={index} className="flex items-center space-x-2 bg-muted/50 rounded-lg px-3 py-2">
-                        <Avatar className="w-6 h-6">
-                          <AvatarImage src={member.avatar} alt={member.name} />
-                          <AvatarFallback className="text-xs">{getInitials(member.name)}</AvatarFallback>
-                        </Avatar>
-                        <span className="text-sm">{member.name}</span>
-                        <Badge variant="outline" className="text-xs">{member.role}</Badge>
-                      </div>
-                    ))}
+                  <div className="space-y-2">
+                    <Label>Team Members</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {(selectedProject.teamMembers || []).length > 0 ? (
+                        (selectedProject.teamMembers || []).map((member, index) => (
+                          <div key={index} className="flex items-center space-x-2 bg-muted/50 rounded-lg px-3 py-2">
+                            <Avatar className="w-6 h-6">
+                              <AvatarImage src={member.avatar} alt={member.name} />
+                              <AvatarFallback className="text-xs">{getInitials(member.name)}</AvatarFallback>
+                            </Avatar>
+                            <span className="text-sm">{member.name}</span>
+                            <Badge variant="outline" className="text-xs">{member.role}</Badge>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No team members assigned</p>
+                      )}
+                    </div>
                   </div>
-                </div>
               </CardContent>
             </Card>
 
@@ -1960,6 +2108,14 @@ const ProjectsPage: React.FC = () => {
                               <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
                                 Manage Team
                               </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                onClick={(e) => handleDeleteClick(project, e)}
+                                className="text-gray-900 hover:text-gray-900 hover:bg-red-50 focus:text-gray-900 focus:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Delete Project
+                              </DropdownMenuItem>
                             </>
                           )}
                         </DropdownMenuContent>
@@ -2009,16 +2165,19 @@ const ProjectsPage: React.FC = () => {
                     {/* Team Avatars */}
                     <div className="flex items-center justify-between">
                       <div className="flex -space-x-2 overflow-hidden">
-                        {project.teamMembers.slice(0, 4).map((member, index) => (
+                        {(project.teamMembers || []).slice(0, 4).map((member, index) => (
                           <Avatar key={index} className="w-6 h-6 border-2 border-background">
                             <AvatarImage src={member.avatar} alt={member.name} />
                             <AvatarFallback className="text-xs">{getInitials(member.name)}</AvatarFallback>
                           </Avatar>
                         ))}
-                        {project.teamMembers.length > 4 && (
+                        {(project.teamMembers || []).length > 4 && (
                           <div className="w-6 h-6 bg-muted border-2 border-background rounded-full flex items-center justify-center text-xs">
-                            +{project.teamMembers.length - 4}
+                            +{(project.teamMembers || []).length - 4}
                           </div>
+                        )}
+                        {(project.teamMembers || []).length === 0 && (
+                          <div className="text-xs text-muted-foreground">No team members</div>
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground">
@@ -2055,7 +2214,7 @@ const ProjectsPage: React.FC = () => {
                         </span>
                         <span className="flex items-center space-x-1">
                           <Users className="w-4 h-4" />
-                          <span>{project.teamMembers.length} members</span>
+                          <span>{(project.teamMembers || []).length} members</span>
                         </span>
                       </div>
                       <div className="flex items-center space-x-2">
@@ -3271,6 +3430,70 @@ const ProjectsPage: React.FC = () => {
             </Button>
             <Button onClick={saveStakeholder} disabled={!currentStakeholder.name.trim() || !currentStakeholder.role.trim()}>
               Add Stakeholder
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Project Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2 text-red-600">
+              <AlertTriangle className="w-5 h-5" />
+              <span>Delete Project</span>
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this project? This action cannot be undone and will permanently remove the project from the database.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {projectToDelete && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="font-medium text-red-900">Project: {projectToDelete.name}</p>
+                <p className="text-sm text-red-700 mt-1">{projectToDelete.description || 'No description'}</p>
+              </div>
+            )}
+            <div className="mt-4 flex items-start space-x-3 text-sm text-gray-600">
+              <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-medium text-gray-900 mb-1">Warning:</p>
+                <ul className="list-disc list-inside space-y-1 text-gray-600">
+                  <li>This will permanently delete the project from the database</li>
+                  <li>All associated data (sprints, stories, tasks, etc.) may also be deleted</li>
+                  <li>This action cannot be undone</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsDeleteDialogOpen(false);
+                setProjectToDelete(null);
+              }}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+              className="bg-white hover:bg-red-50 text-black hover:text-black border-2 border-red-300 hover:border-red-400 font-medium"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Project
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

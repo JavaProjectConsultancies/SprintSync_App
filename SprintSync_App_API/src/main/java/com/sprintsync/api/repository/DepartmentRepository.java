@@ -53,12 +53,14 @@ public interface DepartmentRepository extends JpaRepository<Department, String> 
      */
     List<Department> findByNameContainingIgnoreCaseOrDescriptionContainingIgnoreCase(String name, String description);
     
-    // TODO: Add is_active column to database and uncomment these methods
-    // /**
-    //  * Find active departments
-    //  * @return list of active departments
-    //  */
-    // List<Department> findByIsActiveTrue();
+    /**
+     * Find active departments
+     * Note: Since isActive is @Transient, this returns all departments
+     * (isActive defaults to true for all departments currently)
+     * @return list of active departments
+     */
+    @Query("SELECT d FROM Department d")
+    List<Department> findByIsActiveTrue();
     
     // /**
     //  * Find inactive departments
