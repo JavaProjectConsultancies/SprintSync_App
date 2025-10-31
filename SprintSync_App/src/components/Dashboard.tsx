@@ -75,28 +75,61 @@ const Dashboard: React.FC = () => {
   const metrics = useMemo(() => {
     if (!user) return null;
     
-    // Calculate metrics from API data
-    const totalProjects = apiProjects?.content?.length || 0;
-    const totalUsers = apiUsers?.content?.length || 0;
-    const totalTasks = apiTasks?.content?.length || 0;
-    const completedTasks = apiTasks?.content?.filter(task => task.status === 'DONE').length || 0;
+    // Calculate metrics from API data - data is an array, not an object with content
+    const totalProjects = Array.isArray(apiProjects) ? apiProjects.length : 0;
+    const totalUsers = Array.isArray(apiUsers) ? apiUsers.length : 0;
+    const totalTasks = Array.isArray(apiTasks) ? apiTasks.length : 0;
+    const completedTasks = Array.isArray(apiTasks) ? apiTasks.filter(task => task.status === 'DONE').length : 0;
+    
+    // Calculate sprint progress from completed vs total sprints
+    const totalSprints = Array.isArray(apiSprints) ? apiSprints.length : 0;
+    const completedSprints = Array.isArray(apiSprints) ? apiSprints.filter(sprint => sprint.status === 'COMPLETED').length : 0;
+    const sprintProgressValue = totalSprints > 0 ? Math.round((completedSprints / totalSprints) * 100) : 0;
+    
+    // Calculate upcoming deadlines (tasks due in next 7 days)
+    const today = new Date();
+    const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const upcomingDeadlines = Array.isArray(apiTasks) ? apiTasks.filter(task => {
+      if (!task.dueDate) return false;
+      const dueDate = new Date(task.dueDate);
+      return dueDate >= today && dueDate <= nextWeek;
+    }).length : 0;
     
     return {
       projectCount: totalProjects,
       teamMembers: totalUsers,
-      sprintProgress: 0, // TODO: Calculate from sprint data
+      sprintProgress: sprintProgressValue,
       taskCompletion: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
-      criticalItems: apiTasks?.content?.filter(task => task.priority === 'CRITICAL').length || 0,
-      upcomingDeadlines: 0 // TODO: Calculate from task due dates
+      criticalItems: Array.isArray(apiTasks) ? apiTasks.filter(task => task.priority === 'CRITICAL').length : 0,
+      upcomingDeadlines
     };
-  }, [user, apiProjects, apiUsers, apiTasks]);
+  }, [user, apiProjects, apiUsers, apiTasks, apiSprints]);
 
   // Filter projects based on user permissions - use API data only
   const accessibleProjects = useMemo(() => {
     if (!user) return [];
-    const projectData = apiProjects?.content || [];
+    const projectData = Array.isArray(apiProjects) ? apiProjects : [];
     return projectData.filter(project => canAccessProject(project.id));
   }, [user, canAccessProject, apiProjects]);
+
+  // Helpers to normalize API Project fields for charts/UI
+  const getProjectProgress = (project: any): number => {
+    return typeof project?.progressPercentage === 'number' ? project.progressPercentage : (project?.progress ?? 0);
+  };
+
+  const getProjectPriorityLower = (project: any): string => {
+    return (project?.priority || '').toString().toLowerCase();
+  };
+
+  const getProjectStatusLower = (project: any): string => {
+    return (project?.status || '').toString().toLowerCase();
+  };
+
+  const getProjectTeamSize = (project: any): number => {
+    if (Array.isArray(project?.teamMembers)) return project.teamMembers.length;
+    if (typeof project?.teamSize === 'number') return project.teamSize;
+    return 5;
+  };
 
   // Generate chart data from API data
   const burndownData = useMemo(() => {
@@ -111,10 +144,10 @@ const Dashboard: React.FC = () => {
   }, [apiSprints, apiTasks]);
 
   const projectStatusData = useMemo(() => {
-    if (!apiProjects?.content) return [];
-    return apiProjects.content.map(project => ({
+    if (!Array.isArray(apiProjects)) return [];
+    return apiProjects.map(project => ({
       name: project.name,
-      value: project.progress || 0
+      value: getProjectProgress(project)
     }));
   }, [apiProjects]);
 
@@ -646,8 +679,8 @@ const Dashboard: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-900">{metrics.projectCount}</div>
-            <p className="text-xs text-blue-700">of 12 total</p>
-            <Progress value={67} className="mt-2 h-1.5" />
+            <p className="text-xs text-blue-700">Total projects</p>
+            <Progress value={metrics.projectCount > 0 ? 100 : 0} className="mt-2 h-1.5" />
           </CardContent>
         </Card>
 
@@ -661,9 +694,9 @@ const Dashboard: React.FC = () => {
             <CheckCircle className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-900">156</div>
-            <p className="text-xs text-green-700">of 234 total</p>
-            <Progress value={67} className="mt-2 h-1.5" />
+            <div className="text-2xl font-bold text-green-900">{metrics.taskCompletion}%</div>
+            <p className="text-xs text-green-700">Task completion rate</p>
+            <Progress value={metrics.taskCompletion} className="mt-2 h-1.5" />
           </CardContent>
         </Card>
 
@@ -678,8 +711,8 @@ const Dashboard: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-purple-900">{metrics.teamMembers}</div>
-            <p className="text-xs text-purple-700">of 24 total</p>
-            <Progress value={75} className="mt-2 h-1.5" />
+            <p className="text-xs text-purple-700">Active users</p>
+            <Progress value={100} className="mt-2 h-1.5" />
           </CardContent>
         </Card>
 
@@ -689,15 +722,16 @@ const Dashboard: React.FC = () => {
           title="View sprint management"
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sprint Velocity</CardTitle>
+            <CardTitle className="text-sm font-medium">Sprint Progress</CardTitle>
             <Zap className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-900">28</div>
+            <div className="text-2xl font-bold text-orange-900">{metrics.sprintProgress}%</div>
             <div className="flex items-center text-xs text-orange-700">
               <TrendingUp className="w-3 h-3 mr-1" />
-              +12%
+              Completed sprints
             </div>
+            <Progress value={metrics.sprintProgress} className="mt-2 h-1.5" />
           </CardContent>
         </Card>
       </div>
@@ -1036,9 +1070,9 @@ const Dashboard: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {hasPermission('manage_projects') && (
               <Button
-                className="h-auto p-4 flex flex-col items-center space-y-2 bg-white hover:bg-gray-50 text-foreground border shadow-sm"
-                onClick={() => navigate('/projects')}
-                title="Go to Projects"
+                className="h-auto p-4 flex flex-col items-center space-y-2 bg-gradient-to-r from-green-600 to-cyan-600 hover:from-green-700 hover:to-cyan-700 text-white border-0 shadow-sm"
+                onClick={() => navigate('/projects?create=true')}
+                title="Create New Project"
               >
                 <FolderKanban className="w-6 h-6" />
                 <span>Create Project</span>

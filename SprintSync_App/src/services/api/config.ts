@@ -1,7 +1,7 @@
 // API Configuration
 export const API_CONFIG = {
   BASE_URL: 'http://localhost:8080/api',
-  TIMEOUT: 10000,
+  TIMEOUT: 120000, // Increased to 120 seconds for very slow database queries
   HEADERS: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',

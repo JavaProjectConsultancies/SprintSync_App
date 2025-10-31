@@ -112,8 +112,8 @@ public class ProjectController {
         
         org.springframework.data.domain.Page<Project> projects = projectService.getAllProjects(page, size, sortBy, sortDir);
         
-        // Convert to DTOs
-        org.springframework.data.domain.Page<ProjectDto> projectDtos = projects.map(projectMapper::toDto);
+        // Convert to DTOs (lightweight mapping to keep list endpoint fast)
+        org.springframework.data.domain.Page<ProjectDto> projectDtos = projects.map(project -> projectMapper.toDto(project, false));
         
         // Return in frontend-compatible format
         Map<String, Object> response = new HashMap<>();
@@ -141,7 +141,7 @@ public class ProjectController {
         
         // Convert to DTOs
         List<ProjectDto> projectDtos = projects.stream()
-                .map(projectMapper::toDto)
+                .map(project -> projectMapper.toDto(project, false))
                 .collect(Collectors.toList());
         
         // Return in frontend-compatible format

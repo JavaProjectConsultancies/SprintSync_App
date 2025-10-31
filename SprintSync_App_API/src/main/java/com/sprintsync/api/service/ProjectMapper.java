@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -66,6 +67,10 @@ public class ProjectMapper {
      * Convert Project entity to ProjectDto
      */
     public ProjectDto toDto(Project project) {
+        return toDto(project, true);
+    }
+
+    public ProjectDto toDto(Project project, boolean includeDetails) {
         if (project == null) {
             return null;
         }
@@ -100,27 +105,30 @@ public class ProjectMapper {
                 .ifPresent(dept -> dto.setDepartment(dept.getName()));
         }
 
-        // Get team members
+        // Get team members and high-level metrics
         dto.setTeamMembers(getTeamMembers(project.getId()));
-
-        // Get sprint counts
         dto.setSprints(getSprintCount(project.getId()));
         dto.setCompletedSprints(getCompletedSprintCount(project.getId()));
-
-        // Set task counts
         dto.setTotalTasks(getTotalTaskCount(project.getId()));
         dto.setCompletedTasks(getCompletedTaskCount(project.getId()));
 
-               // Get real milestones data
-               dto.setMilestones(getMilestones(project.getId()));
-
-               // Get real project detail data
-               dto.setRequirements(getRequirements(project.getId()));
-               dto.setStakeholders(getStakeholders(project.getId()));
-               dto.setRisks(getRisks(project.getId()));
-               dto.setIntegrations(getIntegrations(project.getId()));
-               dto.setEpics(getEpics(project.getId()));
-               dto.setReleases(getReleases(project.getId()));
+        if (includeDetails) {
+            dto.setMilestones(getMilestones(project.getId()));
+            dto.setRequirements(getRequirements(project.getId()));
+            dto.setStakeholders(getStakeholders(project.getId()));
+            dto.setRisks(getRisks(project.getId()));
+            dto.setIntegrations(getIntegrations(project.getId()));
+            dto.setEpics(getEpics(project.getId()));
+            dto.setReleases(getReleases(project.getId()));
+        } else {
+            dto.setMilestones(Collections.emptyList());
+            dto.setRequirements(Collections.emptyList());
+            dto.setStakeholders(Collections.emptyList());
+            dto.setRisks(Collections.emptyList());
+            dto.setIntegrations(Collections.emptyList());
+            dto.setEpics(Collections.emptyList());
+            dto.setReleases(Collections.emptyList());
+        }
 
         return dto;
     }

@@ -1,6 +1,7 @@
 package com.sprintsync.api.service;
 
 import com.sprintsync.api.entity.Risk;
+import com.sprintsync.api.entity.enums.RiskStatus;
 import com.sprintsync.api.repository.RiskRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -81,7 +82,8 @@ public class RiskService {
      * @return list of risks with the specified status
      */
     public List<Risk> findByProjectIdAndStatus(String projectId, String status) {
-        return riskRepository.findByProjectIdAndStatus(projectId, status);
+        RiskStatus statusEnum = RiskStatus.fromValue(status);
+        return riskRepository.findByProjectIdAndStatus(projectId, statusEnum);
     }
 
     /**
@@ -129,6 +131,7 @@ public class RiskService {
      * @return count of risks with the specified status
      */
     public long countByProjectIdAndStatus(String projectId, String status) {
-        return riskRepository.countByProjectIdAndStatus(projectId, status);
+        RiskStatus statusEnum = RiskStatus.fromValue(status);
+        return riskRepository.countByProjectIdAndStatus(projectId, statusEnum);
     }
 }

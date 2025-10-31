@@ -548,14 +548,14 @@ const BacklogPage: React.FC = () => {
             <DialogTrigger asChild>
               <Button className="bg-gradient-primary text-white border-0 hover:opacity-90">
                 <Plus className="w-4 h-4 mr-2" />
-                New Task
+                New Story
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
-                <DialogTitle>Create New Task</DialogTitle>
+                <DialogTitle>Create New Story</DialogTitle>
                 <DialogDescription>
-                  Add a new task to your product backlog
+                  Add a new story to your product backlog
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -665,7 +665,7 @@ const BacklogPage: React.FC = () => {
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input
-                placeholder="Search tasks..."
+                placeholder="Search stories..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9"
@@ -806,7 +806,7 @@ const BacklogPage: React.FC = () => {
       {/* Tasks List */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-medium">Tasks ({filteredTasks.length})</h3>
+          <h3 className="font-medium">Stories ({filteredTasks.length})</h3>
           <div className="flex items-center space-x-2">
             {filteredTasks.reduce((sum, task) => sum + task.storyPoints, 0) > 0 && (
               <Badge variant="secondary">

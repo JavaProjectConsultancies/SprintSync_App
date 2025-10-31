@@ -1,6 +1,7 @@
 package com.sprintsync.api.service;
 
 import com.sprintsync.api.entity.Requirement;
+import com.sprintsync.api.entity.enums.RequirementStatus;
 import com.sprintsync.api.repository.RequirementRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -93,7 +94,8 @@ public class RequirementService {
      * @return list of requirements with the specified status
      */
     public List<Requirement> findByProjectIdAndStatus(String projectId, String status) {
-        return requirementRepository.findByProjectIdAndStatus(projectId, status);
+        RequirementStatus statusEnum = RequirementStatus.fromValue(status);
+        return requirementRepository.findByProjectIdAndStatus(projectId, statusEnum);
     }
 
     /**
@@ -141,6 +143,7 @@ public class RequirementService {
      * @return count of requirements with the specified status
      */
     public long countByProjectIdAndStatus(String projectId, String status) {
-        return requirementRepository.countByProjectIdAndStatus(projectId, status);
+        RequirementStatus statusEnum = RequirementStatus.fromValue(status);
+        return requirementRepository.countByProjectIdAndStatus(projectId, statusEnum);
     }
 }

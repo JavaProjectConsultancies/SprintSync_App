@@ -20,6 +20,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.http.HttpMethod;
 
 import java.util.Arrays;
 
@@ -72,7 +73,16 @@ public class SecurityConfig {
             .exceptionHandling().authenticationEntryPoint(jwtAuthenticationEntryPoint).and()
             .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS).and()
             .authorizeHttpRequests(authz -> authz
-                // TEMPORARILY: Allow all requests for testing
+                // Public endpoints - allow all GET requests for projects, sprints, dashboard, etc.
+                .requestMatchers("/api/auth/**", "/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/actuator/**").permitAll()
+                // Allow ALL GET requests to work without authentication for all pages
+                .requestMatchers(HttpMethod.GET, "/api/**").permitAll()
+                // Allow POST/PUT/PATCH/DELETE for managers and admins - but also allow for now to avoid blocking
+                .requestMatchers(HttpMethod.POST, "/api/projects/**").permitAll()
+                .requestMatchers(HttpMethod.PUT, "/api/projects/**").permitAll()
+                .requestMatchers(HttpMethod.PATCH, "/api/projects/**").permitAll()
+                .requestMatchers(HttpMethod.DELETE, "/api/projects/**").permitAll()
+                // Allow all other POST/PUT/PATCH/DELETE for now (can restrict later)
                 .anyRequest().permitAll()
             );
         

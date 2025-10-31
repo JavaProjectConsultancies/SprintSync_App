@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -57,12 +57,23 @@ interface Task {
   subtasks?: string[];
 }
 
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role?: string;
+  firstName?: string;
+  lastName?: string;
+}
+
 interface AddTaskDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (task: Omit<Task, 'id'>) => void;
+  onSubmit: (task: Omit<Task, 'id'>) => void | Promise<void>;
   stories?: Story[];
   defaultStatus?: string;
+  defaultStoryId?: string;
+  users?: User[];
 }
 
 const AddTaskDialog: React.FC<AddTaskDialogProps> = ({ 
@@ -70,12 +81,14 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
   onClose, 
   onSubmit, 
   stories = [],
-  defaultStatus = 'todo'
+  defaultStatus = 'todo',
+  defaultStoryId,
+  users = []
 }) => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    storyId: 'none',
+    storyId: defaultStoryId || 'none',
     priority: 'medium' as 'high' | 'medium' | 'low',
     assignee: '',
     estimatedHours: 4,
@@ -88,15 +101,30 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
-  // Team members list (in real app, this would come from props or context)
-  const teamMembers = [
-    { name: 'Arjun Patel', avatar: '', role: 'Senior Developer' },
-    { name: 'Priya Sharma', avatar: '', role: 'UI/UX Designer' },
-    { name: 'Sneha Reddy', avatar: '', role: 'QA Engineer' },
-    { name: 'Rahul Kumar', avatar: '', role: 'DevOps Engineer' },
-    { name: 'Vikram Singh', avatar: '', role: 'Full Stack Developer' },
-    { name: 'Ananya Gupta', avatar: '', role: 'Product Manager' }
-  ];
+  // Use API users if provided, otherwise fall back to mock data
+  const teamMembers = users.length > 0 
+    ? users.map(user => {
+        // Handle different user name formats (name, firstName+lastName, or email)
+        const displayName = user.name || 
+                           (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : '') ||
+                           user.email?.split('@')[0].replace(/\./g, ' ') ||
+                           'Unknown User';
+        
+        return {
+          id: user.id,
+          name: displayName,
+          avatar: '',
+          role: user.role || 'Team Member'
+        };
+      })
+    : [
+        { id: '1', name: 'Arjun Patel', avatar: '', role: 'Senior Developer' },
+        { id: '2', name: 'Priya Sharma', avatar: '', role: 'UI/UX Designer' },
+        { id: '3', name: 'Sneha Reddy', avatar: '', role: 'QA Engineer' },
+        { id: '4', name: 'Rahul Kumar', avatar: '', role: 'DevOps Engineer' },
+        { id: '5', name: 'Vikram Singh', avatar: '', role: 'Full Stack Developer' },
+        { id: '6', name: 'Ananya Gupta', avatar: '', role: 'Product Manager' }
+      ];
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
@@ -129,7 +157,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validateForm()) return;
 
     const validSubtasks = formData.subtasks.filter(subtask => subtask.trim());
@@ -147,7 +175,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
       progress: 0
     };
 
-    onSubmit(newTask);
+    await onSubmit(newTask);
     handleReset();
     onClose();
   };
@@ -156,7 +184,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
     setFormData({
       title: '',
       description: '',
-      storyId: 'none',
+      storyId: defaultStoryId || 'none',
       priority: 'medium',
       assignee: '',
       estimatedHours: 4,
@@ -231,6 +259,13 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
       default: return status;
     }
   };
+
+  // Update formData when defaultStoryId changes
+  useEffect(() => {
+    if (defaultStoryId && formData.storyId === 'none') {
+      setFormData(prev => ({ ...prev, storyId: defaultStoryId }));
+    }
+  }, [defaultStoryId, isOpen]);
 
   // Template selection handlers
   const handleTemplateSelect = (templateId: string) => {
@@ -593,11 +628,13 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                       onValueChange={(value) => setFormData(prev => ({ ...prev, assignee: value }))}
                     >
                       <SelectTrigger className={errors.assignee ? 'border-red-300' : ''}>
-                        <SelectValue placeholder="Select team member..." />
+                        <SelectValue placeholder="Select team member...">
+                          {formData.assignee && teamMembers.find(m => m.id === formData.assignee)?.name}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {teamMembers.map(member => (
-                          <SelectItem key={member.name} value={member.name}>
+                          <SelectItem key={member.id} value={member.id}>
                             <div className="flex items-center space-x-3">
                               <Avatar className="h-6 w-6">
                                 <AvatarImage src={member.avatar} alt={member.name} />
@@ -757,16 +794,20 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                   )}
                   
                   <div className="flex items-center justify-between">
-                    {formData.assignee && (
-                      <div className="flex items-center space-x-2">
-                        <Avatar className="h-6 w-6">
-                          <AvatarFallback className="text-xs bg-gradient-to-br from-green-100 to-cyan-100">
-                            {getInitials(formData.assignee)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-xs text-muted-foreground">{formData.assignee.split(' ')[0]}</span>
-                      </div>
-                    )}
+                    {formData.assignee && (() => {
+                      const selectedMember = teamMembers.find(m => m.id === formData.assignee);
+                      const displayName = selectedMember ? selectedMember.name : formData.assignee;
+                      return (
+                        <div className="flex items-center space-x-2">
+                          <Avatar className="h-6 w-6">
+                            <AvatarFallback className="text-xs bg-gradient-to-br from-green-100 to-cyan-100">
+                              {getInitials(displayName)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-xs text-muted-foreground">{displayName.split(' ')[0]}</span>
+                        </div>
+                      );
+                    })()}
                     <div className="flex items-center space-x-2 text-xs text-muted-foreground">
                       <Clock className="w-3 h-3" />
                       <span>{formData.estimatedHours}h</span>

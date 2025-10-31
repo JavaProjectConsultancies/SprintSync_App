@@ -141,8 +141,8 @@ public class AuthService {
             claims.put("userId", savedUser.getId());
             claims.put("name", savedUser.getName());
             claims.put("role", savedUser.getRole().name());
-            claims.put("department", savedUser.getDepartment());
-            claims.put("domain", savedUser.getDomain());
+            claims.put("department", savedUser.getDepartmentId());
+            claims.put("domain", savedUser.getDomainId());
             
             String token = jwtUtil.generateToken(userDetails, claims);
             

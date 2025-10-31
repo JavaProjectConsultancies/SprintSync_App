@@ -116,15 +116,25 @@ const ProjectDetailsPage = () => {
 
   // Update local team members when API data changes
   useEffect(() => {
-    if (apiTeamMembers.length > 0) {
+    console.log('ProjectDetailsPage: Team members update effect triggered', {
+      apiTeamMembersCount: apiTeamMembers.length,
+      apiTeamMembers: apiTeamMembers,
+      projectTeamMembersCount: project?.teamMembers?.length || 0,
+      projectId: id
+    });
+    
+    if (apiTeamMembers && apiTeamMembers.length > 0) {
+      console.log('Setting team members from API:', apiTeamMembers);
       setLocalTeamMembers(apiTeamMembers);
     } else if (project?.teamMembers && project.teamMembers.length > 0) {
       // Fallback to project team members if API data is not available
+      console.log('Setting team members from project data:', project.teamMembers);
       setLocalTeamMembers(project.teamMembers);
     } else {
+      console.log('No team members found, setting empty array');
       setLocalTeamMembers([]);
     }
-  }, [apiTeamMembers, project?.teamMembers]);
+  }, [apiTeamMembers, project?.teamMembers, id]);
 
   // Loading state
   if (loading) {
@@ -237,8 +247,18 @@ const ProjectDetailsPage = () => {
     }
   };
 
+  // Helper function to get initials from name
+  const getInitials = (name: string) => {
+    if (!name) return '??';
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
+
   // Use local team members with real workload and performance
-  const teamMembers = localTeamMembers.map(member => {
+  const teamMembers = localTeamMembers.map((member: any) => {
     // Handle performance - it can be a number or an object
     let performanceValue = 85; // Default
     if (typeof member.performance === 'number') {
@@ -248,18 +268,46 @@ const ProjectDetailsPage = () => {
       performanceValue = member.performance.velocity || member.performance.rating || 85;
     }
     
+    // Handle skills - can be array or string
+    let skillsArray: string[] = [];
+    if (Array.isArray(member.skills)) {
+      skillsArray = member.skills.filter((s: any) => s && s.trim());
+    } else if (typeof member.skills === 'string' && member.skills.trim()) {
+      try {
+        const parsed = JSON.parse(member.skills);
+        skillsArray = Array.isArray(parsed) ? parsed.filter((s: any) => s && s.trim()) : [member.skills.trim()];
+      } catch {
+        skillsArray = member.skills.split(',').map((s: string) => s.trim()).filter((s: string) => s && s.length > 0);
+      }
+    }
+    
+    // Handle workload - use from API or calculate from allocationPercentage
+    let workloadValue = member.workload;
+    if (workloadValue === undefined || workloadValue === null) {
+      // Use allocationPercentage as workload if workload not provided
+      workloadValue = member.allocationPercentage || 0;
+    }
+    
+    // Handle availability - use from API or allocationPercentage
+    let availabilityValue = member.availability;
+    if (availabilityValue === undefined || availabilityValue === null) {
+      // Use allocationPercentage as availability if availability not provided
+      availabilityValue = member.allocationPercentage || 100;
+    }
+    
     return {
-      name: member.name,
-      role: member.role,
-      avatar: member.avatar || '',
-      workload: member.workload || 0, // Real workload data from API
-      performance: performanceValue, // Normalized performance value
-      department: member.department || '',
-      experience: member.experience || 'mid',
-      hourlyRate: member.hourlyRate || 0,
-      availability: member.availability || 100,
-      isTeamLead: member.isTeamLead || false,
-      skills: member.skills || [] // Include skills from API
+      name: member.name || 'Unknown Member',
+      role: member.role || 'Team Member',
+      avatar: member.avatar || member.avatarUrl || '',
+      workload: Math.max(0, Math.min(100, Number(workloadValue) || 0)), // Clamp between 0-100
+      performance: Math.max(0, Math.min(100, Number(performanceValue) || 85)), // Clamp between 0-100
+      department: member.department || 'Unassigned',
+      experience: (member.experience || 'mid').toLowerCase(),
+      hourlyRate: Number(member.hourlyRate) || 0,
+      availability: Math.max(0, Math.min(100, Number(availabilityValue) || 100)), // Clamp between 0-100
+      isTeamLead: member.isTeamLead === true || member.isTeamLead === 'true' || member.isTeamLead === 1,
+      skills: skillsArray.length > 0 ? skillsArray : [],
+      id: member.id || member.userId || `member-${Date.now()}-${Math.random()}`
     };
   });
 
@@ -308,11 +356,6 @@ const ProjectDetailsPage = () => {
       case 'low': return 'bg-green-100 text-green-800';
       default: return 'bg-gray-100 text-gray-800';
     }
-  };
-
-  const getInitials = (name: string) => {
-    if (!name) return '?';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
   return (
@@ -806,9 +849,27 @@ const ProjectDetailsPage = () => {
             </Button>
           </div>
 
+          {teamLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Loading team members...</p>
+              </div>
+            </div>
+          ) : teamMembers.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <div className="text-muted-foreground space-y-2">
+                  <Users className="w-12 h-12 mx-auto opacity-50" />
+                  <p className="font-medium">No team members assigned</p>
+                  <p className="text-sm">Click "Manage Team" to add members to this project</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {teamMembers.map(member => (
-              <Card key={member.name} className="hover:shadow-md transition-shadow">
+            {teamMembers.map((member, index) => (
+              <Card key={member.id || member.name || index} className="hover:shadow-md transition-shadow">
                 <CardContent className="p-4">
                   <div className="flex items-start space-x-3">
                     <Avatar className="w-12 h-12">
@@ -880,6 +941,7 @@ const ProjectDetailsPage = () => {
               </Card>
             ))}
           </div>
+          )}
         </TabsContent>
 
         <TabsContent value="stakeholders" className="space-y-6">
