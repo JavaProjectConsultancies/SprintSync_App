@@ -44,6 +44,9 @@ public class ProjectTeamMemberController {
     @Autowired
     private ProjectService projectService;
 
+    @Autowired
+    private com.sprintsync.api.service.NotificationService notificationService;
+
     /**
      * Get all project team members
      */
@@ -192,6 +195,30 @@ public class ProjectTeamMemberController {
             }
             
             ProjectTeamMember savedTeamMember = projectTeamMemberRepository.save(teamMember);
+            
+            // Create notification for the assigned user
+            if (savedTeamMember.getUserId() != null && !savedTeamMember.getUserId().isEmpty()) {
+                try {
+                    Optional<Project> projectOpt = projectService.findById(savedTeamMember.getProjectId());
+                    if (projectOpt.isPresent()) {
+                        Project project = projectOpt.get();
+                        String title = "Project Assignment";
+                        String message = "You have been assigned to project: " + project.getName();
+                        notificationService.createNotification(
+                            savedTeamMember.getUserId(),
+                            title,
+                            message,
+                            "project",
+                            "project",
+                            project.getId()
+                        );
+                    }
+                } catch (Exception e) {
+                    // Log error but don't fail the assignment
+                    System.err.println("Failed to create notification for project assignment: " + e.getMessage());
+                }
+            }
+            
             return ResponseEntity.ok(savedTeamMember);
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
@@ -338,6 +365,29 @@ public class ProjectTeamMemberController {
             teamMember.setJoinedAt(LocalDateTime.now());
             
             ProjectTeamMember savedTeamMember = projectTeamMemberRepository.save(teamMember);
+            
+            // Create notification for the assigned user
+            if (savedTeamMember.getUserId() != null && !savedTeamMember.getUserId().isEmpty()) {
+                try {
+                    Optional<Project> projectOpt = projectService.findById(savedTeamMember.getProjectId());
+                    if (projectOpt.isPresent()) {
+                        Project project = projectOpt.get();
+                        String title = "Project Assignment";
+                        String message = "You have been assigned to project: " + project.getName();
+                        notificationService.createNotification(
+                            savedTeamMember.getUserId(),
+                            title,
+                            message,
+                            "project",
+                            "project",
+                            project.getId()
+                        );
+                    }
+                } catch (Exception e) {
+                    // Log error but don't fail the assignment
+                    System.err.println("Failed to create notification for project assignment: " + e.getMessage());
+                }
+            }
             
             return ResponseEntity.ok(Map.of(
                 "success", true,

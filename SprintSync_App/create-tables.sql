@@ -256,6 +256,7 @@ CREATE TABLE subtasks (
     due_date DATE,
     bug_type VARCHAR(50),                            -- Bug categorization (functional, ui, performance, security, integration)
     severity VARCHAR(20),                            -- Bug severity (low, medium, high, critical)
+    category VARCHAR(50),                            -- Subtask category (Development, Documentation, Idle, Learning, Meeting, Support, Testing, Training)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -733,3 +734,10 @@ CREATE TRIGGER task_status_notification_trigger
     FOR EACH ROW 
     WHEN (OLD.status IS DISTINCT FROM NEW.status)
     EXECUTE FUNCTION notify_task_status_change();
+
+-- =============================================
+-- MIGRATION SQL FOR EXISTING DATABASES
+-- =============================================
+
+-- Add category column to subtasks table if it doesn't exist
+ALTER TABLE subtasks ADD COLUMN IF NOT EXISTS category VARCHAR(50);

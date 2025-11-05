@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -56,7 +57,9 @@ import {
   Loader2,
   TrendingUp,
   Eye,
-  X
+  X,
+  Paperclip,
+  Link
 } from 'lucide-react';
 
 // Import API hooks
@@ -89,6 +92,7 @@ import { subtaskApiService } from '../services/api/entities/subtaskApi';
 import { taskApiService } from '../services/api/entities/taskApi';
 import { timeEntryApiService } from '../services/api/entities/timeEntryApi';
 import { activityLogApiService } from '../services/api/entities/activityLogApi';
+import { attachmentApiService } from '../services/api/entities/attachmentApi';
 import { useRecentActivityByEntity } from '../hooks/api/useActivityLogs';
 
 import { useProjectById } from '../hooks/api/useProjectById';
@@ -97,6 +101,9 @@ import { useEpics } from '../hooks/api/useEpics';
 import { useReleases } from '../hooks/api/useReleases';
 import { Sprint, Story, Task, Subtask, TimeEntry, ActivityLog, Priority, SprintStatus, StoryStatus, TaskStatus } from '../types/api';
 import AddTaskDialog from '../components/AddTaskDialog';
+import LaneConfigurationModal from '../components/LaneConfigurationModal';
+import { useWorkflowLanesByProject, useCreateWorkflowLane, useUpdateWorkflowLane, useDeleteWorkflowLane } from '../hooks/api/useWorkflowLanes';
+import { WorkflowLane } from '../services/api/entities/workflowLaneApi';
 
 // Drag item types
 const ItemTypes = {
@@ -106,7 +113,9 @@ const ItemTypes = {
 
 const ScrumPage: React.FC = () => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [selectedProject, setSelectedProject] = useState('');
+  const projectInitializedRef = useRef(false);
   const [selectedSprint, setSelectedSprint] = useState('');
   const [activeView, setActiveView] = useState('scrum-board');
   const [isSprintDialogOpen, setIsSprintDialogOpen] = useState(false);
@@ -116,10 +125,19 @@ const ScrumPage: React.FC = () => {
   const [selectedTaskForSubtask, setSelectedTaskForSubtask] = useState<Task | null>(null);
   const [isStoryDetailsOpen, setIsStoryDetailsOpen] = useState(false);
   const [selectedStoryForDetails, setSelectedStoryForDetails] = useState<Story | null>(null);
+  const [storyAttachmentsList, setStoryAttachmentsList] = useState<any[]>([]);
+  const [loadingAttachments, setLoadingAttachments] = useState(false);
   const [isSprintDetailsOpen, setIsSprintDetailsOpen] = useState(false);
   const [selectedSprintForDetails, setSelectedSprintForDetails] = useState<Sprint | null>(null);
   const [isTaskDetailsOpen, setIsTaskDetailsOpen] = useState(false);
   const [selectedTaskForDetails, setSelectedTaskForDetails] = useState<Task | null>(null);
+  const [parentStoryAttachments, setParentStoryAttachments] = useState<any[]>([]);
+  const [loadingParentStoryAttachments, setLoadingParentStoryAttachments] = useState(false);
+  
+  // Workflow lanes state
+  const [isLaneConfigModalOpen, setIsLaneConfigModalOpen] = useState(false);
+  const [selectedLaneForEdit, setSelectedLaneForEdit] = useState<WorkflowLane | null>(null);
+  const [laneCreationSource, setLaneCreationSource] = useState<'inprogress' | 'qa' | null>(null);
   
   // Epics state and dialogs (local epics list for bottom section)
   const [projectEpics, setProjectEpics] = useState<any[]>([]);
@@ -146,7 +164,7 @@ const ScrumPage: React.FC = () => {
   });
 
   // Task details modal state (JIRA-style)
-  const [taskDetailsTab, setTaskDetailsTab] = useState<'details' | 'subtasks' | 'activity'>('details');
+  const [taskDetailsTab, setTaskDetailsTab] = useState<'details' | 'activities' | 'subtasks' | 'due-dates' | 'linked-issues'>('details');
   const [taskComment, setTaskComment] = useState('');
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -154,7 +172,7 @@ const ScrumPage: React.FC = () => {
   
   // Role-based permissions
   const canManageSprintsAndStories = user?.role?.toUpperCase() === 'ADMIN' || user?.role?.toUpperCase() === 'MANAGER';
-  const canAddTasks = true;
+  const canAddTasks = canManageSprintsAndStories; // Only managers/admins can add tasks
   const canLogEffort = true;
 
   // New sprint form state
@@ -182,12 +200,60 @@ const ScrumPage: React.FC = () => {
     labels: [] as string[]
   });
 
+  // Attachment state for new story
+  const [storyAttachments, setStoryAttachments] = useState<File[]>([]);
+  const [uploadingAttachments, setUploadingAttachments] = useState(false);
+
   // Update sprint in newStory when selectedSprint changes
   useEffect(() => {
     if (selectedSprint && !newStory.sprintId) {
       setNewStory(prev => ({ ...prev, sprintId: selectedSprint }));
     }
   }, [selectedSprint]);
+
+  // Fetch attachments when story details dialog opens
+  useEffect(() => {
+    const fetchStoryAttachments = async () => {
+      if (selectedStoryForDetails?.id && isStoryDetailsOpen) {
+        setLoadingAttachments(true);
+        try {
+          const response = await attachmentApiService.getAttachmentsByEntity('story', selectedStoryForDetails.id);
+          setStoryAttachmentsList(response.data || []);
+        } catch (error) {
+          console.error('Error fetching story attachments:', error);
+          setStoryAttachmentsList([]);
+        } finally {
+          setLoadingAttachments(false);
+        }
+      } else {
+        setStoryAttachmentsList([]);
+      }
+    };
+
+    fetchStoryAttachments();
+  }, [selectedStoryForDetails?.id, isStoryDetailsOpen]);
+
+  // Fetch parent story attachments when task details dialog opens
+  useEffect(() => {
+    const fetchParentStoryAttachments = async () => {
+      if (selectedTaskForDetails?.storyId && isTaskDetailsOpen) {
+        setLoadingParentStoryAttachments(true);
+        try {
+          const response = await attachmentApiService.getAttachmentsByEntity('story', selectedTaskForDetails.storyId);
+          setParentStoryAttachments(response.data || []);
+        } catch (error) {
+          console.error('Error fetching parent story attachments:', error);
+          setParentStoryAttachments([]);
+        } finally {
+          setLoadingParentStoryAttachments(false);
+        }
+      } else {
+        setParentStoryAttachments([]);
+      }
+    };
+
+    fetchParentStoryAttachments();
+  }, [selectedTaskForDetails?.storyId, isTaskDetailsOpen]);
 
   // New task form state
   const [newTask, setNewTask] = useState({
@@ -205,10 +271,12 @@ const ScrumPage: React.FC = () => {
     title: '',
     description: '',
     taskId: '',
-    priority: 'MEDIUM' as Priority,
     assigneeId: '',
-    estimatedHours: 0
+    estimatedHours: 0,
+    category: '',
+    dueDate: ''
   });
+  const [isCreatingSubtask, setIsCreatingSubtask] = useState(false);
   
   // Fetch epics for selected project
   useEffect(() => {
@@ -234,15 +302,66 @@ const ScrumPage: React.FC = () => {
   const { data: projectsData, loading: projectsLoading } = useProjects();
   const { project: currentProject, loading: projectLoading, refetch: refetchProject } = useProjectById(selectedProject || 'SKIP');
   
+  // API Hooks - Workflow Lanes
+  const { data: workflowLanesData, loading: workflowLanesLoading, refetch: refetchWorkflowLanes } = useWorkflowLanesByProject(selectedProject || 'SKIP');
+  const createWorkflowLaneMutation = useCreateWorkflowLane();
+  const updateWorkflowLaneMutation = useUpdateWorkflowLane();
+  const deleteWorkflowLaneMutation = useDeleteWorkflowLane();
+  
   // Extract projects list
   const projects = projectsData || [];
 
-  // Ensure a project is selected by default once projects load
+  // Check for project in URL query params or sessionStorage, then ensure a project is selected
+  // Extract project ID from query params (as string) for stable dependency
+  const projectFromQuery = searchParams.get('project');
+  
   useEffect(() => {
-    if (!selectedProject && projects && projects.length > 0) {
-      setSelectedProject((projects[0] as any).id || '');
+    // Only run if we have projects loaded and haven't initialized yet
+    if (!projects || projects.length === 0 || projectInitializedRef.current) {
+      return;
     }
-  }, [projects, selectedProject]);
+    
+    // First check URL query parameter
+    if (projectFromQuery) {
+      setSelectedProject(projectFromQuery);
+      projectInitializedRef.current = true;
+      // Clean up sessionStorage after using it
+      try {
+        sessionStorage.removeItem('openProjectId');
+      } catch {}
+      return;
+    }
+    
+    // Fallback to sessionStorage
+    try {
+      const projectFromStorage = sessionStorage.getItem('openProjectId');
+      if (projectFromStorage) {
+        setSelectedProject(projectFromStorage);
+        projectInitializedRef.current = true;
+        sessionStorage.removeItem('openProjectId');
+        return;
+      }
+    } catch {}
+    
+    // If no project specified anywhere, select first available project
+    if (projects && projects.length > 0) {
+      const firstProjectId = (projects[0] as any).id || '';
+      if (firstProjectId) {
+        setSelectedProject(firstProjectId);
+        projectInitializedRef.current = true;
+      }
+    }
+  }, [projects, projectFromQuery]);
+  
+  // Handle URL query parameter changes (when user navigates with ?project=)
+  useEffect(() => {
+    if (projectFromQuery && projectFromQuery !== selectedProject) {
+      setSelectedProject(projectFromQuery);
+      try {
+        sessionStorage.removeItem('openProjectId');
+      } catch {}
+    }
+  }, [projectFromQuery, selectedProject]);
 
   // API Hooks - Epics and Releases
   const { data: epicsData, loading: epicsLoading } = useEpics();
@@ -282,9 +401,22 @@ const ScrumPage: React.FC = () => {
   
   // State for all subtasks
   const [allSubtasks, setAllSubtasks] = useState<Subtask[]>([]);
+  // Use ref to track previous task IDs to prevent infinite loops
+  const previousTaskIdsRef = useRef<string>('');
 
   // Fetch subtasks when tasks change
   useEffect(() => {
+    // Create a stable string representation of task IDs for comparison
+    const currentTaskIds = allTasks.map(task => task.id).sort().join(',');
+    
+    // Only fetch if task IDs actually changed
+    if (currentTaskIds === previousTaskIdsRef.current) {
+      return;
+    }
+    
+    // Update ref before async operation
+    previousTaskIdsRef.current = currentTaskIds;
+    
     const fetchSubtasks = async () => {
       if (allTasks.length === 0) {
         setAllSubtasks([]);
@@ -318,41 +450,80 @@ const ScrumPage: React.FC = () => {
   const [usersLoading, setUsersLoading] = useState(false);
 
   // Function to fetch all tasks for all stories in the sprint
-  const fetchAllTasks = useCallback(async (stories: Story[]) => {
-    if (!selectedSprint || stories.length === 0) {
+  // Use ref to track if we're currently fetching to prevent duplicate calls
+  const isFetchingTasksRef = useRef(false);
+  
+  const fetchAllTasks = useCallback(async (stories: Story[], includeBacklog: boolean = false) => {
+    // Prevent concurrent fetches
+    if (isFetchingTasksRef.current) {
+      return;
+    }
+    
+    if (!selectedProject || (!selectedSprint && !includeBacklog)) {
       setAllTasks([]);
       return;
     }
 
+    isFetchingTasksRef.current = true;
     setTasksLoading(true);
     try {
       const token = localStorage.getItem('authToken') || 'eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJkb21haW4iOiJET01OMDAwMDAwMDAwMDAwMSIsIm5hbWUiOiJBZG1pbiBVc2VyIiwiZGVwYXJ0bWVudCI6IkRFUFQwMDAwMDAwMDAwMDEiLCJ1c2VySWQiOiJVU0VSMDAwMDAwMDAwMDAxIiwic3ViIjoiYWRtaW5Ac3ByaW50c3luYy5jb20iLCJpYXQiOjE3NTk3NDg0NjUsImV4cCI6MTc1OTgzNDg2NX0.QdwUhiS_AvtqzTefTe14N7TKWB1jzrQg01Sz_lNOGBleAPqfVAgTHf97-JmCUQKZyXtAqkhYD-HN3YAMDywxRg';
       
-      const taskPromises = stories.map(async (story: Story) => {
-        const response = await fetch(`http://localhost:8080/api/tasks/story/${story.id}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
+      // Get backlog stories for the current project
+      const currentBacklogStories = selectedProject 
+        ? ((Array.isArray(backlogStoriesData) ? backlogStoriesData : backlogStoriesData?.data || []).filter((s: Story) => s.status === 'BACKLOG'))
+        : [];
+      
+      // Get all stories to fetch tasks from (sprint stories + backlog stories)
+      const allStoriesToFetch = includeBacklog 
+        ? [...stories, ...currentBacklogStories]
+        : stories;
+      
+      if (allStoriesToFetch.length === 0) {
+        setAllTasks([]);
+        return;
+      }
+      
+      const taskPromises = allStoriesToFetch.map(async (story: Story) => {
+        try {
+          const response = await fetch(`http://localhost:8080/api/tasks/story/${story.id}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            const tasks = Array.isArray(data) ? data : (data?.data || []);
+            return tasks;
           }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          return Array.isArray(data) ? data : (data?.data || []);
+          return [];
+        } catch (error) {
+          console.error(`Error fetching tasks for story ${story.id}:`, error);
+          return [];
         }
-        return [];
       });
 
       const taskArrays = await Promise.all(taskPromises);
-      const allTasksFlat = taskArrays.flat();
+      let allTasksFlat = taskArrays.flat();
+      
+      // Role-based filtering: Non-managers/admins see only their assigned tasks
+      if (!canManageSprintsAndStories && user) {
+        allTasksFlat = allTasksFlat.filter(task => task.assigneeId === user.id);
+        console.log(`Filtered tasks for user ${user.name}: showing ${allTasksFlat.length} assigned tasks`);
+      }
+      
+      console.log(`Fetched ${allTasksFlat.length} tasks from ${allStoriesToFetch.length} stories`);
       setAllTasks(allTasksFlat);
     } catch (error) {
       console.error('Error fetching tasks:', error);
       setAllTasks([]);
     } finally {
       setTasksLoading(false);
+      isFetchingTasksRef.current = false;
     }
-  }, [selectedSprint]);
+  }, [selectedSprint, selectedProject, canManageSprintsAndStories, user, backlogStoriesData]);
 
   // Function to fetch users for displaying names
   const fetchUsers = useCallback(async () => {
@@ -381,49 +552,174 @@ const ScrumPage: React.FC = () => {
 
   // Extract data from API responses (only use data if valid project/sprint selected)
   // Note: useApi hook returns data directly (not wrapped in .data property)
-  const sprints = selectedProject ? (Array.isArray(sprintsData) ? sprintsData : sprintsData?.data || []) : [];
-  const currentSprint = sprints.find((s: Sprint) => s.id === selectedSprint);
-  const sprintStories = selectedSprint ? (Array.isArray(sprintStoriesData) ? sprintStoriesData : sprintStoriesData?.data || []) : [];
-  const backlogStories = selectedProject ? ((Array.isArray(backlogStoriesData) ? backlogStoriesData : backlogStoriesData?.data || []).filter((s: Story) => s.status === 'BACKLOG')) : [];
+  // Memoize arrays to prevent infinite loops from new references on every render
+  const sprints = useMemo(() => {
+    return selectedProject ? (Array.isArray(sprintsData) ? sprintsData : sprintsData?.data || []) : [];
+  }, [selectedProject, sprintsData]);
+  
+  const currentSprint = useMemo(() => {
+    return sprints.find((s: Sprint) => s.id === selectedSprint);
+  }, [sprints, selectedSprint]);
+  
+  const sprintStories = useMemo(() => {
+    return selectedSprint ? (Array.isArray(sprintStoriesData) ? sprintStoriesData : sprintStoriesData?.data || []) : [];
+  }, [selectedSprint, sprintStoriesData]);
+  
+  const backlogStories = useMemo(() => {
+    return selectedProject ? ((Array.isArray(backlogStoriesData) ? backlogStoriesData : backlogStoriesData?.data || []).filter((s: Story) => s.status === 'BACKLOG')) : [];
+  }, [selectedProject, backlogStoriesData]);
 
-  // Debug logging
+  // Workflow lanes - separate into lanes after In Progress and lanes after QA
+  const workflowLanes = useMemo(() => {
+    const lanes = selectedProject ? (Array.isArray(workflowLanesData) ? workflowLanesData : workflowLanesData?.data || []) : [];
+    const sortedLanes = [...lanes].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+    return sortedLanes;
+  }, [selectedProject, workflowLanesData]);
+  
+  // Calculate custom lanes count separately
+  const customLanesCount = useMemo(() => {
+    const defaultOrders = [1, 2, 3, 4, 10, 20, 30, 40];
+    const customLanes = workflowLanes.filter(lane => {
+      const order = lane.displayOrder || 0;
+      return !defaultOrders.includes(order);
+    });
+    return customLanes.length;
+  }, [workflowLanes]);
+  
+  // Separate lanes into those after In Progress and those after QA
+  const lanesAfterInProgress = useMemo(() => {
+    const defaultOrders = [1, 2, 3, 4, 10, 20, 30, 40];
+    const allCustomLanes = workflowLanes.filter(lane => {
+      const order = lane.displayOrder || 0;
+      return !defaultOrders.includes(order);
+    });
+    const filtered = allCustomLanes.filter(lane => {
+      const order = lane.displayOrder || 0;
+      return (order > 20 && order < 30) || (order > 2 && order < 3);
+    });
+    filtered.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+    return filtered;
+  }, [workflowLanes]);
+  
+  const lanesAfterQA = useMemo(() => {
+    const defaultOrders = [1, 2, 3, 4, 10, 20, 30, 40];
+    const allCustomLanes = workflowLanes.filter(lane => {
+      const order = lane.displayOrder || 0;
+      return !defaultOrders.includes(order);
+    });
+    const filtered = allCustomLanes.filter(lane => {
+      const order = lane.displayOrder || 0;
+      return (order > 30 && order < 40) || (order > 3 && order < 4);
+    });
+    filtered.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+    return filtered;
+  }, [workflowLanes]);
+  
+  // Log lane count information
+  useEffect(() => {
+    console.log('=== WORKFLOW LANES COUNT ===');
+    console.log('Total lanes fetched:', workflowLanes.length);
+    console.log('Custom lanes created:', customLanesCount);
+    console.log('Lanes after In Progress:', lanesAfterInProgress.length);
+    console.log('Lanes after QA:', lanesAfterQA.length);
+    console.log('=== DETAILED LANE INFORMATION ===');
+    console.log('Selected Project:', selectedProject);
+    console.log('All Lanes:', workflowLanes.map(l => ({
+      id: l.id,
+      title: l.title,
+      color: l.color,
+      displayOrder: l.displayOrder,
+      statusValue: l.statusValue
+    })));
+    console.log(`✓ Lanes After In Progress: ${lanesAfterInProgress.length} lane(s)`);
+    lanesAfterInProgress.forEach((lane, idx) => {
+      console.log(`  ${idx + 1}. ${lane.title} (Order: ${lane.displayOrder})`);
+    });
+    console.log(`✓ Lanes After QA: ${lanesAfterQA.length} lane(s)`);
+    lanesAfterQA.forEach((lane, idx) => {
+      console.log(`  ${idx + 1}. ${lane.title} (Order: ${lane.displayOrder})`);
+    });
+  }, [workflowLanes.length, customLanesCount, lanesAfterInProgress.length, lanesAfterQA.length, selectedProject]);
+
+  // Debug logging (removed excessive dependencies that cause re-renders)
+  // Only log when key data actually changes, not on every render
   useEffect(() => {
     console.log('=== SCRUM PAGE DEBUG ===');
     console.log('Selected Project:', selectedProject);
-    console.log('Sprints Data Raw:', sprintsData);
-    console.log('Is Sprints Data Array?:', Array.isArray(sprintsData));
-    console.log('Sprints Extracted:', sprints);
     console.log('Sprints Count:', sprints.length);
     console.log('Selected Sprint:', selectedSprint);
-    
-    console.log('=== SPRINT STORIES DEBUG ===');
-    console.log('Sprint Stories Data Raw:', sprintStoriesData);
-    console.log('Sprint Stories Extracted:', sprintStories);
     console.log('Sprint Stories Count:', sprintStories.length);
-    console.log('Sprint Stories IDs:', sprintStories.map(s => s.id));
-    console.log('Sprint Stories Names:', sprintStories.map(s => s.title));
-    
-    console.log('=== TASKS DEBUG ===');
     console.log('All Tasks Count:', allTasks.length);
-    console.log('All Tasks:', allTasks.map(t => ({ id: t.id, title: t.title, storyId: t.storyId })));
     
     if (sprints.length > 0) {
       console.log('✅ Sprints loaded successfully!');
-      console.log('Sprint names:', sprints.map(s => s.name));
     } else if (selectedProject && !sprintsLoading) {
       console.log('⚠️ No sprints found for project:', selectedProject);
     }
-  }, [selectedProject, sprintsData, sprints, selectedSprint, sprintsLoading, sprintStoriesData, sprintStories, allTasks]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProject, selectedSprint]); // Reduced dependencies to prevent excessive re-renders
 
   // Fetch tasks when sprint stories change
+  // Use a ref to track previous story IDs to prevent infinite loops
+  const previousStoryIdsRef = useRef<string>('');
+  
   useEffect(() => {
-    fetchAllTasks(sprintStories);
-  }, [fetchAllTasks, sprintStories]);
+    // Create a stable string representation of story IDs for comparison
+    const currentStoryIds = sprintStories.map((story: Story) => story.id).sort().join(',');
+    
+    // Only fetch if story IDs actually changed
+    if (currentStoryIds === previousStoryIdsRef.current) {
+      return;
+    }
+    
+    // Update ref before async operation
+    previousStoryIdsRef.current = currentStoryIds;
+    
+    // Only fetch if we have stories (sprint or backlog)
+    if (sprintStories.length > 0 || backlogStories.length > 0) {
+      fetchAllTasks(sprintStories, true); // Include backlog stories
+    } else {
+      // Clear tasks if no stories
+      setAllTasks([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sprintStories, backlogStories]); // Depend on both sprint and backlog stories
 
   // Fetch users when component mounts
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
+
+  // Add window focus listener to refresh tasks when user returns to the page
+  // This ensures tasks created from admin panel are visible
+  useEffect(() => {
+    const handleFocus = () => {
+      // Refresh tasks when window gains focus (user returns from admin panel)
+      if (selectedProject && (sprintStories.length > 0 || backlogStories.length > 0)) {
+        console.log('Window focused - refreshing tasks');
+        fetchAllTasks(sprintStories, true);
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [selectedProject, sprintStories, backlogStories, fetchAllTasks]);
+
+  // Also refresh tasks periodically (every 30 seconds) to catch external changes
+  useEffect(() => {
+    if (!selectedProject || (sprintStories.length === 0 && backlogStories.length === 0)) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      console.log('Periodic task refresh');
+      fetchAllTasks(sprintStories, true);
+    }, 30000); // Refresh every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [selectedProject, sprintStories, backlogStories, fetchAllTasks]);
 
   // Set initial project selection - Auto-select first ACTIVE project
   useEffect(() => {
@@ -530,25 +826,53 @@ const ScrumPage: React.FC = () => {
   };
 
   // Task status mapping
-  const mapTaskStatusToColumn = (status: TaskStatus): string => {
-    switch (status) {
+  const mapTaskStatusToColumn = (status: TaskStatus | string): string => {
+    // Check if status matches a custom lane statusValue
+    const customLane = workflowLanes.find(lane => 
+      lane.statusValue && status === lane.statusValue
+    );
+    if (customLane) {
+      return customLane.statusValue;
+    }
+    
+    // Check if status is a custom lane statusValue (starts with custom_lane_)
+    if (typeof status === 'string' && status.startsWith('custom_lane_')) {
+      return status;
+    }
+    
+    // Handle TaskStatus enum values
+    switch (status as TaskStatus) {
       case 'TO_DO': return 'todo';
       case 'IN_PROGRESS': return 'inprogress';
       case 'QA_REVIEW': return 'qa';
       case 'DONE': return 'done';
       case 'BLOCKED': return 'todo'; // Blocked tasks appear in TODO
       case 'CANCELLED': return 'done'; // Cancelled tasks appear in DONE
-      default: return 'todo';
+      default: 
+        return 'todo';
     }
   };
 
-  const mapColumnToTaskStatus = (column: string): TaskStatus => {
+  const mapColumnToTaskStatus = (column: string): TaskStatus | string => {
+    // Check if column is a custom lane statusValue
+    const customLane = workflowLanes.find(lane => 
+      lane.statusValue && lane.statusValue === column
+    );
+    if (customLane) {
+      return customLane.statusValue; // Return custom statusValue as string
+    }
+    
     switch (column) {
       case 'todo': return 'TO_DO';
       case 'inprogress': return 'IN_PROGRESS';
       case 'qa': return 'QA_REVIEW';
       case 'done': return 'DONE';
-      default: return 'TO_DO';
+      default: 
+        // If it's a custom lane statusValue, return it as-is
+        if (column && column.startsWith('custom_lane_')) {
+          return column;
+        }
+        return 'TO_DO';
     }
   };
 
@@ -568,10 +892,21 @@ const ScrumPage: React.FC = () => {
 
   // Get tasks for a specific story
   const getTasksForStory = (storyId: string) => {
-    return allTasks.filter(task => 
-      task.storyId === storyId && 
-      sprintStories.some(story => story.id === storyId) // Ensure story is in current sprint
-    );
+    return allTasks
+      .filter(task => 
+        task.storyId === storyId && 
+        sprintStories.some(story => story.id === storyId) // Ensure story is in current sprint
+      )
+      .sort((a, b) => {
+        // Sort by task number, then by creation date if task numbers are the same
+        const aNum = a.taskNumber || 0;
+        const bNum = b.taskNumber || 0;
+        if (aNum !== bNum) {
+          return aNum - bNum;
+        }
+        // Fallback to creation date if task numbers are the same
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
   };
 
   // Get subtasks for a specific task
@@ -579,31 +914,30 @@ const ScrumPage: React.FC = () => {
     return allSubtasks.filter(subtask => subtask.taskId === taskId);
   };
 
-  // Get tasks by column status (only tasks from stories in the current sprint)
-  const getTasksByStatus = (status: string) => {
+  // Get tasks by column status (tasks from stories in the current sprint or backlog)
+  const getTasksByStatus = useCallback((status: string) => {
     if (status === 'stories') {
       return []; // No tasks in the Stories column
     }
     
-    // Filter tasks to only include those whose parent stories are in the current sprint
+    // Filter tasks to include those whose parent stories are in the current sprint OR backlog
     const filteredTasks = allTasks.filter(task => {
-      // Check if the task's parent story is in the current sprint
+      // Check if the task's parent story is in the current sprint or backlog
       const parentStoryInSprint = sprintStories.some(story => story.id === task.storyId);
+      const parentStoryInBacklog = backlogStories.some(story => story.id === task.storyId);
       
-      // Only show tasks whose parent story is in the sprint AND status matches the column
-      return parentStoryInSprint && mapTaskStatusToColumn(task.status) === status;
+      if (!parentStoryInSprint && !parentStoryInBacklog) return false;
+      
+      // Check if task status directly matches the status (for custom lanes)
+      if (task.status === status) return true;
+      
+      // Only show tasks whose parent story is in sprint/backlog AND status matches the column
+      const mappedStatus = mapTaskStatusToColumn(task.status);
+      return mappedStatus === status;
     });
     
-    // Debug logging for task filtering
-    console.log(`=== TASK FILTERING DEBUG (${status}) ===`);
-    console.log('All tasks count:', allTasks.length);
-    console.log('Sprint stories count:', sprintStories.length);
-    console.log('Sprint story IDs:', sprintStories.map(s => s.id));
-    console.log('Filtered tasks count:', filteredTasks.length);
-    console.log('Filtered tasks:', filteredTasks.map(t => ({ id: t.id, title: t.title, storyId: t.storyId, status: t.status })));
-    
     return filteredTasks;
-  };
+  }, [allTasks, sprintStories, backlogStories, workflowLanes, mapTaskStatusToColumn]);
 
   // Group tasks by their parent story (only from stories in current sprint)
   const getTasksGroupedByStory = (status: string) => {
@@ -625,6 +959,18 @@ const ScrumPage: React.FC = () => {
       }
       return acc;
     }, {} as Record<string, { story?: Story; tasks: Task[] }>);
+
+    // Sort tasks by task number within each story group
+    Object.keys(grouped).forEach(storyTitle => {
+      grouped[storyTitle].tasks.sort((a, b) => {
+        const aNum = a.taskNumber || 0;
+        const bNum = b.taskNumber || 0;
+        if (aNum !== bNum) {
+          return aNum - bNum;
+        }
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
+    });
 
     return grouped;
   };
@@ -684,6 +1030,41 @@ const ScrumPage: React.FC = () => {
     return filtered;
   };
 
+  // Helper function to convert file to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  // Helper function to create attachment with file
+  const uploadFileAndCreateAttachment = async (file: File, entityType: string, entityId: string): Promise<void> => {
+    try {
+      // Convert file to base64 data URL
+      const fileDataUrl = await fileToBase64(file);
+      const fileType = file.type || 'application/octet-stream';
+      
+      // Create attachment record directly with base64 data URL
+      await attachmentApiService.createAttachment({
+        uploadedBy: user?.id,
+        entityType,
+        entityId,
+        fileName: file.name,
+        fileSize: file.size,
+        fileType,
+        fileUrl: fileDataUrl, // Store as base64 data URL
+        thumbnailUrl: undefined,
+        isPublic: true
+      });
+    } catch (error) {
+      console.error('Error creating attachment:', error);
+      throw error;
+    }
+  };
+
   // Story creation handler
   const handleCreateStory = async () => {
     if (!selectedProject) {
@@ -720,7 +1101,26 @@ const ScrumPage: React.FC = () => {
       isActive: true
     };
 
-    await createStoryMutate(storyData as any);
+    const createdStory = await createStoryMutate(storyData as any);
+    
+    // Upload attachments if any
+    if (storyAttachments.length > 0 && createdStory?.data?.id) {
+      setUploadingAttachments(true);
+      try {
+        const uploadPromises = storyAttachments.map(file => 
+          uploadFileAndCreateAttachment(file, 'story', createdStory.data.id)
+        );
+        await Promise.all(uploadPromises);
+        toast.success(`Story created with ${storyAttachments.length} attachment(s)`);
+      } catch (error) {
+        console.error('Error uploading attachments:', error);
+        toast.error('Story created but some attachments failed to upload');
+      } finally {
+        setUploadingAttachments(false);
+      }
+    } else {
+      toast.success('Story created successfully');
+    }
     
     // Reset form with default sprint
     setNewStory({
@@ -737,6 +1137,7 @@ const ScrumPage: React.FC = () => {
       estimatedHours: undefined,
       labels: []
     });
+    setStoryAttachments([]);
     
     // Close dialog
     setIsAddStoryDialogOpen(false);
@@ -752,14 +1153,18 @@ const ScrumPage: React.FC = () => {
   // Drag and drop handlers
   const moveItem = useCallback(async (id: string, newStatus: string, itemType: string) => {
     if (itemType === ItemTypes.TASK) {
+      // Check if newStatus is a valid default status or a custom lane statusValue
       const validStatuses = ['todo', 'inprogress', 'qa', 'done'];
-      if (validStatuses.includes(newStatus)) {
+      const isCustomLane = workflowLanes.some(lane => lane.statusValue === newStatus);
+      
+      if (validStatuses.includes(newStatus) || isCustomLane) {
         const task = allTasks.find(t => t.id === id);
         const oldStatus = task?.status;
+        const mappedStatus = mapColumnToTaskStatus(newStatus);
         
         await updateTaskStatusMutate({
             id,
-            status: mapColumnToTaskStatus(newStatus)
+            status: mappedStatus as any // Allow custom status strings
           });
           
         // Log activity
@@ -769,9 +1174,9 @@ const ScrumPage: React.FC = () => {
             entityType: 'tasks',
             entityId: id,
             action: 'status_changed',
-            description: `Changed status from ${oldStatus} to ${mapColumnToTaskStatus(newStatus)}`,
+            description: `Changed status from ${oldStatus} to ${mappedStatus}`,
             oldValues: JSON.stringify({ status: oldStatus }),
-            newValues: JSON.stringify({ status: mapColumnToTaskStatus(newStatus) }),
+            newValues: JSON.stringify({ status: mappedStatus }),
             ipAddress: undefined, // Not tracking IP from frontend
             userAgent: undefined  // Not tracking user agent from frontend
           });
@@ -780,8 +1185,8 @@ const ScrumPage: React.FC = () => {
         }
         
         toast.success('Task status updated');
-        // Refetch tasks to update the UI
-        await fetchAllTasks(sprintStories);
+        // Refetch tasks to update the UI (include backlog stories)
+        await fetchAllTasks(sprintStories, true);
       }
     } else if (itemType === ItemTypes.STORY) {
       const validStatuses = ['backlog', 'stories', 'todo', 'inprogress', 'qa', 'done'];
@@ -854,10 +1259,10 @@ const ScrumPage: React.FC = () => {
   };
 
   // Add Story Handler
-  const handleAddStory = () => {
+  const handleAddStory = async () => {
     if (!canManageSprintsAndStories) return;
     
-    createStoryMutate({
+    const createdStory = await createStoryMutate({
         projectId: selectedProject,
         title: newStory.title,
         description: newStory.description,
@@ -870,26 +1275,181 @@ const ScrumPage: React.FC = () => {
         assigneeId: '',
         status: activeView === 'backlog' ? 'BACKLOG' as StoryStatus : 'TODO' as StoryStatus,
         isActive: true
-      });
-      
+      } as any);
+    
+    // Upload attachments if any
+    if (storyAttachments.length > 0 && createdStory?.data?.id) {
+      setUploadingAttachments(true);
+      try {
+        const uploadPromises = storyAttachments.map(file => 
+          uploadFileAndCreateAttachment(file, 'story', createdStory.data.id)
+        );
+        await Promise.all(uploadPromises);
+        toast.success(`Story created with ${storyAttachments.length} attachment(s)`);
+      } catch (error) {
+        console.error('Error uploading attachments:', error);
+        toast.error('Story created but some attachments failed to upload');
+      } finally {
+        setUploadingAttachments(false);
+      }
+    } else {
       toast.success('Story created successfully');
-      refetchSprintStories();
-      refetchBacklogStories();
+    }
       
-      setNewStory({
-        title: '',
-        description: '',
-        acceptanceCriteria: '',
-        storyPoints: 0,
-        priority: 'MEDIUM',
-        epicId: '',
-        releaseId: ''
-      });
-      setIsAddStoryDialogOpen(false);
+    refetchSprintStories();
+    refetchBacklogStories();
+    
+    setNewStory({
+      title: '',
+      description: '',
+      acceptanceCriteria: '',
+      storyPoints: 0,
+      priority: 'MEDIUM',
+      epicId: '',
+      releaseId: ''
+    });
+    setStoryAttachments([]);
+    setIsAddStoryDialogOpen(false);
   };
 
   // Add Task Handler - Updated to accept AddTaskDialog format
   // AddTaskDialog now returns assignee as user ID
+  // Handler for creating/updating workflow lane
+  const handleCreateWorkflowLane = async (laneData: Partial<WorkflowLane>) => {
+    try {
+      if (selectedLaneForEdit?.id) {
+        await updateWorkflowLaneMutation.mutate({ id: selectedLaneForEdit.id, lane: laneData });
+        toast.success('Workflow lane updated successfully');
+      } else {
+        if (!laneData.projectId) {
+          toast.error('Project ID is required');
+          return;
+        }
+        if (!laneData.title || !laneData.title.trim()) {
+          toast.error('Lane title is required');
+          return;
+        }
+        
+        if (!laneData.displayOrder || laneData.displayOrder === 0) {
+          const defaultOrders = [1, 2, 3, 4, 10, 20, 30, 40];
+          const customLanes = workflowLanes.filter(l => {
+            const order = l.displayOrder || 0;
+            return !defaultOrders.includes(order);
+          });
+          
+          if (laneCreationSource === 'inprogress') {
+            const lanesAfterInProgress = customLanes.filter(l => {
+              const order = l.displayOrder || 0;
+              return order > 20 && order < 30;
+            });
+            const maxOrder = lanesAfterInProgress.length > 0 
+              ? Math.max(...lanesAfterInProgress.map(l => l.displayOrder || 0))
+              : 20;
+            laneData.displayOrder = Math.min(maxOrder + 1, 29);
+          } else if (laneCreationSource === 'qa') {
+            const lanesAfterQA = customLanes.filter(l => {
+              const order = l.displayOrder || 0;
+              return order > 30 && order < 40;
+            });
+            const maxOrder = lanesAfterQA.length > 0 
+              ? Math.max(...lanesAfterQA.map(l => l.displayOrder || 0))
+              : 30;
+            laneData.displayOrder = Math.min(maxOrder + 1, 39);
+          } else {
+            const lanesAfterQA = customLanes.filter(l => {
+              const order = l.displayOrder || 0;
+              return order > 30 && order < 40;
+            });
+            const maxOrder = lanesAfterQA.length > 0 
+              ? Math.max(...lanesAfterQA.map(l => l.displayOrder || 0))
+              : 30;
+            laneData.displayOrder = Math.min(maxOrder + 1, 39);
+          }
+        }
+        
+        // Fetch lanes from database and check if lane already exists
+        const defaultOrders = [1, 2, 3, 4, 10, 20, 30, 40];
+        const existingLane = workflowLanes.find(l => 
+          l.title.toLowerCase() === laneData.title?.toLowerCase().trim() && 
+          l.projectId === laneData.projectId &&
+          !defaultOrders.includes(l.displayOrder || 0)
+        );
+        
+        if (existingLane) {
+          toast.error('A lane with this name already exists for this project. Please use a different name.');
+          return;
+        }
+        
+        // Check if lane exists in other sections (to prevent duplicate creation)
+        const allExistingLanes = workflowLanes.filter(l => 
+          l.projectId === laneData.projectId &&
+          !defaultOrders.includes(l.displayOrder || 0)
+        );
+        
+        // If lane with same title exists in any section, don't create
+        const duplicateLane = allExistingLanes.find(l => 
+          l.title.toLowerCase() === laneData.title?.toLowerCase().trim()
+        );
+        
+        if (duplicateLane) {
+          toast.error(`A lane named "${laneData.title}" already exists in this project. Please use a different name.`);
+          return;
+        }
+        
+        await createWorkflowLaneMutation.mutate(laneData);
+        toast.success('Workflow lane created successfully');
+      }
+      await refetchWorkflowLanes();
+      setIsLaneConfigModalOpen(false);
+      setSelectedLaneForEdit(null);
+      setLaneCreationSource(null);
+    } catch (error: any) {
+      console.error('Error saving workflow lane:', error);
+      const errorMessage = error?.message || error?.details?.error || 'Unknown error occurred';
+      toast.error(selectedLaneForEdit?.id 
+        ? `Failed to update workflow lane: ${errorMessage}` 
+        : `Failed to create workflow lane: ${errorMessage}`);
+    }
+  };
+
+  // Handler for deleting workflow lane
+  const handleDeleteWorkflowLane = async (laneId: string) => {
+    if (!window.confirm('Are you sure you want to delete this workflow lane? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      await deleteWorkflowLaneMutation.mutate(laneId);
+      toast.success('Workflow lane deleted successfully');
+      refetchWorkflowLanes();
+    } catch (error) {
+      console.error('Error deleting workflow lane:', error);
+      toast.error('Failed to delete workflow lane');
+    }
+  };
+
+  // Handler for opening lane configuration modal (for editing)
+  const handleOpenLaneConfig = (lane?: WorkflowLane) => {
+    setSelectedLaneForEdit(lane || null);
+    setIsLaneConfigModalOpen(true);
+  };
+
+  // Handler for opening lane configuration modal for a specific status
+  const handleOpenLaneConfigForStatus = (status: string) => {
+    console.log('handleOpenLaneConfigForStatus called with status:', status);
+    if (status === 'inprogress') {
+      setLaneCreationSource('inprogress');
+    } else if (status === 'qa') {
+      setLaneCreationSource('qa');
+    } else {
+      setLaneCreationSource(null);
+    }
+    setSelectedLaneForEdit(null);
+    console.log('Setting isLaneConfigModalOpen to true');
+    setIsLaneConfigModalOpen(true);
+    console.log('Modal should now be open');
+  };
+
   const handleAddTask = async (taskDataFromDialog: any) => {
     try {
       // The dialog now sends assignee as user ID directly
@@ -971,6 +1531,22 @@ const ScrumPage: React.FC = () => {
       const response = await createTaskMutate(taskData);
       
       if (response && response.data) {
+        // Upload attachments if any
+        if (taskDataFromDialog.attachments && taskDataFromDialog.attachments.length > 0) {
+          try {
+            const uploadPromises = taskDataFromDialog.attachments.map((file: File) => 
+              uploadFileAndCreateAttachment(file, 'task', response.data.id)
+            );
+            await Promise.all(uploadPromises);
+            toast.success(`Task created with ${taskDataFromDialog.attachments.length} attachment(s)`);
+          } catch (error) {
+            console.error('Error uploading attachments:', error);
+            toast.error('Task created but some attachments failed to upload');
+          }
+        } else {
+          toast.success('Task created successfully');
+        }
+
         // Log activity
         try {
           await activityLogApiService.createActivityLog({
@@ -978,7 +1554,7 @@ const ScrumPage: React.FC = () => {
             entityType: 'tasks',
             entityId: response.data.id,
             action: 'created',
-            description: `Created task "${taskDataFromDialog.title}"`,
+            description: `Created task "${taskDataFromDialog.title}"${taskDataFromDialog.attachments && taskDataFromDialog.attachments.length > 0 ? ` with ${taskDataFromDialog.attachments.length} attachment(s)` : ''}`,
             newValues: JSON.stringify(taskData),
             ipAddress: undefined,
             userAgent: undefined
@@ -986,17 +1562,14 @@ const ScrumPage: React.FC = () => {
         } catch (error) {
           console.error('Failed to log activity:', error);
         }
-
-        toast.success('Task created successfully');
         
-        // Refresh tasks and stories
+        // Refresh tasks and stories (both sprint and backlog)
         refetchSprintStories();
-        if (taskData.storyId) {
-          // Refetch tasks for the story
-          setTimeout(() => {
-            fetchAllTasks(sprintStories);
-          }, 500);
-        }
+        refetchBacklogStories();
+        // Refetch tasks after a short delay to ensure stories are updated
+        setTimeout(() => {
+          fetchAllTasks(sprintStories, true);
+        }, 500);
       } else {
         throw new Error('Failed to create task');
       }
@@ -1008,25 +1581,61 @@ const ScrumPage: React.FC = () => {
 
   // View Task Details Handler (JIRA-style) - will be defined in component scope
 
+  // Handle subtask dialog close
+  const handleSubtaskDialogClose = (open: boolean) => {
+    setIsAddSubtaskDialogOpen(open);
+    if (!open) {
+      setNewSubtask({
+        title: '',
+        description: '',
+        taskId: '',
+        assigneeId: '',
+        estimatedHours: 0,
+        category: '',
+        dueDate: ''
+      });
+      setSelectedTaskForSubtask(null);
+    }
+  };
+
   // Add Subtask Handler
   const handleAddSubtask = async () => {
+    if (!newSubtask.title.trim()) {
+      toast.error('Please enter a subtask title');
+      return;
+    }
+    
+    setIsCreatingSubtask(true);
     try {
+      // Format due date if provided
+      let formattedDueDate: string | undefined = undefined;
+      if (newSubtask.dueDate) {
+        try {
+          const date = new Date(newSubtask.dueDate);
+          if (!isNaN(date.getTime())) {
+            formattedDueDate = date.toISOString().split('T')[0];
+          }
+        } catch (e) {
+          console.error('Error formatting due date:', e);
+        }
+      }
+
       const subtaskData = {
         taskId: selectedTaskForSubtask?.id || '',
         title: newSubtask.title,
         description: newSubtask.description,
         isCompleted: false,
-        assigneeId: newSubtask.assigneeId || '',
+        assigneeId: newSubtask.assigneeId || undefined,
         estimatedHours: newSubtask.estimatedHours,
         actualHours: 0,
         orderIndex: 0,
-        dueDate: newSubtask.dueDate || '',
-        priority: newSubtask.priority || 'MEDIUM',
-        status: 'TO_DO',
+        dueDate: formattedDueDate,
+        category: newSubtask.category || undefined,
         labels: []
       };
       
-      await subtaskApiService.createSubtask(subtaskData);
+      const result = await subtaskApiService.createSubtask(subtaskData);
+      console.log('Subtask created result:', result);
       
       // Log activity for subtask creation
       try {
@@ -1048,31 +1657,35 @@ const ScrumPage: React.FC = () => {
       
       toast.success('Subtask created successfully');
       
-      // Refetch tasks to update allTasks, which will trigger subtasks refetch
-      if (sprintStories.length > 0) {
-        const tasksPromises = sprintStories.map(story => 
-          taskApiService.getTasksByStory(story.id)
-            .then(response => response.data)
-            .catch(() => [])
-        );
-        const tasksArrays = await Promise.all(tasksPromises);
-        const tasks = tasksArrays.flat();
-        setAllTasks(tasks);
+      // Manually refetch subtasks for the specific task to update the display immediately
+      if (selectedTaskForSubtask) {
+        try {
+          const response = await subtaskApiService.getSubtasksByTask(selectedTaskForSubtask.id);
+          // Update allSubtasks with the new data
+          setAllSubtasks(prev => {
+            // Remove existing subtasks for this task and add new ones
+            const otherSubtasks = prev.filter(st => st.taskId !== selectedTaskForSubtask.id);
+            return [...otherSubtasks, ...response.data];
+          });
+          
+          // Also reset the previousTaskIdsRef to force refetch on next change
+          previousTaskIdsRef.current = '';
+        } catch (error) {
+          console.error('Failed to refetch subtasks:', error);
+        }
       }
       
-      setNewSubtask({
-        title: '',
-        description: '',
-        taskId: '',
-        priority: 'MEDIUM',
-        assigneeId: '',
-        estimatedHours: 0
-      });
+      // Also refetch all tasks to ensure everything is in sync
+      if (sprintStories.length > 0) {
+        fetchAllTasks(sprintStories, true);
+      }
+      
       setIsAddSubtaskDialogOpen(false);
-      setSelectedTaskForSubtask(null);
     } catch (error) {
       toast.error('Failed to create subtask');
       console.error('Error creating subtask:', error);
+    } finally {
+      setIsCreatingSubtask(false);
     }
   };
 
@@ -1457,14 +2070,7 @@ const ScrumPage: React.FC = () => {
       
       // Refresh tasks and subtasks
       if (sprintStories.length > 0) {
-        const tasksPromises = sprintStories.map(story => 
-          taskApiService.getTasksByStory(story.id)
-            .then(response => response.data)
-            .catch(() => [])
-        );
-        const tasksArrays = await Promise.all(tasksPromises);
-        const tasks = tasksArrays.flat();
-        setAllTasks(tasks); // This will trigger subtasks refetch via useEffect
+        fetchAllTasks(sprintStories, true);
       }
 
       setEffortLog({
@@ -1643,6 +2249,12 @@ const ScrumPage: React.FC = () => {
     // Calculate time progress percentage
     const timeProgress = estimatedHours > 0 ? Math.min(100, (actualHours / estimatedHours) * 100) : 0;
 
+    // Get task number (default to index + 1 if not set)
+    const taskNumber = task.taskNumber || (index + 1);
+    
+    // Get assignee name
+    const assigneeName = task.assigneeId ? getUserName(task.assigneeId) : null;
+
     return (
       <div
         ref={drag}
@@ -1657,103 +2269,34 @@ const ScrumPage: React.FC = () => {
           'border-l-green-500'
         } bg-white hover:shadow-lg transition-all duration-200 rounded-lg overflow-hidden`}>
           
-          {/* Main Task Section */}
+          {/* Main Task Section - Simplified to show only name */}
           <CardContent className="p-3 bg-gradient-to-r from-gray-50 to-white">
-            {/* Task Header */}
+            {/* Task Header with Number and Assignee */}
             <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center space-x-2">
-                <GripVertical className="w-3.5 h-3.5 text-gray-400" />
-                <Badge variant="secondary" className="text-xs px-2 py-0.5 bg-gray-700 text-white font-bold">
-                  TSK-{String(index + 1).padStart(3, '0')}
-                </Badge>
-                <Badge variant="outline" className={`text-xs px-2 py-0.5 font-bold ${getPriorityColor(task.priority)}`}>
-                  {task.priority.charAt(0)}
-                </Badge>
-              </div>
-              <div className="flex items-center space-x-1">
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-6 w-6 p-0 hover:bg-purple-100"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedTaskForSubtask(task);
-                    setNewSubtask(prev => ({ ...prev, taskId: task.id }));
-                    setIsAddSubtaskDialogOpen(true);
-                  }}
-                  title="Add subtask"
-                >
-                  <Layers3 className="w-3.5 h-3.5 text-purple-600" />
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-6 w-6 p-0 hover:bg-blue-100"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleViewTaskDetails();
-                  }}
-                  title="View task details"
-                >
-                  <Eye className="w-3.5 h-3.5 text-blue-600" />
-                </Button>
-              </div>
+              <Badge variant="secondary" className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 font-medium">
+                T{taskNumber}
+              </Badge>
+              {assigneeName && (
+                <div className="flex items-center space-x-1">
+                  <User className="w-3 h-3 text-gray-500" />
+                  <span className="text-xs text-gray-600 truncate max-w-[100px]" title={assigneeName}>
+                    {assigneeName}
+                  </span>
+                </div>
+              )}
             </div>
             
-            {/* Task Title */}
-            <h4 className="font-semibold text-sm mb-2 line-clamp-2 leading-tight text-gray-900">
+            {/* Task Name - Clickable */}
+            <h4 
+              className="font-semibold text-sm leading-tight text-gray-900 cursor-pointer hover:text-blue-600 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleViewTaskDetails();
+              }}
+              title="Click to view task details"
+            >
               {task.title}
             </h4>
-
-            {/* Task Stats Row */}
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center space-x-2 flex-wrap gap-1">
-                {/* Time Tracking - JIRA style (Roll-up from subtasks) */}
-                <div className="flex items-center space-x-1 text-xs bg-white px-2 py-1 rounded border border-gray-200 whitespace-nowrap">
-                  <Clock className="w-3 h-3 text-gray-500 flex-shrink-0" />
-                  <span className="text-gray-700 font-medium">{estimatedHours}h</span>
-                  {actualHours > 0 && (
-                    <>
-                      <span className="text-gray-400">•</span>
-                      <span className="text-blue-600 font-semibold">{actualHours.toFixed(1)}h</span>
-                      <span className="text-gray-400">•</span>
-                      <span className={`font-semibold ${remainingHours > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                        {remainingHours.toFixed(1)}h left
-                      </span>
-                    </>
-                  )}
-                </div>
-                
-                {/* Subtask Counter */}
-                {totalSubtasks > 0 && (
-                  <Badge variant="outline" className="text-xs px-2 py-0.5 bg-purple-50 text-purple-700 border-purple-300 font-medium whitespace-nowrap">
-                    <Layers3 className="w-3 h-3 mr-1 flex-shrink-0" />
-                    {completedSubtasks}/{totalSubtasks}
-                  </Badge>
-                )}
-              </div>
-              <div className="flex items-center space-x-1 flex-shrink-0">
-                {/* Assignee */}
-                {task.assigneeId && (
-                  <Avatar className="h-6 w-6 border-2 border-white shadow-sm">
-                    <AvatarFallback className="text-xs bg-gradient-to-br from-blue-200 to-cyan-200 text-blue-900 font-semibold">
-                      {getUserName(task.assigneeId).split(' ').map(n => n[0]).join('').toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                )}
-              </div>
-            </div>
-
-            {/* Task Progress Bar (like JIRA) */}
-            {totalSubtasks > 0 && (
-              <div className="mt-2">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs text-gray-500 font-medium">Completion</span>
-                  <span className="text-xs font-semibold text-gray-700">{Math.round(subtaskProgress)}%</span>
-                </div>
-                <Progress value={subtaskProgress} className="h-2" />
-              </div>
-            )}
           </CardContent>
 
         </Card>
@@ -1968,48 +2511,6 @@ const ScrumPage: React.FC = () => {
             </Card>
           )}
 
-          {/* Epics Section */}
-          <div className="mt-6 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Epics</h3>
-              <div className="space-x-2">
-                <Button variant="outline" size="sm" onClick={() => setIsEpicTemplateDialogOpen(true)}>
-                  From Template
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setIsAddEpicDialogOpen(true)}>
-                  Add Epic
-                </Button>
-              </div>
-            </div>
-            {projectEpics && projectEpics.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {projectEpics.map((epic: any) => (
-                  <Card key={epic.id} className="border-green-200">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <Badge variant="outline" className="text-xs">
-                              {(epic.priority || 'MEDIUM').toString().toLowerCase()}
-                            </Badge>
-                            <Badge variant="outline" className="text-xs">
-                              {(epic.status || 'PLANNING').toString().toLowerCase()}
-                            </Badge>
-                          </div>
-                          <h4 className="font-medium mt-1">{epic.title}</h4>
-                          <p className="text-sm text-muted-foreground line-clamp-2">{epic.summary || epic.description || 'No description'}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <Card className="border-dashed">
-                <CardContent className="p-6 text-center text-muted-foreground text-sm">No epics yet</CardContent>
-              </Card>
-            )}
-          </div>
         </div>
 
         <TabsContent value="backlog" className="mt-0 flex-1">
@@ -2084,7 +2585,12 @@ const ScrumPage: React.FC = () => {
           ) : (
             <div className="relative border rounded-lg overflow-hidden bg-gradient-to-br from-white to-green-50/30">
               {/* Fixed Column Headers */}
-              <div className="sticky top-0 z-10 grid grid-cols-6 gap-0 bg-gray-100 border-b shadow-sm">
+              <div 
+                className="sticky top-0 z-10 grid gap-0 bg-gray-100 border-b shadow-sm"
+                style={{ 
+                  gridTemplateColumns: `minmax(200px, 1fr) repeat(${3 + lanesAfterInProgress.length + lanesAfterQA.length}, minmax(180px, 1fr)) minmax(180px, 1fr) minmax(150px, 1fr)`
+                }}
+              >
                 <div className="p-3 bg-green-100/80 border-r border-gray-200">
                   <div className="flex items-center space-x-2">
                     <BookOpen className="w-4 h-4 text-green-600" />
@@ -2099,21 +2605,291 @@ const ScrumPage: React.FC = () => {
                     <Badge variant="secondary" className="text-xs">{getTasksByStatus('todo').length}</Badge>
                   </div>
                 </div>
-                <div className="p-3 bg-orange-100/80 border-r border-gray-200">
-                  <div className="flex items-center space-x-2">
-                    <PlayCircle className="w-4 h-4 text-orange-600" />
-                    <span className="font-semibold text-sm">In Progress</span>
-                    <Badge variant="secondary" className="text-xs">{getTasksByStatus('inprogress').length}</Badge>
+                {/* Default In Progress Column */}
+                <div className="p-3 bg-orange-100/80 border-r border-gray-200 min-w-[180px]">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center space-x-2 min-w-0">
+                      <PlayCircle className="w-4 h-4 text-orange-600 flex-shrink-0" />
+                      <span className="font-semibold text-sm whitespace-nowrap">In Progress</span>
+                      <Badge variant="secondary" className="text-xs flex-shrink-0">{getTasksByStatus('inprogress').length}</Badge>
+                    </div>
+                    {canManageSprintsAndStories && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 hover:bg-orange-200 flex-shrink-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                          >
+                            <MoreHorizontal className="w-4 h-4 text-orange-600" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              console.log('Add Lane clicked from In Progress');
+                              handleOpenLaneConfigForStatus('inprogress');
+                            }}
+                          >
+                            <Settings className="w-4 h-4 mr-2" />
+                            Add Lane
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => {
+                              const lane = workflowLanes.find(l => 
+                                l.statusValue?.toLowerCase().includes('in_progress') || 
+                                l.statusValue?.toLowerCase().includes('inprogress')
+                              );
+                              if (lane?.id) {
+                                handleDeleteWorkflowLane(lane.id);
+                              }
+                            }}
+                            className="text-red-600"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete Lane
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
                 </div>
-                <div className="p-3 bg-purple-100/80 border-r border-gray-200">
-                  <div className="flex items-center space-x-2">
-                    <Shield className="w-4 h-4 text-purple-600" />
-                    <span className="font-semibold text-sm">QA</span>
-                    <Badge variant="secondary" className="text-xs">{getTasksByStatus('qa').length}</Badge>
+                
+                {/* Render Custom Lanes After In Progress (before QA) */}
+                {lanesAfterInProgress.map((lane) => {
+                    const tasksInLane = getTasksByStatus(lane.statusValue);
+                    const laneColor = lane.color || '#3B82F6';
+                    // Convert hex color to RGB for background opacity
+                    const hexToRgb = (hex: string) => {
+                      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                      return result ? {
+                        r: parseInt(result[1], 16),
+                        g: parseInt(result[2], 16),
+                        b: parseInt(result[3], 16)
+                      } : { r: 59, g: 130, b: 246 };
+                    };
+                    const rgb = hexToRgb(laneColor);
+                    const bgColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)`;
+                    const borderColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`;
+                    
+                    return (
+                      <div 
+                        key={lane.id} 
+                        className="p-3 border-r border-gray-200 min-w-[180px]"
+                        style={{ 
+                          backgroundColor: bgColor,
+                          borderRightColor: borderColor
+                        }}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center space-x-2 min-w-0">
+                            <div 
+                              className="w-4 h-4 rounded-full border-2 border-white shadow-sm flex-shrink-0"
+                              style={{ backgroundColor: laneColor }}
+                            />
+                            <span className="font-semibold text-sm whitespace-nowrap" style={{ color: laneColor }}>
+                              {lane.title}
+                            </span>
+                            <Badge variant="secondary" className="text-xs flex-shrink-0">{tasksInLane.length}</Badge>
+                            {lane.wipLimitEnabled && lane.wipLimit && (
+                              <Badge 
+                                variant={tasksInLane.length > lane.wipLimit ? "destructive" : "secondary"}
+                                className="text-xs flex-shrink-0"
+                              >
+                                WIP: {tasksInLane.length}/{lane.wipLimit}
+                              </Badge>
+                            )}
+                          </div>
+                          {canManageSprintsAndStories && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 flex-shrink-0"
+                                  style={{ color: laneColor }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                  }}
+                                >
+                                  <MoreHorizontal className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => handleOpenLaneConfig(lane)}
+                                >
+                                  <Settings className="w-4 h-4 mr-2" />
+                                  Configure Lane
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => handleDeleteWorkflowLane(lane.id)}
+                                  className="text-red-600"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Delete Lane
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </div>
+                        {lane.objective && (
+                          <p className="text-xs text-gray-600 mt-1 line-clamp-1 truncate">{lane.objective}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                
+                {/* Default QA Column */}
+                <div className="p-3 bg-purple-100/80 border-r border-gray-200 min-w-[180px]">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center space-x-2 min-w-0">
+                      <Shield className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                      <span className="font-semibold text-sm whitespace-nowrap">QA</span>
+                      <Badge variant="secondary" className="text-xs flex-shrink-0">{getTasksByStatus('qa').length}</Badge>
+                    </div>
+                    {canManageSprintsAndStories && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 hover:bg-purple-200 flex-shrink-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                          >
+                            <MoreHorizontal className="w-4 h-4 text-purple-600" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              console.log('Add Lane clicked from QA');
+                              handleOpenLaneConfigForStatus('qa');
+                            }}
+                          >
+                            <Settings className="w-4 h-4 mr-2" />
+                            Add Lane
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => {
+                              const lane = workflowLanes.find(l => 
+                                l.statusValue?.toLowerCase().includes('qa') || 
+                                l.statusValue?.toLowerCase().includes('review')
+                              );
+                              if (lane?.id) {
+                                handleDeleteWorkflowLane(lane.id);
+                              }
+                            }}
+                            className="text-red-600"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete Lane
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
                 </div>
-                <div className="p-3 bg-emerald-100/80 border-r border-gray-200">
+                
+                {/* Render Custom Lanes After QA (before Done) */}
+                {lanesAfterQA.map((lane) => {
+                    const tasksInLane = getTasksByStatus(lane.statusValue);
+                    const laneColor = lane.color || '#3B82F6';
+                    // Convert hex color to RGB for background opacity
+                    const hexToRgb = (hex: string) => {
+                      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                      return result ? {
+                        r: parseInt(result[1], 16),
+                        g: parseInt(result[2], 16),
+                        b: parseInt(result[3], 16)
+                      } : { r: 59, g: 130, b: 246 };
+                    };
+                    const rgb = hexToRgb(laneColor);
+                    const bgColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)`;
+                    const borderColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`;
+                    
+                    return (
+                      <div 
+                        key={lane.id} 
+                        className="p-3 border-r border-gray-200 min-w-[180px]"
+                        style={{ 
+                          backgroundColor: bgColor,
+                          borderRightColor: borderColor
+                        }}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center space-x-2 min-w-0">
+                            <div 
+                              className="w-4 h-4 rounded-full border-2 border-white shadow-sm flex-shrink-0"
+                              style={{ backgroundColor: laneColor }}
+                            />
+                            <span className="font-semibold text-sm whitespace-nowrap" style={{ color: laneColor }}>
+                              {lane.title}
+                            </span>
+                            <Badge variant="secondary" className="text-xs flex-shrink-0">{tasksInLane.length}</Badge>
+                            {lane.wipLimitEnabled && lane.wipLimit && (
+                              <Badge 
+                                variant={tasksInLane.length > lane.wipLimit ? "destructive" : "secondary"}
+                                className="text-xs flex-shrink-0"
+                              >
+                                WIP: {tasksInLane.length}/{lane.wipLimit}
+                              </Badge>
+                            )}
+                          </div>
+                          {canManageSprintsAndStories && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 flex-shrink-0"
+                                  style={{ color: laneColor }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                  }}
+                                >
+                                  <MoreHorizontal className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => handleOpenLaneConfig(lane)}
+                                >
+                                  <Settings className="w-4 h-4 mr-2" />
+                                  Configure Lane
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => handleDeleteWorkflowLane(lane.id)}
+                                  className="text-red-600"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Delete Lane
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </div>
+                        {lane.objective && (
+                          <p className="text-xs text-gray-600 mt-1 line-clamp-1 truncate">{lane.objective}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                
+                <div className="p-3 bg-emerald-100/80 border-r border-gray-200 min-w-[180px]">
                   <div className="flex items-center space-x-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                     <span className="font-semibold text-sm">Done</span>
@@ -2179,7 +2955,7 @@ const ScrumPage: React.FC = () => {
                     });
 
                     // Drop zone component for each cell
-                    const TaskDropZone: React.FC<{ status: string; tasks: Task[]; bgClass: string }> = ({ status, tasks, bgClass }) => {
+                    const TaskDropZone: React.FC<{ status: string; tasks: Task[]; bgClass: string; style?: React.CSSProperties }> = ({ status, tasks, bgClass, style }) => {
                       const [{ isOver }, drop] = useDrop(() => ({
                         accept: ItemTypes.TASK,
                         drop: (item: { id: string; type: string }) => {
@@ -2194,6 +2970,7 @@ const ScrumPage: React.FC = () => {
                         <div 
                           ref={drop}
                           className={`p-3 border-r border-gray-200 ${bgClass} ${isOver ? 'bg-blue-100 ring-2 ring-blue-400 ring-inset' : ''} transition-all`}
+                          style={style}
                         >
                           <div className="space-y-2 min-h-[80px]">
                             {tasks.map((task, taskIndex) => (
@@ -2209,24 +2986,94 @@ const ScrumPage: React.FC = () => {
                       );
                     };
 
+                    // Helper to get tasks for a custom lane
+                    const getTasksForLane = (statusValue: string) => {
+                      return allTasks.filter(task => {
+                        if (task.storyId !== story.id) return false;
+                        // Check if task status directly matches the lane's statusValue
+                        if (task.status === statusValue) return true;
+                        // Also check mapped status
+                        const mappedColumn = mapTaskStatusToColumn(task.status);
+                        return mappedColumn === statusValue;
+                      });
+                    };
+
                     return (
-                      <div key={story.id} className={`grid grid-cols-6 gap-0 border-b border-gray-200 ${storyIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
+                      <div 
+                        key={story.id} 
+                        className={`grid gap-0 border-b border-gray-200 ${storyIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
+                        style={{ 
+                          gridTemplateColumns: `minmax(200px, 1fr) repeat(${3 + lanesAfterInProgress.length + lanesAfterQA.length}, minmax(180px, 1fr)) minmax(180px, 1fr) minmax(150px, 1fr)`
+                        }}
+                      >
                         {/* Story Column */}
                         <div className="p-4 border-r border-gray-200 bg-green-50/20" style={{ minHeight: `${maxTaskCount * 120}px` }}>
                           <DraggableStory story={story} index={storyIndex} />
                         </div>
 
                         {/* To Do Column */}
-                        <TaskDropZone status="todo" tasks={todoTasks} bgClass="bg-blue-50/10" />
+                        <TaskDropZone status="todo" tasks={todoTasks} bgClass="bg-blue-50/10" style={{ minWidth: '180px' }} />
 
                         {/* In Progress Column */}
-                        <TaskDropZone status="inprogress" tasks={inProgressTasks} bgClass="bg-orange-50/10" />
+                        <TaskDropZone status="inprogress" tasks={inProgressTasks} bgClass="bg-orange-50/10" style={{ minWidth: '180px' }} />
 
-                        {/* QA Column */}
-                        <TaskDropZone status="qa" tasks={qaTasks} bgClass="bg-purple-50/10" />
+                        {/* Render custom lanes after In Progress */}
+                        {lanesAfterInProgress.map((lane) => {
+                          const laneTasks = getTasksForLane(lane.statusValue);
+                          const laneColor = lane.color || '#3B82F6';
+                          const hexToRgb = (hex: string) => {
+                            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                            return result ? {
+                              r: parseInt(result[1], 16),
+                              g: parseInt(result[2], 16),
+                              b: parseInt(result[3], 16)
+                            } : { r: 59, g: 130, b: 246 };
+                          };
+                          const rgb = hexToRgb(laneColor);
+                          const bgColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.05)`;
+                          
+                          return (
+                            <TaskDropZone 
+                              key={lane.id}
+                              status={lane.statusValue} 
+                              tasks={laneTasks} 
+                              bgClass=""
+                              style={{ backgroundColor: bgColor, minWidth: '180px' }}
+                            />
+                          );
+                        })}
+
+                        {/* Default QA Column */}
+                        <TaskDropZone status="qa" tasks={qaTasks} bgClass="bg-purple-50/10" style={{ minWidth: '180px' }} />
+
+                        {/* Render custom lanes after QA */}
+                        {lanesAfterQA.map((lane) => {
+                          const laneTasks = getTasksForLane(lane.statusValue);
+                          const laneColor = lane.color || '#3B82F6';
+                          const hexToRgb = (hex: string) => {
+                            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                            return result ? {
+                              r: parseInt(result[1], 16),
+                              g: parseInt(result[2], 16),
+                              b: parseInt(result[3], 16)
+                            } : { r: 59, g: 130, b: 246 };
+                          };
+                          const rgb = hexToRgb(laneColor);
+                          const bgColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.05)`;
+                          
+                          return (
+                            <TaskDropZone 
+                              key={lane.id}
+                              status={lane.statusValue} 
+                              tasks={laneTasks} 
+                              bgClass=""
+                              style={{ backgroundColor: bgColor, minWidth: '180px' }}
+                            />
+                          );
+                        })}
 
                         {/* Done Column */}
-                        <TaskDropZone status="done" tasks={doneTasks} bgClass="bg-emerald-50/10" />
+                        <TaskDropZone status="done" tasks={doneTasks} bgClass="bg-emerald-50/10" style={{ minWidth: '180px' }} />
 
                         {/* Actions Column */}
                         <div className="p-3 bg-gray-50/30 border-r-0">
@@ -2652,11 +3499,74 @@ const ScrumPage: React.FC = () => {
                       </p>
                     </div>
                   </div>
+
+                  {/* Attachments Section */}
+                  <div>
+                    <h4 className="font-medium mb-2 flex items-center space-x-2">
+                      <Paperclip className="w-4 h-4" />
+                      <span>Attachments</span>
+                    </h4>
+                    {loadingAttachments ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                        <span className="ml-2 text-sm text-gray-500">Loading attachments...</span>
+                      </div>
+                    ) : storyAttachmentsList.length > 0 ? (
+                      <div className="space-y-2">
+                        {storyAttachmentsList.map((attachment) => (
+                          <div
+                            key={attachment.id}
+                            className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border"
+                          >
+                            <div className="flex items-center space-x-3 flex-1 min-w-0">
+                              <FileText className="w-5 h-5 text-gray-500 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{attachment.fileName}</p>
+                                <p className="text-xs text-gray-500">
+                                  {attachment.fileSize ? `${(attachment.fileSize / 1024).toFixed(1)} KB` : ''}
+                                  {attachment.fileType && ` • ${attachment.fileType}`}
+                                </p>
+                              </div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                if (attachment.fileUrl) {
+                                  // Handle base64 data URLs
+                                  if (attachment.fileUrl.startsWith('data:')) {
+                                    const link = document.createElement('a');
+                                    link.href = attachment.fileUrl;
+                                    link.download = attachment.fileName;
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    document.body.removeChild(link);
+                                  } else {
+                                    window.open(attachment.fileUrl, '_blank');
+                                  }
+                                }
+                              }}
+                            >
+                              <Download className="w-4 h-4 mr-2" />
+                              Download
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 bg-gray-50 p-3 rounded-lg">
+                        No attachments for this story
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsStoryDetailsOpen(false)}>
+              <Button variant="outline" onClick={() => {
+                setIsStoryDetailsOpen(false);
+                setStoryAttachmentsList([]);
+              }}>
                 Close
               </Button>
             </DialogFooter>
@@ -2876,16 +3786,88 @@ const ScrumPage: React.FC = () => {
                   Enter labels separated by commas
                 </p>
               </div>
+
+              {/* Attachments Section */}
+              <div className="space-y-2">
+                <Label htmlFor="story-attachments">Attachments</Label>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                  <input
+                    type="file"
+                    id="story-attachments"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      setStoryAttachments(prev => [...prev, ...files]);
+                    }}
+                  />
+                  <label htmlFor="story-attachments" className="cursor-pointer">
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      <Paperclip className="w-8 h-8 text-gray-400" />
+                      <p className="text-sm text-gray-600">
+                        Click to upload files or drag and drop
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        Any file type supported
+                      </p>
+                    </div>
+                  </label>
+                </div>
+                
+                {/* Display selected files */}
+                {storyAttachments.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-xs font-medium text-gray-700">
+                      Selected Files ({storyAttachments.length}):
+                    </p>
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {storyAttachments.map((file, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between bg-gray-50 p-2 rounded text-sm"
+                        >
+                          <div className="flex items-center space-x-2 flex-1 min-w-0">
+                            <FileText className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                            <span className="truncate" title={file.name}>
+                              {file.name}
+                            </span>
+                            <span className="text-xs text-gray-500 flex-shrink-0">
+                              ({(file.size / 1024).toFixed(1)} KB)
+                            </span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 ml-2"
+                            onClick={() => {
+                              setStoryAttachments(prev => prev.filter((_, i) => i !== index));
+                            }}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
             <DialogFooter className="flex space-x-2">
-              <Button variant="outline" onClick={() => setIsAddStoryDialogOpen(false)}>
+              <Button variant="outline" onClick={() => {
+                setIsAddStoryDialogOpen(false);
+                setStoryAttachments([]);
+              }}>
                 Cancel
               </Button>
-              <Button onClick={handleCreateStory} disabled={createStoryLoading}>
-                {createStoryLoading ? (
+              <Button 
+                onClick={handleCreateStory} 
+                disabled={createStoryLoading || uploadingAttachments}
+              >
+                {createStoryLoading || uploadingAttachments ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating...
+                    {uploadingAttachments ? 'Uploading...' : 'Creating...'}
                   </>
                 ) : 'Create Story'}
               </Button>
@@ -3176,7 +4158,7 @@ const ScrumPage: React.FC = () => {
         </Dialog>
 
         {/* Add Subtask Dialog */}
-        <Dialog open={isAddSubtaskDialogOpen} onOpenChange={setIsAddSubtaskDialogOpen}>
+        <Dialog open={isAddSubtaskDialogOpen} onOpenChange={handleSubtaskDialogClose}>
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>Add Subtask</DialogTitle>
@@ -3204,31 +4186,15 @@ const ScrumPage: React.FC = () => {
                   rows={3}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="subtask-priority">Priority</Label>
-                  <Select value={newSubtask.priority} onValueChange={(value) => setNewSubtask(prev => ({ ...prev, priority: value as Priority }))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="LOW">Low</SelectItem>
-                      <SelectItem value="MEDIUM">Medium</SelectItem>
-                      <SelectItem value="HIGH">High</SelectItem>
-                      <SelectItem value="CRITICAL">Critical</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="subtask-hours">Estimated Hours</Label>
-                  <Input
-                    id="subtask-hours"
-                    type="number"
-                    value={newSubtask.estimatedHours}
-                    onChange={(e) => setNewSubtask(prev => ({ ...prev, estimatedHours: parseInt(e.target.value) || 0 }))}
-                    placeholder="2"
-                  />
-                </div>
+              <div>
+                <Label htmlFor="subtask-hours">Estimated Hours</Label>
+                <Input
+                  id="subtask-hours"
+                  type="number"
+                  value={newSubtask.estimatedHours}
+                  onChange={(e) => setNewSubtask(prev => ({ ...prev, estimatedHours: parseInt(e.target.value) || 0 }))}
+                  placeholder="2"
+                />
               </div>
               <div>
                 <Label htmlFor="subtask-assignee">Assignee</Label>
@@ -3251,16 +4217,41 @@ const ScrumPage: React.FC = () => {
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <Label htmlFor="subtask-category">Category</Label>
+                <Select value={newSubtask.category} onValueChange={(value) => setNewSubtask(prev => ({ ...prev, category: value === 'NONE' ? '' : value }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="NONE">None</SelectItem>
+                    <SelectItem value="Development">Development</SelectItem>
+                    <SelectItem value="Documentation">Documentation</SelectItem>
+                    <SelectItem value="Idle">Idle</SelectItem>
+                    <SelectItem value="Learning">Learning</SelectItem>
+                    <SelectItem value="Meeting">Meeting</SelectItem>
+                    <SelectItem value="Support">Support</SelectItem>
+                    <SelectItem value="Testing">Testing</SelectItem>
+                    <SelectItem value="Training">Training</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="subtask-due-date">Due Date</Label>
+                <Input
+                  id="subtask-due-date"
+                  type="date"
+                  value={newSubtask.dueDate}
+                  onChange={(e) => setNewSubtask(prev => ({ ...prev, dueDate: e.target.value }))}
+                />
+              </div>
             </div>
             <DialogFooter className="flex space-x-2">
-              <Button variant="outline" onClick={() => {
-                setIsAddSubtaskDialogOpen(false);
-                setSelectedTaskForSubtask(null);
-              }}>
+              <Button variant="outline" onClick={() => setIsAddSubtaskDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleAddSubtask} disabled={createTaskLoading}>
-                {createTaskLoading ? (
+              <Button onClick={handleAddSubtask} disabled={isCreatingSubtask || !newSubtask.title.trim()}>
+                {isCreatingSubtask ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Creating...
@@ -3396,6 +4387,7 @@ const ScrumPage: React.FC = () => {
         {/* JIRA-Style Task Details Modal */}
         <Dialog open={isTaskDetailsOpen} onOpenChange={setIsTaskDetailsOpen}>
           <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden p-0">
+            <DialogTitle className="sr-only">Task Details: {selectedTaskForDetails?.title || 'Task'}</DialogTitle>
             {selectedTaskForDetails && (
               <div className="flex h-full">
                 {/* Main Content Area (Left Panel) */}
@@ -3418,6 +4410,20 @@ const ScrumPage: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-8 w-8 p-0 hover:bg-purple-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedTaskForSubtask(selectedTaskForDetails);
+                          setNewSubtask(prev => ({ ...prev, taskId: selectedTaskForDetails.id, assigneeId: selectedTaskForDetails.assigneeId || '' }));
+                          setIsAddSubtaskDialogOpen(true);
+                        }}
+                        title="Add subtask"
+                      >
+                        <Layers3 className="w-4 h-4 text-purple-600" />
+                      </Button>
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                         <Eye className="w-4 h-4" />
                       </Button>
@@ -3461,8 +4467,10 @@ const ScrumPage: React.FC = () => {
                     <Tabs value={taskDetailsTab} onValueChange={(value) => setTaskDetailsTab(value as any)} className="h-full flex flex-col">
                       <TabsList className="mx-6 mt-4">
                         <TabsTrigger value="details">Details</TabsTrigger>
-                        <TabsTrigger value="subtasks">Child Work Items</TabsTrigger>
-                        <TabsTrigger value="activity">Activity</TabsTrigger>
+                        <TabsTrigger value="activities">Activities</TabsTrigger>
+                        <TabsTrigger value="subtasks">Subtasks</TabsTrigger>
+                        <TabsTrigger value="due-dates">Due Dates</TabsTrigger>
+                        <TabsTrigger value="linked-issues">Linked Issues</TabsTrigger>
                       </TabsList>
 
                       <TabsContent value="details" className="flex-1 overflow-auto p-6 space-y-6">
@@ -3508,20 +4516,120 @@ const ScrumPage: React.FC = () => {
                             </div>
                           </div>
                         )}
+
+                        {/* Attachments from Parent Story */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-sm font-semibold text-gray-900">Attachments</h3>
+                            {parentStoryAttachments.length > 0 && (
+                              <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                <BookOpen className="w-3 h-3 mr-1" />
+                                From Story
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          {loadingParentStoryAttachments ? (
+                            <div className="flex items-center justify-center py-8">
+                              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                              <span className="ml-2 text-sm text-gray-600">Loading attachments...</span>
+                            </div>
+                          ) : parentStoryAttachments.length > 0 ? (
+                            <div className="space-y-2">
+                              {parentStoryAttachments.map((attachment) => (
+                                <div
+                                  key={attachment.id}
+                                  className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors bg-blue-50/30"
+                                >
+                                  <div className="flex items-center space-x-3 flex-1 min-w-0">
+                                    <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center flex-shrink-0">
+                                      <Paperclip className="w-4 h-4 text-blue-600" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center space-x-2 mb-1">
+                                        <p className="text-sm font-medium text-gray-900 truncate">
+                                          {attachment.fileName}
+                                        </p>
+                                        <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 border-blue-300 flex-shrink-0">
+                                          Inherited
+                                        </Badge>
+                                      </div>
+                                      <div className="flex items-center space-x-2 text-xs text-gray-500">
+                                        {attachment.fileSize && (
+                                          <>
+                                            <span>{(attachment.fileSize / 1024).toFixed(2)} KB</span>
+                                            <span>•</span>
+                                          </>
+                                        )}
+                                        {attachment.uploadedBy && (
+                                          <>
+                                            <span>by {getUserName(attachment.uploadedBy)}</span>
+                                            <span>•</span>
+                                          </>
+                                        )}
+                                        <span>
+                                          {new Date(attachment.createdAt).toLocaleDateString('en-GB', {
+                                            day: 'numeric',
+                                            month: 'short',
+                                            year: 'numeric'
+                                          })}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center space-x-2 flex-shrink-0">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 px-3 text-xs"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (attachment.fileUrl) {
+                                          const link = document.createElement('a');
+                                          link.href = attachment.fileUrl;
+                                          link.download = attachment.fileName;
+                                          document.body.appendChild(link);
+                                          link.click();
+                                          document.body.removeChild(link);
+                                          toast.success('File downloaded');
+                                        } else {
+                                          toast.error('File URL not available');
+                                        }
+                                      }}
+                                    >
+                                      <Download className="w-3 h-3 mr-1" />
+                                      Download
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-center py-6 text-gray-500 border border-gray-200 rounded-lg bg-gray-50">
+                              <Paperclip className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                              <p className="text-sm">No attachments from parent story</p>
+                              <p className="text-xs text-gray-400 mt-1">Attachments added to the story will appear here</p>
+                            </div>
+                          )}
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="activities" className="flex-1 overflow-auto p-6">
+                        <TaskActivityLog taskId={selectedTaskForDetails.id} />
                       </TabsContent>
 
                       <TabsContent value="subtasks" className="flex-1 overflow-hidden flex flex-col">
                         {/* Header with Add Subtask Button */}
                         <div className="flex items-center justify-between p-6 pb-4 flex-shrink-0 border-b border-gray-100">
                           <div className="flex items-center space-x-3">
-                            <h3 className="text-sm font-semibold text-gray-900">Child Work Items</h3>
+                            <h3 className="text-sm font-semibold text-gray-900">Subtasks</h3>
                             <Button 
                               variant="outline" 
                               size="sm"
                               className="h-7 px-3 text-xs"
                               onClick={() => {
                                 setSelectedTaskForSubtask(selectedTaskForDetails);
-                                setNewSubtask(prev => ({ ...prev, taskId: selectedTaskForDetails.id }));
+                                setNewSubtask(prev => ({ ...prev, taskId: selectedTaskForDetails.id, assigneeId: selectedTaskForDetails.assigneeId || '' }));
                                 setIsAddSubtaskDialogOpen(true);
                               }}
                             >
@@ -3558,16 +4666,18 @@ const ScrumPage: React.FC = () => {
                                       try {
                                         await subtaskApiService.updateSubtaskCompletion(subtask.id, !subtask.isCompleted);
                                         toast.success(`Subtask ${!subtask.isCompleted ? 'completed' : 'reopened'}`);
-                                        // Refresh tasks to update allTasks
-                                        const tasksPromises = sprintStories.map(story => 
-                                          taskApiService.getTasksByStory(story.id)
-                                            .then(response => response.data)
-                                            .catch(() => [])
+                                        
+                                        // Update local subtasks state immediately
+                                        setAllSubtasks(prev => 
+                                          prev.map(st => st.id === subtask.id ? { ...st, isCompleted: !st.isCompleted } : st)
                                         );
-                                        const tasksArrays = await Promise.all(tasksPromises);
-                                        const tasks = tasksArrays.flat();
-                                        setAllTasks(tasks);
+                                        
+                                        // Also refresh all tasks to ensure everything stays in sync
+                                        if (sprintStories.length > 0) {
+                                          fetchAllTasks(sprintStories, true);
+                                        }
                                       } catch (error) {
+                                        console.error('Failed to update subtask:', error);
                                         toast.error('Failed to update subtask');
                                       }
                                     }}
@@ -3579,9 +4689,11 @@ const ScrumPage: React.FC = () => {
                                       <h4 className={`text-sm font-medium truncate ${subtask.isCompleted ? 'line-through text-gray-400' : 'text-gray-900'}`}>
                                         {subtask.title}
                                       </h4>
-                                      <Badge variant="outline" className={`text-xs px-1.5 py-0 ${getPriorityColor(subtask.priority || 'MEDIUM')}`}>
-                                        {subtask.priority || 'MEDIUM'}
-                                      </Badge>
+                                      {subtask.category && (
+                                        <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                          {subtask.category}
+                                        </Badge>
+                                      )}
                                     </div>
                                     
                                     {/* Compact Meta Info */}
@@ -3628,16 +4740,8 @@ const ScrumPage: React.FC = () => {
                                   >
                                     <Clock className="w-3 h-3 mr-1 text-green-600" />
                                     Log
-                                  </Button>
-                                  
-                                  {/* Status Badge */}
-                                  <Badge 
-                                    variant="outline" 
-                                    className="text-xs px-2 py-0.5"
-                                  >
-                                    {subtask.status || 'TO DO'}
-                                  </Badge>
-                                </div>
+                                    </Button>
+                                  </div>
                               </div>
                               
                               {/* Progress Bar for Time Tracking */}
@@ -3668,8 +4772,52 @@ const ScrumPage: React.FC = () => {
                         </div>
                       </TabsContent>
 
-                      <TabsContent value="activity" className="flex-1 overflow-auto p-6">
-                        <TaskActivityLog taskId={selectedTaskForDetails.id} />
+                      <TabsContent value="due-dates" className="flex-1 overflow-auto p-6 space-y-6">
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-900 mb-4">Due Dates</h3>
+                          <div className="space-y-4">
+                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                              <div className="flex items-center space-x-2 mb-2">
+                                <Calendar className="w-4 h-4 text-gray-600" />
+                                <span className="text-sm font-medium text-gray-900">Task Due Date</span>
+                              </div>
+                              <div className="text-sm text-gray-700">
+                                {selectedTaskForDetails.dueDate ? 
+                                  new Date(selectedTaskForDetails.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 
+                                  'No due date set'
+                                }
+                              </div>
+                            </div>
+                            {getSubtasksForTask(selectedTaskForDetails.id).filter(st => st.dueDate).length > 0 && (
+                              <div>
+                                <h4 className="text-xs font-semibold text-gray-700 mb-2">Subtask Due Dates</h4>
+                                <div className="space-y-2">
+                                  {getSubtasksForTask(selectedTaskForDetails.id).filter(st => st.dueDate).map((subtask) => (
+                                    <div key={subtask.id} className="bg-white border border-gray-200 rounded-lg p-3">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-sm text-gray-900">{subtask.title}</span>
+                                        <span className="text-xs text-gray-600">
+                                          {subtask.dueDate ? new Date(subtask.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="linked-issues" className="flex-1 overflow-auto p-6 space-y-6">
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-900 mb-4">Linked Issues</h3>
+                          <div className="text-center py-8 text-gray-500">
+                            <Link className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                            <p className="text-sm">No linked issues</p>
+                            <p className="text-xs text-gray-400 mt-1">Links to related tasks and stories will appear here</p>
+                          </div>
+                        </div>
                       </TabsContent>
                     </Tabs>
                   </div>
@@ -3683,6 +4831,60 @@ const ScrumPage: React.FC = () => {
                       <Zap className="w-4 h-4 mr-2" />
                       Improve Work Item
                     </Button>
+
+                    {/* Subtask Details Section (Replacing Effort Details) */}
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-sm font-semibold text-gray-900">Subtask Details</h3>
+                      </div>
+                      <div className="space-y-4">
+                        {/* Estimation */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-medium text-gray-600">Estimation</span>
+                            <span className="text-xs font-semibold text-blue-600">
+                              {selectedTaskForDetails.estimatedHours || 0}h
+                            </span>
+                          </div>
+                          <Progress 
+                            value={100} 
+                            className="h-2 bg-blue-100" 
+                          />
+                        </div>
+                        
+                        {/* Time Spent */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-medium text-gray-600">Time Spent</span>
+                            <span className="text-xs font-semibold text-green-600">
+                              {selectedTaskForDetails.actualHours || 0}h
+                            </span>
+                          </div>
+                          <Progress 
+                            value={selectedTaskForDetails.estimatedHours > 0 ? 
+                              Math.min(100, ((selectedTaskForDetails.actualHours || 0) / selectedTaskForDetails.estimatedHours) * 100) : 0
+                            } 
+                            className="h-2 bg-green-100" 
+                          />
+                        </div>
+                        
+                        {/* Remaining */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-medium text-gray-600">Remaining</span>
+                            <span className="text-xs font-semibold text-gray-600">
+                              {Math.max(0, (selectedTaskForDetails.estimatedHours || 0) - (selectedTaskForDetails.actualHours || 0))}h
+                            </span>
+                          </div>
+                          <Progress 
+                            value={selectedTaskForDetails.estimatedHours > 0 ? 
+                              Math.min(100, (Math.max(0, (selectedTaskForDetails.estimatedHours || 0) - (selectedTaskForDetails.actualHours || 0)) / selectedTaskForDetails.estimatedHours) * 100) : 0
+                            } 
+                            className="h-2 bg-gray-100" 
+                          />
+                        </div>
+                      </div>
+                    </div>
 
                     {/* Details Section */}
                     <div>
@@ -3808,6 +5010,20 @@ const ScrumPage: React.FC = () => {
         defaultStatus={newTask.storyId ? 'todo' : 'todo'}
         defaultStoryId={newTask.storyId || undefined}
         users={users}
+      />
+
+      {/* Lane Configuration Modal */}
+      <LaneConfigurationModal
+        open={isLaneConfigModalOpen}
+        onClose={() => {
+          setIsLaneConfigModalOpen(false);
+          setSelectedLaneForEdit(null);
+          setLaneCreationSource(null);
+        }}
+        onSubmit={handleCreateWorkflowLane}
+        projectId={selectedProject}
+        existingLane={selectedLaneForEdit}
+        allLanes={workflowLanes}
       />
     </DndProvider>
   );

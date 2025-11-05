@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -14,6 +15,7 @@ interface LoginFormProps {
 }
 
 const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isLoading = false }) => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState<LoginRequest>({
     email: '',
     password: '',
@@ -244,6 +246,19 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
           >
             <User className="mr-1 h-3 w-3" />
             Designer
+          </Button>
+        </div>
+
+        {/* Footer Link */}
+        <div className="mt-4 text-center text-sm">
+          <span className="text-muted-foreground">Don't have an account? </span>
+          <Button
+            variant="link"
+            onClick={() => navigate('/register')}
+            className="p-0 text-green-600 hover:text-green-700 h-auto"
+            disabled={isSubmitting || isLoading}
+          >
+            Create Account
           </Button>
         </div>
       </CardContent>

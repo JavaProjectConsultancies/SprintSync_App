@@ -12,9 +12,11 @@ import {
 
 // User Hooks
 export function useUsers(params?: PaginationParams) {
+  // Default to large page size if params not provided to fetch all users
+  const paginationParams = params || { page: 0, size: 1000 };
   return useApi(
-    () => userApiService.getUsers(params),
-    [JSON.stringify(params)]
+    () => userApiService.getUsers(paginationParams),
+    [JSON.stringify(paginationParams)]
   );
 }
 
@@ -71,9 +73,11 @@ export function useUsersByDomain(domainId: string, params?: PaginationParams) {
 }
 
 export function useActiveUsers(params?: PaginationParams) {
+  // Default to large page size if params not provided
+  const paginationParams = params || { page: 0, size: 1000 };
   return useApi(
-    () => userApiService.getActiveUsers(params),
-    [JSON.stringify(params)]
+    () => userApiService.getActiveUsers(paginationParams),
+    [JSON.stringify(paginationParams)]
   );
 }
 

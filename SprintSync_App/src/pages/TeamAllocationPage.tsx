@@ -1,4 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { DndProvider, useDrag, useDrop } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -45,7 +47,8 @@ import {
   Coffee,
   IndianRupee,
     Award,
-    Loader2
+    Loader2,
+    GripVertical
 } from 'lucide-react';
 
 interface TeamMember {
@@ -81,6 +84,10 @@ interface TeamMember {
   budget: number;
   experience: string;
 }
+
+const ItemTypes = {
+  TEAM_MEMBER: 'team_member',
+};
 
 const TeamAllocationPage: React.FC = () => {
   const [selectedMember, setSelectedMember] = useState<string | null>(null);
@@ -125,10 +132,10 @@ const TeamAllocationPage: React.FC = () => {
   };
 
   // Get all users from API and generate realistic team allocation data
-  const { data: users, loading: usersListLoading } = useUsers();
+  const { data: users, loading: usersListLoading, refetch: refetchUsersList } = useUsers({ page: 0, size: 1000 });
   const allUsers = users || [];
   const { data: projects, loading: projectsLoading } = useProjects();
-  const { data: activeUsers, loading: usersLoading, error: usersError } = useActiveUsers();
+  const { data: activeUsers, loading: usersLoading, error: usersError, refetch: refetchActiveUsers } = useActiveUsers({ page: 0, size: 1000 });
   const { data: departmentsData } = useDepartments();
   const { data: domainsData } = useDomains();
 
@@ -289,33 +296,104 @@ const TeamAllocationPage: React.FC = () => {
     }
   }, [isAddMemberDialogOpen, projects, activeUsers, projectTeamMembers, selectedProjectId]);
 
-  const handleUserSelection = async (userId: string) => {
-    setSelectedUserId(userId);
+  const departmentIdToName = useMemo(() => {
+    const map: Record<string, string> = {};
+    const list = Array.isArray(departmentsData) ? departmentsData as any[] : [];
+    list.forEach((d: any) => { if (d?.id) map[d.id] = d.name; });
+    return map;
+  }, [departmentsData]);
+
+  const domainIdToName = useMemo(() => {
+    const map: Record<string, string> = {};
+    const list = Array.isArray(domainsData) ? domainsData as any[] : [];
+    list.forEach((d: any) => { if (d?.id) map[d.id] = d.name; });
+    return map;
+  }, [domainsData]);
+
+  const handleUserSelection = useCallback(async (userId: string) => {
     const user = availableUsers.find(u => u.id === userId);
     if (!user) return;
+    
+    // Fetch full user details from API to ensure we have all data including domain/department names
+    let fullUserData = user;
+    try {
+      const userResponse = await userApiService.getUserById(userId);
+      if (userResponse && userResponse.data) {
+        fullUserData = userResponse.data;
+      }
+    } catch (error) {
+      console.warn('Failed to fetch full user details, using available data:', error);
+    }
+    
+    // Map domainId and departmentId to their actual names
+    // First try to get from the mapping, if not found, try to get from the API data directly
+    let domainName = '';
+    let departmentName = '';
+    
+    // Try to get domain name from the fetched user data first
+    if (fullUserData.domainId) {
+      // Try mapping first
+      domainName = domainIdToName[fullUserData.domainId] || '';
+      
+      // If mapping didn't work, try to find it directly from domainsData
+      if (!domainName && domainsData && Array.isArray(domainsData)) {
+        const domain = domainsData.find((d: any) => d.id === fullUserData.domainId);
+        domainName = domain?.name || '';
+      }
+      
+      // If still not found, try to get it from the user object directly (if it has domain name)
+      if (!domainName && (fullUserData as any).domain) {
+        domainName = (fullUserData as any).domain;
+      }
+    }
+    
+    // Try to get department name from the fetched user data first
+    if (fullUserData.departmentId) {
+      // Try mapping first
+      departmentName = departmentIdToName[fullUserData.departmentId] || '';
+      
+      // If mapping didn't work, try to find it directly from departmentsData
+      if (!departmentName && departmentsData && Array.isArray(departmentsData)) {
+        const department = departmentsData.find((d: any) => d.id === fullUserData.departmentId);
+        departmentName = department?.name || '';
+      }
+      
+      // If still not found, try to get it from the user object directly (if it has department name)
+      if (!departmentName && (fullUserData as any).department) {
+        departmentName = (fullUserData as any).department;
+      }
+    }
+    
     setNewMember({
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      domain: user.domainId || '',
-      department: user.departmentId || '',
+      name: fullUserData.name || user.name,
+      email: fullUserData.email || user.email,
+      role: fullUserData.role || user.role,
+      domain: domainName,
+      department: departmentName,
       password: 'password123',
-      hourlyRate: user.hourlyRate || 0,
-      skills: user.skills ? (typeof user.skills === 'string' ? user.skills.split(',').map((s: string)=>s.trim()) : user.skills) : [],
-      budget: user.hourlyRate ? user.hourlyRate * 176 : 0,
-      experience: (user.experience || 'mid'),
-      availability: user.availabilityPercentage || 100,
+      hourlyRate: fullUserData.hourlyRate || user.hourlyRate || 0,
+      skills: fullUserData.skills ? (typeof fullUserData.skills === 'string' ? fullUserData.skills.split(',').map((s: string)=>s.trim()) : fullUserData.skills) : (user.skills ? (typeof user.skills === 'string' ? user.skills.split(',').map((s: string)=>s.trim()) : user.skills) : []),
+      budget: (fullUserData.hourlyRate || user.hourlyRate || 0) * 176,
+      experience: (fullUserData.experience || user.experience || 'mid'),
+      availability: fullUserData.availabilityPercentage || user.availabilityPercentage || 100,
     });
     setAutoPopulated({
       email: true,
       role: true,
-      domain: true,
-      department: true,
+      domain: domainName ? true : false,
+      department: departmentName ? true : false,
       hourlyRate: true,
       skills: true,
       experience: true,
     });
-  };
+  }, [availableUsers, domainIdToName, departmentIdToName, domainsData, departmentsData]);
+
+  // Auto-populate when selectedUserId is set (either automatically or manually)
+  useEffect(() => {
+    if (selectedUserId && availableUsers.length > 0 && isAddMemberDialogOpen) {
+      handleUserSelection(selectedUserId);
+    }
+  }, [selectedUserId, availableUsers, isAddMemberDialogOpen, handleUserSelection]);
 
   const getTeamValidation = () => {
     const list = projectTeamMembers || [];
@@ -347,20 +425,6 @@ const TeamAllocationPage: React.FC = () => {
       default: return (role || 'developer').toString().toLowerCase();
     }
   };
-
-  const departmentIdToName = useMemo(() => {
-    const map: Record<string, string> = {};
-    const list = Array.isArray(departmentsData) ? departmentsData as any[] : [];
-    list.forEach((d: any) => { if (d?.id) map[d.id] = d.name; });
-    return map;
-  }, [departmentsData]);
-
-  const domainIdToName = useMemo(() => {
-    const map: Record<string, string> = {};
-    const list = Array.isArray(domainsData) ? domainsData as any[] : [];
-    list.forEach((d: any) => { if (d?.id) map[d.id] = d.name; });
-    return map;
-  }, [domainsData]);
 
   // Enhanced team member data based on real user data from AuthContext
   const teamMembers = useMemo(() => {
@@ -857,6 +921,144 @@ const TeamAllocationPage: React.FC = () => {
     }
   };
 
+  // Drag and drop handler for moving team members between projects
+  const handleDrop = useCallback(async (droppedMember: any, targetProjectId: string) => {
+    // Find source project ID
+    const sourceProjectId = droppedMember.sourceProjectId || Object.keys(projectIdToMembers).find(pid => 
+      (projectIdToMembers[pid] || []).some((m: any) => (m.userId || m.id) === (droppedMember.userId || droppedMember.id))
+    );
+    
+    if (sourceProjectId === targetProjectId) {
+      toast.info('User is already assigned to this project');
+      return;
+    }
+
+    if (!sourceProjectId) {
+      toast.error('Could not determine source project');
+      return;
+    }
+
+    const userId = droppedMember.userId || droppedMember.id;
+    const role = droppedMember.role || 'developer';
+
+    try {
+      // First, add member to target project
+      await teamMemberApi.createTeamMember({
+        projectId: targetProjectId,
+        userId: userId,
+        role: role,
+        isTeamLead: false,
+        allocationPercentage: 100,
+      });
+      
+      // Then, remove from source project
+      const key = `${sourceProjectId}_${userId}`;
+      setRemovingMember(prev => ({ ...prev, [key]: true }));
+      await teamMemberApi.removeTeamMemberFromProject(sourceProjectId, userId);
+      setRemovingMember(prev => ({ ...prev, [key]: false }));
+      
+      toast.success(`${droppedMember.name} transferred to ${projectIdToName[targetProjectId]}`);
+      
+      // Refresh both project members
+      await refreshMembersForProject(targetProjectId);
+      await refreshMembersForProject(sourceProjectId);
+    } catch (error: any) {
+      const msg: string = error?.message || '';
+      const duplicate = msg.includes('project_team_members_project_id_user_id_key');
+      if (duplicate) {
+        toast.error('This user is already assigned to the target project.');
+      } else {
+        toast.error('Failed to transfer team member. Please try again.');
+      }
+      console.error('Error transferring team member:', error);
+    }
+  }, [projectIdToMembers, projectIdToName, refreshMembersForProject, setRemovingMember]);
+
+  // Draggable Team Member Component
+  const DraggableTeamMember: React.FC<{ member: any; projectId: string }> = ({ member, projectId }) => {
+    const [{ isDragging }, drag] = useDrag(() => ({
+      type: ItemTypes.TEAM_MEMBER,
+      item: { 
+        userId: member.userId || member.id, 
+        name: member.name, 
+        role: member.role,
+        sourceProjectId: projectId
+      },
+      collect: (monitor) => ({
+        isDragging: monitor.isDragging(),
+      }),
+    }));
+
+    const userId = member.userId || member.id;
+    const rmKey = `${projectId}_${userId}`;
+    const isRemoving = !!removingMember[rmKey];
+
+    return (
+      <div
+        ref={drag}
+        className={`transition-all cursor-move ${
+          isDragging ? 'opacity-50 rotate-1 scale-105' : 'hover:scale-[1.01]'
+        }`}
+      >
+        <div className="flex items-center justify-between p-2 bg-gray-50 rounded border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all">
+          <div className="flex items-center gap-2 min-w-0">
+            <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <Avatar className="h-6 w-6">
+              <AvatarImage src={member.avatar} alt={member.name} />
+              <AvatarFallback className="text-[10px] bg-gradient-to-br from-green-100 to-cyan-100">
+                {String(member.name || '').split(' ').map((n: string) => n[0]).join('').slice(0,2) || 'U'}
+              </AvatarFallback>
+            </Avatar>
+            <div className="truncate">
+              <div className="text-xs font-medium truncate">{member.name}</div>
+              {member.role && (
+                <div className="text-[10px] text-muted-foreground truncate">{member.role}</div>
+              )}
+            </div>
+          </div>
+          <Button 
+            size="sm" 
+            variant="outline"
+            className="h-7 px-2 text-red-600 border-red-200 hover:bg-red-50"
+            disabled={isRemoving || projectRefreshing[projectId]}
+            onClick={() => handleRemoveMember(projectId, userId)}
+          >
+            {isRemoving ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              'Remove'
+            )}
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  // Drop Zone Component for Projects
+  const ProjectDropZone: React.FC<{ 
+    projectId: string; 
+    children: React.ReactNode; 
+  }> = ({ projectId, children }) => {
+    const [{ isOver }, drop] = useDrop(() => ({
+      accept: ItemTypes.TEAM_MEMBER,
+      drop: (item: any) => {
+        handleDrop(item, projectId);
+      },
+      collect: (monitor) => ({
+        isOver: monitor.isOver(),
+      }),
+    }));
+
+    return (
+      <div
+        ref={drop}
+        className={`transition-all ${isOver ? 'ring-2 ring-blue-400 bg-blue-50' : ''}`}
+      >
+        {children}
+      </div>
+    );
+  };
+
   // Project Allocation now uses real projects from API
 
   if (isPageLoading) {
@@ -871,7 +1073,8 @@ const TeamAllocationPage: React.FC = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <DndProvider backend={HTML5Backend}>
+      <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="space-y-1">
@@ -1017,7 +1220,7 @@ const TeamAllocationPage: React.FC = () => {
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="overview">Team Overview</TabsTrigger>
           <TabsTrigger value="projects">Project Allocation</TabsTrigger>
-          <TabsTrigger value="capacity">Capacity Planning</TabsTrigger>
+          <TabsTrigger value="capacity">Capacity Utilisation</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4 mt-6">
@@ -1132,7 +1335,7 @@ const TeamAllocationPage: React.FC = () => {
                             ₹{member.budget?.toLocaleString()}/month
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            ₹{member.hourlyRate}/hr
+                            ₹{member.hourlyRate}
                           </div>
                         </div>
                       </div>
@@ -1171,7 +1374,8 @@ const TeamAllocationPage: React.FC = () => {
         <TabsContent value="projects" className="space-y-4 mt-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {(projects || []).map((p) => (
-              <Card key={p.id}>
+              <ProjectDropZone key={p.id} projectId={p.id}>
+                <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
@@ -1275,42 +1479,9 @@ const TeamAllocationPage: React.FC = () => {
                   <div className="space-y-2">
                     {(projectIdToMembers[p.id] || []).length > 0 ? (
                       <div className="mt-3 space-y-2">
-                        {(projectIdToMembers[p.id] || []).map((m: any) => {
-                          const userId = m.userId || m.id;
-                          const rmKey = `${p.id}_${userId}`;
-                          const isRemoving = !!removingMember[rmKey];
-                          return (
-                            <div key={rmKey} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <Avatar className="h-6 w-6">
-                                  <AvatarImage src={m.avatar} alt={m.name} />
-                                  <AvatarFallback className="text-[10px] bg-gradient-to-br from-green-100 to-cyan-100">
-                                    {String(m.name || '').split(' ').map((n: string) => n[0]).join('').slice(0,2) || 'U'}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div className="truncate">
-                                  <div className="text-xs font-medium truncate">{m.name}</div>
-                                  {m.role && (
-                                    <div className="text-[10px] text-muted-foreground truncate">{m.role}</div>
-                                  )}
-                                </div>
-                              </div>
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                className="h-7 px-2 text-red-600 border-red-200 hover:bg-red-50"
-                                disabled={isRemoving || projectRefreshing[p.id]}
-                                onClick={() => handleRemoveMember(p.id, userId)}
-                              >
-                                {isRemoving ? (
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                ) : (
-                                  'Remove'
-                                )}
-                              </Button>
-                            </div>
-                          );
-                        })}
+                        {(projectIdToMembers[p.id] || []).map((m: any) => (
+                          <DraggableTeamMember key={`${p.id}_${m.userId || m.id}`} member={m} projectId={p.id} />
+                        ))}
                       </div>
                     ) : (
                       <div className="text-xs text-muted-foreground mt-3">No team members assigned</div>
@@ -1318,6 +1489,7 @@ const TeamAllocationPage: React.FC = () => {
                   </div>
                 </CardContent>
               </Card>
+              </ProjectDropZone>
             ))}
           </div>
         </TabsContent>
@@ -1325,7 +1497,7 @@ const TeamAllocationPage: React.FC = () => {
         <TabsContent value="capacity" className="space-y-4 mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Capacity Planning - Next 2 Weeks</CardTitle>
+              <CardTitle>Capacity Utilisation - Next 2 Weeks</CardTitle>
               <CardDescription>Plan team allocation for upcoming sprints across all departments</CardDescription>
             </CardHeader>
             <CardContent>
@@ -1385,8 +1557,8 @@ const TeamAllocationPage: React.FC = () => {
                         <p className="text-sm font-medium text-muted-foreground mb-2">Budget & Rate</p>
                         <div className="space-y-1">
                           <div className="flex justify-between">
-                            <span className="text-sm">Hourly Rate:</span>
-                            <span className="text-sm font-medium text-green-600">₹{member.hourlyRate}/hr</span>
+                            <span className="text-sm">CTC:</span>
+                            <span className="text-sm font-medium text-green-600">₹{member.hourlyRate}</span>
                   </div>
                           <div className="flex justify-between">
                             <span className="text-sm">Monthly Budget:</span>
@@ -1419,7 +1591,35 @@ const TeamAllocationPage: React.FC = () => {
       </Tabs>
 
       {/* Add Team Member Dialog */}
-      <Dialog open={isAddMemberDialogOpen} onOpenChange={setIsAddMemberDialogOpen}>
+      <Dialog open={isAddMemberDialogOpen} onOpenChange={(open) => {
+        setIsAddMemberDialogOpen(open);
+        if (!open) {
+          // Reset form state when dialog closes
+          setSelectedUserId('');
+          setNewMember({
+            name: '',
+            email: '',
+            role: 'developer',
+            domain: '',
+            department: '',
+            password: '',
+            hourlyRate: 0,
+            skills: [],
+            budget: 0,
+            experience: 'mid',
+            availability: 100,
+          });
+          setAutoPopulated({
+            email: false,
+            role: false,
+            domain: false,
+            department: false,
+            hourlyRate: false,
+            skills: false,
+            experience: false,
+          });
+        }
+      }}>
         <DialogContent 
           className="!max-w-none !w-[75vw] max-h-[95vh] flex flex-col"
           style={{ maxWidth: '75vw', width: '75vw', display: 'flex', flexDirection: 'column' }}
@@ -1537,7 +1737,10 @@ const TeamAllocationPage: React.FC = () => {
                 </Label>
                 <Select 
                   value={selectedUserId} 
-                  onValueChange={handleUserSelection}
+                  onValueChange={(value) => {
+                    setSelectedUserId(value);
+                    // handleUserSelection will be called by the useEffect
+                  }}
                   disabled={loadingUsers}
                 >
                   <SelectTrigger id="user-picker" className="h-10">
@@ -1610,15 +1813,9 @@ const TeamAllocationPage: React.FC = () => {
                       <SelectValue placeholder="Select domain" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Angular">Angular</SelectItem>
-                      <SelectItem value="Java">Java</SelectItem>
-                      <SelectItem value="Maui">Maui</SelectItem>
-                      <SelectItem value="Testing">Testing</SelectItem>
-                      <SelectItem value="Implementation">Implementation</SelectItem>
-                      <SelectItem value="Database">Database</SelectItem>
-                      <SelectItem value="Marketing">Marketing</SelectItem>
-                      <SelectItem value="HR">HR</SelectItem>
-                      <SelectItem value="System Administration">System Administration</SelectItem>
+                      {domainsData?.map((domain: any) => (
+                        <SelectItem key={domain.id} value={domain.name}>{domain.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1637,10 +1834,9 @@ const TeamAllocationPage: React.FC = () => {
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="VNIT">VNIT</SelectItem>
-                      <SelectItem value="Dinshaw">Dinshaw</SelectItem>
-                      <SelectItem value="Hospy">Hospy</SelectItem>
-                      <SelectItem value="Pharma">Pharma</SelectItem>
+                      {departmentsData?.map((department: any) => (
+                        <SelectItem key={department.id} value={department.name}>{department.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1665,6 +1861,7 @@ const TeamAllocationPage: React.FC = () => {
                     type="number"
                     placeholder="1800"
                     value={newMember.hourlyRate}
+                    readOnly={autoPopulated.hourlyRate}
                     onChange={(e) => {
                       setNewMember({ ...newMember, hourlyRate: Number(e.target.value) });
                       setAutoPopulated(prev => ({ ...prev, hourlyRate: false }));
@@ -1858,6 +2055,7 @@ const TeamAllocationPage: React.FC = () => {
         </DialogContent>
       </Dialog>
     </div>
+    </DndProvider>
   );
 };
 

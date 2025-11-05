@@ -149,6 +149,7 @@ export interface Task extends BaseEntity {
   estimatedHours?: number;
   actualHours: number;
   orderIndex: number;
+  taskNumber?: number;
   dueDate?: string;
   labels?: string[];
 }
@@ -168,6 +169,7 @@ export interface Subtask extends BaseEntity {
   dueDate?: string;
   bugType?: string;
   severity?: string;
+  category?: string;
   priority?: Priority;
   status?: TaskStatus;
   labels?: string[];
@@ -313,5 +315,20 @@ export interface ActivityLog {
   description?: string;
   ipAddress?: string;
   userAgent?: string;
+  createdAt: string;
+}
+
+// Attachment entity
+export interface Attachment {
+  id: string;
+  uploadedBy?: string;
+  entityType: string;
+  entityId: string;
+  fileName: string;
+  fileSize?: number;
+  fileType?: string;
+  fileUrl: string;
+  thumbnailUrl?: string;
+  isPublic?: boolean;
   createdAt: string;
 }

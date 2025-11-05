@@ -225,10 +225,10 @@ const DraggableTeamMember = ({ member, isSelected, onSelect, onViewDetails }: {
 
             {/* Rate */}
             <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Rate</span>
+              <span className="text-muted-foreground">CTC</span>
               <div className="flex items-center space-x-1">
                 <IndianRupee className="w-3 h-3" />
-                <span>{(member.hourlyRate || 0).toLocaleString()}/hr</span>
+                <span>{(member.hourlyRate || 0).toLocaleString()}</span>
               </div>
             </div>
 
@@ -1080,7 +1080,7 @@ const TeamManager = ({
                   <Card>
                     <CardContent className="p-4 text-center">
                       <div className="text-2xl font-bold text-purple-600">₹{selectedUserForDetails.hourlyRate}</div>
-                      <div className="text-sm text-muted-foreground">Hourly Rate</div>
+                      <div className="text-sm text-muted-foreground">CTC</div>
                     </CardContent>
                   </Card>
                   <Card>

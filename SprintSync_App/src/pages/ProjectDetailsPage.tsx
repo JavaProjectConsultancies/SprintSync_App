@@ -19,6 +19,8 @@ import { useTeamMembers } from '../hooks/api/useTeamMembers';
 import EpicManager from '../components/EpicManager';
 import TeamManager from '../components/TeamManager';
 import { useAuth } from '../contexts/AuthContextEnhanced';
+import { attachmentApiService } from '../services/api';
+import { toast } from 'sonner';
 import { 
   ArrowLeft,
   Calendar,
@@ -38,7 +40,11 @@ import {
   Link,
   Workflow,
   Zap,
-  Plus
+  Plus,
+  Upload,
+  Download,
+  Trash2,
+  Eye
 } from 'lucide-react';
 
 interface Milestone {
@@ -93,6 +99,12 @@ const ProjectDetailsPage = () => {
   const [isTeamManagerOpen, setIsTeamManagerOpen] = useState(false);
   const [localTeamMembers, setLocalTeamMembers] = useState<any[]>([]);
   
+  // Attachment state
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [isLoadingAttachments, setIsLoadingAttachments] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  
   // Requirement form state
   const [requirementForm, setRequirementForm] = useState({
     title: '',
@@ -135,6 +147,120 @@ const ProjectDetailsPage = () => {
       setLocalTeamMembers([]);
     }
   }, [apiTeamMembers, project?.teamMembers, id]);
+
+  // Fetch attachments when project ID changes
+  useEffect(() => {
+    const loadAttachments = async () => {
+      if (!id) return;
+      try {
+        setIsLoadingAttachments(true);
+        const response = await attachmentApiService.getAttachmentsByEntity('project', id);
+        if (response.data) {
+          setAttachments(response.data);
+        }
+      } catch (error) {
+        console.error('Error loading attachments:', error);
+      } finally {
+        setIsLoadingAttachments(false);
+      }
+    };
+    loadAttachments();
+  }, [id]);
+
+  // Handle file selection
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+    }
+  };
+
+  // Handle file upload
+  const handleUploadFile = async () => {
+    if (!selectedFile || !id || !user) {
+      toast.error('Please select a file');
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+
+      // Read file as base64 for now (in production, use proper file storage)
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64Data = reader.result as string;
+        
+        // Create attachment record
+        const attachmentData = {
+          uploadedBy: user.id,
+          entityType: 'project',
+          entityId: id,
+          fileName: selectedFile.name,
+          fileSize: selectedFile.size,
+          fileType: selectedFile.type,
+          fileUrl: base64Data, // Store as base64, in production use proper storage URL
+          isPublic: false
+        };
+
+        const response = await attachmentApiService.createAttachment(attachmentData);
+        
+        if (response.success) {
+          toast.success('File uploaded successfully');
+          setSelectedFile(null);
+          
+          // Reload attachments
+          const refreshResponse = await attachmentApiService.getAttachmentsByEntity('project', id);
+          if (refreshResponse.data) {
+            setAttachments(refreshResponse.data);
+          }
+        } else {
+          toast.error('Failed to upload file');
+        }
+      };
+      
+      reader.readAsDataURL(selectedFile);
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      toast.error('Failed to upload file. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Handle file deletion
+  const handleDeleteFile = async (attachmentId: string) => {
+    if (!confirm('Are you sure you want to delete this attachment?')) {
+      return;
+    }
+
+    try {
+      const response = await attachmentApiService.deleteAttachment(attachmentId);
+      if (response.success) {
+        toast.success('File deleted successfully');
+        // Reload attachments
+        if (id) {
+          const refreshResponse = await attachmentApiService.getAttachmentsByEntity('project', id);
+          if (refreshResponse.data) {
+            setAttachments(refreshResponse.data);
+          }
+        }
+      } else {
+        toast.error('Failed to delete file');
+      }
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      toast.error('Failed to delete file. Please try again.');
+    }
+  };
+
+  // Format file size
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
 
   // Loading state
   if (loading) {
@@ -386,7 +512,27 @@ const ProjectDetailsPage = () => {
             <Settings className="w-4 h-4 mr-2" />
             Settings
           </Button>
-          <Button className="bg-gradient-primary text-white">
+          <Button 
+            className="bg-gradient-primary text-white"
+            onClick={() => {
+              // Validate project exists and is valid
+              if (!project || !project.id) {
+                console.error('Cannot navigate to board: Project is not available');
+                return;
+              }
+              
+              // Store project ID in sessionStorage for scrum page to pick up
+              try {
+                sessionStorage.setItem('openProjectId', project.id);
+              } catch (error) {
+                console.error('Failed to store project ID:', error);
+              }
+              
+              // Navigate to scrum board page
+              navigate(`/scrum?project=${encodeURIComponent(project.id)}`);
+            }}
+            disabled={!project || !project.id || loading}
+          >
             <Workflow className="w-4 h-4 mr-2" />
             Go to Board
           </Button>
@@ -697,13 +843,13 @@ const ProjectDetailsPage = () => {
           <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-6 border border-blue-200 mb-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-xl font-semibold text-blue-800">Project Requirements</h3>
-                <p className="text-blue-600 mt-1">Define and track project requirements and acceptance criteria</p>
+                <h3 className="text-xl font-semibold text-blue-800">Project Attachments</h3>
+                <p className="text-blue-600 mt-1">Upload and manage project files</p>
               </div>
               <div className="flex items-center space-x-4">
                 <div className="text-right">
-                  <div className="text-2xl font-bold text-blue-600">{localRequirements?.length || 0}</div>
-                  <div className="text-sm text-blue-500">Total Requirements</div>
+                  <div className="text-2xl font-bold text-blue-600">{attachments?.length || 0}</div>
+                  <div className="text-sm text-blue-500">Total Attachments</div>
                 </div>
                 <Button 
                   variant="outline" 
@@ -712,80 +858,79 @@ const ProjectDetailsPage = () => {
                   onClick={() => setIsAddRequirementDialogOpen(true)}
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  Add Requirement
+                  Add Attachment
                 </Button>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {localRequirements?.map((requirement: any) => (
-              <Card key={requirement.id} className="hover:shadow-md transition-shadow">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">{requirement.title}</CardTitle>
-                    <div className="flex items-center space-x-2">
-                      <Badge variant="outline" className={getPriorityColor(requirement.priority)}>
-                        {requirement.priority?.toLowerCase() || 'Unknown'}
-                      </Badge>
-                      <Badge variant="outline" className={getStatusColor(requirement.status)}>
-                        {requirement.status?.toLowerCase().replace('_', ' ') || 'Unknown'}
-                      </Badge>
+          {isLoadingAttachments ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Loading attachments...</p>
+              </div>
+            </div>
+          ) : attachments.length === 0 ? (
+            <Card>
+              <CardContent className="py-12">
+                <div className="text-center">
+                  <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-muted-foreground">No attachments uploaded yet</p>
+                  <p className="text-sm text-muted-foreground mt-2">Upload your first file to get started</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {attachments.map((attachment: any) => (
+                <Card key={attachment.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <FileText className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate" title={attachment.fileName}>
+                            {attachment.fileName}
+                          </p>
+                          {attachment.fileSize && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {formatFileSize(attachment.fileSize)}
+                            </p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {new Date(attachment.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0"
+                          onClick={() => window.open(attachment.fileUrl, '_blank')}
+                          title="View file"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleDeleteFile(attachment.id)}
+                          title="Delete file"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                  <CardDescription className="text-sm">
-                    {requirement.description}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="space-y-1">
-                      <div className="text-muted-foreground text-xs">Type</div>
-                      <div className="font-medium">{requirement.type?.toLowerCase().replace('_', '-') || 'Unknown'}</div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-muted-foreground text-xs">Module</div>
-                      <div className="font-medium">{requirement.module || 'N/A'}</div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-muted-foreground text-xs">Effort Points</div>
-                      <div className="font-medium">{requirement.effortPoints || 0}</div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-muted-foreground text-xs">Status</div>
-                      <div className="font-medium">{requirement.status?.toLowerCase().replace('_', ' ') || 'Unknown'}</div>
-                    </div>
-                  </div>
-
-                  {requirement.acceptanceCriteria && (
-                    <div className="space-y-2">
-                      <div className="text-xs text-muted-foreground">Acceptance Criteria</div>
-                      <ul className="space-y-1">
-                        {(() => {
-                          // Handle both string and array formats for acceptanceCriteria
-                          let criteriaList: string[] = [];
-                          if (typeof requirement.acceptanceCriteria === 'string') {
-                            criteriaList = requirement.acceptanceCriteria ? [requirement.acceptanceCriteria] : [];
-                          } else if (Array.isArray(requirement.acceptanceCriteria)) {
-                            criteriaList = requirement.acceptanceCriteria;
-                          }
-                          
-                          return criteriaList.length > 0 ? criteriaList.map((criteria: string, index: number) => (
-                            <li key={index} className="text-sm flex items-start space-x-2">
-                              <CheckCircle2 className="w-3 h-3 text-green-600 mt-0.5 flex-shrink-0" />
-                              <span>{criteria}</span>
-                            </li>
-                          )) : (
-                            <li className="text-sm text-muted-foreground">No criteria defined</li>
-                          );
-                        })()}
-                      </ul>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )) || []}
-          </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="milestones" className="space-y-6">
@@ -892,7 +1037,7 @@ const ProjectDetailsPage = () => {
                           <span>•</span>
                           <span>{member.experience}</span>
                           <span>•</span>
-                          <span>₹{member.hourlyRate}/hr</span>
+                          <span>₹{member.hourlyRate}</span>
                         </div>
                         {member.skills && member.skills.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-1">
@@ -1116,11 +1261,11 @@ const ProjectDetailsPage = () => {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label>Project Name</Label>
-                  <Input value={project.name} />
+                  <Input value={project.name} readOnly />
                 </div>
                 <div className="space-y-2">
                   <Label>Description</Label>
-                  <Textarea value={project.description} rows={3} />
+                  <Textarea value={project.description || ''} rows={3} readOnly />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -1248,139 +1393,65 @@ const ProjectDetailsPage = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Add Requirement Dialog */}
+      {/* Add Attachment Dialog */}
       <Dialog open={isAddRequirementDialogOpen} onOpenChange={setIsAddRequirementDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent 
+          className="max-w-[90vw] w-[90vw] h-[90vh] max-h-[90vh] flex flex-col"
+          style={{ width: '90vw', height: '90vh', maxWidth: '90vw', maxHeight: '90vh' }}
+        >
           <DialogHeader>
-            <DialogTitle>Add New Requirement</DialogTitle>
-            <DialogDescription>
-              Define a new project requirement with acceptance criteria.
+            <DialogTitle className="text-xl">Upload Attachment</DialogTitle>
+            <DialogDescription className="text-base">
+              Upload files to attach to this project. All file types are supported.
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4">
+          <div className="flex-1 space-y-4 overflow-y-auto">
             <div className="space-y-2">
-              <Label htmlFor="requirement-title">Requirement Title *</Label>
-              <Input
-                id="requirement-title"
-                placeholder="e.g., User Authentication System"
-                value={requirementForm.title}
-                onChange={(e) => setRequirementForm(prev => ({ ...prev, title: e.target.value }))}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="requirement-description">Description</Label>
-              <Textarea
-                id="requirement-description"
-                placeholder="Describe the requirement in detail..."
-                rows={3}
-                value={requirementForm.description}
-                onChange={(e) => setRequirementForm(prev => ({ ...prev, description: e.target.value }))}
-              />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="requirement-priority">Priority</Label>
-                <Select value={requirementForm.priority} onValueChange={(value) => setRequirementForm(prev => ({ ...prev, priority: value }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select priority" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="low">Low</SelectItem>
-                  </SelectContent>
-                </Select>
+              <Label htmlFor="file-upload">Select File</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="file-upload"
+                  type="file"
+                  onChange={handleFileChange}
+                  className="cursor-pointer"
+                />
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="requirement-type">Type</Label>
-                <Select value={requirementForm.type} onValueChange={(value) => setRequirementForm(prev => ({ ...prev, type: value }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="functional">Functional</SelectItem>
-                    <SelectItem value="non-functional">Non-functional</SelectItem>
-                    <SelectItem value="technical">Technical</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="acceptance-criteria">Acceptance Criteria</Label>
-              <Textarea
-                id="acceptance-criteria"
-                placeholder="Define the acceptance criteria for this requirement..."
-                rows={2}
-                value={requirementForm.acceptanceCriteria}
-                onChange={(e) => setRequirementForm(prev => ({ ...prev, acceptanceCriteria: e.target.value }))}
-              />
+              {selectedFile && (
+                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-blue-600" />
+                      <div>
+                        <p className="text-sm font-medium">{selectedFile.name}</p>
+                        <p className="text-xs text-muted-foreground">{formatFileSize(selectedFile.size)}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           
-          <DialogFooter>
+          <DialogFooter className="flex-shrink-0">
             <Button variant="outline" onClick={() => {
               setIsAddRequirementDialogOpen(false);
-              // Reset form
-              setRequirementForm({
-                title: '',
-                description: '',
-                priority: 'medium',
-                type: 'functional',
-                acceptanceCriteria: ''
-              });
+              setSelectedFile(null);
             }}>
               Cancel
             </Button>
-            <Button onClick={async () => {
-              // Validate form
-              if (!requirementForm.title.trim()) {
-                alert('Please enter a requirement title.');
-                return;
-              }
-              
-              if (!id) {
-                alert('Project ID not found.');
-                return;
-              }
-              
-              try {
-                // Create requirement via API
-                const newRequirement = await createRequirement({
-                  projectId: id,
-                  title: requirementForm.title.trim(),
-                  description: requirementForm.description.trim() || undefined,
-                  type: requirementForm.type.toUpperCase().replace('-', '_') as 'FUNCTIONAL' | 'NON_FUNCTIONAL' | 'TECHNICAL',
-                  priority: requirementForm.priority.toUpperCase() as 'HIGH' | 'MEDIUM' | 'LOW',
-                  acceptanceCriteria: requirementForm.acceptanceCriteria.trim() || undefined,
-                  status: 'DRAFT'
-                });
-                
-                if (newRequirement) {
-                  console.log('Requirement created successfully:', newRequirement);
-                  
-                  // Reset form and close dialog
-                  setRequirementForm({
-                    title: '',
-                    description: '',
-                    priority: 'medium',
-                    type: 'functional',
-                    acceptanceCriteria: ''
-                  });
-                  setIsAddRequirementDialogOpen(false);
-                } else {
-                  alert('Failed to create requirement. Please try again.');
-                }
-              } catch (error) {
-                console.error('Error creating requirement:', error);
-                alert('Failed to create requirement. Please try again.');
-              }
-            }}>
-              Add Requirement
+            <Button onClick={handleUploadFile} disabled={!selectedFile || isUploading}>
+              {isUploading ? (
+                <>
+                  <Upload className="w-4 h-4 mr-2 animate-pulse" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload File
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

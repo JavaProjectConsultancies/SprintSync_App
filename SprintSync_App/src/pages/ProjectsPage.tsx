@@ -49,7 +49,9 @@ import {
   Flag,
   Rocket,
   Trash2,
-  Loader2
+  Loader2,
+  Upload,
+  Eye
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../components/ui/dropdown-menu';
 import TeamManager from '../components/TeamManager';
@@ -67,6 +69,8 @@ import { useAuth } from '../contexts/AuthContextEnhanced';
 import { useProjects, useUsers, useDepartments, useDomains, useEpics, useReleases, useSprints, useStories, useTasks } from '../hooks/api';
 import { apiClient } from '../services/api/client';
 import { projectApiService } from '../services/api/entities/projectApi';
+import { attachmentApiService } from '../services/api';
+import { toast } from 'sonner';
 
 interface Stakeholder {
   id: string;
@@ -179,7 +183,7 @@ const ProjectsPage: React.FC = () => {
 
   // API hooks for real data
   const { data: apiProjects, loading: projectsLoading, error: projectsError, deleteProject, refetch } = useProjects();
-  const { data: apiUsers, loading: usersLoading, error: usersError } = useUsers();
+  const { data: apiUsers, loading: usersLoading, error: usersError, refetch: refetchUsers } = useUsers({ page: 0, size: 1000 });
   const { data: apiDepartments, loading: departmentsLoading, error: departmentsError } = useDepartments();
   
   const [view, setView] = useState<'grid' | 'list'>('grid');
@@ -283,6 +287,12 @@ const ProjectsPage: React.FC = () => {
     releases: []
   });
   const [hasUserAddedRequirements, setHasUserAddedRequirements] = useState(false);
+
+  // Attachment state for new project form
+  const [pendingAttachments, setPendingAttachments] = useState<{ file: File; name: string; size: number; type: string; url: string }[]>([]);
+  const [isAddAttachmentDialogOpen, setIsAddAttachmentDialogOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Project Templates
   const projectTemplates = [
@@ -575,7 +585,12 @@ const ProjectsPage: React.FC = () => {
   // Use API data only - normalize projects: ensure teamMembers is always an array
   const projects = (apiProjects || []).map(project => ({
     ...project,
-    teamMembers: Array.isArray((project as any).teamMembers) ? (project as any).teamMembers : []
+    teamMembers: Array.isArray((project as any).teamMembers) ? (project as any).teamMembers : [],
+    // Normalize API fields to local format
+    progress: project.progressPercentage ?? 0,
+    completedSprints: 0, // TODO: Add sprint tracking
+    sprints: 0, // TODO: Add sprint tracking
+    department: project.departmentId ?? ''
   }));
 
   const resetNewProjectForm = () => {
@@ -648,6 +663,11 @@ const ProjectsPage: React.FC = () => {
       owner: ''
     });
     setActiveTab('basic');
+    // Reset attachment state
+    setPendingAttachments([]);
+    setIsAddAttachmentDialogOpen(false);
+    setSelectedFile(null);
+    setIsUploading(false);
   };
 
   const handleTemplateChange = (templateId: string) => {
@@ -893,6 +913,39 @@ const ProjectsPage: React.FC = () => {
       
       if (response && response.success) {
         console.log('Project and all entities created successfully:', response);
+        
+        // Get the created project ID
+        const createdProjectId = response.data?.project?.id || response.data?.projectId;
+        
+        // Upload pending attachments if any
+        if (createdProjectId && pendingAttachments.length > 0 && user) {
+          try {
+            console.log('Uploading pending attachments:', pendingAttachments.length);
+            for (const attachment of pendingAttachments) {
+              const attachmentData = {
+                uploadedBy: user.id,
+                entityType: 'project',
+                entityId: createdProjectId,
+                fileName: attachment.name,
+                fileSize: attachment.size,
+                fileType: attachment.type,
+                fileUrl: attachment.url, // Base64 data
+                isPublic: false
+              };
+              
+              const attachmentResponse = await attachmentApiService.createAttachment(attachmentData);
+              if (attachmentResponse.success) {
+                console.log('Attachment uploaded successfully:', attachment.name);
+              } else {
+                console.error('Failed to upload attachment:', attachment.name);
+              }
+            }
+            console.log('All attachments uploaded successfully');
+          } catch (attachmentError) {
+            console.error('Error uploading attachments:', attachmentError);
+            // Don't fail the project creation if attachment upload fails
+          }
+        }
         
         // Close dialog and reset form
     setIsNewProjectDialogOpen(false);
@@ -1299,6 +1352,65 @@ const ProjectsPage: React.FC = () => {
     });
   };
 
+  // Attachment handlers
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+    }
+  };
+
+  const handleUploadFile = async () => {
+    if (!selectedFile || !user) {
+      toast.error('Please select a file');
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+
+      // Read file as base64 for storage
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64Data = reader.result as string;
+        
+        // Add to pending attachments
+        setPendingAttachments(prev => [...prev, {
+          file: selectedFile,
+          name: selectedFile.name,
+          size: selectedFile.size,
+          type: selectedFile.type,
+          url: base64Data
+        }]);
+        
+        setSelectedFile(null);
+        setIsUploading(false);
+        toast.success('File added successfully');
+      };
+      
+      reader.readAsDataURL(selectedFile);
+    } catch (error) {
+      console.error('Error reading file:', error);
+      toast.error('Failed to read file. Please try again.');
+      setIsUploading(false);
+    }
+  };
+
+  const handleDeletePendingFile = (index: number) => {
+    if (confirm('Are you sure you want to remove this file?')) {
+      setPendingAttachments(prev => prev.filter((_, i) => i !== index));
+      toast.success('File removed successfully');
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
+
   // Add Stakeholder
   const addStakeholder = () => {
     setIsStakeholderDialogOpen(true);
@@ -1444,12 +1556,12 @@ const ProjectsPage: React.FC = () => {
     setIsMilestoneDialogOpen(true);
   };
 
-  const handleProjectClick = (project: Project) => {
+  const handleProjectClick = (project: any) => {
     navigate(`/projects/${project.id}`);
   };
 
   // Handle delete project
-  const handleDeleteClick = (project: Project, e: React.MouseEvent) => {
+  const handleDeleteClick = (project: any, e: React.MouseEvent) => {
     e.stopPropagation();
     setProjectToDelete(project);
     setIsDeleteDialogOpen(true);
@@ -1531,15 +1643,15 @@ const ProjectsPage: React.FC = () => {
     if (!wanted) return;
     
     // Handle both string IDs (from Dashboard) and numeric IDs
-    let match: Project | undefined = undefined;
+    let match: any = undefined;
     if (wanted.startsWith('proj-')) {
       // Dashboard passes 'proj-1', we need to convert to numeric ID
       const numericId = parseInt(wanted.replace('proj-', ''));
-      match = filteredProjects.find(p => p.id === numericId);
+      match = filteredProjects.find((p: any) => p.id === numericId || p.id === numericId.toString());
     } else {
       // Direct numeric ID or string numeric
       const numericId = parseInt(wanted);
-      match = filteredProjects.find(p => p.id === numericId) || filteredProjects.find(p => p.id.toString() === wanted);
+      match = filteredProjects.find((p: any) => p.id === numericId || p.id.toString() === wanted);
     }
     
     if (match) {
@@ -1708,8 +1820,13 @@ const ProjectsPage: React.FC = () => {
               <CardContent className="pt-2">
                 {milestoneView === 'widget' ? (
                   <MilestoneWidget
+                    projectId={selectedProject.id?.toString() || ''}
                     milestones={getProjectMilestones(selectedProject.id)}
                     onMilestoneClick={handleMilestoneClick}
+                    onAddMilestone={() => {
+                      setSelectedMilestone(null);
+                      setIsMilestoneDialogOpen(true);
+                    }}
                   />
                 ) : (
                   <MilestoneTimeline
@@ -2140,7 +2257,7 @@ const ProjectsPage: React.FC = () => {
                       <div className="flex items-center space-x-2">
                         <Calendar className="w-4 h-4 text-muted-foreground" />
                         <span className="text-muted-foreground">
-                          {new Date(project.endDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
+                          {project.endDate ? new Date(project.endDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }) : 'No date'}
                         </span>
                       </div>
                       <div className="flex items-center space-x-2">
@@ -2210,7 +2327,7 @@ const ProjectsPage: React.FC = () => {
                       <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                         <span className="flex items-center space-x-1">
                           <Calendar className="w-4 h-4" />
-                          <span>{new Date(project.endDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}</span>
+                          <span>{project.endDate ? new Date(project.endDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }) : 'No date'}</span>
                         </span>
                         <span className="flex items-center space-x-1">
                           <Users className="w-4 h-4" />
@@ -2511,42 +2628,66 @@ const ProjectsPage: React.FC = () => {
 
               <TabsContent value="requirements" className="space-y-4">
                 <div className="space-y-4">
-                  <h4 className="font-medium">Project Requirements</h4>
-                  {newProject.requirements.length > 0 && (
-                    <div className="space-y-2">
-                      {newProject.requirements.map((req, index) => (
-                        <div key={req.id} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2 mb-1">
-                              <span className="font-medium">{req.title}</span>
-                              <Badge variant="outline" className={getPriorityColor(req.priority)}>
-                                {req.priority}
-                              </Badge>
-                              <Badge variant="secondary">{req.type}</Badge>
-                            </div>
-                            <p className="text-sm text-muted-foreground">{req.module}</p>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setNewProject(prev => ({
-                              ...prev,
-                              requirements: prev.requirements.filter((_, i) => i !== index)
-                            }))}
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
+                  <h4 className="font-medium text-xl">Project Attachments</h4>
+                  <p className="text-base text-gray-600">Upload files to attach to this project. All file types are supported.</p>
+                  
+                  {pendingAttachments.length === 0 ? (
+                    <Card>
+                      <CardContent className="py-12">
+                        <div className="text-center">
+                          <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                          <p className="text-muted-foreground">No attachments uploaded yet</p>
+                          <p className="text-sm text-muted-foreground mt-2">Upload your first file to get started</p>
                         </div>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {pendingAttachments.map((attachment, index) => (
+                        <Card key={index} className="hover:shadow-md transition-shadow">
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-start gap-3 flex-1 min-w-0">
+                                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                  <FileText className="w-5 h-5 text-blue-600" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-sm truncate" title={attachment.name}>
+                                    {attachment.name}
+                                  </p>
+                                  {attachment.size && (
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      {formatFileSize(attachment.size)}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  onClick={() => handleDeletePendingFile(index)}
+                                  title="Remove file"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
                       ))}
                     </div>
                   )}
 
                   <div className="flex justify-center mt-6">
-                    <Button variant="outline" onClick={addRequirement}>
+                    <Button variant="outline" onClick={() => setIsAddAttachmentDialogOpen(true)}>
                       <Plus className="w-4 h-4 mr-2" />
-                      Add Requirement
+                      Add Attachment
                     </Button>
                   </div>
+
+                  <Separator className="my-6" />
 
                     <h5 className="font-medium">Success Criteria</h5>
                     <div className="flex space-x-2">
@@ -2646,12 +2787,6 @@ const ProjectsPage: React.FC = () => {
                         )}
                       </SelectContent>
                     </Select>
-                    {/* Debug info */}
-                    {process.env.NODE_ENV === 'development' && (
-                      <div className="text-xs text-muted-foreground">
-                        Debug: Users loaded: {apiUsers?.length || 0}, Loading: {usersLoading ? 'Yes' : 'No'}
-                      </div>
-                    )}
                   </div>
                 </div>
 
@@ -3430,6 +3565,70 @@ const ProjectsPage: React.FC = () => {
             </Button>
             <Button onClick={saveStakeholder} disabled={!currentStakeholder.name.trim() || !currentStakeholder.role.trim()}>
               Add Stakeholder
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Attachment Dialog */}
+      <Dialog open={isAddAttachmentDialogOpen} onOpenChange={setIsAddAttachmentDialogOpen}>
+        <DialogContent 
+          className="max-w-[90vw] w-[90vw] h-[90vh] max-h-[90vh] flex flex-col"
+          style={{ width: '90vw', height: '90vh', maxWidth: '90vw', maxHeight: '90vh' }}
+        >
+          <DialogHeader>
+            <DialogTitle className="text-xl">Upload Attachment</DialogTitle>
+            <DialogDescription className="text-base">
+              Upload files to attach to this project. All file types are supported.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 space-y-4 overflow-y-auto">
+            <div className="space-y-2">
+              <Label htmlFor="file-upload">Select File</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="file-upload"
+                  type="file"
+                  onChange={handleFileChange}
+                  className="cursor-pointer"
+                />
+              </div>
+              {selectedFile && (
+                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-blue-600" />
+                      <div>
+                        <p className="text-sm font-medium">{selectedFile.name}</p>
+                        <p className="text-xs text-muted-foreground">{formatFileSize(selectedFile.size)}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <DialogFooter className="flex-shrink-0">
+            <Button variant="outline" onClick={() => {
+              setIsAddAttachmentDialogOpen(false);
+              setSelectedFile(null);
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleUploadFile} disabled={!selectedFile || isUploading}>
+              {isUploading ? (
+                <>
+                  <Upload className="w-4 h-4 mr-2 animate-pulse" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload File
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

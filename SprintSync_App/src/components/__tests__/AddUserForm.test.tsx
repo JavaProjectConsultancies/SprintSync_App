@@ -165,7 +165,7 @@ describe('AddUserForm', () => {
       />
     );
 
-    const hourlyRateInput = screen.getByLabelText('Hourly Rate ($)');
+    const hourlyRateInput = screen.getByLabelText('Hourly Rate (₹)');
     fireEvent.change(hourlyRateInput, { target: { value: '-50' } });
 
     const submitButton = screen.getByText('Create User');

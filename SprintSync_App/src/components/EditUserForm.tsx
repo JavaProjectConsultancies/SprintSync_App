@@ -314,7 +314,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
             newErrors.role = 'Please select a valid role';
             break;
           case 'hourlyRate':
-            newErrors.hourlyRate = 'Hourly rate must be a positive number';
+            newErrors.hourlyRate = 'CTC must be a positive number';
             break;
           case 'availabilityPercentage':
       newErrors.availabilityPercentage = 'Availability must be between 0 and 100';
@@ -824,13 +824,13 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
               </div>
               
               <div className="edit-user-form-grid">
-                {/* Hourly Rate */}
+                {/* CTC */}
                 <div className="edit-user-form-field space-y-2">
                   <Label htmlFor="editHourlyRate" className="text-sm font-semibold text-gray-700">
-                    Hourly Rate ($)
+                    CTC (₹)
                   </Label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">$</span>
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">₹</span>
                     <Input
                       id="editHourlyRate"
                       type="number"
@@ -841,7 +841,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                       className={`w-full h-10 pl-8 pr-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
                         errors.hourlyRate ? 'border-red-300 bg-red-50' : 'border-gray-200'
                       }`}
-                      placeholder="0.00"
+                      placeholder="500000.00"
                     />
                   </div>
                   {errors.hourlyRate && (
@@ -850,6 +850,9 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                       {errors.hourlyRate}
                     </p>
                   )}
+                  <p className="text-xs text-gray-500">
+                    CTC (Cost to Company) in INR (stored as DECIMAL(10,2) in database)
+                  </p>
                 </div>
 
                 {/* Availability Percentage */}

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { User, UserRole } from '../types';
 import { authApiService, LoginResponse } from '../services/api/authApi';
 import { apiClient } from '../services/api/client';
@@ -96,10 +97,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           id: userData.id,
           name: userData.name,
           email: userData.email,
-          role: userData.role.toLowerCase() as UserRole,
-          avatar: userData.avatar,
-          department: userData.department,
-          domain: userData.domain,
+          role: (userData.role ? (typeof userData.role === 'string' ? userData.role.toLowerCase() : String(userData.role).toLowerCase()) : 'developer') as UserRole,
+          avatar: userData.avatarUrl || userData.avatar,
+          department: userData.departmentId || userData.department,
+          domain: userData.domainId || userData.domain,
           assignedProjects: [], // This would come from a separate API call
         };
 
@@ -109,6 +110,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         apiClient.setAuthToken(authToken);
         
         console.log('Login successful:', localUser);
+        
+        // Note: Navigation to dashboard should be handled by the component calling login
+        // This ensures all users are redirected to dashboard after login
+        
         return true;
       } else {
         throw new Error(response.message || 'Login failed');
@@ -153,14 +158,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const response = await authApiService.getCurrentUser();
       if (response.success && response.data) {
         const userData = response.data;
+        
+        // Safely handle role conversion with fallback
+        let userRole: string = 'developer'; // Default role
+        if (userData.role) {
+          if (typeof userData.role === 'string') {
+            userRole = userData.role.toLowerCase();
+          } else {
+            userRole = String(userData.role).toLowerCase();
+          }
+        }
+        
         const localUser: User = {
           id: userData.id,
-          name: userData.name,
+          name: userData.name || userData.email || 'Unknown User',
           email: userData.email,
-          role: userData.role.toLowerCase() as UserRole,
-          avatar: userData.avatar,
-          department: userData.department,
-          domain: userData.domain,
+          role: (userRole as UserRole) || 'developer',
+          avatar: userData.avatar || userData.avatarUrl,
+          department: userData.department || userData.departmentId,
+          domain: userData.domain || userData.domainId,
           assignedProjects: [],
         };
         

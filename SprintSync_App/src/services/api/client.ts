@@ -148,16 +148,31 @@ class ApiClient {
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
           throw {
-            message: 'Request timeout',
+            message: 'Request timeout - The server took too long to respond',
             status: 408,
             code: 'TIMEOUT',
           } as ApiError;
         }
         
+        // Provide more helpful error messages for network errors
+        let errorMessage = error.message;
+        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+          errorMessage = `Cannot connect to backend API at ${this.baseURL}. Please ensure:
+1. The backend server is running on port 8080
+2. The server URL is correct
+3. CORS is properly configured
+4. There are no firewall or network restrictions`;
+        }
+        
         throw {
-          message: error.message,
+          message: errorMessage,
           status: 0,
           code: 'NETWORK_ERROR',
+          details: {
+            baseURL: this.baseURL,
+            endpoint,
+            originalError: error.message,
+          },
         } as ApiError;
       }
       

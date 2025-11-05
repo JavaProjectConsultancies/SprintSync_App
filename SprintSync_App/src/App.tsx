@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContextEnhanced';
 import LoginForm from './components/LoginForm';
@@ -29,6 +29,7 @@ import ReportsPage from './pages/ReportsPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPanelPage from './pages/AdminPanelPage';
 import TodoListPage from './pages/TodoListPage';
+import RegistrationPage from './pages/RegistrationPage';
 
 // Import API integration components
 // import ApiIntegrationDemo from './components/ApiIntegrationDemo';
@@ -63,6 +64,25 @@ const AppContent: React.FC = () => {
   const { navigationState, navigateTo } = useNavigation();
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Ensure users are redirected to dashboard after login
+  // This effect runs when user state changes (after login)
+  useEffect(() => {
+    // If user is logged in and navigates to an invalid route, redirect to dashboard
+    // This ensures all users always land on dashboard after login
+    if (user) {
+      // If somehow user lands on a non-existent route, redirect to dashboard
+      const validRoutes = ['/', '/projects', '/backlog', '/scrum', '/time-tracking', 
+                          '/ai-insights', '/team-allocation', '/reports', '/profile', 
+                          '/admin-panel', '/todo-list'];
+      const isValidRoute = validRoutes.includes(location.pathname) || 
+                          location.pathname.startsWith('/projects/');
+      
+      if (!isValidRoute && location.pathname !== '/') {
+        navigate('/');
+      }
+    }
+  }, [user, location.pathname, navigate]);
 
   // Get page title and description based on route
   const getPageInfo = (path: string) => {
@@ -145,47 +165,58 @@ const AppContent: React.FC = () => {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-white to-cyan-50">
-        <div className="w-full max-w-md p-6">
-          <div className="text-center mb-8">
-            <div className="flex justify-center mb-4">
-              <img 
-                src={sprintSyncLogo} 
-                alt="SprintSync" 
-                className="w-16 h-16 object-contain"
-              />
-            </div>
-            <h1 className="text-2xl font-bold text-green-600">SprintSync</h1>
-            <p className="text-muted-foreground">Your Agile Project Management Solution</p>
-          </div>
-          
-          <LoginForm
-            onLoginSuccess={(token, userData) => {
-              console.log('Login successful from LoginForm - Token:', token);
-              console.log('Login successful from LoginForm - User:', userData);
+      <Routes>
+        <Route path="/register" element={<RegistrationPage />} />
+        <Route path="*" element={
+          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-white to-cyan-50">
+            <div className="w-full max-w-md p-6">
+              <div className="text-center mb-8">
+                <div className="flex justify-center mb-4">
+                  <img 
+                    src={sprintSyncLogo} 
+                    alt="SprintSync" 
+                    className="w-16 h-16 object-contain"
+                  />
+                </div>
+                <h1 className="text-2xl font-bold text-green-600">SprintSync</h1>
+                <p className="text-muted-foreground">Your Agile Project Management Solution</p>
+              </div>
               
-              // Directly set the auth state with the received data
-              setAuthState(token, userData);
-              console.log('Auth state updated successfully');
-            }}
-            onLoginError={(error) => {
-              console.error('Login failed from LoginForm:', error);
-              // The AuthContext will handle the error state
-            }}
-            isLoading={isLoading}
-          />
-          
-          {loginError && (
-            <div className="mt-4">
-              <Alert className="border-red-200 bg-red-50">
-                <AlertDescription className="text-red-800">
-                  {loginError}
-                </AlertDescription>
-              </Alert>
+              <LoginForm
+                onLoginSuccess={(token, userData) => {
+                  console.log('Login successful from LoginForm - Token:', token);
+                  console.log('Login successful from LoginForm - User:', userData);
+                  
+                  // Directly set the auth state with the received data
+                  setAuthState(token, userData);
+                  console.log('Auth state updated successfully');
+                  
+                  // Redirect to dashboard after successful login (for all users)
+                  // Use setTimeout to ensure state is updated before navigation
+                  setTimeout(() => {
+                    navigate('/');
+                  }, 100);
+                }}
+                onLoginError={(error) => {
+                  console.error('Login failed from LoginForm:', error);
+                  // The AuthContext will handle the error state
+                }}
+                isLoading={isLoading}
+              />
+              
+              {loginError && (
+                <div className="mt-4">
+                  <Alert className="border-red-200 bg-red-50">
+                    <AlertDescription className="text-red-800">
+                      {loginError}
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        } />
+      </Routes>
     );
   }
 

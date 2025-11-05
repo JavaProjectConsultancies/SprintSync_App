@@ -58,7 +58,7 @@ const Dashboard: React.FC = () => {
 
   // API hooks for real data from all master tables
   const { data: apiProjects, loading: projectsLoading, error: projectsError, refetch: refetchProjects } = useProjects();
-  const { data: apiUsers, loading: usersLoading, error: usersError, refetch: refetchUsers } = useUsers();
+  const { data: apiUsers, loading: usersLoading, error: usersError, refetch: refetchUsers } = useUsers({ page: 0, size: 1000 });
   const { data: apiDepartments, loading: departmentsLoading, error: departmentsError, refetch: refetchDepartments } = useDepartments();
   const { data: apiDomains, loading: domainsLoading, error: domainsError, refetch: refetchDomains } = useDomains();
   const { data: apiEpics, loading: epicsLoading, error: epicsError, refetch: refetchEpics } = useEpics();
@@ -164,9 +164,9 @@ const Dashboard: React.FC = () => {
   const teamPerformanceData = useMemo(() => {
     // TODO: Generate team performance data from user and task data
     return [
-      { member: 'Team Member 1', tasks: 12, completed: 10 },
-      { member: 'Team Member 2', tasks: 8, completed: 7 },
-      { member: 'Team Member 3', tasks: 15, completed: 12 }
+      { id: 'member-1', member: 'Team Member 1', tasks: 12, completed: 10 },
+      { id: 'member-2', member: 'Team Member 2', tasks: 8, completed: 7 },
+      { id: 'member-3', member: 'Team Member 3', tasks: 15, completed: 12 }
     ];
   }, [apiUsers, apiTasks]);
 
@@ -174,6 +174,7 @@ const Dashboard: React.FC = () => {
     // TODO: Generate AI insights from data patterns
     return [
       {
+        id: 'insight-1',
         type: 'warning',
         title: 'Project Progress Alert',
         message: 'Some projects are behind schedule',

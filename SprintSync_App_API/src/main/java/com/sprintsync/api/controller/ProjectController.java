@@ -9,11 +9,12 @@ import com.sprintsync.api.entity.enums.ProjectStatus;
 import com.sprintsync.api.service.ProjectService;
 import com.sprintsync.api.service.ProjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import jakarta.validation.Valid;
 
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -49,6 +50,7 @@ public class ProjectController {
      * @return ResponseEntity containing the created project
      */
     @PostMapping
+    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
     public ResponseEntity<Project> createProject(@RequestBody Project project) {
         try {
             Project createdProject = projectService.createProject(project);
@@ -65,6 +67,7 @@ public class ProjectController {
      * @return ResponseEntity containing the comprehensive project creation response
      */
     @PostMapping("/comprehensive")
+    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
     public ResponseEntity<CreateProjectResponse> createProjectComprehensive(@RequestBody CreateProjectRequest request) {
         try {
             CreateProjectResponse response = projectService.createProjectWithRelatedEntities(request);
@@ -88,6 +91,7 @@ public class ProjectController {
      * @return ResponseEntity containing the project DTO if found
      */
     @GetMapping("/{id}")
+    @Cacheable(value = "projects", key = "#id")
     public ResponseEntity<ProjectDto> getProjectById(@PathVariable String id) {
         Optional<Project> project = projectService.findById(id);
         return project.map(p -> ResponseEntity.ok(projectMapper.toDto(p)))
@@ -104,6 +108,7 @@ public class ProjectController {
      * @return ResponseEntity containing page of project DTOs
      */
     @GetMapping
+    @Cacheable(value = "projects-summary", key = "#page + '-' + #size + '-' + #sortBy + '-' + #sortDir")
     public ResponseEntity<Map<String, Object>> getAllProjects(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
@@ -136,6 +141,7 @@ public class ProjectController {
      * @return ResponseEntity containing list of all projects
      */
     @GetMapping("/all")
+    @Cacheable(value = "projects-summary", key = "'all'")
     public ResponseEntity<Map<String, Object>> getAllProjectsList() {
         List<Project> projects = projectService.getAllProjects();
         
@@ -281,6 +287,7 @@ public class ProjectController {
      * @return ResponseEntity containing the updated project
      */
     @PutMapping("/{id}")
+    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
     public ResponseEntity<Project> updateProject(@PathVariable String id, @RequestBody Project projectDetails) {
         try {
             projectDetails.setId(id);
@@ -332,6 +339,7 @@ public class ProjectController {
      * @return ResponseEntity with no content if successful
      */
     @DeleteMapping("/{id}")
+    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
     public ResponseEntity<Void> deleteProject(@PathVariable String id) {
         try {
             projectService.deleteProject(id);

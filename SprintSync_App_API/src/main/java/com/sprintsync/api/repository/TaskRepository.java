@@ -280,4 +280,33 @@ public interface TaskRepository extends JpaRepository<Task, String> {
      */
     @Query("SELECT t FROM Task t WHERE t.actualHours >= :minTime ORDER BY t.actualHours DESC")
     List<Task> findTasksByTimeSpent(@Param("minTime") Integer minTime);
+
+    /**
+     * Update task status directly using native query (for custom lane statuses)
+     */
+    @Query(value = "UPDATE tasks SET status = :statusValue, updated_at = NOW() WHERE id = :taskId", nativeQuery = true)
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional
+    void updateTaskStatusDirectly(@Param("taskId") String taskId, @Param("statusValue") String statusValue);
+    
+    /**
+     * Find task with raw status value (for custom lane statuses)
+     * This query returns the raw status string from the database
+     */
+    @Query(value = "SELECT status FROM tasks WHERE id = :taskId", nativeQuery = true)
+    String findStatusById(@Param("taskId") String taskId);
+    
+    /**
+     * Find all tasks with raw status values (for custom lane statuses)
+     * This returns tasks with their raw status strings from the database
+     */
+    @Query(value = "SELECT t.*, t.status as raw_status FROM tasks t WHERE t.story_id = :storyId", nativeQuery = true)
+    List<Object[]> findTasksWithRawStatusByStoryId(@Param("storyId") String storyId);
+    
+    /**
+     * Find the maximum task number for a given story
+     * Used to assign sequential task numbers when creating new tasks
+     */
+    @Query("SELECT COALESCE(MAX(t.taskNumber), 0) FROM Task t WHERE t.storyId = :storyId")
+    Integer findMaxTaskNumberByStoryId(@Param("storyId") String storyId);
 }

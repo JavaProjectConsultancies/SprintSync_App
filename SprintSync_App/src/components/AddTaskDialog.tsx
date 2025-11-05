@@ -11,7 +11,7 @@ import { Card, CardContent } from './ui/card';
 import { Separator } from './ui/separator';
 import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { CalendarIcon, CheckSquare, User, Flag, Target, Clock, Plus, X, FileText, Database, Code, Palette, Bug, Search } from 'lucide-react';
+import { CalendarIcon, CheckSquare, User, Flag, Target, Clock, Plus, X, FileText, Database, Code, Palette, Bug, Search, Paperclip, Trash2, Loader2 } from 'lucide-react';
 import { taskTemplates, TaskTemplate, getTemplatesByType } from '../data/taskTemplates';
 
 // Simple date formatter to replace date-fns
@@ -100,6 +100,8 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
   });
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Use API users if provided, otherwise fall back to mock data
   const teamMembers = users.length > 0 
@@ -162,7 +164,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
 
     const validSubtasks = formData.subtasks.filter(subtask => subtask.trim());
     
-    const newTask: Omit<Task, 'id'> = {
+    const newTask: Omit<Task, 'id'> & { attachments?: File[] } = {
       title: formData.title.trim(),
       description: formData.description.trim(),
       storyId: formData.storyId === 'none' ? undefined : formData.storyId || undefined,
@@ -172,7 +174,8 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
       dueDate: formData.dueDate ? format(formData.dueDate, 'dd/MM/yy') : '',
       estimatedHours: formData.estimatedHours,
       subtasks: validSubtasks,
-      progress: 0
+      progress: 0,
+      attachments: attachments.length > 0 ? attachments : undefined
     };
 
     await onSubmit(newTask);
@@ -195,6 +198,26 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
       labels: []
     });
     setErrors({});
+    setAttachments([]);
+  };
+
+  // File upload handler
+  const handleFileSelect = (files: FileList | null) => {
+    if (!files) return;
+    const fileArray = Array.from(files);
+    setAttachments(prev => [...prev, ...fileArray]);
+  };
+
+  const handleRemoveAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
   const addSubtask = () => {
@@ -753,6 +776,96 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                 </CardContent>
               </Card>
             )}
+
+            {/* Attachments */}
+            <Card>
+              <CardContent className="p-4 space-y-4">
+                <div className="flex items-center space-x-2 mb-3">
+                  <Paperclip className="w-4 h-4 text-blue-600" />
+                  <h3 className="font-medium">Attachments (Optional)</h3>
+                </div>
+
+                {/* Upload Area */}
+                <div
+                  className="border-2 border-dashed border-gray-300 rounded-lg p-6 mb-4 hover:border-blue-400 transition-colors cursor-pointer bg-gray-50"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                      handleFileSelect(files);
+                    }
+                  }}
+                  onClick={() => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.multiple = true;
+                    input.onchange = (e) => {
+                      const target = e.target as HTMLInputElement;
+                      if (target.files && target.files.length > 0) {
+                        handleFileSelect(target.files);
+                      }
+                    };
+                    input.click();
+                  }}
+                >
+                  <div className="text-center">
+                    <Paperclip className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                    <p className="text-sm text-gray-600 mb-1">
+                      Drop attachments here or select from your computer
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      Click to browse files or drag and drop
+                    </p>
+                  </div>
+                </div>
+
+                {/* Attachments List */}
+                {attachments.length > 0 && (
+                  <div className="space-y-2">
+                    {attachments.map((file, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex items-center space-x-3 flex-1 min-w-0">
+                          <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center flex-shrink-0">
+                            <Paperclip className="w-4 h-4 text-blue-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {file.name}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {formatFileSize(file.size)}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveAttachment(index);
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Preview */}
             <Card>

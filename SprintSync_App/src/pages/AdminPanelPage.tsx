@@ -49,10 +49,13 @@ import { useProjects } from '../hooks/api/useProjects';
 import { useExperienceLevels } from '../hooks/api/useExperienceLevels';
 import { useDepartments } from '../hooks/api/useDepartments';
 import { useDomains } from '../hooks/api/useDomains';
+import { usePendingRegistrations, useDeletePendingRegistration } from '../hooks/api/usePendingRegistrations';
+import { PendingRegistration } from '../services/api/entities/pendingRegistrationApi';
 import { User } from '../types/api';
 import AddUserForm from '../components/AddUserForm';
 import EditUserForm from '../components/EditUserForm';
 import UserDetailsModal from '../components/UserDetailsModal';
+import PendingRegistrationsTab from '../components/PendingRegistrationsTab';
 
 const AdminPanelPage: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
@@ -68,8 +71,8 @@ const AdminPanelPage: React.FC = () => {
   const [userDetailsModalOpen, setUserDetailsModalOpen] = useState(false);
   const [viewingUser, setViewingUser] = useState<User | null>(null);
   
-  // Fetch users and projects from API
-  const { data: usersData, loading: usersLoading, error: usersError, refetch: refetchUsers } = useUsers();
+  // Fetch users and projects from API - fetch all users with large page size
+  const { data: usersData, loading: usersLoading, error: usersError, refetch: refetchUsers } = useUsers({ page: 0, size: 1000 });
   const { data: projectsData, loading: projectsLoading, error: projectsError } = useProjects();
   const { data: userStats, loading: statsLoading } = useUserStatistics();
   const { experienceLevels, loading: experienceLevelsLoading, error: experienceLevelsError } = useExperienceLevels();
@@ -296,39 +299,6 @@ const AdminPanelPage: React.FC = () => {
     }
   ];
 
-  const permissions = [
-    {
-      category: 'Project Management',
-      permissions: [
-        { name: 'view_projects', label: 'View Projects', description: 'Can view all projects' },
-        { name: 'create_projects', label: 'Create Projects', description: 'Can create new projects' },
-        { name: 'edit_projects', label: 'Edit Projects', description: 'Can modify existing projects' },
-        { name: 'delete_projects', label: 'Delete Projects', description: 'Can delete projects' }
-      ]
-    },
-    {
-      category: 'User Management',
-      permissions: [
-        { name: 'view_users', label: 'View Users', description: 'Can view user profiles' },
-        { name: 'manage_users', label: 'Manage Users', description: 'Can create, edit, and delete users' },
-        { name: 'assign_roles', label: 'Assign Roles', description: 'Can change user roles and permissions' }
-      ]
-    },
-    {
-      category: 'Analytics & Reports',
-      permissions: [
-        { name: 'view_analytics', label: 'View Analytics', description: 'Can access analytics and reports' },
-        { name: 'export_data', label: 'Export Data', description: 'Can export system data' }
-      ]
-    },
-    {
-      category: 'System Administration',
-      permissions: [
-        { name: 'manage_system', label: 'System Management', description: 'Full system administration access' },
-        { name: 'view_logs', label: 'View System Logs', description: 'Can access system audit logs' }
-      ]
-    }
-  ];
 
   const getStatusColor = (isActive: boolean) => {
     return isActive 
@@ -568,35 +538,7 @@ const AdminPanelPage: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="permissions" className="space-y-4 mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Role Permissions</CardTitle>
-              <CardDescription>Configure permissions for different user roles</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {permissions.map((category) => (
-                  <div key={category.category} className="space-y-4">
-                    <h3 className="text-lg font-semibold border-b pb-2">{category.category}</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {category.permissions.map((permission) => (
-                        <div key={permission.name} className="flex items-start justify-between p-4 border rounded-lg">
-                          <div className="space-y-1">
-                            <h4 className="font-medium">{permission.label}</h4>
-                            <p className="text-sm text-muted-foreground">{permission.description}</p>
-                          </div>
-                          <div className="flex space-x-2 ml-4">
-                            <Badge variant="outline" className="text-xs">Admin</Badge>
-                            <Badge variant="outline" className="text-xs">Manager</Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <PendingRegistrationsTab onRefresh={refetchUsers} />
         </TabsContent>
 
         <TabsContent value="logs" className="space-y-4 mt-6">

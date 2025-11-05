@@ -16,7 +16,7 @@ import {
   Building, 
   Globe, 
   Briefcase, 
-  DollarSign, 
+  IndianRupee, 
   Percent, 
   Star, 
   Image as ImageIcon,
@@ -37,14 +37,14 @@ interface UserDetailsModalProps {
 }
 
 const UserDetailsModal: React.FC<UserDetailsModalProps> = ({ isOpen, onClose, user }) => {
-  if (!user) return null;
-
   // Fetch departments and domains data
   const { data: departmentsData } = useDepartments();
   const { data: domainsData } = useDomains();
 
   const departments = Array.isArray(departmentsData) ? departmentsData : [];
   const domains = Array.isArray(domainsData) ? domainsData : [];
+
+  if (!user) return null;
 
   // Mapping functions to get names by IDs
   const getDepartmentNameById = (id: string | undefined): string => {
@@ -245,11 +245,11 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({ isOpen, onClose, us
 
               <div className="user-details-field space-y-2">
                 <div className="flex items-center gap-2">
-                  <DollarSign className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm font-medium">Hourly Rate</span>
+                  <IndianRupee className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm font-medium">CTC</span>
                 </div>
                 <p className="font-medium">
-                  {user.hourlyRate ? `$${user.hourlyRate.toFixed(2)}/hour` : 'Not Set'}
+                  {user.hourlyRate ? `₹${user.hourlyRate.toFixed(2)}` : 'Not Set'}
                 </p>
               </div>
 

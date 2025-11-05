@@ -55,6 +55,9 @@ public class Subtask extends BaseEntity {
     @Column(name = "severity")
     private String severity;
 
+    @Column(name = "category")
+    private String category;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "labels", columnDefinition = "jsonb")
     private List<String> labels;
@@ -155,6 +158,14 @@ public class Subtask extends BaseEntity {
 
     public void setSeverity(String severity) {
         this.severity = severity;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
     }
 
     public List<String> getLabels() {

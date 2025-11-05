@@ -1,5 +1,8 @@
 package com.sprintsync.api.entity;
 
+import com.fasterxml.jackson.annotation.JsonGetter;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.sprintsync.api.entity.enums.Priority;
 import com.sprintsync.api.entity.enums.TaskStatus;
 import com.sprintsync.api.entity.converter.PriorityConverter;
@@ -39,6 +42,11 @@ public class Task extends BaseEntity {
     @Convert(converter = TaskStatusConverter.class)
     @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
     private TaskStatus status;
+    
+    // Transient field to hold raw status value from database (for custom lane statuses)
+    @Transient
+    @JsonIgnore
+    private String rawStatus;
 
     @NotNull(message = "Task priority cannot be null")
     @Convert(converter = PriorityConverter.class)
@@ -59,6 +67,9 @@ public class Task extends BaseEntity {
 
     @Column(name = "order_index")
     private Integer orderIndex = 0;
+
+    @Column(name = "task_number")
+    private Integer taskNumber;
 
     @Column(name = "due_date")
     private LocalDate dueDate;
@@ -106,9 +117,52 @@ public class Task extends BaseEntity {
     public TaskStatus getStatus() {
         return status;
     }
+    
+    /**
+     * Custom JSON getter for status that returns raw status if it's a custom lane status
+     */
+    @JsonGetter("status")
+    @JsonProperty("status")
+    public String getStatusAsString() {
+        // If rawStatus is set and it's a custom lane status, return it
+        if (rawStatus != null && rawStatus.startsWith("custom_lane_")) {
+            return rawStatus;
+        }
+        // If rawStatus is set and it's not a standard enum value, return it
+        if (rawStatus != null) {
+            try {
+                TaskStatus.fromValue(rawStatus);
+                // If it's a valid enum value, continue to return enum value
+            } catch (IllegalArgumentException e) {
+                // If it's not a valid enum value (custom status), return raw status
+                return rawStatus;
+            }
+        }
+        // Otherwise return the enum value as string
+        return status != null ? status.getValue() : null;
+    }
 
     public void setStatus(TaskStatus status) {
         this.status = status;
+    }
+    
+    /**
+     * Set raw status value from database (for custom lane statuses)
+     */
+    public void setRawStatus(String rawStatus) {
+        this.rawStatus = rawStatus;
+        // If it's a custom lane status, try to set status to IN_PROGRESS as fallback
+        if (rawStatus != null && rawStatus.startsWith("custom_lane_")) {
+            this.status = TaskStatus.IN_PROGRESS;
+        }
+    }
+    
+    /**
+     * Get raw status value from database
+     */
+    @JsonIgnore
+    public String getRawStatus() {
+        return rawStatus;
     }
 
     public Priority getPriority() {
@@ -157,6 +211,14 @@ public class Task extends BaseEntity {
 
     public void setOrderIndex(Integer orderIndex) {
         this.orderIndex = orderIndex;
+    }
+
+    public Integer getTaskNumber() {
+        return taskNumber;
+    }
+
+    public void setTaskNumber(Integer taskNumber) {
+        this.taskNumber = taskNumber;
     }
 
     public LocalDate getDueDate() {

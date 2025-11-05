@@ -29,10 +29,12 @@ import {
   AlertCircle,
   CheckCircle2,
   Eye,
-  EyeOff
+  EyeOff,
+  IndianRupee
 } from 'lucide-react';
 import EnhancedScrollToTopButton from './EnhancedScrollToTopButton';
-import { useCreateUser } from '../hooks/api/useUsers';
+import { useCreateUser, useUpdateUser } from '../hooks/api/useUsers';
+import { useApprovePendingRegistration, useDeletePendingRegistration } from '../hooks/api/usePendingRegistrations';
 import { useDepartments } from '../hooks/api/useDepartments';
 import { useDomains } from '../hooks/api/useDomains';
 import { useExperienceLevels } from '../hooks/api/useExperienceLevels';
@@ -43,6 +45,8 @@ interface AddUserFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  initialData?: Partial<FormData>;
+  pendingRegistrationId?: string; // ID of pending registration if approving
 }
 
 interface FormData {
@@ -78,7 +82,7 @@ interface FormErrors {
   skills?: string;
 }
 
-const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess }) => {
+const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, initialData, pendingRegistrationId }) => {
   const [formData, setFormData] = useState<FormData>({
     firstName: '',
     lastName: '',
@@ -103,6 +107,9 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess })
 
   // API hooks
   const createUserMutation = useCreateUser();
+  const updateUserMutation = useUpdateUser();
+  const approvePendingMutation = useApprovePendingRegistration();
+  const deletePendingMutation = useDeletePendingRegistration();
   const { data: departmentsData, loading: departmentsLoading, error: departmentsError } = useDepartments();
   const { data: domainsData, loading: domainsLoading, error: domainsError } = useDomains();
   const { experienceLevels, loading: experienceLevelsLoading, error: experienceLevelsError } = useExperienceLevels();
@@ -114,26 +121,26 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess })
   useEffect(() => {
     if (isOpen) {
       setFormData({
-        firstName: '',
-        lastName: '',
-        email: '',
-        password: '',
-        confirmPassword: '',
-        role: 'developer', // Use lowercase to match backend enum
-        departmentId: 'none',
-        domainId: 'none',
-        avatarUrl: '',
-        experience: 'mid',
-        hourlyRate: '',
-        availabilityPercentage: '100',
-        skills: '',
-        isActive: true
+        firstName: initialData?.firstName || '',
+        lastName: initialData?.lastName || '',
+        email: initialData?.email || '',
+        password: initialData?.password || '',
+        confirmPassword: initialData?.confirmPassword || '',
+        role: initialData?.role || 'developer', // Use lowercase to match backend enum
+        departmentId: initialData?.departmentId || 'none',
+        domainId: initialData?.domainId || 'none',
+        avatarUrl: initialData?.avatarUrl || '',
+        experience: initialData?.experience || 'mid',
+        hourlyRate: initialData?.hourlyRate || '',
+        availabilityPercentage: initialData?.availabilityPercentage || '100',
+        skills: initialData?.skills || '',
+        isActive: initialData?.isActive !== undefined ? initialData.isActive : true
       });
       setErrors({});
       setShowPassword(false);
       setShowConfirmPassword(false);
     }
-  }, [isOpen]);
+  }, [isOpen, initialData]);
 
   // Validation functions
   const validateEmail = (email: string): boolean => {
@@ -175,18 +182,39 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess })
       newErrors.email = 'Email must be less than 255 characters';
     }
 
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
-    } else if (!validatePassword(formData.password)) {
-      newErrors.password = 'Password must contain uppercase, lowercase, and number';
-    }
+    // Password validation - optional when approving from pending registration
+    if (!pendingRegistrationId) {
+      // Password required for new user creation
+      if (!formData.password) {
+        newErrors.password = 'Password is required';
+      } else if (formData.password.length < 6) {
+        newErrors.password = 'Password must be at least 6 characters';
+      } else if (!validatePassword(formData.password)) {
+        newErrors.password = 'Password must contain uppercase, lowercase, and number';
+      }
 
-    if (!formData.confirmPassword) {
-      newErrors.confirmPassword = 'Please confirm your password';
-    } else if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
+      if (!formData.confirmPassword) {
+        newErrors.confirmPassword = 'Please confirm your password';
+      } else if (formData.password !== formData.confirmPassword) {
+        newErrors.confirmPassword = 'Passwords do not match';
+      }
+    } else {
+      // Password optional when approving - can keep existing or set new one
+      if (formData.password) {
+        // If password is provided, validate it
+        if (formData.password.length < 6) {
+          newErrors.password = 'Password must be at least 6 characters';
+        } else if (!validatePassword(formData.password)) {
+          newErrors.password = 'Password must contain uppercase, lowercase, and number';
+        }
+
+        if (!formData.confirmPassword) {
+          newErrors.confirmPassword = 'Please confirm your password';
+        } else if (formData.password !== formData.confirmPassword) {
+          newErrors.confirmPassword = 'Passwords do not match';
+        }
+      }
+      // If password is empty when approving, that's OK - will use existing password hash
     }
 
     if (!formData.role) {
@@ -201,9 +229,9 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess })
     if (formData.hourlyRate) {
       const rate = parseFloat(formData.hourlyRate);
       if (isNaN(rate) || rate < 0) {
-        newErrors.hourlyRate = 'Hourly rate must be a positive number';
+        newErrors.hourlyRate = 'CTC must be a positive number';
       } else if (rate > 999999.99) {
-        newErrors.hourlyRate = 'Hourly rate must be less than 1,000,000';
+        newErrors.hourlyRate = 'CTC must be less than 1,000,000';
       }
     }
 
@@ -250,7 +278,9 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess })
       const userData: Omit<User, 'id' | 'createdAt' | 'updatedAt'> = {
         // Required fields (matching database NOT NULL constraints)
         email: formData.email.trim(),
-        passwordHash: formData.password, // Will be hashed by backend
+        // If approving from pending registration and password not provided, we'll use approve endpoint
+        // If password provided, will be hashed by backend
+        passwordHash: formData.password || '', // Will be hashed by backend
         name: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
         role: formData.role.toLowerCase() as any, // Convert to lowercase to match backend enum
         isActive: formData.isActive,
@@ -265,11 +295,47 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess })
         skills: formData.skills.trim() ? JSON.stringify(formData.skills.split(',').map(s => s.trim())) : undefined
       };
 
-      console.log('Creating user with data:', userData);
-
-      await createUserMutation.mutate(userData);
-
-      console.log('✅ User created successfully');
+      // If approving from pending registration
+      if (pendingRegistrationId) {
+        if (!formData.password) {
+          // No password provided - use approve endpoint which uses existing password hash
+          console.log('Approving pending registration without password change - using existing password hash');
+          const approvedUser = await approvePendingMutation.mutate(pendingRegistrationId);
+          
+          // After approval, update user with additional details entered in form
+          // Extract user ID from response (structure may vary)
+          const approvedUserData = approvedUser?.data?.data || approvedUser?.data;
+          const userId = approvedUserData?.id;
+          
+          if (userId) {
+            const updateData: Partial<User> = {
+              ...userData,
+              passwordHash: undefined, // Don't update password - keep existing hash
+            };
+            // Remove password hash from update data since we're keeping existing one
+            delete updateData.passwordHash;
+            
+            console.log('Updating approved user with additional details:', updateData);
+            await updateUserMutation.mutate({
+              id: userId,
+              user: updateData
+            });
+          }
+        } else {
+          // Password provided - create user with new password, then delete pending registration
+          console.log('Approving pending registration with new password - creating user with data:', userData);
+          await createUserMutation.mutate(userData);
+          
+          // Delete pending registration after successful user creation
+          await deletePendingMutation.mutate(pendingRegistrationId);
+        }
+        console.log('✅ Pending registration approved and user created successfully');
+      } else {
+        // Normal user creation
+        console.log('Creating user with data:', userData);
+        await createUserMutation.mutate(userData);
+        console.log('✅ User created successfully');
+      }
       
       // Reset form and close dialog
       setFormData({
@@ -434,7 +500,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess })
                       className={`w-full h-10 px-3 pr-10 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
                         errors.password ? 'border-red-300 bg-red-50' : 'border-gray-200'
                       }`}
-                      placeholder="Enter password"
+                      placeholder={pendingRegistrationId ? "Leave empty to use password from registration" : "Enter password"}
                     />
                     <Button
                       type="button"
@@ -453,14 +519,17 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess })
                     </p>
                   )}
                   <p className="text-xs text-gray-500">
-                    Password must be at least 6 characters (will be hashed in database)
+                    {pendingRegistrationId 
+                      ? 'Leave empty to keep the password from registration. If provided, password must be at least 6 characters.'
+                      : 'Password must be at least 6 characters (will be hashed in database)'
+                    }
                   </p>
                 </div>
 
                 {/* Confirm Password */}
                 <div className="add-user-form-field space-y-2">
                   <Label htmlFor="confirmPassword" className="text-sm font-semibold text-gray-700">
-                    Confirm Password *
+                    Confirm Password {pendingRegistrationId ? '(Optional)' : '*'}
                   </Label>
                   <div className="relative">
                     <Input
@@ -629,13 +698,13 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess })
               </div>
               
               <div className="add-user-form-grid">
-                {/* Hourly Rate */}
+                {/* CTC */}
                 <div className="add-user-form-field space-y-2">
                   <Label htmlFor="hourlyRate" className="text-sm font-semibold text-gray-700">
-                    Hourly Rate ($)
+                    CTC (₹)
                   </Label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">$</span>
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">₹</span>
                     <Input
                       id="hourlyRate"
                       type="number"
@@ -644,7 +713,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess })
                       className={`w-full h-10 pl-8 pr-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
                         errors.hourlyRate ? 'border-red-300 bg-red-50' : 'border-gray-200'
                       }`}
-                      placeholder="50.00"
+                      placeholder="500000.00"
                       step="0.01"
                       min="0"
                     />
@@ -656,7 +725,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess })
                     </p>
                   )}
                   <p className="text-xs text-gray-500">
-                    Hourly rate in USD (stored as DECIMAL(10,2) in database)
+                    CTC (Cost to Company) in INR (stored as DECIMAL(10,2) in database)
                   </p>
                 </div>
 
