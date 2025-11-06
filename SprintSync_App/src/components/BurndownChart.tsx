@@ -6,11 +6,11 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { TrendingDown, TrendingUp, Target, Calendar, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 interface BurndownData {
+  day: number;
   date: string;
-  ideal: number;
-  actual: number;
-  remaining: number;
-  completed: number;
+  remainingStoryPoints: number;
+  idealRemaining: number;
+  workRemainingPerDay?: number;
 }
 
 interface BurndownChartProps {
@@ -18,9 +18,15 @@ interface BurndownChartProps {
   sprintGoal?: string;
   startDate?: string;
   endDate?: string;
-  totalStoryPoints?: number;
-  completedStoryPoints?: number;
+  // Burndown Velocity Parameters
+  sprintLengthDays?: number; // Sprint Length (Duration) - in Days
+  storyPointsCommitted?: number; // Story Points (Or Hours) Committed (Total Planned efforts for sprint)
+  storyPointsCompleted?: number; // Story Points (Or Hours) Completed (Actual Completed Work)
+  teamCapacity?: number; // Team Capacity (Available efforts from capacity planning)
+  workRemainingPerDay?: number[]; // Work Remaining per Day (Sum of remaining points per day)
+  numberOfSprints?: number; // Number of Sprints (Total completed sprints for average velocity)
   data?: BurndownData[];
+  useHours?: boolean; // Flag to use Hours instead of Story Points
 }
 
 const BurndownChart: React.FC<BurndownChartProps> = ({
@@ -28,37 +34,80 @@ const BurndownChart: React.FC<BurndownChartProps> = ({
   sprintGoal = "Complete user authentication system and payment integration",
   startDate = "2024-02-05",
   endDate = "2024-02-19",
-  totalStoryPoints = 40,
-  completedStoryPoints = 28,
-  data = [
-    { date: '2024-02-05', ideal: 40, actual: 40, remaining: 40, completed: 0 },
-    { date: '2024-02-06', ideal: 37, actual: 40, remaining: 40, completed: 0 },
-    { date: '2024-02-07', ideal: 34, actual: 38, remaining: 38, completed: 2 },
-    { date: '2024-02-08', ideal: 31, actual: 35, remaining: 35, completed: 5 },
-    { date: '2024-02-09', ideal: 28, actual: 30, remaining: 30, completed: 10 },
-    { date: '2024-02-10', ideal: 25, actual: 30, remaining: 30, completed: 10 },
-    { date: '2024-02-11', ideal: 22, actual: 30, remaining: 30, completed: 10 },
-    { date: '2024-02-12', ideal: 19, actual: 25, remaining: 25, completed: 15 },
-    { date: '2024-02-13', ideal: 16, actual: 20, remaining: 20, completed: 20 },
-    { date: '2024-02-14', ideal: 13, actual: 15, remaining: 15, completed: 25 },
-    { date: '2024-02-15', ideal: 10, actual: 12, remaining: 12, completed: 28 },
-    { date: '2024-02-16', ideal: 7, actual: 12, remaining: 12, completed: 28 },
-    { date: '2024-02-17', ideal: 4, actual: 12, remaining: 12, completed: 28 },
-    { date: '2024-02-18', ideal: 1, actual: 12, remaining: 12, completed: 28 },
-    { date: '2024-02-19', ideal: 0, actual: 12, remaining: 12, completed: 28 }
-  ]
+  sprintLengthDays,
+  storyPointsCommitted = 40,
+  storyPointsCompleted = 28,
+  teamCapacity,
+  workRemainingPerDay = [],
+  numberOfSprints,
+  data,
+  useHours = false
 }) => {
+  // Calculate sprint length if not provided
+  const calculatedSprintLength = sprintLengthDays || Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24));
+  
+  // Calculate remaining story points
+  const remainingStoryPoints = storyPointsCommitted - storyPointsCompleted;
+  
+  // Calculate current date and day
   const currentDate = new Date().toISOString().split('T')[0];
-  const sprintProgress = (completedStoryPoints / totalStoryPoints) * 100;
-  const remainingDays = Math.max(0, Math.ceil((new Date(endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)));
-  const totalDays = Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24));
-  const daysElapsed = totalDays - remainingDays;
+  const start = new Date(startDate);
+  const current = new Date();
+  const currentDay = Math.max(0, Math.floor((current.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+  const remainingDays = Math.max(0, calculatedSprintLength - currentDay);
   
-  const currentActual = data.find(d => d.date === currentDate)?.actual || data[data.length - 1]?.actual || 0;
-  const currentIdeal = data.find(d => d.date === currentDate)?.ideal || data[data.length - 1]?.ideal || 0;
+  // Generate burndown data if not provided
+  const burndownData: BurndownData[] = data || (() => {
+    const dataPoints: BurndownData[] = [];
+    const idealBurnRate = storyPointsCommitted / calculatedSprintLength;
+    
+    for (let day = 0; day <= calculatedSprintLength; day++) {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + day);
+      const idealRemaining = Math.max(0, storyPointsCommitted - (day * idealBurnRate));
+      
+      // Use workRemainingPerDay if provided, otherwise calculate based on completion
+      let actualRemaining = storyPointsCommitted;
+      if (day === 0) {
+        actualRemaining = storyPointsCommitted;
+      } else if (day <= currentDay) {
+        // For past days, calculate based on completion rate
+        const completionRate = storyPointsCompleted / Math.max(1, currentDay);
+        actualRemaining = Math.max(0, storyPointsCommitted - (day * completionRate));
+      } else {
+        // For future days, use remaining points
+        actualRemaining = remainingStoryPoints;
+      }
+      
+      // If workRemainingPerDay is provided, use it
+      if (workRemainingPerDay.length > day) {
+        actualRemaining = workRemainingPerDay[day];
+      }
+      
+      dataPoints.push({
+        day,
+        date: date.toISOString().split('T')[0],
+        remainingStoryPoints: actualRemaining,
+        idealRemaining,
+        workRemainingPerDay: workRemainingPerDay[day] || undefined
+      });
+    }
+    return dataPoints;
+  })();
   
-  const isAheadOfSchedule = currentActual < currentIdeal;
-  const variance = Math.abs(currentActual - currentIdeal);
+  // Calculate velocity metrics
+  const averageVelocity = numberOfSprints && numberOfSprints > 0 
+    ? storyPointsCompleted / numberOfSprints 
+    : storyPointsCompleted / Math.max(1, currentDay);
+  
+  const currentRemaining = burndownData.find(d => d.day === currentDay)?.remainingStoryPoints || remainingStoryPoints;
+  const currentIdeal = burndownData.find(d => d.day === currentDay)?.idealRemaining || (storyPointsCommitted - (currentDay * (storyPointsCommitted / calculatedSprintLength)));
+  
+  const isAheadOfSchedule = currentRemaining < currentIdeal;
+  const variance = Math.abs(currentRemaining - currentIdeal);
+  
+  const sprintProgress = (storyPointsCompleted / storyPointsCommitted) * 100;
+  const unitLabel = useHours ? 'Hours' : 'Story Points';
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-IN', {
@@ -67,16 +116,29 @@ const BurndownChart: React.FC<BurndownChartProps> = ({
     });
   };
 
+  const formatDay = (day: number) => {
+    return `Day ${day}`;
+  };
+
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
+      const dataPoint = burndownData.find(d => d.date === label || d.day === parseInt(label));
       return (
         <div className="bg-white p-3 border rounded-lg shadow-lg">
-          <p className="font-medium text-sm mb-2">{formatDate(label)}</p>
+          <p className="font-medium text-sm mb-2">
+            {dataPoint ? `Day ${dataPoint.day}` : formatDate(label)}
+          </p>
           {payload.map((entry: any, index: number) => (
             <p key={index} className="text-sm" style={{ color: entry.color }}>
-              {entry.name}: {entry.value} points
+              {entry.name}: {entry.value.toFixed(1)} {unitLabel.toLowerCase()}
             </p>
           ))}
+          {dataPoint && (
+            <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
+              <p>Ideal: {dataPoint.idealRemaining.toFixed(1)} {unitLabel.toLowerCase()}</p>
+              <p>Actual: {dataPoint.remainingStoryPoints.toFixed(1)} {unitLabel.toLowerCase()}</p>
+            </div>
+          )}
         </div>
       );
     }
@@ -90,9 +152,14 @@ const BurndownChart: React.FC<BurndownChartProps> = ({
           <div>
             <CardTitle className="flex items-center space-x-2">
               <TrendingDown className="w-5 h-5 text-blue-600" />
-              <span>Sprint Burndown Chart</span>
+              <span>Burndown Velocity Chart</span>
             </CardTitle>
-            <CardDescription>{sprintName} • {sprintGoal}</CardDescription>
+            <CardDescription>
+              {sprintName} • {sprintGoal}
+              {numberOfSprints && numberOfSprints > 0 && (
+                <span className="ml-2">• Avg Velocity: {averageVelocity.toFixed(1)} {unitLabel.toLowerCase()}/sprint</span>
+              )}
+            </CardDescription>
           </div>
           <div className="flex items-center space-x-2 text-sm">
             <Badge variant="outline" className="flex items-center space-x-1">
@@ -103,24 +170,36 @@ const BurndownChart: React.FC<BurndownChartProps> = ({
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Sprint Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center p-3 bg-blue-50 rounded-lg">
-            <div className="text-2xl font-semibold text-blue-600">{totalStoryPoints}</div>
-            <div className="text-sm text-muted-foreground">Total Points</div>
+        {/* Burndown Velocity Parameters */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="text-center p-3 bg-blue-50 rounded-lg border border-blue-100">
+            <div className="text-2xl font-semibold text-blue-600">{calculatedSprintLength}</div>
+            <div className="text-xs text-muted-foreground">Sprint Length (Days)</div>
           </div>
-          <div className="text-center p-3 bg-green-50 rounded-lg">
-            <div className="text-2xl font-semibold text-green-600">{completedStoryPoints}</div>
-            <div className="text-sm text-muted-foreground">Completed</div>
+          <div className="text-center p-3 bg-purple-50 rounded-lg border border-purple-100">
+            <div className="text-2xl font-semibold text-purple-600">{storyPointsCommitted}</div>
+            <div className="text-xs text-muted-foreground">{unitLabel} Committed</div>
           </div>
-          <div className="text-center p-3 bg-orange-50 rounded-lg">
-            <div className="text-2xl font-semibold text-orange-600">{totalStoryPoints - completedStoryPoints}</div>
-            <div className="text-sm text-muted-foreground">Remaining</div>
+          <div className="text-center p-3 bg-green-50 rounded-lg border border-green-100">
+            <div className="text-2xl font-semibold text-green-600">{storyPointsCompleted}</div>
+            <div className="text-xs text-muted-foreground">{unitLabel} Completed</div>
           </div>
-          <div className="text-center p-3 bg-purple-50 rounded-lg">
-            <div className="text-2xl font-semibold text-purple-600">{remainingDays}</div>
-            <div className="text-sm text-muted-foreground">Days Left</div>
+          {teamCapacity !== undefined && (
+            <div className="text-center p-3 bg-indigo-50 rounded-lg border border-indigo-100">
+              <div className="text-2xl font-semibold text-indigo-600">{teamCapacity}</div>
+              <div className="text-xs text-muted-foreground">Team Capacity</div>
+            </div>
+          )}
+          <div className="text-center p-3 bg-orange-50 rounded-lg border border-orange-100">
+            <div className="text-2xl font-semibold text-orange-600">{remainingStoryPoints.toFixed(1)}</div>
+            <div className="text-xs text-muted-foreground">Remaining {unitLabel}</div>
           </div>
+          {numberOfSprints !== undefined && numberOfSprints > 0 && (
+            <div className="text-center p-3 bg-cyan-50 rounded-lg border border-cyan-100">
+              <div className="text-2xl font-semibold text-cyan-600">{numberOfSprints}</div>
+              <div className="text-xs text-muted-foreground">Completed Sprints</div>
+            </div>
+          )}
         </div>
 
         {/* Progress Indicator */}
@@ -158,20 +237,21 @@ const BurndownChart: React.FC<BurndownChartProps> = ({
           </div>
         </div>
 
-        {/* Burndown Chart */}
-        <div className="h-80">
+        {/* Burndown Velocity Chart */}
+        <div className="h-96">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+            <LineChart data={burndownData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis 
-                dataKey="date" 
-                tickFormatter={formatDate}
+                dataKey="day" 
+                tickFormatter={formatDay}
+                label={{ value: 'Sprint Days', position: 'insideBottom', offset: -10 }}
                 stroke="#666"
                 fontSize={12}
                 interval="preserveStartEnd"
               />
               <YAxis 
-                label={{ value: 'Story Points', angle: -90, position: 'insideLeft' }}
+                label={{ value: `Remaining ${unitLabel}`, angle: -90, position: 'insideLeft' }}
                 stroke="#666"
                 fontSize={12}
               />
@@ -180,7 +260,7 @@ const BurndownChart: React.FC<BurndownChartProps> = ({
               {/* Ideal burndown line */}
               <Line 
                 type="linear" 
-                dataKey="ideal" 
+                dataKey="idealRemaining" 
                 stroke="#10b981" 
                 strokeWidth={2} 
                 strokeDasharray="8 4"
@@ -191,7 +271,7 @@ const BurndownChart: React.FC<BurndownChartProps> = ({
               {/* Actual burndown line */}
               <Line 
                 type="monotone" 
-                dataKey="actual" 
+                dataKey="remainingStoryPoints" 
                 stroke="#3b82f6" 
                 strokeWidth={3} 
                 dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
@@ -199,9 +279,9 @@ const BurndownChart: React.FC<BurndownChartProps> = ({
                 name="Actual Burndown"
               />
               
-              {/* Current date line */}
+              {/* Current day line */}
               <ReferenceLine 
-                x={currentDate} 
+                x={currentDay} 
                 stroke="#ef4444" 
                 strokeDasharray="4 4" 
                 strokeWidth={2}
@@ -228,8 +308,11 @@ const BurndownChart: React.FC<BurndownChartProps> = ({
                 : "The team is behind schedule and may need to adjust scope or increase velocity."
               }
             </p>
-            <div className="text-xs text-muted-foreground">
-              Current velocity: {((completedStoryPoints / daysElapsed) || 0).toFixed(1)} points/day
+            <div className="text-xs text-muted-foreground space-y-1">
+              <div>Current velocity: {((storyPointsCompleted / Math.max(1, currentDay)) || 0).toFixed(1)} {unitLabel.toLowerCase()}/day</div>
+              {numberOfSprints && numberOfSprints > 0 && (
+                <div>Average velocity: {averageVelocity.toFixed(1)} {unitLabel.toLowerCase()}/sprint</div>
+              )}
             </div>
           </div>
 
@@ -240,13 +323,18 @@ const BurndownChart: React.FC<BurndownChartProps> = ({
             </div>
             <p className="text-sm text-muted-foreground mb-2">
               {remainingDays > 0 
-                ? `At current pace, ${Math.round((totalStoryPoints - completedStoryPoints) / ((completedStoryPoints / daysElapsed) || 1))} more days needed to complete remaining work.`
+                ? `At current pace, ${Math.round(remainingStoryPoints / ((storyPointsCompleted / Math.max(1, currentDay)) || 1))} more days needed to complete remaining work.`
                 : "Sprint has ended. Review completed work and plan next sprint."
               }
             </p>
             <div className="text-xs text-muted-foreground">
-              Projected completion: {sprintProgress >= 100 ? 'Completed' : `${Math.round(sprintProgress + ((completedStoryPoints / daysElapsed) * remainingDays / totalStoryPoints) * 100)}%`}
+              Projected completion: {sprintProgress >= 100 ? 'Completed' : `${Math.round(sprintProgress + ((storyPointsCompleted / Math.max(1, currentDay)) * remainingDays / storyPointsCommitted) * 100)}%`}
             </div>
+            {teamCapacity && (
+              <div className="text-xs text-muted-foreground mt-1">
+                Team capacity utilization: {((storyPointsCompleted / teamCapacity) * 100).toFixed(1)}%
+              </div>
+            )}
           </div>
         </div>
 

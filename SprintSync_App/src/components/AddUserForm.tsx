@@ -39,6 +39,7 @@ import { useDepartments } from '../hooks/api/useDepartments';
 import { useDomains } from '../hooks/api/useDomains';
 import { useExperienceLevels } from '../hooks/api/useExperienceLevels';
 import { User } from '../types/api';
+import { calculateHourlyRateFromCTC } from '../utils/salaryCalculator';
 import './AddUserForm.css';
 
 interface AddUserFormProps {
@@ -61,6 +62,7 @@ interface FormData {
   avatarUrl: string;
   experience: string;
   hourlyRate: string;
+  ctc: string;
   availabilityPercentage: string;
   skills: string;
   isActive: boolean;
@@ -78,6 +80,7 @@ interface FormErrors {
   avatarUrl?: string;
   experience?: string;
   hourlyRate?: string;
+  ctc?: string;
   availabilityPercentage?: string;
   skills?: string;
 }
@@ -93,8 +96,9 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
     departmentId: 'none',
     domainId: 'none',
     avatarUrl: '',
-    experience: 'mid', // Already lowercase
+    experience: 'E1',
     hourlyRate: '',
+    ctc: '',
     availabilityPercentage: '100',
     skills: '',
     isActive: true
@@ -130,8 +134,9 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
         departmentId: initialData?.departmentId || 'none',
         domainId: initialData?.domainId || 'none',
         avatarUrl: initialData?.avatarUrl || '',
-        experience: initialData?.experience || 'mid',
+        experience: initialData?.experience || 'E1',
         hourlyRate: initialData?.hourlyRate || '',
+        ctc: initialData?.ctc || '',
         availabilityPercentage: initialData?.availabilityPercentage || '100',
         skills: initialData?.skills || '',
         isActive: initialData?.isActive !== undefined ? initialData.isActive : true
@@ -229,9 +234,18 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
     if (formData.hourlyRate) {
       const rate = parseFloat(formData.hourlyRate);
       if (isNaN(rate) || rate < 0) {
-        newErrors.hourlyRate = 'CTC must be a positive number';
+        newErrors.hourlyRate = 'Hourly rate must be a positive number';
       } else if (rate > 999999.99) {
-        newErrors.hourlyRate = 'CTC must be less than 1,000,000';
+        newErrors.hourlyRate = 'Hourly rate must be less than 1,000,000';
+      }
+    }
+
+    if (formData.ctc) {
+      const ctcValue = parseFloat(formData.ctc);
+      if (isNaN(ctcValue) || ctcValue < 0) {
+        newErrors.ctc = 'CTC must be a positive number';
+      } else if (ctcValue > 999999999999999.99) {
+        newErrors.ctc = 'CTC must be less than 999,999,999,999,999.99';
       }
     }
 
@@ -250,10 +264,28 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
   };
 
   const handleInputChange = (field: keyof FormData, value: string | boolean) => {
-    setFormData(prev => ({
-      ...prev,
+    const updatedFormData = {
+      ...formData,
       [field]: value
-    }));
+    };
+
+    // Auto-calculate hourly rate when CTC or experience changes
+    if (field === 'ctc' || field === 'experience') {
+      const ctcValue = field === 'ctc' ? parseFloat(value as string) : parseFloat(updatedFormData.ctc);
+      const experienceValue = field === 'experience' ? (value as string) : updatedFormData.experience;
+
+      // Only calculate if both CTC and experience are valid
+      if (ctcValue && ctcValue > 0 && experienceValue) {
+        try {
+          const calculatedHourlyRate = calculateHourlyRateFromCTC(ctcValue, experienceValue);
+          updatedFormData.hourlyRate = calculatedHourlyRate.toFixed(2);
+        } catch (error) {
+          console.error('Error calculating hourly rate:', error);
+        }
+      }
+    }
+
+    setFormData(updatedFormData);
 
     // Clear error when user starts typing
     if (errors[field as keyof FormErrors]) {
@@ -291,6 +323,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
         avatarUrl: formData.avatarUrl.trim() || undefined,
         experience: formData.experience ? formData.experience.toLowerCase() : undefined, // Convert to lowercase to match backend enum
         hourlyRate: formData.hourlyRate ? parseFloat(formData.hourlyRate) : undefined,
+        ctc: formData.ctc ? parseFloat(formData.ctc) : undefined,
         availabilityPercentage: parseInt(formData.availabilityPercentage) || 100,
         skills: formData.skills.trim() ? JSON.stringify(formData.skills.split(',').map(s => s.trim())) : undefined
       };
@@ -348,8 +381,9 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
         departmentId: 'none',
         domainId: 'none',
         avatarUrl: '',
-        experience: 'mid',
+        experience: 'E1',
         hourlyRate: '',
+        ctc: '',
         availabilityPercentage: '100',
         skills: '',
         isActive: true
@@ -698,10 +732,10 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
               </div>
               
               <div className="add-user-form-grid">
-                {/* CTC */}
+                {/* Hourly Rate */}
                 <div className="add-user-form-field space-y-2">
                   <Label htmlFor="hourlyRate" className="text-sm font-semibold text-gray-700">
-                    CTC (₹)
+                    Hourly Rate (₹)
                   </Label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">₹</span>
@@ -713,7 +747,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                       className={`w-full h-10 pl-8 pr-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
                         errors.hourlyRate ? 'border-red-300 bg-red-50' : 'border-gray-200'
                       }`}
-                      placeholder="500000.00"
+                      placeholder="1000.00"
                       step="0.01"
                       min="0"
                     />
@@ -725,7 +759,38 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                     </p>
                   )}
                   <p className="text-xs text-gray-500">
-                    CTC (Cost to Company) in INR (stored as DECIMAL(10,2) in database)
+                    Hourly rate in INR (auto-calculated from CTC and experience level, or enter manually)
+                  </p>
+                </div>
+
+                {/* CTC */}
+                <div className="add-user-form-field space-y-2">
+                  <Label htmlFor="ctc" className="text-sm font-semibold text-gray-700">
+                    CTC (₹)
+                  </Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">₹</span>
+                    <Input
+                      id="ctc"
+                      type="number"
+                      value={formData.ctc}
+                      onChange={(e) => handleInputChange('ctc', e.target.value)}
+                      className={`w-full h-10 pl-8 pr-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
+                        errors.ctc ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                      }`}
+                      placeholder="500000.00"
+                      step="0.01"
+                      min="0"
+                    />
+                  </div>
+                  {errors.ctc && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.ctc}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-500">
+                    CTC (Cost to Company) in INR (stored as DECIMAL(15,2) in database)
                   </p>
                 </div>
 

@@ -4,10 +4,15 @@ package com.sprintsync.api.entity.enums;
  * Enumeration for user experience levels.
  */
 public enum ExperienceLevel {
-    junior("junior"),
-    mid("mid"), 
-    senior("senior"),
-    lead("lead");
+    E1("E1"),
+    E2("E2"),
+    M1("M1"),
+    M2("M2"),
+    M3("M3"),
+    L1("L1"),
+    L2("L2"),
+    L3("L3"),
+    S1("S1");
 
     private final String value;
 

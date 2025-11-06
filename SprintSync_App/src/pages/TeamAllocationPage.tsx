@@ -20,6 +20,7 @@ import { userApiService } from '../services/api/entities/userApi';
 import { projectApiService } from '../services/api/entities/projectApi';
 import { useTeamMembers as useProjectTeamMembers } from '../hooks/api/useTeamMembers';
 import { toast } from 'sonner';
+import { calculateHourlyRateFromCTC } from '../utils/salaryCalculator';
 import { 
   Users, 
   Plus,
@@ -81,7 +82,7 @@ interface TeamMember {
     nextTwoWeeks: number;
   };
   hourlyRate: number;
-  budget: number;
+  ctc?: number;
   experience: string;
 }
 
@@ -108,10 +109,10 @@ const TeamAllocationPage: React.FC = () => {
     domain: '',
     department: '',
     password: '',
-    hourlyRate: 0,
+    hourlyRate: '',
     skills: [] as string[],
-    budget: 0,
-    experience: 'mid' as 'junior' | 'mid' | 'senior' | 'lead',
+    ctc: '',
+    experience: 'mid' as 'junior' | 'mid' | 'senior' | 'lead' | 'E1' | 'E2' | 'M1' | 'M2' | 'M3' | 'L1' | 'L2' | 'L3' | 'S1',
     availability: 100
   });
   const [autoPopulated, setAutoPopulated] = useState({
@@ -364,6 +365,7 @@ const TeamAllocationPage: React.FC = () => {
       }
     }
     
+    const hourlyRateValue = fullUserData.hourlyRate || user.hourlyRate || 0;
     setNewMember({
       name: fullUserData.name || user.name,
       email: fullUserData.email || user.email,
@@ -371,9 +373,9 @@ const TeamAllocationPage: React.FC = () => {
       domain: domainName,
       department: departmentName,
       password: 'password123',
-      hourlyRate: fullUserData.hourlyRate || user.hourlyRate || 0,
+      hourlyRate: hourlyRateValue.toString(),
       skills: fullUserData.skills ? (typeof fullUserData.skills === 'string' ? fullUserData.skills.split(',').map((s: string)=>s.trim()) : fullUserData.skills) : (user.skills ? (typeof user.skills === 'string' ? user.skills.split(',').map((s: string)=>s.trim()) : user.skills) : []),
-      budget: (fullUserData.hourlyRate || user.hourlyRate || 0) * 176,
+      ctc: fullUserData.ctc ? fullUserData.ctc.toString() : '',
       experience: (fullUserData.experience || user.experience || 'mid'),
       availability: fullUserData.availabilityPercentage || user.availabilityPercentage || 100,
     });
@@ -704,24 +706,24 @@ const TeamAllocationPage: React.FC = () => {
     let role: 'developer' | 'designer' | 'manager' | 'admin' = 'developer';
     let domain = '';
     let department = '';
-    let experience: 'junior' | 'mid' | 'senior' | 'lead' = 'mid';
+    let experience: 'E1' | 'E2' | 'M1' | 'M2' | 'M3' | 'L1' | 'L2' | 'L3' | 'S1' = 'E1';
     let hourlyRate = 1800;
     let skills: string[] = [];
 
     // Role detection based on name patterns
     if (nameLower.includes('manager') || nameLower.includes('lead') || nameLower.includes('head')) {
       role = 'manager';
-      experience = 'senior';
+      experience = 'M3';
       hourlyRate = 2500;
       skills = ['Project Management', 'Leadership', 'Strategy', 'Team Management'];
     } else if (nameLower.includes('admin') || nameLower.includes('director') || nameLower.includes('ceo')) {
       role = 'admin';
-      experience = 'lead';
+      experience = 'L2';
       hourlyRate = 3000;
       skills = ['Administration', 'Strategic Planning', 'Leadership', 'System Management'];
     } else if (nameLower.includes('design') || nameLower.includes('ui') || nameLower.includes('ux')) {
       role = 'designer';
-      experience = 'mid';
+      experience = 'E1';
       hourlyRate = 2000;
       skills = ['UI/UX Design', 'Figma', 'Adobe Creative Suite', 'Prototyping'];
     }
@@ -776,29 +778,27 @@ const TeamAllocationPage: React.FC = () => {
 
     // Experience level based on name patterns
     if (nameLower.includes('senior') || nameLower.includes('sr') || nameLower.includes('lead')) {
-      experience = 'senior';
+      experience = 'M3';
       hourlyRate = Math.round(hourlyRate * 1.3);
     } else if (nameLower.includes('junior') || nameLower.includes('jr') || nameLower.includes('entry')) {
-      experience = 'junior';
+      experience = 'E1';
       hourlyRate = Math.round(hourlyRate * 0.7);
     } else if (nameLower.includes('architect') || nameLower.includes('principal') || nameLower.includes('expert')) {
-      experience = 'lead';
+      experience = 'L2';
       hourlyRate = Math.round(hourlyRate * 1.5);
     }
 
-    // Calculate budget
-    const budget = Math.round(hourlyRate * 8 * 22 * (newMember.availability || 100) / 100);
-
     // Update the form with auto-populated data
+    // Note: CTC should be calculated from hourly rate if needed, but for now we'll keep it empty
+    // as the user will enter CTC and it will auto-calculate hourly rate
     setNewMember(prev => ({
       ...prev,
       email: email,
       role: role,
       domain: domain,
       department: department,
-      hourlyRate: hourlyRate,
+      hourlyRate: hourlyRate.toString(),
       skills: skills,
-      budget: budget,
       experience: experience
     }));
 
@@ -834,7 +834,10 @@ const TeamAllocationPage: React.FC = () => {
       newMember.role !== '' &&
       newMember.domain !== '' &&
       newMember.department !== '' &&
-      newMember.hourlyRate > 0 &&
+      newMember.hourlyRate !== '' &&
+      parseFloat(newMember.hourlyRate) > 0 &&
+      newMember.ctc !== '' &&
+      parseFloat(newMember.ctc) > 0 &&
       newMember.experience !== ''
     );
   }, [newMember, selectedUserId]);
@@ -1554,15 +1557,15 @@ const TeamAllocationPage: React.FC = () => {
                     {/* Budget and Skills Info */}
                     <div className="grid grid-cols-2 gap-4 pt-3 border-t">
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground mb-2">Budget & Rate</p>
+                        <p className="text-sm font-medium text-muted-foreground mb-2">CTC & Rate</p>
                         <div className="space-y-1">
                           <div className="flex justify-between">
                             <span className="text-sm">CTC:</span>
-                            <span className="text-sm font-medium text-green-600">₹{member.hourlyRate}</span>
+                            <span className="text-sm font-medium text-green-600">₹{member.ctc || member.hourlyRate || 'N/A'}</span>
                   </div>
                           <div className="flex justify-between">
-                            <span className="text-sm">Monthly Budget:</span>
-                            <span className="text-sm font-medium text-green-600">₹{member.budget?.toLocaleString()}</span>
+                            <span className="text-sm">Hourly Rate:</span>
+                            <span className="text-sm font-medium text-green-600">₹{member.hourlyRate || 'N/A'}</span>
                           </div>
                         </div>
                       </div>
@@ -1603,9 +1606,9 @@ const TeamAllocationPage: React.FC = () => {
             domain: '',
             department: '',
             password: '',
-            hourlyRate: 0,
+            hourlyRate: '',
             skills: [],
-            budget: 0,
+            ctc: '',
             experience: 'mid',
             availability: 100,
           });
@@ -1632,7 +1635,7 @@ const TeamAllocationPage: React.FC = () => {
               <span>Add Team Member to Project</span>
             </DialogTitle>
             <DialogDescription className="text-base text-gray-600 mt-2 ml-13">
-              Create a new team member profile with comprehensive information including skills, budget allocation, and availability.
+              Create a new team member profile with comprehensive information including skills, CTC, hourly rate, and availability.
             </DialogDescription>
             
             {/* Team Status Summary */}
@@ -1843,44 +1846,73 @@ const TeamAllocationPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Budget & Experience Section */}
+            {/* CTC & Hourly Rate & Experience Section */}
             <div className="space-y-6">
               <div className="flex items-center space-x-3 pb-3 border-b border-gray-200">
                 <div className="flex items-center justify-center w-8 h-8 bg-green-50 rounded-md">
                   <IndianRupee className="w-5 h-5 text-green-600" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900">Budget & Experience</h3>
+                <h3 className="text-lg font-semibold text-gray-900">CTC, Hourly Rate & Experience</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="ctc" className="text-sm font-medium">
+                    CTC (₹) *
+                  </Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">₹</span>
+                    <Input
+                      id="ctc"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="e.g., 500000.00"
+                      value={newMember.ctc}
+                      onChange={(e) => {
+                        const ctcValue = e.target.value;
+                        const updatedMember = { ...newMember, ctc: ctcValue };
+                        
+                        // Auto-calculate hourly rate when CTC or experience changes
+                        if (ctcValue && parseFloat(ctcValue) > 0 && newMember.experience) {
+                          try {
+                            const calculatedHourlyRate = calculateHourlyRateFromCTC(parseFloat(ctcValue), newMember.experience);
+                            updatedMember.hourlyRate = calculatedHourlyRate.toFixed(2);
+                          } catch (error) {
+                            console.error('Error calculating hourly rate:', error);
+                          }
+                        }
+                        setNewMember(updatedMember);
+                      }}
+                      className="h-10 pl-8"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    CTC (Cost to Company) in INR (auto-calculates hourly rate)
+                  </p>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="hourlyRate" className="text-sm font-medium">
                     Hourly Rate (₹) * {autoPopulated.hourlyRate && <span className="text-green-600 text-xs">(Auto-filled)</span>}
                   </Label>
-                  <Input
-                    id="hourlyRate"
-                    type="number"
-                    placeholder="1800"
-                    value={newMember.hourlyRate}
-                    readOnly={autoPopulated.hourlyRate}
-                    onChange={(e) => {
-                      setNewMember({ ...newMember, hourlyRate: Number(e.target.value) });
-                      setAutoPopulated(prev => ({ ...prev, hourlyRate: false }));
-                    }}
-                    className={`h-10 ${autoPopulated.hourlyRate ? 'bg-green-50 border-green-200' : ''}`}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="budget" className="text-sm font-medium">Monthly Budget (₹)</Label>
-                  <Input
-                    id="budget"
-                    type="number"
-                    placeholder="Auto-calculated"
-                    value={newMember.budget}
-                    onChange={(e) => setNewMember({ ...newMember, budget: Number(e.target.value) })}
-                    className="h-10"
-                  />
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">₹</span>
+                    <Input
+                      id="hourlyRate"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="e.g., 1000.00"
+                      value={newMember.hourlyRate}
+                      readOnly={autoPopulated.hourlyRate}
+                      onChange={(e) => {
+                        setNewMember({ ...newMember, hourlyRate: e.target.value });
+                        setAutoPopulated(prev => ({ ...prev, hourlyRate: false }));
+                      }}
+                      className={`h-10 pl-8 ${autoPopulated.hourlyRate ? 'bg-green-50 border-green-200' : ''}`}
+                    />
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    Auto-calculated if empty
+                    Hourly rate in INR (auto-calculated from CTC and experience, or enter manually)
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -1890,7 +1922,18 @@ const TeamAllocationPage: React.FC = () => {
                   <Select 
                     value={newMember.experience} 
                     onValueChange={(value: any) => {
-                      setNewMember({ ...newMember, experience: value });
+                      const updatedMember = { ...newMember, experience: value };
+                      
+                      // Auto-calculate hourly rate when experience changes
+                      if (newMember.ctc && parseFloat(newMember.ctc) > 0 && value) {
+                        try {
+                          const calculatedHourlyRate = calculateHourlyRateFromCTC(parseFloat(newMember.ctc), value);
+                          updatedMember.hourlyRate = calculatedHourlyRate.toFixed(2);
+                        } catch (error) {
+                          console.error('Error calculating hourly rate:', error);
+                        }
+                      }
+                      setNewMember(updatedMember);
                       setAutoPopulated(prev => ({ ...prev, experience: false }));
                     }}
                   >
@@ -1898,10 +1941,15 @@ const TeamAllocationPage: React.FC = () => {
                       <SelectValue placeholder="Select level" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="junior">Junior</SelectItem>
-                      <SelectItem value="mid">Mid</SelectItem>
-                      <SelectItem value="senior">Senior</SelectItem>
-                      <SelectItem value="lead">Lead</SelectItem>
+                      <SelectItem value="E1">E1 - 0-1yr</SelectItem>
+                      <SelectItem value="E2">E2 - 1-3yrs</SelectItem>
+                      <SelectItem value="M1">M1 - 3-7yrs</SelectItem>
+                      <SelectItem value="M2">M2 - 5-8yrs</SelectItem>
+                      <SelectItem value="M3">M3 - 7-10yrs</SelectItem>
+                      <SelectItem value="L1">L1 - 10-15yrs</SelectItem>
+                      <SelectItem value="L2">L2 - 12-18yrs</SelectItem>
+                      <SelectItem value="L3">L3 - 15&above</SelectItem>
+                      <SelectItem value="S1">S1 - 20yrs &above</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1997,9 +2045,9 @@ const TeamAllocationPage: React.FC = () => {
                       domain: '',
                       department: '',
                       password: '',
-                      hourlyRate: 0,
+                      hourlyRate: '',
                       skills: [],
-                      budget: 0,
+                      ctc: '',
                       experience: 'mid',
                       availability: 100
                     });

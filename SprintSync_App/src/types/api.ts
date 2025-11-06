@@ -18,6 +18,7 @@ export interface User extends BaseEntity {
   avatarUrl?: string;
   experience?: string;
   hourlyRate?: number;
+  ctc?: number;
   availabilityPercentage?: number;
   skills?: string;
   isActive: boolean;

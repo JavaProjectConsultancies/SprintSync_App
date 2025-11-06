@@ -37,6 +37,7 @@ import { useDepartments } from '../hooks/api/useDepartments';
 import { useDomains } from '../hooks/api/useDomains';
 import { useExperienceLevels } from '../hooks/api/useExperienceLevels';
 import { User } from '../types/api';
+import { calculateHourlyRateFromCTC } from '../utils/salaryCalculator';
 import './EditUserForm.css';
 
 interface EditUserFormProps {
@@ -58,6 +59,7 @@ interface FormData {
   avatarUrl: string;
   experience: string;
   hourlyRate: string;
+  ctc: string;
   availabilityPercentage: string;
   skills: string;
   isActive: boolean;
@@ -75,6 +77,7 @@ interface FormErrors {
   avatarUrl?: string;
   experience?: string;
   hourlyRate?: string;
+  ctc?: string;
   availabilityPercentage?: string;
   skills?: string;
 }
@@ -92,6 +95,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
     avatarUrl: '',
     experience: 'mid',
     hourlyRate: '',
+    ctc: '',
     availabilityPercentage: '100',
     skills: '',
     isActive: true
@@ -129,8 +133,9 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
         departmentId: user.departmentId || 'none',
         domainId: user.domainId || 'none',
         avatarUrl: user.avatarUrl || '',
-        experience: user.experience || 'mid',
+        experience: user.experience || 'E1',
         hourlyRate: user.hourlyRate?.toString() || '',
+        ctc: user.ctc?.toString() || '',
         availabilityPercentage: user.availabilityPercentage?.toString() || '100',
         skills: user.skills || '',
         isActive: user.isActive ?? true
@@ -227,8 +232,9 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
     
     // Professional Details Section
     hourlyRate: (value: string) => value === '' || (isString(value) && !isNaN(Number(value)) && Number(value) >= 0),
+    ctc: (value: string) => value === '' || (isString(value) && !isNaN(Number(value)) && Number(value) >= 0),
     availabilityPercentage: (value: string) => isString(value) && !isNaN(Number(value)) && isPercentage(Number(value)),
-    experience: (value: string) => isString(value) && ['junior', 'mid', 'senior', 'lead'].includes(value.toLowerCase()),
+    experience: (value: string) => isString(value) && ['E1', 'E2', 'M1', 'M2', 'M3', 'L1', 'L2', 'L3', 'S1'].includes(value.toUpperCase()),
     skills: (value: string) => isString(value),
     
     // Profile Section
@@ -251,6 +257,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
 
   const convertProfessionalDetails = (data: FormData) => ({
     hourlyRate: data.hourlyRate ? Number(data.hourlyRate) : undefined,
+    ctc: data.ctc ? Number(data.ctc) : undefined,
     availabilityPercentage: Number(data.availabilityPercentage),
     experience: data.experience ? data.experience.toLowerCase() : undefined,
     skills: data.skills.trim() ? JSON.stringify(data.skills.split(',').map(s => s.trim())) : undefined
@@ -277,6 +284,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
       },
       professionalDetails: {
         hourlyRate: { type: 'number', valid: validationSchema.hourlyRate(data.hourlyRate), value: data.hourlyRate },
+        ctc: { type: 'number', valid: validationSchema.ctc(data.ctc), value: data.ctc },
         availabilityPercentage: { type: 'percentage', valid: validationSchema.availabilityPercentage(data.availabilityPercentage), value: data.availabilityPercentage },
         experience: { type: 'enum', valid: validationSchema.experience(data.experience), value: data.experience },
         skills: { type: 'string', valid: validationSchema.skills(data.skills), value: data.skills }
@@ -314,7 +322,10 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
             newErrors.role = 'Please select a valid role';
             break;
           case 'hourlyRate':
-            newErrors.hourlyRate = 'CTC must be a positive number';
+            newErrors.hourlyRate = 'Hourly rate must be a positive number';
+            break;
+          case 'ctc':
+            newErrors.ctc = 'CTC must be a positive number';
             break;
           case 'availabilityPercentage':
       newErrors.availabilityPercentage = 'Availability must be between 0 and 100';
@@ -339,10 +350,28 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
   };
 
   const handleInputChange = (field: keyof FormData, value: string | boolean) => {
-    setFormData(prev => ({
-      ...prev,
+    const updatedFormData = {
+      ...formData,
       [field]: value
-    }));
+    };
+
+    // Auto-calculate hourly rate when CTC or experience changes
+    if (field === 'ctc' || field === 'experience') {
+      const ctcValue = field === 'ctc' ? parseFloat(value as string) : parseFloat(updatedFormData.ctc);
+      const experienceValue = field === 'experience' ? (value as string) : updatedFormData.experience;
+
+      // Only calculate if both CTC and experience are valid
+      if (ctcValue && ctcValue > 0 && experienceValue) {
+        try {
+          const calculatedHourlyRate = calculateHourlyRateFromCTC(ctcValue, experienceValue);
+          updatedFormData.hourlyRate = calculatedHourlyRate.toFixed(2);
+        } catch (error) {
+          console.error('Error calculating hourly rate:', error);
+        }
+      }
+    }
+
+    setFormData(updatedFormData);
 
     // Clear error when user starts typing
     if (errors[field as keyof FormErrors]) {
@@ -425,6 +454,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
           domainId: userData.domainId,
           isActive: userData.isActive,
           hourlyRate: userData.hourlyRate,
+          ctc: userData.ctc,
           availabilityPercentage: userData.availabilityPercentage,
           skills: userData.skills,
           avatarUrl: userData.avatarUrl
@@ -471,7 +501,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
         departmentId: 'none',
         domainId: 'none',
         avatarUrl: '',
-        experience: 'mid',
+        experience: 'E1',
         hourlyRate: '',
         availabilityPercentage: '100',
         skills: '',
@@ -824,10 +854,10 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
               </div>
               
               <div className="edit-user-form-grid">
-                {/* CTC */}
+                {/* Hourly Rate */}
                 <div className="edit-user-form-field space-y-2">
                   <Label htmlFor="editHourlyRate" className="text-sm font-semibold text-gray-700">
-                    CTC (₹)
+                    Hourly Rate (₹)
                   </Label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">₹</span>
@@ -841,7 +871,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                       className={`w-full h-10 pl-8 pr-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
                         errors.hourlyRate ? 'border-red-300 bg-red-50' : 'border-gray-200'
                       }`}
-                      placeholder="500000.00"
+                      placeholder="1000.00"
                     />
                   </div>
                   {errors.hourlyRate && (
@@ -851,7 +881,38 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                     </p>
                   )}
                   <p className="text-xs text-gray-500">
-                    CTC (Cost to Company) in INR (stored as DECIMAL(10,2) in database)
+                    Hourly rate in INR (auto-calculated from CTC and experience level, or enter manually)
+                  </p>
+                </div>
+
+                {/* CTC */}
+                <div className="edit-user-form-field space-y-2">
+                  <Label htmlFor="editCtc" className="text-sm font-semibold text-gray-700">
+                    CTC (₹)
+                  </Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">₹</span>
+                    <Input
+                      id="editCtc"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.ctc}
+                      onChange={(e) => handleInputChange('ctc', e.target.value)}
+                      className={`w-full h-10 pl-8 pr-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
+                        errors.ctc ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                      }`}
+                      placeholder="500000.00"
+                    />
+                  </div>
+                  {errors.ctc && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.ctc}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-500">
+                    CTC (Cost to Company) in INR (stored as DECIMAL(15,2) in database)
                   </p>
                 </div>
 

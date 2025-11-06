@@ -10,7 +10,7 @@ export interface User {
   hourlyRate?: number;
   skills?: string[];
   budget?: number;
-  experience?: 'junior' | 'mid' | 'senior' | 'lead';
+  experience?: 'E1' | 'E2' | 'M1' | 'M2' | 'M3' | 'L1' | 'L2' | 'L3' | 'S1';
   availability?: number;
 }
 

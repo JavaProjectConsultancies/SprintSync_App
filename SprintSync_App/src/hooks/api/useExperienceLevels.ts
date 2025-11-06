@@ -52,10 +52,15 @@ export const useExperienceLevels = () => {
 // Helper function to get user-friendly labels for experience levels
 const getExperienceLabel = (value: string): string => {
   const labels: { [key: string]: string } = {
-    'junior': 'Junior (0-2 years)',
-    'mid': 'Mid-level (2-5 years)', 
-    'senior': 'Senior (5-10 years)',
-    'lead': 'Lead (10+ years)'
+    'E1': 'E1 - 0-1yr',
+    'E2': 'E2 - 1-3yrs',
+    'M1': 'M1 - 3-7yrs',
+    'M2': 'M2 - 5-8yrs',
+    'M3': 'M3 - 7-10yrs',
+    'L1': 'L1 - 10-15yrs',
+    'L2': 'L2 - 12-18yrs',
+    'L3': 'L3 - 15&above',
+    'S1': 'S1 - 20yrs &above'
   };
   
   return labels[value] || value;

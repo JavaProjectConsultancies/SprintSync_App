@@ -3231,34 +3231,49 @@ const ScrumPage: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="burndown" className="mt-0 flex-1">
-          {/* Burndown Chart */}
+          {/* Burndown Velocity Chart */}
           {burndownLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
-          ) : burndownData?.data ? (
-            <BurndownChart
-              sprintName={currentSprint?.name}
-              sprintGoal={currentSprint?.goal}
-              startDate={burndownData.data.startDate}
-              endDate={burndownData.data.endDate}
-              totalStoryPoints={sprintStories.reduce((sum, s) => sum + (s.storyPoints || 0), 0)}
-              completedStoryPoints={sprintStories.filter(s => s.status === 'DONE').reduce((sum, s) => sum + (s.storyPoints || 0), 0)}
-              data={burndownData.data.dataPoints?.map((point: any) => ({
-                date: point.date,
-                ideal: point.remainingWork || 0,
-                actual: point.remainingWork || 0,
-                remaining: point.remainingWork || 0,
-                completed: 0
-              })) || []}
-            />
+          ) : currentSprint ? (
+            (() => {
+              const storyPointsCommitted = sprintStories.reduce((sum, s) => sum + (s.storyPoints || 0), 0);
+              const storyPointsCompleted = sprintStories.filter(s => s.status === 'DONE').reduce((sum, s) => sum + (s.storyPoints || 0), 0);
+              const sprintLengthDays = currentSprint.startDate && currentSprint.endDate 
+                ? Math.ceil((new Date(currentSprint.endDate).getTime() - new Date(currentSprint.startDate).getTime()) / (1000 * 60 * 60 * 24))
+                : 14;
+              const teamCapacity = currentSprint.capacityHours || undefined;
+              
+              // Calculate completed sprints for average velocity
+              const completedSprints = sprints.filter(s => s.status === 'COMPLETED').length;
+              
+              // Generate work remaining per day if burndown data is available
+              const workRemainingPerDay = burndownData?.data?.dataPoints?.map((point: any) => point.remainingWork || 0) || [];
+              
+              return (
+                <BurndownChart
+                  sprintName={currentSprint.name}
+                  sprintGoal={currentSprint.goal}
+                  startDate={currentSprint.startDate || ''}
+                  endDate={currentSprint.endDate || ''}
+                  sprintLengthDays={sprintLengthDays}
+                  storyPointsCommitted={storyPointsCommitted}
+                  storyPointsCompleted={storyPointsCompleted}
+                  teamCapacity={teamCapacity}
+                  workRemainingPerDay={workRemainingPerDay.length > 0 ? workRemainingPerDay : undefined}
+                  numberOfSprints={completedSprints > 0 ? completedSprints : undefined}
+                  useHours={false}
+                />
+              );
+            })()
           ) : (
             <Card>
               <CardContent className="p-12 text-center">
                 <TrendingUp className="w-12 h-12 mx-auto mb-4 opacity-50 text-muted-foreground" />
-                <h3 className="font-medium mb-2">No Burndown Data</h3>
+                <h3 className="font-medium mb-2">No Sprint Selected</h3>
                 <p className="text-sm text-muted-foreground">
-                  Burndown data will be available once stories are added to the sprint.
+                  Please select a sprint to view the burndown velocity chart.
                 </p>
               </CardContent>
             </Card>

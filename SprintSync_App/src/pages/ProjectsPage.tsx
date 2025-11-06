@@ -117,7 +117,7 @@ interface TeamMember { // Add interface for team members
   skills?: string[];
   availability?: number; // percentage
   department?: string;
-  experience?: 'junior' | 'mid' | 'senior' | 'lead';
+  experience?: 'E1' | 'E2' | 'M1' | 'M2' | 'M3' | 'L1' | 'L2' | 'L3' | 'S1';
   hourlyRate?: number;
   avatar?: string;
   isTeamLead?: boolean;
@@ -2350,7 +2350,7 @@ const ProjectsPage: React.FC = () => {
       {/* Create Project Dialog - Only show if user can add projects */}
       {canAddProject() && (
         <Dialog open={isNewProjectDialogOpen} onOpenChange={setIsNewProjectDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-[75%] max-w-[75%] h-[75vh] max-h-[75vh] overflow-y-auto" style={{ width: '75%', maxWidth: '75%', height: '75vh', maxHeight: '75vh' }}>
             <DialogHeader>
               <DialogTitle>Create New Project</DialogTitle>
               <DialogDescription>
@@ -2368,8 +2368,8 @@ const ProjectsPage: React.FC = () => {
                 <TabsTrigger value="integration">Integration</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="basic" className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+              <TabsContent value="basic" className="space-y-6">
+                <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="name">Project Name *</Label>
                     <Input
@@ -2414,7 +2414,7 @@ const ProjectsPage: React.FC = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-3 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="priority">Priority *</Label>
                     <Select value={newProject.priority} onValueChange={(value) => setNewProject({ ...newProject, priority: value })}>
@@ -2459,7 +2459,7 @@ const ProjectsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-3 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="startDate">Start Date *</Label>
                     <Input
@@ -2626,8 +2626,8 @@ const ProjectsPage: React.FC = () => {
                 </div>
               </TabsContent>
 
-              <TabsContent value="requirements" className="space-y-4">
-                <div className="space-y-4">
+              <TabsContent value="requirements" className="space-y-6">
+                <div className="space-y-6">
                   <h4 className="font-medium text-xl">Project Attachments</h4>
                   <p className="text-base text-gray-600">Upload files to attach to this project. All file types are supported.</p>
                   
@@ -2642,7 +2642,7 @@ const ProjectsPage: React.FC = () => {
                       </CardContent>
                     </Card>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {pendingAttachments.map((attachment, index) => (
                         <Card key={index} className="hover:shadow-md transition-shadow">
                           <CardContent className="p-4">
@@ -2690,7 +2690,7 @@ const ProjectsPage: React.FC = () => {
                   <Separator className="my-6" />
 
                     <h5 className="font-medium">Success Criteria</h5>
-                    <div className="flex space-x-2">
+                    <div className="flex space-x-3">
                       <Input
                         placeholder="Add success criteria"
                         value={newSuccessCriteria}
@@ -2702,7 +2702,7 @@ const ProjectsPage: React.FC = () => {
                       </Button>
                     </div>
                     {newProject.successCriteria.length > 0 && (
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {newProject.successCriteria.map((criteria, index) => (
                           <div key={index} className="flex items-center justify-between p-2 bg-muted/50 rounded">
                             <span className="text-sm">{criteria}</span>
@@ -2719,7 +2719,7 @@ const ProjectsPage: React.FC = () => {
                     )}
 
                     <h5 className="font-medium">Objectives</h5>
-                    <div className="flex space-x-2">
+                    <div className="flex space-x-3">
                       <Input
                         placeholder="Add project objective"
                         value={newObjective}
@@ -2731,7 +2731,7 @@ const ProjectsPage: React.FC = () => {
                       </Button>
                     </div>
                     {newProject.objectives.length > 0 && (
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {newProject.objectives.map((objective, index) => (
                           <div key={index} className="flex items-center justify-between p-2 bg-muted/50 rounded">
                             <span className="text-sm">{objective}</span>
@@ -2749,8 +2749,8 @@ const ProjectsPage: React.FC = () => {
                 </div>
               </TabsContent>
 
-              <TabsContent value="team" className="space-y-4">
-                <div className="space-y-4">
+              <TabsContent value="team" className="space-y-6">
+                <div className="space-y-6">
                   <h4 className="font-medium">Team Assignment</h4>
                   <p className="text-sm text-muted-foreground">
                     Team members will be assigned after project creation through the Team Management interface.
@@ -2792,14 +2792,14 @@ const ProjectsPage: React.FC = () => {
 
                 <Separator />
 
-                <div className="space-y-4">
+                <div className="space-y-6">
                   <h4 className="font-medium">Stakeholders</h4>
                   <p className="text-sm text-muted-foreground">
                     Identify key stakeholders and their roles in the project.
                   </p>
                   
                   {newProject.stakeholders.length > 0 && (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {newProject.stakeholders.map((stakeholder, index) => (
                         <div key={stakeholder.id} className="flex items-center justify-between p-3 border rounded-lg">
                           <div className="flex-1">
@@ -2831,14 +2831,14 @@ const ProjectsPage: React.FC = () => {
 
                 <Separator />
 
-                <div className="space-y-4">
+                <div className="space-y-6">
                   <h4 className="font-medium">Risk Management</h4>
                   <p className="text-sm text-muted-foreground">
                     Identify and plan mitigation strategies for potential project risks.
                   </p>
                   
                   {newProject.risks.length > 0 && (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {newProject.risks.map((risk, index) => (
                         <div key={risk.id} className="flex items-center justify-between p-3 border rounded-lg">
                           <div className="flex-1">
@@ -2874,14 +2874,14 @@ const ProjectsPage: React.FC = () => {
                 </div>
               </TabsContent>
 
-              <TabsContent value="integration" className="space-y-4">
-                <div className="space-y-4">
+              <TabsContent value="integration" className="space-y-6">
+                <div className="space-y-6">
                   <h4 className="font-medium">Available Integrations</h4>
                   <p className="text-sm text-muted-foreground">
                     Select integrations to connect your project with external tools and services.
                   </p>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-6">
                     {availableIntegrations.map((integration) => (
                       <div key={integration.id} className="flex items-center justify-between p-4 border rounded-lg">
                         <div className="flex-1">

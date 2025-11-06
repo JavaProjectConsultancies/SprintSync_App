@@ -51,128 +51,215 @@ public class ProjectTeamMemberController {
      * Get all project team members
      */
     @GetMapping
-    public ResponseEntity<List<TeamMemberDto>> getAllProjectTeamMembers() {
-        List<TeamMemberDto> teamMembers = new ArrayList<>();
-        
-        projectTeamMemberRepository.findAll().forEach(teamMember -> {
-            userRepository.findById(teamMember.getUserId()).ifPresent(user -> {
-                TeamMemberDto dto = new TeamMemberDto();
-                dto.setId(user.getId());
-                dto.setName(user.getName());
-                dto.setRole(teamMember.getRole());
-                dto.setIsTeamLead(teamMember.getIsTeamLead());
-                dto.setAvailability(teamMember.getAllocationPercentage());
-                
-                // Set additional user fields
-                dto.setHourlyRate(user.getHourlyRate() != null ? user.getHourlyRate().doubleValue() : 0.0);
-                dto.setExperience(user.getExperience() != null ? user.getExperience().name() : "mid");
-                dto.setAvatar(user.getAvatarUrl());
-                
-                // Set default values for missing fields
-                dto.setWorkload(0); // Default workload
-                dto.setPerformance(85); // Default performance
-                
-                // Set skills from user (skills is stored as JSON string)
-                if (user.getSkills() != null && !user.getSkills().trim().isEmpty()) {
-                    try {
-                        // Parse JSON string to array (simple approach for now)
-                        String skillsJson = user.getSkills().trim();
-                        if (skillsJson.startsWith("[") && skillsJson.endsWith("]")) {
-                            // Remove brackets and split by comma
-                            String skillsStr = skillsJson.substring(1, skillsJson.length() - 1);
-                            String[] skillsArray = skillsStr.split(",");
-                            // Clean up quotes and whitespace
-                            for (int i = 0; i < skillsArray.length; i++) {
-                                skillsArray[i] = skillsArray[i].trim().replaceAll("^\"|\"$", "");
-                            }
-                            dto.setSkills(skillsArray);
-                        } else {
-                            dto.setSkills(new String[]{skillsJson});
-                        }
-                    } catch (Exception e) {
-                        dto.setSkills(new String[]{"General"});
+    public ResponseEntity<?> getAllProjectTeamMembers() {
+        try {
+            List<TeamMemberDto> teamMembers = new ArrayList<>();
+            
+            for (ProjectTeamMember teamMember : projectTeamMemberRepository.findAll()) {
+                try {
+                    if (teamMember.getUserId() == null || teamMember.getUserId().trim().isEmpty()) {
+                        // Skip team members with invalid user IDs
+                        continue;
                     }
-                } else {
-                    dto.setSkills(new String[]{"General"}); // Default skill
+                    
+                    userRepository.findById(teamMember.getUserId()).ifPresent(user -> {
+                        try {
+                            TeamMemberDto dto = new TeamMemberDto();
+                            dto.setId(user.getId() != null ? user.getId() : "");
+                            dto.setName(user.getName() != null ? user.getName() : "Unknown User");
+                            dto.setRole(teamMember.getRole() != null ? teamMember.getRole() : "developer");
+                            dto.setIsTeamLead(teamMember.getIsTeamLead() != null ? teamMember.getIsTeamLead() : false);
+                            dto.setAvailability(teamMember.getAllocationPercentage() != null ? teamMember.getAllocationPercentage() : 100);
+                            
+                            // Set additional user fields with null checks
+                            dto.setHourlyRate(user.getHourlyRate() != null ? user.getHourlyRate().doubleValue() : 0.0);
+                            dto.setExperience(user.getExperience() != null ? user.getExperience().name() : "mid");
+                            dto.setAvatar(user.getAvatarUrl());
+                            
+                            // Set default values for missing fields
+                            dto.setWorkload(0); // Default workload
+                            dto.setPerformance(85); // Default performance
+                            
+                            // Set skills from user (skills is stored as JSON string)
+                            if (user.getSkills() != null && !user.getSkills().trim().isEmpty()) {
+                                try {
+                                    // Parse JSON string to array (simple approach for now)
+                                    String skillsJson = user.getSkills().trim();
+                                    if (skillsJson.startsWith("[") && skillsJson.endsWith("]")) {
+                                        // Remove brackets and split by comma
+                                        String skillsStr = skillsJson.substring(1, skillsJson.length() - 1);
+                                        String[] skillsArray = skillsStr.split(",");
+                                        // Clean up quotes and whitespace
+                                        for (int i = 0; i < skillsArray.length; i++) {
+                                            skillsArray[i] = skillsArray[i].trim().replaceAll("^\"|\"$", "");
+                                        }
+                                        dto.setSkills(skillsArray);
+                                    } else {
+                                        dto.setSkills(new String[]{skillsJson});
+                                    }
+                                } catch (Exception e) {
+                                    dto.setSkills(new String[]{"General"});
+                                }
+                            } else {
+                                dto.setSkills(new String[]{"General"}); // Default skill
+                            }
+                            
+                            // Get department name with null checks
+                            if (user.getDepartmentId() != null && !user.getDepartmentId().trim().isEmpty()) {
+                                try {
+                                    departmentRepository.findById(user.getDepartmentId())
+                                        .ifPresent(dept -> {
+                                            if (dept.getName() != null) {
+                                                dto.setDepartment(dept.getName());
+                                            } else {
+                                                dto.setDepartment("Unassigned");
+                                            }
+                                        });
+                                    if (dto.getDepartment() == null) {
+                                        dto.setDepartment("Unassigned");
+                                    }
+                                } catch (Exception e) {
+                                    dto.setDepartment("Unassigned");
+                                }
+                            } else {
+                                dto.setDepartment("Unassigned");
+                            }
+                            
+                            teamMembers.add(dto);
+                        } catch (Exception e) {
+                            // Log error but continue processing other team members
+                            System.err.println("Error processing team member: " + e.getMessage());
+                            e.printStackTrace();
+                        }
+                    });
+                } catch (Exception e) {
+                    // Log error but continue processing other team members
+                    System.err.println("Error processing team member entry: " + e.getMessage());
+                    e.printStackTrace();
                 }
-                
-                // Get department name
-                if (user.getDepartmentId() != null) {
-                    departmentRepository.findById(user.getDepartmentId())
-                        .ifPresent(dept -> dto.setDepartment(dept.getName()));
-                } else {
-                    dto.setDepartment("Unassigned");
-                }
-                
-                teamMembers.add(dto);
-            });
-        });
-        
-        return ResponseEntity.ok(teamMembers);
+            }
+            
+            return ResponseEntity.ok(teamMembers);
+        } catch (Exception e) {
+            System.err.println("Error fetching all team members: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of(
+                "success", false,
+                "message", "Error fetching team members: " + e.getMessage()
+            ));
+        }
     }
 
     /**
      * Get team members by project ID
      */
     @GetMapping("/project/{projectId}")
-    public ResponseEntity<List<TeamMemberDto>> getTeamMembersByProject(@PathVariable String projectId) {
-        List<TeamMemberDto> teamMembers = new ArrayList<>();
-        
-        projectTeamMemberRepository.findByProjectId(projectId).forEach(teamMember -> {
-            userRepository.findById(teamMember.getUserId()).ifPresent(user -> {
-                TeamMemberDto dto = new TeamMemberDto();
-                dto.setId(user.getId());
-                dto.setName(user.getName());
-                dto.setRole(teamMember.getRole());
-                dto.setIsTeamLead(teamMember.getIsTeamLead());
-                dto.setAvailability(teamMember.getAllocationPercentage());
-                
-                // Set additional user fields
-                dto.setHourlyRate(user.getHourlyRate() != null ? user.getHourlyRate().doubleValue() : 0.0);
-                dto.setExperience(user.getExperience() != null ? user.getExperience().name() : "mid");
-                dto.setAvatar(user.getAvatarUrl());
-                
-                // Set default values for missing fields
-                dto.setWorkload(0); // Default workload
-                dto.setPerformance(85); // Default performance
-                
-                // Set skills from user (skills is stored as JSON string)
-                if (user.getSkills() != null && !user.getSkills().trim().isEmpty()) {
-                    try {
-                        // Parse JSON string to array (simple approach for now)
-                        String skillsJson = user.getSkills().trim();
-                        if (skillsJson.startsWith("[") && skillsJson.endsWith("]")) {
-                            // Remove brackets and split by comma
-                            String skillsStr = skillsJson.substring(1, skillsJson.length() - 1);
-                            String[] skillsArray = skillsStr.split(",");
-                            // Clean up quotes and whitespace
-                            for (int i = 0; i < skillsArray.length; i++) {
-                                skillsArray[i] = skillsArray[i].trim().replaceAll("^\"|\"$", "");
-                            }
-                            dto.setSkills(skillsArray);
-                        } else {
-                            dto.setSkills(new String[]{skillsJson});
-                        }
-                    } catch (Exception e) {
-                        dto.setSkills(new String[]{"General"});
+    public ResponseEntity<?> getTeamMembersByProject(@PathVariable String projectId) {
+        try {
+            List<TeamMemberDto> teamMembers = new ArrayList<>();
+            
+            if (projectId == null || projectId.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "Project ID cannot be empty"
+                ));
+            }
+            
+            List<ProjectTeamMember> projectTeamMembers = projectTeamMemberRepository.findByProjectId(projectId);
+            
+            for (ProjectTeamMember teamMember : projectTeamMembers) {
+                try {
+                    if (teamMember.getUserId() == null || teamMember.getUserId().trim().isEmpty()) {
+                        // Skip team members with invalid user IDs
+                        continue;
                     }
-                } else {
-                    dto.setSkills(new String[]{"General"}); // Default skill
+                    
+                    userRepository.findById(teamMember.getUserId()).ifPresent(user -> {
+                        try {
+                            TeamMemberDto dto = new TeamMemberDto();
+                            dto.setId(user.getId() != null ? user.getId() : "");
+                            dto.setName(user.getName() != null ? user.getName() : "Unknown User");
+                            dto.setRole(teamMember.getRole() != null ? teamMember.getRole() : "developer");
+                            dto.setIsTeamLead(teamMember.getIsTeamLead() != null ? teamMember.getIsTeamLead() : false);
+                            dto.setAvailability(teamMember.getAllocationPercentage() != null ? teamMember.getAllocationPercentage() : 100);
+                            
+                            // Set additional user fields with null checks
+                            dto.setHourlyRate(user.getHourlyRate() != null ? user.getHourlyRate().doubleValue() : 0.0);
+                            dto.setExperience(user.getExperience() != null ? user.getExperience().name() : "mid");
+                            dto.setAvatar(user.getAvatarUrl());
+                            
+                            // Set default values for missing fields
+                            dto.setWorkload(0); // Default workload
+                            dto.setPerformance(85); // Default performance
+                            
+                            // Set skills from user (skills is stored as JSON string)
+                            if (user.getSkills() != null && !user.getSkills().trim().isEmpty()) {
+                                try {
+                                    // Parse JSON string to array (simple approach for now)
+                                    String skillsJson = user.getSkills().trim();
+                                    if (skillsJson.startsWith("[") && skillsJson.endsWith("]")) {
+                                        // Remove brackets and split by comma
+                                        String skillsStr = skillsJson.substring(1, skillsJson.length() - 1);
+                                        String[] skillsArray = skillsStr.split(",");
+                                        // Clean up quotes and whitespace
+                                        for (int i = 0; i < skillsArray.length; i++) {
+                                            skillsArray[i] = skillsArray[i].trim().replaceAll("^\"|\"$", "");
+                                        }
+                                        dto.setSkills(skillsArray);
+                                    } else {
+                                        dto.setSkills(new String[]{skillsJson});
+                                    }
+                                } catch (Exception e) {
+                                    dto.setSkills(new String[]{"General"});
+                                }
+                            } else {
+                                dto.setSkills(new String[]{"General"}); // Default skill
+                            }
+                            
+                            // Get department name with null checks
+                            if (user.getDepartmentId() != null && !user.getDepartmentId().trim().isEmpty()) {
+                                try {
+                                    departmentRepository.findById(user.getDepartmentId())
+                                        .ifPresent(dept -> {
+                                            if (dept.getName() != null) {
+                                                dto.setDepartment(dept.getName());
+                                            } else {
+                                                dto.setDepartment("Unassigned");
+                                            }
+                                        });
+                                    if (dto.getDepartment() == null) {
+                                        dto.setDepartment("Unassigned");
+                                    }
+                                } catch (Exception e) {
+                                    dto.setDepartment("Unassigned");
+                                }
+                            } else {
+                                dto.setDepartment("Unassigned");
+                            }
+                            
+                            teamMembers.add(dto);
+                        } catch (Exception e) {
+                            // Log error but continue processing other team members
+                            System.err.println("Error processing team member: " + e.getMessage());
+                            e.printStackTrace();
+                        }
+                    });
+                } catch (Exception e) {
+                    // Log error but continue processing other team members
+                    System.err.println("Error processing team member entry: " + e.getMessage());
+                    e.printStackTrace();
                 }
-                
-                // Get department name
-                if (user.getDepartmentId() != null) {
-                    departmentRepository.findById(user.getDepartmentId())
-                        .ifPresent(dept -> dto.setDepartment(dept.getName()));
-                } else {
-                    dto.setDepartment("Unassigned");
-                }
-                
-                teamMembers.add(dto);
-            });
-        });
-        
-        return ResponseEntity.ok(teamMembers);
+            }
+            
+            return ResponseEntity.ok(teamMembers);
+        } catch (Exception e) {
+            System.err.println("Error fetching team members for project " + projectId + ": " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of(
+                "success", false,
+                "message", "Error fetching team members: " + e.getMessage()
+            ));
+        }
     }
 
     /**

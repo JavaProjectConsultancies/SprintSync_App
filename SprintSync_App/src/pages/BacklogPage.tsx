@@ -7,7 +7,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Separator } from '../components/ui/separator';
 import { Checkbox } from '../components/ui/checkbox';
@@ -70,7 +70,6 @@ const BacklogPage: React.FC = () => {
   const [assigneeFilter, setAssigneeFilter] = useState('all');
   const [sortBy, setSortBy] = useState('priority');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
   const [isEffortManagerOpen, setIsEffortManagerOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<string>('');
@@ -245,16 +244,6 @@ const BacklogPage: React.FC = () => {
     });
     return allTasks;
   }, [filteredStories]);
-
-  const [newTask, setNewTask] = useState({
-    title: '',
-    description: '',
-    priority: 'medium',
-    assignee: '',
-    storyPoints: 1,
-    labels: '',
-    dueDate: ''
-  });
 
   const toggleTaskSelection = (taskId: string) => {
     setSelectedTasks(prev => 
@@ -511,123 +500,6 @@ const BacklogPage: React.FC = () => {
               <Grid3x3 className="w-4 h-4" />
             </Button>
           </div>
-          <Dialog open={isNewTaskOpen} onOpenChange={setIsNewTaskOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-gradient-primary text-white border-0 hover:opacity-90">
-                <Plus className="w-4 h-4 mr-2" />
-                New Story
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Create New Story</DialogTitle>
-                <DialogDescription>
-                  Add a new story to your product backlog
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="task-title">Title *</Label>
-                  <Input
-                    id="task-title"
-                    placeholder="Enter task title"
-                    value={newTask.title}
-                    onChange={(e) => setNewTask(prev => ({ ...prev, title: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="task-description">Description</Label>
-                  <Textarea
-                    id="task-description"
-                    placeholder="Describe the task requirements and acceptance criteria"
-                    value={newTask.description}
-                    onChange={(e) => setNewTask(prev => ({ ...prev, description: e.target.value }))}
-                    rows={4}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Priority</Label>
-                    <Select value={newTask.priority} onValueChange={(value) => setNewTask(prev => ({ ...prev, priority: value }))}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="critical">Critical</SelectItem>
-                        <SelectItem value="high">High</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="low">Low</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Story Points</Label>
-                    <Select value={newTask.storyPoints.toString()} onValueChange={(value) => setNewTask(prev => ({ ...prev, storyPoints: parseInt(value) }))}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">1</SelectItem>
-                        <SelectItem value="2">2</SelectItem>
-                        <SelectItem value="3">3</SelectItem>
-                        <SelectItem value="5">5</SelectItem>
-                        <SelectItem value="8">8</SelectItem>
-                        <SelectItem value="13">13</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Assignee</Label>
-                    <Select value={newTask.assignee} onValueChange={(value) => setNewTask(prev => ({ ...prev, assignee: value }))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select assignee" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Priya Mehta">Priya Mehta</SelectItem>
-                        <SelectItem value="Rohit Kumar">Rohit Kumar</SelectItem>
-                        <SelectItem value="Sneha Patel">Sneha Patel</SelectItem>
-                        <SelectItem value="Aman Singh">Aman Singh</SelectItem>
-                        <SelectItem value="Ritu Sharma">Ritu Sharma</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Due Date</Label>
-                    <Input
-                      type="date"
-                      value={newTask.dueDate}
-                      onChange={(e) => setNewTask(prev => ({ ...prev, dueDate: e.target.value }))}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Labels</Label>
-                  <Input
-                    placeholder="Enter labels separated by commas"
-                    value={newTask.labels}
-                    onChange={(e) => setNewTask(prev => ({ ...prev, labels: e.target.value }))}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsNewTaskOpen(false)}>
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={() => {
-                    // TODO: Implement story creation via API
-                    setIsNewTaskOpen(false);
-                  }} 
-                  className="bg-gradient-primary text-white"
-                  disabled
-                >
-                  Create Story (Coming Soon)
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         </div>
       </div>
 

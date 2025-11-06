@@ -10,7 +10,8 @@ public enum UserRole {
     admin("admin"),
     manager("manager"),
     developer("developer"),
-    designer("designer");
+    designer("designer"),
+    qa("qa");
 
     private final String value;
 
