@@ -112,7 +112,7 @@ const AppContent: React.FC = () => {
       admin: ['/', '/projects', '/team-allocation', '/reports', '/profile', '/admin-panel'],
       manager: ['/', '/projects', '/scrum', '/time-tracking', '/ai-insights', '/team-allocation', '/reports', '/profile', '/todo-list'],
       developer: ['/', '/projects', '/scrum', '/time-tracking', '/ai-insights', '/reports', '/profile', '/todo-list'], // Removed team-allocation for developers
-      designer: ['/', '/projects', '/scrum', '/time-tracking', '/ai-insights', '/reports', '/profile', '/todo-list'] // Removed team-allocation for designers
+      qa: ['/', '/projects', '/scrum', '/time-tracking', '/ai-insights', '/team-allocation', '/reports', '/profile', '/todo-list'] // QA has manager-level access including team-allocation
     };
     
     return roleAccess[role]?.includes(path) || false;
@@ -233,6 +233,7 @@ const AppContent: React.FC = () => {
       case 'developer':
         return 'bg-green-100 text-green-800 border-green-200';
       case 'designer':
+      case 'qa':
         return 'bg-purple-100 text-purple-800 border-purple-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
@@ -388,28 +389,28 @@ const AppContent: React.FC = () => {
                   
                   {/* Scrum Management - accessible by manager, developer, designer */}
                   <Route path="/scrum" element={
-                    <ProtectedRoute allowedRoles={['manager', 'developer', 'designer']}>
+                    <ProtectedRoute allowedRoles={['manager', 'developer', 'qa']}>
                       <ScrumPage />
                     </ProtectedRoute>
                   } />
                   
                   {/* Time Tracking - accessible by manager, developer, designer */}
                   <Route path="/time-tracking" element={
-                    <ProtectedRoute allowedRoles={['manager', 'developer', 'designer']}>
+                    <ProtectedRoute allowedRoles={['manager', 'developer', 'qa']}>
                       <TimeTrackingPage />
                     </ProtectedRoute>
                   } />
                   
                   {/* AI Insights - accessible by manager, developer, designer */}
                   <Route path="/ai-insights" element={
-                    <ProtectedRoute allowedRoles={['manager', 'developer', 'designer']}>
+                    <ProtectedRoute allowedRoles={['manager', 'developer', 'qa']}>
                       <AIInsightsPage />
                     </ProtectedRoute>
                   } />
                   
-                  {/* Team Allocation - accessible by admin and manager only */}
+                  {/* Team Allocation - accessible by admin, manager, and qa (qa has manager-level access) */}
                   <Route path="/team-allocation" element={
-                    <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                    <ProtectedRoute allowedRoles={['admin', 'manager', 'qa']}>
                       <TeamAllocationPage />
                     </ProtectedRoute>
                   } />
@@ -429,7 +430,7 @@ const AppContent: React.FC = () => {
                   
                   {/* Todo List - accessible by manager, developer, designer */}
                   <Route path="/todo-list" element={
-                    <ProtectedRoute allowedRoles={['manager', 'developer', 'designer']}>
+                    <ProtectedRoute allowedRoles={['manager', 'developer', 'qa']}>
                       <TodoListPage />
                     </ProtectedRoute>
                   } />

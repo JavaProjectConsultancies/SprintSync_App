@@ -134,15 +134,34 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
         domainId: user.domainId || 'none',
         avatarUrl: user.avatarUrl || '',
         experience: user.experience || 'E1',
-        hourlyRate: user.hourlyRate?.toString() || '',
-        ctc: user.ctc?.toString() || '',
-        availabilityPercentage: user.availabilityPercentage?.toString() || '100',
+        hourlyRate: (user.hourlyRate != null && user.hourlyRate !== undefined) ? String(user.hourlyRate) : '',
+        ctc: (user.ctc != null && user.ctc !== undefined) ? String(user.ctc) : '',
+        availabilityPercentage: (user.availabilityPercentage != null && user.availabilityPercentage !== undefined) ? String(user.availabilityPercentage) : '100',
         skills: user.skills || '',
         isActive: user.isActive ?? true
       });
       setErrors({});
       setShowPassword(false);
       setShowConfirmPassword(false);
+    } else if (!user && isOpen) {
+      // Reset form when user is null/undefined
+      setFormData({
+        firstName: '',
+        lastName: '',
+        email: '',
+        password: '',
+        confirmPassword: '',
+        role: 'developer',
+        departmentId: 'none',
+        domainId: 'none',
+        avatarUrl: '',
+        experience: 'E1',
+        hourlyRate: '',
+        ctc: '',
+        availabilityPercentage: '100',
+        skills: '',
+        isActive: true
+      });
     }
   }, [user, isOpen]);
 
@@ -194,7 +213,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
   // Role validation and conversion logic
   const validateAndConvertRole = (selectedRole: string): string => {
     // Define accepted roles in the exact case expected by database (lowercase)
-    const acceptedRoles = ['admin', 'manager', 'developer', 'designer', 'tester', 'analyst'];
+    const acceptedRoles = ['admin', 'manager', 'developer', 'qa', 'tester', 'analyst'];
     
     // Normalize the selected role to lowercase
     const normalizedRole = selectedRole.toLowerCase();
@@ -209,7 +228,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
   };
 
   // Allowed roles matching backend enum values (lowercase)
-  const allowedRoles = ['admin', 'manager', 'developer', 'designer'] as const;
+  const allowedRoles = ['admin', 'manager', 'developer', 'qa'] as const;
 
   const convertRoleForBackend = (frontendRole: string): string => frontendRole.toLowerCase();
 
@@ -503,6 +522,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
         avatarUrl: '',
         experience: 'E1',
         hourlyRate: '',
+        ctc: '',
         availabilityPercentage: '100',
         skills: '',
         isActive: true
@@ -550,6 +570,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
       avatarUrl: '',
       experience: 'mid',
       hourlyRate: '',
+      ctc: '',
       availabilityPercentage: '100',
       skills: '',
       isActive: true
@@ -743,7 +764,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                       <SelectItem value="admin">Admin</SelectItem>
                       <SelectItem value="manager">Manager</SelectItem>
                       <SelectItem value="developer">Developer</SelectItem>
-                      <SelectItem value="designer">Designer</SelectItem>
+                      <SelectItem value="qa">QA</SelectItem>
                     </SelectContent>
                   </Select>
                   {errors.role && (
@@ -866,7 +887,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                       type="number"
                       step="0.01"
                       min="0"
-                      value={formData.hourlyRate}
+                      value={formData.hourlyRate || ''}
                       onChange={(e) => handleInputChange('hourlyRate', e.target.value)}
                       className={`w-full h-10 pl-8 pr-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
                         errors.hourlyRate ? 'border-red-300 bg-red-50' : 'border-gray-200'
@@ -897,7 +918,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                       type="number"
                       step="0.01"
                       min="0"
-                      value={formData.ctc}
+                      value={formData.ctc || ''}
                       onChange={(e) => handleInputChange('ctc', e.target.value)}
                       className={`w-full h-10 pl-8 pr-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
                         errors.ctc ? 'border-red-300 bg-red-50' : 'border-gray-200'
@@ -927,7 +948,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                       type="number"
                       min="0"
                       max="100"
-                      value={formData.availabilityPercentage}
+                      value={formData.availabilityPercentage || '100'}
                       onChange={(e) => handleInputChange('availabilityPercentage', e.target.value)}
                       className={`w-full h-10 px-3 pr-8 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
                         errors.availabilityPercentage ? 'border-red-300 bg-red-50' : 'border-gray-200'

@@ -119,6 +119,19 @@ public class SubtaskController {
     }
 
     /**
+     * Get subtasks by issue ID
+     */
+    @GetMapping("/issue/{issueId}")
+    public ResponseEntity<List<Subtask>> getSubtasksByIssueId(@PathVariable String issueId) {
+        try {
+            List<Subtask> subtasks = subtaskService.getSubtasksByIssueId(issueId);
+            return ResponseEntity.ok(subtasks);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
      * Get subtasks by assignee ID
      */
     @GetMapping("/assignee/{assigneeId}")

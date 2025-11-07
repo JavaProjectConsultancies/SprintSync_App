@@ -116,6 +116,9 @@ public class UserService {
         if (user.getHourlyRate() != null) {
             existingUser.setHourlyRate(user.getHourlyRate());
         }
+        if (user.getCtc() != null) {
+            existingUser.setCtc(user.getCtc());
+        }
         if (user.getAvailabilityPercentage() != null) {
             existingUser.setAvailabilityPercentage(user.getAvailabilityPercentage());
         }

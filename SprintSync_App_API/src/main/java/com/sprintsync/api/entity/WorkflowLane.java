@@ -24,6 +24,9 @@ public class WorkflowLane extends BaseEntity {
     @Column(name = "project_id", nullable = false, length = 255)
     private String projectId;
 
+    @Column(name = "board_id", length = 255)
+    private String boardId;
+
     @NotBlank(message = "Lane title cannot be blank")
     @Column(name = "title", nullable = false)
     private String title;
@@ -65,6 +68,14 @@ public class WorkflowLane extends BaseEntity {
 
     public void setProjectId(String projectId) {
         this.projectId = projectId;
+    }
+
+    public String getBoardId() {
+        return boardId;
+    }
+
+    public void setBoardId(String boardId) {
+        this.boardId = boardId;
     }
 
     public String getTitle() {

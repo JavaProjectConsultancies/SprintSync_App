@@ -43,14 +43,24 @@ console.error = (...args: any[]) => {
     return String(arg);
   }).join(' ');
   
-  // Filter out Chrome extension errors
-  if (isChromeExtensionError(errorText)) {
+  // Filter out Chrome extension errors (including specific patterns)
+  if (isChromeExtensionError(errorText) ||
+      errorText.toLowerCase().includes('unchecked runtime.lasterror') ||
+      errorText.toLowerCase().includes('could not establish connection') ||
+      errorText.toLowerCase().includes('receiving end does not exist')) {
     // Silently ignore these Chrome extension errors
     return;
   }
   
   // Check all arguments individually for Chrome extension errors
-  const hasChromeError = args.some(arg => isChromeExtensionError(arg));
+  const hasChromeError = args.some(arg => {
+    const argText = typeof arg === 'string' ? arg : (arg?.message || arg?.toString?.() || String(arg || ''));
+    return isChromeExtensionError(argText) ||
+           argText.toLowerCase().includes('unchecked runtime.lasterror') ||
+           argText.toLowerCase().includes('could not establish connection') ||
+           argText.toLowerCase().includes('receiving end does not exist');
+  });
+  
   if (hasChromeError) {
     return;
   }
@@ -110,30 +120,90 @@ console.log = (...args: any[]) => {
 // Handle unhandled promise rejections
 window.addEventListener('unhandledrejection', (event) => {
   const error = event.reason;
+  const errorMessage = error?.message || error?.toString() || String(error || '');
   
   // Suppress Chrome extension related errors
-  if (isChromeExtensionError(error)) {
+  if (isChromeExtensionError(error) || 
+      isChromeExtensionError(errorMessage) ||
+      errorMessage.includes('runtime.lastError') ||
+      errorMessage.includes('Could not establish connection') ||
+      errorMessage.includes('Receiving end does not exist') ||
+      errorMessage.includes('Unchecked runtime.lastError')) {
     event.preventDefault();
     event.stopPropagation();
     return false;
   }
   
-  // Log other unhandled rejections normally
-  console.error('Unhandled promise rejection:', error);
-});
+  // Log other unhandled rejections normally (but also check for extension errors)
+  const hasExtensionError = errorMessage.toLowerCase().includes('runtime.lasterror') ||
+                          errorMessage.toLowerCase().includes('could not establish connection') ||
+                          errorMessage.toLowerCase().includes('receiving end does not exist');
+  if (!hasExtensionError) {
+    console.error('Unhandled promise rejection:', error);
+  }
+}, true); // Use capture phase
 
 // Handle general errors
 window.addEventListener('error', (event) => {
   // Suppress Chrome extension related errors
-  if (isChromeExtensionError(event.error || event.message)) {
+  const errorMessage = event.error?.message || event.message || '';
+  const errorString = event.error?.toString() || '';
+  
+  if (isChromeExtensionError(errorMessage) || 
+      isChromeExtensionError(errorString) ||
+      errorMessage.includes('runtime.lastError') ||
+      errorMessage.includes('Could not establish connection') ||
+      errorMessage.includes('Receiving end does not exist')) {
     event.preventDefault();
     event.stopPropagation();
     return false;
   }
-});
+}, true); // Use capture phase to catch errors early
 
 // Wrap chrome.runtime APIs to suppress errors
 if (typeof window !== 'undefined') {
+  // Early error suppression - catch errors before React loads
+  const suppressChromeExtensionErrors = () => {
+    try {
+      const chrome = (window as any).chrome;
+      if (chrome?.runtime) {
+        // Override lastError getter to prevent errors
+        try {
+          const runtime = chrome.runtime;
+          if (runtime && typeof runtime === 'object') {
+            // Create a safe wrapper for lastError
+            const originalLastError = Object.getOwnPropertyDescriptor(runtime, 'lastError');
+            if (!originalLastError || originalLastError.get) {
+              Object.defineProperty(runtime, 'lastError', {
+                get: function() {
+                  try {
+                    if (originalLastError?.get) {
+                      const error = originalLastError.get.call(this);
+                      // Return null instead of throwing
+                      return error;
+                    }
+                  } catch (e) {
+                    // Suppress error
+                  }
+                  return null;
+                },
+                configurable: true,
+                enumerable: false
+              });
+            }
+          }
+        } catch (e) {
+          // Ignore errors during setup
+        }
+      }
+    } catch (e) {
+      // Ignore setup errors
+    }
+  };
+  
+  // Run immediately
+  suppressChromeExtensionErrors();
+  
   const checkAndSetupChromeRuntime = () => {
     const chrome = (window as any).chrome;
     if (!chrome?.runtime) {
@@ -141,6 +211,9 @@ if (typeof window !== 'undefined') {
       setTimeout(checkAndSetupChromeRuntime, 100);
       return;
     }
+    
+    // Run suppression again after runtime is available
+    suppressChromeExtensionErrors();
     
     // Wrap sendMessage
     if (chrome.runtime.sendMessage && typeof chrome.runtime.sendMessage === 'function') {
@@ -210,6 +283,21 @@ if (typeof window !== 'undefined') {
       };
     }
     
+    // Suppress lastError property access
+    const originalLastError = Object.getOwnPropertyDescriptor(chrome.runtime, 'lastError');
+    if (originalLastError) {
+      Object.defineProperty(chrome.runtime, 'lastError', {
+        get: function() {
+          try {
+            return originalLastError.get?.call(this);
+          } catch (e) {
+            return null;
+          }
+        },
+        configurable: true
+      });
+    }
+    
     // Periodically check and suppress lastError
     setInterval(() => {
       try {
@@ -222,6 +310,21 @@ if (typeof window !== 'undefined') {
         // Ignore errors while checking lastError
       }
     }, 1000);
+    
+    // Override onMessage to suppress errors
+    if (chrome.runtime.onMessage) {
+      const originalAddListener = chrome.runtime.onMessage.addListener;
+      chrome.runtime.onMessage.addListener = function(...args: any[]) {
+        try {
+          return originalAddListener.apply(chrome.runtime.onMessage, args);
+        } catch (error: any) {
+          if (isChromeExtensionError(error) || chrome.runtime.lastError) {
+            return;
+          }
+          throw error;
+        }
+      };
+    }
   };
   
   // Start checking for chrome.runtime

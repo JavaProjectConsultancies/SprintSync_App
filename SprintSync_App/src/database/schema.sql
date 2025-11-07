@@ -24,7 +24,7 @@ CREATE TABLE domains (
 );
 
 -- User roles enum
-CREATE TYPE user_role AS ENUM ('admin', 'manager', 'developer', 'designer');
+CREATE TYPE user_role AS ENUM ('admin', 'manager', 'developer', 'qa');
 
 -- Experience levels enum
 CREATE TYPE experience_level AS ENUM ('junior', 'mid', 'senior', 'lead');

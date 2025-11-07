@@ -110,12 +110,12 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
     }
   };
 
-  const demoLogin = (role: 'admin' | 'manager' | 'developer' | 'designer') => {
+  const demoLogin = (role: 'admin' | 'manager' | 'developer' | 'qa') => {
     const demoCredentials = {
       admin: { email: 'admin@demo.com', password: 'admin123' },
       manager: { email: 'manager@demo.com', password: 'manager123' },
       developer: { email: 'developer@demo.com', password: 'dev123' },
-      designer: { email: 'designer@demo.com', password: 'design123' },
+      qa: { email: 'qa@demo.com', password: 'qa123' },
     };
 
     setFormData(demoCredentials[role]);
@@ -241,11 +241,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
           <Button
             variant="outline"
             size="sm"
-            onClick={() => demoLogin('designer')}
+            onClick={() => demoLogin('qa')}
             disabled={isSubmitting || isLoading}
           >
             <User className="mr-1 h-3 w-3" />
-            Designer
+            QA
           </Button>
         </div>
 

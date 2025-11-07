@@ -10,6 +10,70 @@
 
     <body>
       <div id="root"></div>
+      <script>
+        // Suppress Chrome extension errors immediately - before React loads
+        (function() {
+          // Suppress console errors from Chrome extensions
+          const originalError = console.error;
+          console.error = function(...args) {
+            const errorText = args.map(arg => String(arg || '')).join(' ').toLowerCase();
+            if (errorText.includes('runtime.lasterror') || 
+                errorText.includes('could not establish connection') ||
+                errorText.includes('receiving end does not exist') ||
+                errorText.includes('unchecked runtime.lasterror')) {
+              return; // Suppress Chrome extension errors
+            }
+            originalError.apply(console, args);
+          };
+          
+          // Suppress window errors from Chrome extensions
+          window.addEventListener('error', function(event) {
+            const errorMsg = (event.message || '').toLowerCase();
+            if (errorMsg.includes('runtime.lasterror') || 
+                errorMsg.includes('could not establish connection') ||
+                errorMsg.includes('receiving end does not exist')) {
+              event.preventDefault();
+              event.stopPropagation();
+              return false;
+            }
+          }, true);
+          
+          // Suppress unhandled promise rejections from Chrome extensions
+          window.addEventListener('unhandledrejection', function(event) {
+            const errorMsg = String(event.reason || '').toLowerCase();
+            if (errorMsg.includes('runtime.lasterror') || 
+                errorMsg.includes('could not establish connection') ||
+                errorMsg.includes('receiving end does not exist')) {
+              event.preventDefault();
+              event.stopPropagation();
+              return false;
+            }
+          }, true);
+          
+          // Wrap chrome.runtime if available
+          if (window.chrome && window.chrome.runtime) {
+            try {
+              const runtime = window.chrome.runtime;
+              // Suppress lastError access errors
+              const originalLastError = Object.getOwnPropertyDescriptor(runtime, 'lastError');
+              if (originalLastError) {
+                Object.defineProperty(runtime, 'lastError', {
+                  get: function() {
+                    try {
+                      return originalLastError.get ? originalLastError.get.call(this) : null;
+                    } catch(e) {
+                      return null;
+                    }
+                  },
+                  configurable: true
+                });
+              }
+            } catch(e) {
+              // Ignore setup errors
+            }
+          }
+        })();
+      </script>
       <script type="module" src="/src/main.tsx"></script>
     </body>
   </html>

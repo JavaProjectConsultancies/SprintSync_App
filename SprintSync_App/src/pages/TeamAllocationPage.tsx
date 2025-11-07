@@ -20,7 +20,6 @@ import { userApiService } from '../services/api/entities/userApi';
 import { projectApiService } from '../services/api/entities/projectApi';
 import { useTeamMembers as useProjectTeamMembers } from '../hooks/api/useTeamMembers';
 import { toast } from 'sonner';
-import { calculateHourlyRateFromCTC } from '../utils/salaryCalculator';
 import { 
   Users, 
   Plus,
@@ -83,6 +82,7 @@ interface TeamMember {
   };
   hourlyRate: number;
   ctc?: number;
+  budget: number;
   experience: string;
 }
 
@@ -105,14 +105,14 @@ const TeamAllocationPage: React.FC = () => {
   const [newMember, setNewMember] = useState({
     name: '',
     email: '',
-    role: 'developer' as 'developer' | 'designer' | 'manager' | 'admin',
+    role: 'developer' as 'developer' | 'qa' | 'manager' | 'admin',
     domain: '',
     department: '',
     password: '',
-    hourlyRate: '',
+    hourlyRate: 0,
     skills: [] as string[],
-    ctc: '',
-    experience: 'mid' as 'junior' | 'mid' | 'senior' | 'lead' | 'E1' | 'E2' | 'M1' | 'M2' | 'M3' | 'L1' | 'L2' | 'L3' | 'S1',
+    budget: 0,
+    experience: 'M1' as 'E1' | 'E2' | 'M1' | 'M2' | 'M3' | 'L1' | 'L2' | 'L3' | 'S1',
     availability: 100
   });
   const [autoPopulated, setAutoPopulated] = useState({
@@ -142,7 +142,7 @@ const TeamAllocationPage: React.FC = () => {
 
   const { teamMembers: projectTeamMembers, refreshTeamMembers } = useProjectTeamMembers(selectedProjectId || undefined);
 
-  const roleOptions = ['developer', 'designer', 'manager', 'admin'];
+  const roleOptions = ['developer', 'qa', 'manager', 'admin'];
 
   // Project helpers: team members per project and manager names cache
   const [projectIdToMembers, setProjectIdToMembers] = useState<Record<string, any[]>>({});
@@ -156,9 +156,15 @@ const TeamAllocationPage: React.FC = () => {
       try {
         setProjectRefreshing(prev => ({ ...prev, [projectId]: true }));
         const list = await teamMemberApi.getTeamMembersByProject(projectId);
-        setProjectIdToMembers(prev => ({ ...prev, [projectId]: list || [] }));
-      } catch {
-        // ignore
+        // Normalize the data structure: ensure userId is set for all members
+        const normalizedList = (list || []).map((m: any) => ({
+          ...m,
+          userId: m.userId || m.id, // Use userId if available, otherwise use id (which is the user ID from backend)
+          id: m.id || m.userId, // Ensure id is also set
+        }));
+        setProjectIdToMembers(prev => ({ ...prev, [projectId]: normalizedList }));
+      } catch (error) {
+        console.error('Error refreshing members for project:', error);
       } finally {
         setProjectRefreshing(prev => ({ ...prev, [projectId]: false }));
       }
@@ -172,7 +178,12 @@ const TeamAllocationPage: React.FC = () => {
         setRemovingMember(prev => ({ ...prev, [key]: true }));
         await teamMemberApi.removeTeamMemberFromProject(projectId, userId);
         toast.success('Team member removed');
+        // Refresh members immediately after removal
         await refreshMembersForProject(projectId);
+        // Also refresh the hook if this is the selected project
+        if (selectedProjectId === projectId) {
+          await refreshTeamMembers();
+        }
         // After removal, project manager may have been reassigned in backend.
         // Refresh manager display by fetching updated project and manager name.
         try {
@@ -190,13 +201,15 @@ const TeamAllocationPage: React.FC = () => {
         } catch {
           // ignore
         }
-      } catch (e) {
-        toast.error('Failed to remove team member');
+      } catch (e: any) {
+        const errorMsg = e?.message || 'Unknown error';
+        console.error('Error removing team member:', e);
+        toast.error(`Failed to remove team member: ${errorMsg}`);
       } finally {
         setRemovingMember(prev => ({ ...prev, [key]: false }));
       }
     };
-  }, [refreshMembersForProject]);
+  }, [refreshMembersForProject, selectedProjectId, refreshTeamMembers]);
 
   useEffect(() => {
     const loadPerProjectInfo = async () => {
@@ -214,7 +227,15 @@ const TeamAllocationPage: React.FC = () => {
         });
         const membersResults = await Promise.all(memberPromises);
         const mapMembers: Record<string, any[]> = {};
-        membersResults.forEach(r => { mapMembers[r.projectId] = r.members; });
+        membersResults.forEach(r => { 
+          // Normalize the data structure: ensure userId is set for all members
+          const normalizedMembers = (r.members || []).map((m: any) => ({
+            ...m,
+            userId: m.userId || m.id, // Use userId if available, otherwise use id
+            id: m.id || m.userId, // Ensure id is also set
+          }));
+          mapMembers[r.projectId] = normalizedMembers;
+        });
         setProjectIdToMembers(mapMembers);
 
         // Fetch manager names
@@ -266,6 +287,41 @@ const TeamAllocationPage: React.FC = () => {
     return projects?.find(p => p.name === name)?.id || null;
   };
 
+  // Normalize experience values from old format to new enum format
+  // This function must be defined before useMemo hooks and useEffect that use it
+  const normalizeExperience = useCallback((experience: string | undefined | null): 'E1' | 'E2' | 'M1' | 'M2' | 'M3' | 'L1' | 'L2' | 'L3' | 'S1' => {
+    if (!experience) return 'M1';
+    
+    const exp = experience.toString().toUpperCase();
+    
+    // Map old values to new enum values
+    if (exp === 'JUNIOR' || exp === 'E1' || exp === 'E2') {
+      return exp === 'E2' ? 'E2' : 'E1';
+    }
+    if (exp === 'MID' || exp === 'M1' || exp === 'M2' || exp === 'M3') {
+      if (exp === 'M2') return 'M2';
+      if (exp === 'M3') return 'M3';
+      return 'M1';
+    }
+    if (exp === 'SENIOR' || exp === 'S1') {
+      return 'S1';
+    }
+    if (exp === 'LEAD' || exp === 'L1' || exp === 'L2' || exp === 'L3') {
+      if (exp === 'L1') return 'L1';
+      if (exp === 'L2') return 'L2';
+      if (exp === 'L3') return 'L3';
+      return 'L2'; // Default lead level
+    }
+    
+    // If already in new format, return as is if valid
+    const validValues: ('E1' | 'E2' | 'M1' | 'M2' | 'M3' | 'L1' | 'L2' | 'L3' | 'S1')[] = ['E1', 'E2', 'M1', 'M2', 'M3', 'L1', 'L2', 'L3', 'S1'];
+    if (validValues.includes(exp as any)) {
+      return exp as 'E1' | 'E2' | 'M1' | 'M2' | 'M3' | 'L1' | 'L2' | 'L3' | 'S1';
+    }
+    
+    return 'M1'; // Default fallback
+  }, []);
+
   useEffect(() => {
     if (isAddMemberDialogOpen) {
       if (!selectedProjectId && projects && projects.length > 0) {
@@ -281,7 +337,7 @@ const TeamAllocationPage: React.FC = () => {
         departmentId: u.departmentId,
         domainId: u.domainId,
         avatarUrl: u.avatarUrl,
-        experience: (u.experience || 'mid').toLowerCase(),
+        experience: normalizeExperience(u.experience),
         hourlyRate: u.hourlyRate || 0,
         availabilityPercentage: u.availabilityPercentage || 100,
         skills: typeof u.skills === 'string' ? u.skills : Array.isArray(u.skills) ? u.skills.join(', ') : '',
@@ -295,7 +351,7 @@ const TeamAllocationPage: React.FC = () => {
         setSelectedUserId(filtered[0].id);
       }
     }
-  }, [isAddMemberDialogOpen, projects, activeUsers, projectTeamMembers, selectedProjectId]);
+  }, [isAddMemberDialogOpen, projects, activeUsers, projectTeamMembers, selectedProjectId, normalizeExperience]);
 
   const departmentIdToName = useMemo(() => {
     const map: Record<string, string> = {};
@@ -365,7 +421,9 @@ const TeamAllocationPage: React.FC = () => {
       }
     }
     
-    const hourlyRateValue = fullUserData.hourlyRate || user.hourlyRate || 0;
+    // Normalize experience value
+    const normalizedExperience = normalizeExperience(fullUserData.experience || user.experience);
+    
     setNewMember({
       name: fullUserData.name || user.name,
       email: fullUserData.email || user.email,
@@ -373,10 +431,10 @@ const TeamAllocationPage: React.FC = () => {
       domain: domainName,
       department: departmentName,
       password: 'password123',
-      hourlyRate: hourlyRateValue.toString(),
+      hourlyRate: fullUserData.hourlyRate || user.hourlyRate || 0,
       skills: fullUserData.skills ? (typeof fullUserData.skills === 'string' ? fullUserData.skills.split(',').map((s: string)=>s.trim()) : fullUserData.skills) : (user.skills ? (typeof user.skills === 'string' ? user.skills.split(',').map((s: string)=>s.trim()) : user.skills) : []),
-      ctc: fullUserData.ctc ? fullUserData.ctc.toString() : '',
-      experience: (fullUserData.experience || user.experience || 'mid'),
+      budget: (fullUserData.hourlyRate || user.hourlyRate || 0) * 176,
+      experience: normalizedExperience,
       availability: fullUserData.availabilityPercentage || user.availabilityPercentage || 100,
     });
     setAutoPopulated({
@@ -421,7 +479,8 @@ const TeamAllocationPage: React.FC = () => {
       case 'ADMIN': return 'admin';
       case 'MANAGER': return 'manager';
       case 'DEVELOPER': return 'developer';
-      case 'DESIGNER': return 'designer';
+      case 'DESIGNER': return 'qa';
+      case 'QA': return 'qa';
       case 'TESTER': return 'tester';
       case 'ANALYST': return 'analyst';
       default: return (role || 'developer').toString().toLowerCase();
@@ -437,7 +496,7 @@ const TeamAllocationPage: React.FC = () => {
       const resolvedDepartment = (user as any).departmentId ? (departmentIdToName[(user as any).departmentId as string] || '') : ((user as any).department || '');
 
       // Generate realistic data based on resolved values
-      const baseCapacity = normalizedRole === 'admin' ? 35 : normalizedRole === 'manager' ? 35 : normalizedRole === 'designer' ? 35 : 40;
+      const baseCapacity = normalizedRole === 'admin' ? 35 : normalizedRole === 'manager' ? 35 : normalizedRole === 'qa' ? 35 : 40;
       const utilization = Math.floor(Math.random() * 30) + 70; // 70-100%
       const allocated = Math.floor((utilization / 100) * baseCapacity);
       
@@ -484,15 +543,15 @@ const TeamAllocationPage: React.FC = () => {
         ];
         
         // Assign user to 1-2 projects based on their role and availability
-        const numProjects = normalizedRole === 'manager' ? 1 : Math.floor(Math.random() * 2) + 1;
+        const numProjects = (normalizedRole === 'manager' || normalizedRole === 'qa') ? 1 : Math.floor(Math.random() * 2) + 1;
         const availableProjects = projectDistribution.filter(p => 
-          normalizedRole === 'manager' ? !p.hasManager : true
+          (normalizedRole === 'manager' || normalizedRole === 'qa') ? !p.hasManager : true
         );
         
         for (let i = 0; i < Math.min(numProjects, availableProjects.length); i++) {
           const project = availableProjects[i];
-          const allocation = normalizedRole === 'manager' ? 
-            Math.floor(Math.random() * 30) + 50 : // Managers get 50-80% allocation
+          const allocation = (normalizedRole === 'manager' || normalizedRole === 'qa') ? 
+            Math.floor(Math.random() * 30) + 50 : // Managers and QA get 50-80% allocation
             Math.floor(Math.random() * 40) + 30;  // Others get 30-70% allocation
           
           assignments.push({
@@ -508,7 +567,7 @@ const TeamAllocationPage: React.FC = () => {
       const getRoleInProject = (userRole: string, domain: string) => {
         if (userRole === 'admin') return 'System Administrator';
         if (userRole === 'manager') return 'Project Manager';
-        if (userRole === 'designer') return domain === 'Marketing' ? 'Marketing Lead' : 'UX/UI Designer';
+        if (userRole === 'qa') return 'Project Manager'; // QA has same role as manager
         
         const devRoles: { [key: string]: string } = {
           'Angular': 'Frontend Developer',
@@ -544,31 +603,9 @@ const TeamAllocationPage: React.FC = () => {
         nextTwoWeeks: baseCapacity - Math.floor(Math.random() * 10)
       };
 
-      // Generate hourly rate based on role and experience
-      const getHourlyRate = (role: string, domain: string) => {
-        const baseRates: { [key: string]: number } = {
-          'admin': 3000,
-          'manager': 2500,
-          'designer': 2000,
-          'developer': 1800
-        };
-        const domainMultipliers: { [key: string]: number } = {
-          'Angular': 1.1,
-          'Java': 1.2,
-          'Maui': 1.15,
-          'Testing': 0.9,
-          'Implementation': 1.3,
-          'Database': 1.25,
-          'Marketing': 0.8,
-          'HR': 0.7,
-          'System Administration': 1.1
-        };
-        return Math.round((baseRates[role] || 1800) * (domainMultipliers[domain || ''] || 1));
-      };
-
-      // Generate budget based on hourly rate and availability
-      const hourlyRate = getHourlyRate(normalizedRole || 'developer', resolvedDomain || '');
-      const monthlyBudget = Math.round(hourlyRate * 8 * 22 * (((user as any).availability || (user as any).availabilityPercentage || 100) as number) / 100);
+      // Get hourly rate and CTC from User API
+      const hourlyRate = (user as any).hourlyRate || 0;
+      const ctc = (user as any).ctc || 0;
 
       return {
         id: user.id,
@@ -588,8 +625,9 @@ const TeamAllocationPage: React.FC = () => {
         performance,
         availability,
         hourlyRate,
-        budget: monthlyBudget,
-        experience: (user as any).experience || 'mid'
+        ctc,
+        budget: 0, // Deprecated - kept for backward compatibility
+        experience: normalizeExperience((user as any).experience)
       };
     });
   }, [allUsers, departmentIdToName, domainIdToName]);
@@ -644,10 +682,10 @@ const TeamAllocationPage: React.FC = () => {
   const getRoleIcon = (role: string, domain: string) => {
     if (role === 'admin') return Shield;
     if (role === 'manager') return Users;
-    if (role === 'designer') {
+    if (role === 'qa') {
       if (domain === 'Marketing') return Briefcase;
       if (domain === 'HR') return Heart;
-      return Palette;
+      return TestTube;
     }
     if (role === 'developer') {
       if (domain === 'Angular' || domain === 'Maui') return Code;
@@ -703,17 +741,17 @@ const TeamAllocationPage: React.FC = () => {
     const email = `${firstName}.${lastName}@company.com`;
     
     // Determine role based on name patterns
-    let role: 'developer' | 'designer' | 'manager' | 'admin' = 'developer';
+    let role: 'developer' | 'qa' | 'manager' | 'admin' = 'developer';
     let domain = '';
     let department = '';
-    let experience: 'E1' | 'E2' | 'M1' | 'M2' | 'M3' | 'L1' | 'L2' | 'L3' | 'S1' = 'E1';
+    let experience: 'E1' | 'E2' | 'M1' | 'M2' | 'M3' | 'L1' | 'L2' | 'L3' | 'S1' = 'M1';
     let hourlyRate = 1800;
     let skills: string[] = [];
 
     // Role detection based on name patterns
     if (nameLower.includes('manager') || nameLower.includes('lead') || nameLower.includes('head')) {
       role = 'manager';
-      experience = 'M3';
+      experience = 'S1';
       hourlyRate = 2500;
       skills = ['Project Management', 'Leadership', 'Strategy', 'Team Management'];
     } else if (nameLower.includes('admin') || nameLower.includes('director') || nameLower.includes('ceo')) {
@@ -721,11 +759,11 @@ const TeamAllocationPage: React.FC = () => {
       experience = 'L2';
       hourlyRate = 3000;
       skills = ['Administration', 'Strategic Planning', 'Leadership', 'System Management'];
-    } else if (nameLower.includes('design') || nameLower.includes('ui') || nameLower.includes('ux')) {
-      role = 'designer';
-      experience = 'E1';
+    } else if (nameLower.includes('qa') || nameLower.includes('test') || nameLower.includes('quality')) {
+      role = 'qa';
+      experience = 'M1';
       hourlyRate = 2000;
-      skills = ['UI/UX Design', 'Figma', 'Adobe Creative Suite', 'Prototyping'];
+      skills = ['Quality Assurance', 'Testing', 'Test Automation', 'Bug Tracking'];
     }
 
     // Domain detection based on name patterns
@@ -778,27 +816,29 @@ const TeamAllocationPage: React.FC = () => {
 
     // Experience level based on name patterns
     if (nameLower.includes('senior') || nameLower.includes('sr') || nameLower.includes('lead')) {
-      experience = 'M3';
+      experience = 'S1';
       hourlyRate = Math.round(hourlyRate * 1.3);
     } else if (nameLower.includes('junior') || nameLower.includes('jr') || nameLower.includes('entry')) {
       experience = 'E1';
       hourlyRate = Math.round(hourlyRate * 0.7);
     } else if (nameLower.includes('architect') || nameLower.includes('principal') || nameLower.includes('expert')) {
-      experience = 'L2';
+      experience = 'L1';
       hourlyRate = Math.round(hourlyRate * 1.5);
     }
 
+    // Calculate budget
+    const budget = Math.round(hourlyRate * 8 * 22 * (newMember.availability || 100) / 100);
+
     // Update the form with auto-populated data
-    // Note: CTC should be calculated from hourly rate if needed, but for now we'll keep it empty
-    // as the user will enter CTC and it will auto-calculate hourly rate
     setNewMember(prev => ({
       ...prev,
       email: email,
       role: role,
       domain: domain,
       department: department,
-      hourlyRate: hourlyRate.toString(),
+      hourlyRate: hourlyRate,
       skills: skills,
+      budget: budget,
       experience: experience
     }));
 
@@ -834,10 +874,7 @@ const TeamAllocationPage: React.FC = () => {
       newMember.role !== '' &&
       newMember.domain !== '' &&
       newMember.department !== '' &&
-      newMember.hourlyRate !== '' &&
-      parseFloat(newMember.hourlyRate) > 0 &&
-      newMember.ctc !== '' &&
-      parseFloat(newMember.ctc) > 0 &&
+      newMember.hourlyRate > 0 &&
       newMember.experience !== ''
     );
   }, [newMember, selectedUserId]);
@@ -867,7 +904,7 @@ const TeamAllocationPage: React.FC = () => {
       toast.error(`Cannot add more members. Team is at maximum capacity (${validation.maxMembers} members).`);
       return;
     }
-    if (newMember.role === 'manager' && !validation.canAddManager) {
+    if ((newMember.role === 'manager' || newMember.role === 'qa') && !validation.canAddManager) {
       toast.error('Cannot add another manager. Only one manager is allowed per project.');
       return;
     }
@@ -882,9 +919,11 @@ const TeamAllocationPage: React.FC = () => {
         allocationPercentage: 100,
       });
       toast.success(`${newMember.name} has been added to the team!`);
+      // Refresh both the hook and the per-project cache
+      if (selectedProjectId) {
+        await refreshMembersForProject(selectedProjectId);
+      }
       await refreshTeamMembers();
-      // refresh the members shown on the project card
-      await refreshMembersForProject(selectedProjectId);
       setSelectedUserId('');
       setNewMember({
         name: '',
@@ -896,7 +935,7 @@ const TeamAllocationPage: React.FC = () => {
         hourlyRate: 0,
         skills: [],
         budget: 0,
-        experience: 'mid',
+        experience: 'M1',
         availability: 100,
       });
       setAutoPopulated({
@@ -928,7 +967,7 @@ const TeamAllocationPage: React.FC = () => {
   const handleDrop = useCallback(async (droppedMember: any, targetProjectId: string) => {
     // Find source project ID
     const sourceProjectId = droppedMember.sourceProjectId || Object.keys(projectIdToMembers).find(pid => 
-      (projectIdToMembers[pid] || []).some((m: any) => (m.userId || m.id) === (droppedMember.userId || droppedMember.id))
+      (projectIdToMembers[pid] ||  []).some((m: any) => (m.userId || m.id) === (droppedMember.userId || droppedMember.id))
     );
     
     if (sourceProjectId === targetProjectId) {
@@ -962,9 +1001,11 @@ const TeamAllocationPage: React.FC = () => {
       
       toast.success(`${droppedMember.name} transferred to ${projectIdToName[targetProjectId]}`);
       
-      // Refresh both project members
-      await refreshMembersForProject(targetProjectId);
-      await refreshMembersForProject(sourceProjectId);
+      // Refresh both project members (in parallel for better performance)
+      await Promise.all([
+        refreshMembersForProject(targetProjectId),
+        refreshMembersForProject(sourceProjectId)
+      ]);
     } catch (error: any) {
       const msg: string = error?.message || '';
       const duplicate = msg.includes('project_team_members_project_id_user_id_key');
@@ -975,7 +1016,7 @@ const TeamAllocationPage: React.FC = () => {
       }
       console.error('Error transferring team member:', error);
     }
-  }, [projectIdToMembers, projectIdToName, refreshMembersForProject, setRemovingMember]);
+  }, [projectIdToMembers, projectIdToName, refreshMembersForProject]);
 
   // Draggable Team Member Component
   const DraggableTeamMember: React.FC<{ member: any; projectId: string }> = ({ member, projectId }) => {
@@ -1329,16 +1370,21 @@ const TeamAllocationPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Budget Information */}
+                    {/* CTC and Hourly Rate Information */}
                     <div className="space-y-2 pt-2 border-t">
                       <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium">Budget</span>
+                        <span className="text-sm font-medium">CTC</span>
                         <div className="text-right">
                           <div className="text-sm font-medium text-green-600">
-                            ₹{member.budget?.toLocaleString()}/month
+                            {member.ctc ? `₹${member.ctc.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'Not Set'}
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            ₹{member.hourlyRate}
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Hourly Rate</span>
+                        <div className="text-right">
+                          <div className="text-sm font-medium text-blue-600">
+                            {member.hourlyRate ? `₹${member.hourlyRate.toFixed(2)}` : 'Not Set'}
                           </div>
                         </div>
                       </div>
@@ -1554,18 +1600,22 @@ const TeamAllocationPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Budget and Skills Info */}
+                    {/* CTC, Hourly Rate and Skills Info */}
                     <div className="grid grid-cols-2 gap-4 pt-3 border-t">
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground mb-2">CTC & Rate</p>
+                        <p className="text-sm font-medium text-muted-foreground mb-2">CTC & Hourly Rate</p>
                         <div className="space-y-1">
                           <div className="flex justify-between">
                             <span className="text-sm">CTC:</span>
-                            <span className="text-sm font-medium text-green-600">₹{member.ctc || member.hourlyRate || 'N/A'}</span>
-                  </div>
+                            <span className="text-sm font-medium text-green-600">
+                              {member.ctc ? `₹${member.ctc.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'Not Set'}
+                            </span>
+                          </div>
                           <div className="flex justify-between">
                             <span className="text-sm">Hourly Rate:</span>
-                            <span className="text-sm font-medium text-green-600">₹{member.hourlyRate || 'N/A'}</span>
+                            <span className="text-sm font-medium text-blue-600">
+                              {member.hourlyRate ? `₹${member.hourlyRate.toFixed(2)}` : 'Not Set'}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -1606,10 +1656,10 @@ const TeamAllocationPage: React.FC = () => {
             domain: '',
             department: '',
             password: '',
-            hourlyRate: '',
+            hourlyRate: 0,
             skills: [],
-            ctc: '',
-            experience: 'mid',
+            budget: 0,
+            experience: 'M1',
             availability: 100,
           });
           setAutoPopulated({
@@ -1635,7 +1685,7 @@ const TeamAllocationPage: React.FC = () => {
               <span>Add Team Member to Project</span>
             </DialogTitle>
             <DialogDescription className="text-base text-gray-600 mt-2 ml-13">
-              Create a new team member profile with comprehensive information including skills, CTC, hourly rate, and availability.
+              Create a new team member profile with comprehensive information including skills, budget allocation, and availability.
             </DialogDescription>
             
             {/* Team Status Summary */}
@@ -1794,7 +1844,7 @@ const TeamAllocationPage: React.FC = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="developer">Developer</SelectItem>
-                      <SelectItem value="designer">Designer</SelectItem>
+                      <SelectItem value="qa">QA</SelectItem>
                       <SelectItem value="manager">Manager</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>
@@ -1846,73 +1896,44 @@ const TeamAllocationPage: React.FC = () => {
               </div>
             </div>
 
-            {/* CTC & Hourly Rate & Experience Section */}
+            {/* Budget & Experience Section */}
             <div className="space-y-6">
               <div className="flex items-center space-x-3 pb-3 border-b border-gray-200">
                 <div className="flex items-center justify-center w-8 h-8 bg-green-50 rounded-md">
                   <IndianRupee className="w-5 h-5 text-green-600" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900">CTC, Hourly Rate & Experience</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Budget & Experience</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="ctc" className="text-sm font-medium">
-                    CTC (₹) *
-                  </Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">₹</span>
-                    <Input
-                      id="ctc"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="e.g., 500000.00"
-                      value={newMember.ctc}
-                      onChange={(e) => {
-                        const ctcValue = e.target.value;
-                        const updatedMember = { ...newMember, ctc: ctcValue };
-                        
-                        // Auto-calculate hourly rate when CTC or experience changes
-                        if (ctcValue && parseFloat(ctcValue) > 0 && newMember.experience) {
-                          try {
-                            const calculatedHourlyRate = calculateHourlyRateFromCTC(parseFloat(ctcValue), newMember.experience);
-                            updatedMember.hourlyRate = calculatedHourlyRate.toFixed(2);
-                          } catch (error) {
-                            console.error('Error calculating hourly rate:', error);
-                          }
-                        }
-                        setNewMember(updatedMember);
-                      }}
-                      className="h-10 pl-8"
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    CTC (Cost to Company) in INR (auto-calculates hourly rate)
-                  </p>
-                </div>
                 <div className="space-y-2">
                   <Label htmlFor="hourlyRate" className="text-sm font-medium">
                     Hourly Rate (₹) * {autoPopulated.hourlyRate && <span className="text-green-600 text-xs">(Auto-filled)</span>}
                   </Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">₹</span>
-                    <Input
-                      id="hourlyRate"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="e.g., 1000.00"
-                      value={newMember.hourlyRate}
-                      readOnly={autoPopulated.hourlyRate}
-                      onChange={(e) => {
-                        setNewMember({ ...newMember, hourlyRate: e.target.value });
-                        setAutoPopulated(prev => ({ ...prev, hourlyRate: false }));
-                      }}
-                      className={`h-10 pl-8 ${autoPopulated.hourlyRate ? 'bg-green-50 border-green-200' : ''}`}
-                    />
-                  </div>
+                  <Input
+                    id="hourlyRate"
+                    type="number"
+                    placeholder="1800"
+                    value={newMember.hourlyRate}
+                    readOnly={autoPopulated.hourlyRate}
+                    onChange={(e) => {
+                      setNewMember({ ...newMember, hourlyRate: Number(e.target.value) });
+                      setAutoPopulated(prev => ({ ...prev, hourlyRate: false }));
+                    }}
+                    className={`h-10 ${autoPopulated.hourlyRate ? 'bg-green-50 border-green-200' : ''}`}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="budget" className="text-sm font-medium">Monthly Budget (₹)</Label>
+                  <Input
+                    id="budget"
+                    type="number"
+                    placeholder="Auto-calculated"
+                    value={newMember.budget}
+                    onChange={(e) => setNewMember({ ...newMember, budget: Number(e.target.value) })}
+                    className="h-10"
+                  />
                   <p className="text-xs text-muted-foreground">
-                    Hourly rate in INR (auto-calculated from CTC and experience, or enter manually)
+                    Auto-calculated if empty
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -1921,19 +1942,8 @@ const TeamAllocationPage: React.FC = () => {
                   </Label>
                   <Select 
                     value={newMember.experience} 
-                    onValueChange={(value: any) => {
-                      const updatedMember = { ...newMember, experience: value };
-                      
-                      // Auto-calculate hourly rate when experience changes
-                      if (newMember.ctc && parseFloat(newMember.ctc) > 0 && value) {
-                        try {
-                          const calculatedHourlyRate = calculateHourlyRateFromCTC(parseFloat(newMember.ctc), value);
-                          updatedMember.hourlyRate = calculatedHourlyRate.toFixed(2);
-                        } catch (error) {
-                          console.error('Error calculating hourly rate:', error);
-                        }
-                      }
-                      setNewMember(updatedMember);
+                    onValueChange={(value: 'E1' | 'E2' | 'M1' | 'M2' | 'M3' | 'L1' | 'L2' | 'L3' | 'S1') => {
+                      setNewMember({ ...newMember, experience: value });
                       setAutoPopulated(prev => ({ ...prev, experience: false }));
                     }}
                   >
@@ -1941,15 +1951,15 @@ const TeamAllocationPage: React.FC = () => {
                       <SelectValue placeholder="Select level" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="E1">E1 - 0-1yr</SelectItem>
-                      <SelectItem value="E2">E2 - 1-3yrs</SelectItem>
-                      <SelectItem value="M1">M1 - 3-7yrs</SelectItem>
-                      <SelectItem value="M2">M2 - 5-8yrs</SelectItem>
-                      <SelectItem value="M3">M3 - 7-10yrs</SelectItem>
-                      <SelectItem value="L1">L1 - 10-15yrs</SelectItem>
-                      <SelectItem value="L2">L2 - 12-18yrs</SelectItem>
-                      <SelectItem value="L3">L3 - 15&above</SelectItem>
-                      <SelectItem value="S1">S1 - 20yrs &above</SelectItem>
+                      <SelectItem value="E1">E1 - Entry Level</SelectItem>
+                      <SelectItem value="E2">E2 - Entry Level 2</SelectItem>
+                      <SelectItem value="M1">M1 - Mid Level</SelectItem>
+                      <SelectItem value="M2">M2 - Mid Level 2</SelectItem>
+                      <SelectItem value="M3">M3 - Mid Level 3</SelectItem>
+                      <SelectItem value="S1">S1 - Senior</SelectItem>
+                      <SelectItem value="L1">L1 - Lead</SelectItem>
+                      <SelectItem value="L2">L2 - Lead 2</SelectItem>
+                      <SelectItem value="L3">L3 - Lead 3</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -2045,10 +2055,10 @@ const TeamAllocationPage: React.FC = () => {
                       domain: '',
                       department: '',
                       password: '',
-                      hourlyRate: '',
+                      hourlyRate: 0,
                       skills: [],
-                      ctc: '',
-                      experience: 'mid',
+                      budget: 0,
+                      experience: 'M1',
                       availability: 100
                     });
                     setAutoPopulated({

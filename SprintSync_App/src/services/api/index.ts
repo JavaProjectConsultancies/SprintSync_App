@@ -20,6 +20,7 @@ export { releaseApiService } from './entities/releaseApi';
 export { sprintApiService } from './entities/sprintApi';
 export { storyApiService } from './entities/storyApi';
 export { taskApiService } from './entities/taskApi';
+export { issueApiService } from './entities/issueApi';
 export { subtaskApiService } from './entities/subtaskApi';
 export { attachmentApiService } from './entities/attachmentApi';
 export { workflowLaneApiService } from './entities/workflowLaneApi';
@@ -42,6 +43,7 @@ export type {
   Sprint,
   Story,
   Task,
+  Issue,
   Subtask,
   TimeEntry,
   QualityGate,

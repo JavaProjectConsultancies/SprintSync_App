@@ -49,6 +49,25 @@ public interface WorkflowLaneRepository extends JpaRepository<WorkflowLane, Stri
     long countByProjectId(String projectId);
 
     /**
+     * Find workflow lanes by project ID and board ID, ordered by display order.
+     * 
+     * @param projectId the project ID
+     * @param boardId the board ID (null for default board)
+     * @return list of workflow lanes for the specified project and board, ordered by display order
+     */
+    @org.springframework.data.jpa.repository.Query("SELECT wl FROM WorkflowLane wl WHERE wl.projectId = :projectId AND (wl.boardId = :boardId OR (:boardId IS NULL AND wl.boardId IS NULL)) ORDER BY wl.displayOrder ASC")
+    List<WorkflowLane> findByProjectIdAndBoardIdOrderByDisplayOrderAsc(@org.springframework.data.repository.query.Param("projectId") String projectId, @org.springframework.data.repository.query.Param("boardId") String boardId);
+
+    /**
+     * Find workflow lanes by project ID (for default board - boardId is null).
+     * 
+     * @param projectId the project ID
+     * @return list of workflow lanes for the default board
+     */
+    @org.springframework.data.jpa.repository.Query("SELECT wl FROM WorkflowLane wl WHERE wl.projectId = :projectId AND wl.boardId IS NULL ORDER BY wl.displayOrder ASC")
+    List<WorkflowLane> findByProjectIdAndDefaultBoardOrderByDisplayOrderAsc(@org.springframework.data.repository.query.Param("projectId") String projectId);
+
+    /**
      * Find the maximum display order for a project.
      * Uses a custom query to find the maximum display order.
      * 

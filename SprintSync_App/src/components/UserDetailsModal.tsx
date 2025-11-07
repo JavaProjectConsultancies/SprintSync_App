@@ -69,6 +69,7 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({ isOpen, onClose, us
       case 'MANAGER': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'DEVELOPER': return 'bg-green-100 text-green-800 border-green-200';
       case 'DESIGNER': return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'QA': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'TESTER': return 'bg-orange-100 text-orange-800 border-orange-200';
       case 'ANALYST': return 'bg-cyan-100 text-cyan-800 border-cyan-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
@@ -246,10 +247,20 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({ isOpen, onClose, us
               <div className="user-details-field space-y-2">
                 <div className="flex items-center gap-2">
                   <IndianRupee className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm font-medium">CTC</span>
+                  <span className="text-sm font-medium">Hourly Rate</span>
                 </div>
                 <p className="font-medium">
                   {user.hourlyRate ? `₹${user.hourlyRate.toFixed(2)}` : 'Not Set'}
+                </p>
+              </div>
+
+              <div className="user-details-field space-y-2">
+                <div className="flex items-center gap-2">
+                  <IndianRupee className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm font-medium">CTC</span>
+                </div>
+                <p className="font-medium">
+                  {user.ctc ? `₹${user.ctc.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'Not Set'}
                 </p>
               </div>
 

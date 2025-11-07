@@ -38,7 +38,8 @@ import {
   Eye,
   GitBranch,
   X,
-  Loader2
+  Loader2,
+  ChevronDown
 } from 'lucide-react';
 import EffortManager from '../components/EffortManager';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
@@ -77,6 +78,7 @@ const BacklogPage: React.FC = () => {
   const [tasksLoading, setTasksLoading] = useState(false);
   
   const [selectedTaskForEffort, setSelectedTaskForEffort] = useState<Task | null>(null);
+  const [expandedStories, setExpandedStories] = useState<Set<string>>(new Set());
 
   // Fetch projects
   const { data: projects, loading: projectsLoading } = useProjects();
@@ -309,6 +311,18 @@ const BacklogPage: React.FC = () => {
     });
   };
 
+  const toggleStoryExpansion = (storyId: string) => {
+    setExpandedStories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(storyId)) {
+        newSet.delete(storyId);
+      } else {
+        newSet.add(storyId);
+      }
+      return newSet;
+    });
+  };
+
   // Story Card Component
   const StoryCard: React.FC<{ story: StoryWithTasks }> = ({ story }) => {
     const today = new Date();
@@ -321,139 +335,147 @@ const BacklogPage: React.FC = () => {
       return taskDueDate < today && task.status !== 'DONE' && task.status !== 'CANCELLED';
     }) || [];
 
+    const isExpanded = expandedStories.has(story.id);
+
     return (
       <Card className="mb-4">
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2">
-                <h3 className="font-semibold text-lg">{story.title}</h3>
-                <Badge variant="outline" className={`text-xs ${getStoryStatusColor(story.status)}`}>
-                  {story.status}
-                </Badge>
-              </div>
-              {story.description && (
-                <p className="text-sm text-muted-foreground">{story.description}</p>
-              )}
+        <CardHeader 
+          className="cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => toggleStoryExpansion(story.id)}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <ChevronDown 
+                className={`w-4 h-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+              />
+              <h3 className="font-semibold text-lg">{story.title}</h3>
+              <Badge variant="outline" className={`text-xs ${getStoryStatusColor(story.status)}`}>
+                {story.status}
+              </Badge>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Story Info */}
-            <div className="flex items-center space-x-4 text-sm">
-              <Badge variant="outline" className={`${getPriorityColor(story.priority)}`}>
-                <Flag className="w-3 h-3 mr-1" />
-                {story.priority}
-              </Badge>
-              {story.storyPoints && (
-                <div className="flex items-center space-x-1 text-muted-foreground">
-                  <Target className="w-4 h-4" />
-                  <span>{story.storyPoints} points</span>
-                </div>
+        {isExpanded && (
+          <CardContent>
+            <div className="space-y-4">
+              {/* Story Info */}
+              {story.description && (
+                <p className="text-sm text-muted-foreground">{story.description}</p>
               )}
-              {overdueTasks.length > 0 && (
-                <Badge variant="destructive" className="text-xs">
-                  <AlertCircle className="w-3 h-3 mr-1" />
-                  {overdueTasks.length} overdue task{overdueTasks.length > 1 ? 's' : ''}
+              <div className="flex items-center space-x-4 text-sm">
+                <Badge variant="outline" className={`${getPriorityColor(story.priority)}`}>
+                  <Flag className="w-3 h-3 mr-1" />
+                  {story.priority}
                 </Badge>
-              )}
-            </div>
+                {story.storyPoints && (
+                  <div className="flex items-center space-x-1 text-muted-foreground">
+                    <Target className="w-4 h-4" />
+                    <span>{story.storyPoints} points</span>
+                  </div>
+                )}
+                {overdueTasks.length > 0 && (
+                  <Badge variant="destructive" className="text-xs">
+                    <AlertCircle className="w-3 h-3 mr-1" />
+                    {overdueTasks.length} overdue task{overdueTasks.length > 1 ? 's' : ''}
+                  </Badge>
+                )}
+              </div>
 
-            {/* Tasks */}
-            {story.tasks && story.tasks.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-medium">Tasks ({story.tasks.length})</h4>
-                  <div className="text-xs text-muted-foreground">
-                    {story.tasks.filter(t => t.status === 'DONE').length} completed
+              {/* Tasks */}
+              {story.tasks && story.tasks.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium">Tasks ({story.tasks.length})</h4>
+                    <div className="text-xs text-muted-foreground">
+                      {story.tasks.filter(t => t.status === 'DONE').length} completed
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {story.tasks.map(task => {
+                      const isOverdue = task.dueDate && new Date(task.dueDate) < today;
+                      const isIncomplete = task.status !== 'DONE' && task.status !== 'CANCELLED';
+                      const isOverdueAndIncomplete = isOverdue && isIncomplete;
+
+                      return (
+                        <Card 
+                          key={task.id} 
+                          className={`border-l-4 ${
+                            isOverdueAndIncomplete ? 'border-l-red-500 bg-red-50' : 
+                            task.status === 'DONE' ? 'border-l-green-500 bg-green-50' :
+                            'border-l-blue-500'
+                          }`}
+                        >
+                          <CardContent className="p-3">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <h5 className="text-sm font-medium">{task.title}</h5>
+                                  <Badge variant="outline" className={`text-xs ${getStatusColor(task.status)}`}>
+                                    {task.status?.replace('_', ' ') || 'TO_DO'}
+                                  </Badge>
+                                  {isOverdueAndIncomplete && (
+                                    <Badge variant="destructive" className="text-xs">
+                                      Overdue
+                                    </Badge>
+                                  )}
+                                </div>
+                                {task.description && (
+                                  <p className="text-xs text-muted-foreground mb-2">{task.description}</p>
+                                )}
+                                <div className="flex items-center space-x-4 text-xs text-muted-foreground">
+                                  <Badge variant="outline" className={`${getPriorityColor(task.priority)}`}>
+                                    {task.priority}
+                                  </Badge>
+                                  {task.dueDate && (
+                                    <div className="flex items-center space-x-1">
+                                      <Calendar className="w-3 h-3" />
+                                      <span className={isOverdue ? 'text-red-600 font-medium' : ''}>
+                                        {formatDate(task.dueDate)}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {task.estimatedHours && (
+                                    <div className="flex items-center space-x-1">
+                                      <Clock className="w-3 h-3" />
+                                      <span>{task.estimatedHours}h</span>
+                                    </div>
+                                  )}
+                                  {task.actualHours > 0 && (
+                                    <div className="flex items-center space-x-1">
+                                      <Target className="w-3 h-3" />
+                                      <span>{task.actualHours}h actual</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                    <MoreVertical className="w-3 h-3" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => handleOpenEffortManager(task)}>
+                                    <Clock className="w-4 h-4 mr-2" />
+                                    Manage Efforts
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem>
+                                    <Eye className="w-4 h-4 mr-2" />
+                                    View Details
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                   </div>
                 </div>
-                <div className="space-y-2">
-                  {story.tasks.map(task => {
-                    const isOverdue = task.dueDate && new Date(task.dueDate) < today;
-                    const isIncomplete = task.status !== 'DONE' && task.status !== 'CANCELLED';
-                    const isOverdueAndIncomplete = isOverdue && isIncomplete;
-
-                    return (
-                      <Card 
-                        key={task.id} 
-                        className={`border-l-4 ${
-                          isOverdueAndIncomplete ? 'border-l-red-500 bg-red-50' : 
-                          task.status === 'DONE' ? 'border-l-green-500 bg-green-50' :
-                          'border-l-blue-500'
-                        }`}
-                      >
-                        <CardContent className="p-3">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center space-x-2 mb-1">
-                                <h5 className="text-sm font-medium">{task.title}</h5>
-                                <Badge variant="outline" className={`text-xs ${getStatusColor(task.status)}`}>
-                                  {task.status?.replace('_', ' ') || 'TO_DO'}
-                                </Badge>
-                                {isOverdueAndIncomplete && (
-                                  <Badge variant="destructive" className="text-xs">
-                                    Overdue
-                                  </Badge>
-                                )}
-                              </div>
-                              {task.description && (
-                                <p className="text-xs text-muted-foreground mb-2">{task.description}</p>
-                              )}
-                              <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-                                <Badge variant="outline" className={`${getPriorityColor(task.priority)}`}>
-                                  {task.priority}
-                                </Badge>
-                                {task.dueDate && (
-                                  <div className="flex items-center space-x-1">
-                                    <Calendar className="w-3 h-3" />
-                                    <span className={isOverdue ? 'text-red-600 font-medium' : ''}>
-                                      {formatDate(task.dueDate)}
-                                    </span>
-                                  </div>
-                                )}
-                                {task.estimatedHours && (
-                                  <div className="flex items-center space-x-1">
-                                    <Clock className="w-3 h-3" />
-                                    <span>{task.estimatedHours}h</span>
-                                  </div>
-                                )}
-                                {task.actualHours > 0 && (
-                                  <div className="flex items-center space-x-1">
-                                    <Target className="w-3 h-3" />
-                                    <span>{task.actualHours}h actual</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                                  <MoreVertical className="w-3 h-3" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => handleOpenEffortManager(task)}>
-                                  <Clock className="w-4 h-4 mr-2" />
-                                  Manage Efforts
-                                </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                  <Eye className="w-4 h-4 mr-2" />
-                                  View Details
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
+              )}
+            </div>
+          </CardContent>
+        )}
       </Card>
     );
   };

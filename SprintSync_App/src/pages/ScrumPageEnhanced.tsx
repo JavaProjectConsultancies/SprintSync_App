@@ -104,7 +104,7 @@ const ScrumPageEnhanced: React.FC = () => {
   const [isAddTaskDialogOpen, setIsAddTaskDialogOpen] = useState(false);
 
   // Role-based permissions - developers cannot add sprints or stories
-  const canManageSprintsAndStories = user?.role === 'admin' || user?.role === 'manager';
+  const canManageSprintsAndStories = user?.role === 'admin' || user?.role === 'manager' || user?.role === 'qa';
   const canAddTasks = true; // All roles can add tasks
   const canLogEffort = true; // All roles can log effort
 

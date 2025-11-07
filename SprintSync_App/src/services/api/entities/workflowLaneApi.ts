@@ -3,6 +3,7 @@ import apiClient from '../client';
 export interface WorkflowLane {
   id: string;
   projectId: string;
+  boardId?: string | null;
   title: string;
   color: string;
   objective?: string;
@@ -36,6 +37,12 @@ export const workflowLaneApiService = {
   // Project-specific operations
   getLanesByProject: (projectId: string) => 
     apiClient.get<WorkflowLane[]>(`${BASE_URL}/project/${projectId}`),
+
+  // Get lanes by project and board
+  getLanesByProjectAndBoard: (projectId: string, boardId: string | null) => 
+    boardId 
+      ? apiClient.get<WorkflowLane[]>(`${BASE_URL}/project/${projectId}/board/${boardId}`)
+      : apiClient.get<WorkflowLane[]>(`${BASE_URL}/project/${projectId}`),
 
   // Reorder lanes
   updateDisplayOrder: (laneIds: string[]) => 

@@ -44,6 +44,16 @@ public class SubtaskService {
      * Create a new subtask
      */
     public Subtask createSubtask(Subtask subtask) {
+        // Validate that either taskId or issueId is provided, but not both
+        if ((subtask.getTaskId() == null || subtask.getTaskId().isEmpty()) && 
+            (subtask.getIssueId() == null || subtask.getIssueId().isEmpty())) {
+            throw new IllegalArgumentException("Subtask must have either a taskId or issueId");
+        }
+        if (subtask.getTaskId() != null && !subtask.getTaskId().isEmpty() && 
+            subtask.getIssueId() != null && !subtask.getIssueId().isEmpty()) {
+            throw new IllegalArgumentException("Subtask cannot have both taskId and issueId");
+        }
+        
         if (subtask.getId() == null) {
             subtask.setId(idGenerationService.generateSubtaskId());
         }
@@ -79,6 +89,13 @@ public class SubtaskService {
      */
     public List<Subtask> getSubtasksByTaskId(String taskId) {
         return subtaskRepository.findByTaskId(taskId);
+    }
+
+    /**
+     * Get subtasks by issue ID
+     */
+    public List<Subtask> getSubtasksByIssueId(String issueId) {
+        return subtaskRepository.findByIssueId(issueId);
     }
 
     /**

@@ -72,14 +72,29 @@ public class WorkflowLaneController {
     }
 
     /**
-     * Get all workflow lanes for a project.
+     * Get all workflow lanes for a project (default board).
      * 
      * @param projectId the project ID
-     * @return ResponseEntity containing list of workflow lanes for the project
+     * @return ResponseEntity containing list of workflow lanes for the project (default board)
      */
     @GetMapping("/project/{projectId}")
     public ResponseEntity<List<WorkflowLane>> getWorkflowLanesByProject(@PathVariable String projectId) {
         List<WorkflowLane> lanes = workflowLaneService.getWorkflowLanesByProject(projectId);
+        return ResponseEntity.ok(lanes);
+    }
+
+    /**
+     * Get all workflow lanes for a project and board.
+     * 
+     * @param projectId the project ID
+     * @param boardId the board ID (null for default board)
+     * @return ResponseEntity containing list of workflow lanes for the project and board
+     */
+    @GetMapping("/project/{projectId}/board/{boardId}")
+    public ResponseEntity<List<WorkflowLane>> getWorkflowLanesByProjectAndBoard(
+            @PathVariable String projectId, 
+            @PathVariable(required = false) String boardId) {
+        List<WorkflowLane> lanes = workflowLaneService.getWorkflowLanesByProjectAndBoard(projectId, boardId);
         return ResponseEntity.ok(lanes);
     }
 

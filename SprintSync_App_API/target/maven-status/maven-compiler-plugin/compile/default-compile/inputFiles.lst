@@ -4,10 +4,12 @@ C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\controller\AttachmentController.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\controller\AuthController.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\controller\BatchOperationsController.java
+C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\controller\BoardController.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\controller\DashboardController.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\controller\DepartmentController.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\controller\DomainController.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\controller\EpicController.java
+C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\controller\IssueController.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\controller\NotificationController.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\controller\PendingRegistrationController.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\controller\ProjectController.java
@@ -25,6 +27,7 @@ C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\controller\TestAuthController.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\controller\TimeEntryController.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\controller\UserController.java
+C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\controller\WorkflowLaneController.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\dto\AuthRequest.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\dto\AuthResponse.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\dto\CreateProjectRequest.java
@@ -43,12 +46,12 @@ C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\Attachment.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\AvailableIntegration.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\BaseEntity.java
+C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\Board.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\Comment.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\converter\EpicStatusConverter.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\converter\ExperienceLevelConverter.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\converter\IntegrationTypeConverter.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\converter\JsonbConverter.java
-C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\converter\NotificationPriorityConverter.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\converter\PriorityConverter.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\converter\ProjectStatusConverter.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\converter\ReleaseStatusConverter.java
@@ -67,7 +70,6 @@ C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\Domain.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\enums\EpicStatus.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\enums\ExperienceLevel.java
-C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\enums\NotificationPriority.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\enums\Priority.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\enums\ProjectStatus.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\enums\QualityGateStatus.java
@@ -84,6 +86,7 @@ C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\enums\TimeEntryType.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\enums\UserRole.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\Epic.java
+C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\Issue.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\Milestone.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\Notification.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\PendingRegistration.java
@@ -102,12 +105,15 @@ C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\TimeEntry.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\Todo.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\User.java
+C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\entity\WorkflowLane.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\repository\ActivityLogRepository.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\repository\AttachmentRepository.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\repository\AvailableIntegrationRepository.java
+C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\repository\BoardRepository.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\repository\DepartmentRepository.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\repository\DomainRepository.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\repository\EpicRepository.java
+C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\repository\IssueRepository.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\repository\MilestoneRepository.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\repository\NotificationRepository.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\repository\PendingRegistrationRepository.java
@@ -125,6 +131,7 @@ C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\repository\TaskRepository.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\repository\TimeEntryRepository.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\repository\UserRepository.java
+C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\repository\WorkflowLaneRepository.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\security\CustomUserDetailsService.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\security\JwtAuthenticationEntryPoint.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\security\JwtAuthenticationFilter.java
@@ -133,12 +140,14 @@ C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\service\AttachmentService.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\service\AuthService.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\service\BatchOperationsService.java
+C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\service\BoardService.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\service\DashboardService.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\service\DataInitializationService.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\service\DepartmentService.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\service\DomainService.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\service\EpicService.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\service\IdGenerationService.java
+C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\service\IssueService.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\service\NotificationService.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\service\PendingRegistrationService.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\service\ProjectMapper.java
@@ -156,5 +165,6 @@ C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\service\TaskService.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\service\TimeEntryService.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\service\UserService.java
+C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\service\WorkflowLaneService.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\SprintSyncApiApplication.java
 C:\Users\snakhate\Desktop\SprintSync_App-1\SprintSync_App_API\src\main\java\com\sprintsync\api\util\DatabasePasswordUpdater.java

@@ -10,8 +10,8 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- ENUMS (Data Types)
 -- =============================================
 
-CREATE TYPE user_role AS ENUM ('admin', 'manager', 'developer', 'designer');
-CREATE TYPE experience_level AS ENUM ('E1', 'E2', 'M1', 'M2', 'M3', 'L1', 'L2', 'L3', 'S1');
+CREATE TYPE user_role AS ENUM ('admin', 'manager', 'developer', 'qa');
+CREATE TYPE experience_level AS ENUM ('junior', 'mid', 'senior', 'lead');
 CREATE TYPE project_status AS ENUM ('planning', 'active', 'paused', 'completed', 'cancelled');
 CREATE TYPE project_priority AS ENUM ('low', 'medium', 'high', 'critical');
 CREATE TYPE project_methodology AS ENUM ('scrum', 'kanban', 'waterfall');

@@ -1614,10 +1614,10 @@ const ProjectsPage: React.FC = () => {
 
     if (user.role === 'admin') {
       return projects; // Admin can see all projects
-    } else if (user.role === 'manager') {
-      return projects.filter(project => project.managerId === user.id); // Manager sees only their projects
+    } else if (user.role === 'manager' || user.role === 'qa') {
+      return projects.filter(project => project.managerId === user.id); // Manager and QA see their projects
     } else {
-      // Developer and Designer see only projects they're assigned to
+      // Developer and QA see only projects they're assigned to
       return projects.filter(project => 
         user.assignedProjects?.some(assignedId => `proj-${project.id}` === assignedId)
       );
@@ -1664,7 +1664,7 @@ const ProjectsPage: React.FC = () => {
 
   // Check if user can add projects/milestones
   const canAddProject = () => {
-    return user?.role === 'admin' || user?.role === 'manager';
+    return user?.role === 'admin' || user?.role === 'manager' || user?.role === 'qa';
   };
 
   // Handle create project query param from Dashboard
@@ -2065,7 +2065,7 @@ const ProjectsPage: React.FC = () => {
               <h1 className="text-2xl font-semibold text-foreground">Projects</h1>
               <p className="text-muted-foreground">
                 {filteredProjects.length} project{filteredProjects.length !== 1 ? 's' : ''} available
-                {user?.role === 'developer' || user?.role === 'designer' ? ' (assigned to you)' : ''}
+                {user?.role === 'developer' || user?.role === 'qa' ? ' (assigned to you)' : ''}
               </p>
             </div>
           </div>
@@ -2166,10 +2166,10 @@ const ProjectsPage: React.FC = () => {
           <CardContent className="flex flex-col items-center justify-center py-12">
             <FolderKanban className="w-16 h-16 text-muted-foreground mb-4" />
             <h3 className="font-semibold text-lg mb-2">
-              {user?.role === 'developer' || user?.role === 'designer' ? 'No Projects Assigned' : 'No Projects Yet'}
+              {user?.role === 'developer' || user?.role === 'qa' ? 'No Projects Assigned' : 'No Projects Yet'}
             </h3>
             <p className="text-muted-foreground text-center mb-6 max-w-sm">
-              {user?.role === 'developer' || user?.role === 'designer' 
+              {user?.role === 'developer' || user?.role === 'qa' 
                 ? 'You haven\'t been assigned to any projects yet. Contact your manager to get assigned to projects.'
                 : 'Get started by creating your first project to organize your work and track progress.'
               }

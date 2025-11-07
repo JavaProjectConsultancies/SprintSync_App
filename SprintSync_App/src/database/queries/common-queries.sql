@@ -299,7 +299,7 @@ LEFT JOIN (
     GROUP BY user_id
 ) current_allocation ON u.id = current_allocation.user_id
 WHERE u.is_active = true 
-    AND u.role IN ('developer', 'designer')
+    AND u.role IN ('developer', 'qa')
     AND COALESCE(current_allocation.total_allocation, 0) < 100
 ORDER BY current_allocation.total_allocation ASC, u.name;
 

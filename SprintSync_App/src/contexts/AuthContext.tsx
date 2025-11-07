@@ -6,7 +6,7 @@ const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   admin: ['view_projects', 'manage_projects', 'view_team', 'manage_users', 'view_analytics', 'manage_system'],
   manager: ['view_projects', 'manage_projects', 'view_team', 'view_analytics'],
   developer: ['view_projects', 'view_team'],
-  designer: ['view_projects', 'view_team']
+  qa: ['view_projects', 'manage_projects', 'view_team', 'view_analytics']
 };
 
 interface AuthContextType {
@@ -482,6 +482,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         validPassword = password === 'dev123';
       } else if (email.includes('designer') || email === 'designer@demo.com') {
         validPassword = password === 'design123';
+      } else if (email.includes('qa') || email === 'qa@demo.com') {
+        validPassword = password === 'qa123';
       } else {
         // Fallback for other users - use demo123
         validPassword = password === 'demo123';
@@ -533,8 +535,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const canAccessProject = (projectId: string): boolean => {
     if (!user) return false;
     
-    // Admin and Manager can access all projects
-    if (user.role === 'admin' || user.role === 'manager') {
+    // Admin, Manager, and QA can access all projects
+    if (user.role === 'admin' || user.role === 'manager' || user.role === 'qa') {
       return true;
     }
     

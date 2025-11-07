@@ -130,13 +130,26 @@ public class WorkflowLaneService {
 
     /**
      * Get all workflow lanes for a project, ordered by display order.
+     * Returns lanes for the default board (boardId is null).
      * 
      * @param projectId the project ID
-     * @return list of workflow lanes for the project
+     * @return list of workflow lanes for the project (default board)
      */
     @Transactional(readOnly = true)
     public List<WorkflowLane> getWorkflowLanesByProject(String projectId) {
-        return workflowLaneRepository.findByProjectIdOrderByDisplayOrderAsc(projectId);
+        return workflowLaneRepository.findByProjectIdAndDefaultBoardOrderByDisplayOrderAsc(projectId);
+    }
+
+    /**
+     * Get workflow lanes for a project and board, ordered by display order.
+     * 
+     * @param projectId the project ID
+     * @param boardId the board ID (null for default board)
+     * @return list of workflow lanes for the project and board
+     */
+    @Transactional(readOnly = true)
+    public List<WorkflowLane> getWorkflowLanesByProjectAndBoard(String projectId, String boardId) {
+        return workflowLaneRepository.findByProjectIdAndBoardIdOrderByDisplayOrderAsc(projectId, boardId);
     }
 
     /**

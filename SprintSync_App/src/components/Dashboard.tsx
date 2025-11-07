@@ -426,7 +426,7 @@ const Dashboard: React.FC = () => {
               <div className={`w-3 h-3 rounded-full ${projectsLoading ? 'bg-yellow-500 animate-pulse' : projectsError ? 'bg-red-500' : 'bg-green-500'}`}></div>
               <span className="text-sm font-medium">Projects API</span>
               {projectsLoading && <span className="text-xs text-gray-500">Loading...</span>}
-              {projectsError && <span className="text-xs text-red-500" title={projectsError.message}>Error: {projectsError.status}</span>}
+              {projectsError && <span className="text-xs text-red-500" title={projectsError.message}>Error: {(projectsError as any)?.status || 'Unknown'}</span>}
               {apiProjects && <span className="text-xs text-green-600">{apiProjects.length} projects</span>}
             </div>
           </CardContent>
@@ -438,7 +438,7 @@ const Dashboard: React.FC = () => {
               <div className={`w-3 h-3 rounded-full ${usersLoading ? 'bg-yellow-500 animate-pulse' : usersError ? 'bg-red-500' : 'bg-green-500'}`}></div>
               <span className="text-sm font-medium">Users API</span>
               {usersLoading && <span className="text-xs text-gray-500">Loading...</span>}
-              {usersError && <span className="text-xs text-red-500" title={usersError.message}>Error: {usersError.status}</span>}
+              {usersError && <span className="text-xs text-red-500" title={usersError.message}>Error: {(usersError as any)?.status || 'Unknown'}</span>}
               {apiUsers && <span className="text-xs text-green-600">{apiUsers.length} users</span>}
             </div>
           </CardContent>
@@ -450,7 +450,7 @@ const Dashboard: React.FC = () => {
               <div className={`w-3 h-3 rounded-full ${departmentsLoading ? 'bg-yellow-500 animate-pulse' : departmentsError ? 'bg-red-500' : 'bg-green-500'}`}></div>
               <span className="text-sm font-medium">Departments API</span>
               {departmentsLoading && <span className="text-xs text-gray-500">Loading...</span>}
-              {departmentsError && <span className="text-xs text-red-500" title={departmentsError.message}>Error: {departmentsError.status}</span>}
+              {departmentsError && <span className="text-xs text-red-500" title={departmentsError.message}>Error: {(departmentsError as any)?.status || 'Unknown'}</span>}
               {apiDepartments && <span className="text-xs text-green-600">{apiDepartments.length} departments</span>}
             </div>
           </CardContent>
@@ -462,7 +462,7 @@ const Dashboard: React.FC = () => {
               <div className={`w-3 h-3 rounded-full ${domainsLoading ? 'bg-yellow-500 animate-pulse' : domainsError ? 'bg-red-500' : 'bg-green-500'}`}></div>
               <span className="text-sm font-medium">Domains API</span>
               {domainsLoading && <span className="text-xs text-gray-500">Loading...</span>}
-              {domainsError && <span className="text-xs text-red-500" title={domainsError.message}>Error: {domainsError.status}</span>}
+              {domainsError && <span className="text-xs text-red-500" title={domainsError.message}>Error: {(domainsError as any)?.status || 'Unknown'}</span>}
               {apiDomains && <span className="text-xs text-green-600">{apiDomains.length} domains</span>}
             </div>
           </CardContent>
@@ -590,7 +590,7 @@ const Dashboard: React.FC = () => {
       )}
 
       {/* Performance Alert for Managers/Admins */}
-      {(user.role === 'admin' || user.role === 'manager') && underperformingMembers.length > 0 && (
+      {(user.role === 'admin' || user.role === 'manager' || user.role === 'qa') && underperformingMembers.length > 0 && (
         <Alert className="border-orange-200 bg-orange-50">
           <AlertTriangle className="h-4 w-4 text-orange-600" />
           <AlertDescription className="text-orange-800">
@@ -738,7 +738,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Team Performance Alerts - Only for Managers/Admins */}
-      {(user.role === 'admin' || user.role === 'manager') && underperformingMembers.length > 0 && (
+      {(user.role === 'admin' || user.role === 'manager' || user.role === 'qa') && underperformingMembers.length > 0 && (
         <Card className="border-orange-200">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
@@ -1009,7 +1009,7 @@ const Dashboard: React.FC = () => {
             )}
           </CardTitle>
           <CardDescription>
-            {user.role === 'admin' || user.role === 'manager' 
+            {user.role === 'admin' || user.role === 'manager' || user.role === 'qa'
               ? 'All active projects' 
               : 'Your assigned projects'
             }

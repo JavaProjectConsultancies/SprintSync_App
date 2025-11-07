@@ -14,7 +14,7 @@ export interface User {
   availability?: number;
 }
 
-export type UserRole = 'admin' | 'manager' | 'developer' | 'designer';
+export type UserRole = 'admin' | 'manager' | 'developer' | 'qa';
 
 export interface Project {
   id: string;

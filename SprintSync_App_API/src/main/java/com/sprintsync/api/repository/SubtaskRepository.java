@@ -24,6 +24,11 @@ public interface SubtaskRepository extends JpaRepository<Subtask, String> {
     List<Subtask> findByTaskId(String taskId);
 
     /**
+     * Find subtasks by issue ID
+     */
+    List<Subtask> findByIssueId(String issueId);
+
+    /**
      * Find subtasks by assignee ID
      */
     List<Subtask> findByAssigneeId(String assigneeId);
