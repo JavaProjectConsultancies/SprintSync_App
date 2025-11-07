@@ -23,48 +23,21 @@ export const useProjects = (): UseProjectsReturn => {
       setError(null);
       console.log('Fetching projects from API...');
       
-      // Try /all endpoint first, fallback to paginated with large size
       let response;
       try {
-        console.log('Attempting to fetch from /all endpoint...');
-        response = await projectApiService.getAllProjects();
-        console.log('Projects API response from /all endpoint:', response);
-        console.log('Response data type:', typeof response.data);
-        console.log('Response data is array:', Array.isArray(response.data));
+        console.log('Attempting to fetch accessible projects for current user...');
+        response = await projectApiService.getAccessibleProjects();
+        console.log('Projects API response from /accessible endpoint:', response);
       } catch (err: any) {
-        console.warn('Failed to fetch from /all endpoint, trying paginated:', err);
+        console.warn('Failed to fetch accessible projects, falling back to /all endpoint:', err);
         console.warn('Error details:', {
           message: err?.message,
           status: err?.status,
           code: err?.code,
           details: err?.details
         });
-        
-        // If timeout, try with smaller page size and timeout handling
-        if (err?.code === 'TIMEOUT' || err?.status === 408) {
-          console.log('Timeout occurred, trying with smaller page size...');
-          try {
-            response = await projectApiService.getProjects({ page: 0, size: 10 });
-            console.log('Projects API response from paginated endpoint (small page):', response);
-          } catch (timeoutErr: any) {
-            console.error('Small page size also timed out:', timeoutErr);
-            throw timeoutErr;
-          }
-        } else {
-          // For other errors, try paginated endpoint with large page size
-          try {
-            response = await projectApiService.getProjects({ page: 0, size: 1000 });
-            console.log('Projects API response from paginated endpoint:', response);
-            console.log('Response data type:', typeof response.data);
-            console.log('Response data is array:', Array.isArray(response.data));
-          } catch (secondErr: any) {
-            console.error('Both endpoints failed:', {
-              firstError: err,
-              secondError: secondErr
-            });
-            throw secondErr; // Throw the second error to be caught by outer catch
-          }
-        }
+
+        response = await projectApiService.getAllProjects();
       }
       
       // projectApiService should normalize the response to an array

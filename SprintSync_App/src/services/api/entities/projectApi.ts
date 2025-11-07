@@ -42,6 +42,21 @@ export class ProjectApiService {
     return { ...response, data: normalized } as ApiResponse<Project[]>;
   }
 
+  async getAccessibleProjects(): Promise<ApiResponse<Project[]>> {
+    const response = await apiClient.get<any>(`${API_ENDPOINTS.PROJECTS}/accessible`);
+    console.log('getAccessibleProjects raw response:', response);
+
+    let normalized: Project[] = [];
+    if (Array.isArray(response.data)) {
+      normalized = response.data;
+    } else if (response.data && typeof response.data === 'object' && Array.isArray(response.data.content)) {
+      normalized = response.data.content;
+    }
+
+    console.log('getAccessibleProjects normalized:', normalized);
+    return { ...response, data: normalized } as ApiResponse<Project[]>;
+  }
+
   // Get project by ID
   async getProjectById(id: string): Promise<ApiResponse<Project>> {
     return apiClient.get<Project>(`${API_ENDPOINTS.PROJECTS}/${id}`);
