@@ -11,6 +11,8 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -79,12 +81,35 @@ public interface StoryRepository extends JpaRepository<Story, String> {
     List<Story> findByAssigneeId(String assigneeId);
 
     /**
+     * Count stories by assignee ID.
+     */
+    long countByAssigneeId(String assigneeId);
+
+    /**
+     * Count stories by assignee and status.
+     */
+    long countByAssigneeIdAndStatus(String assigneeId, StoryStatus status);
+
+    /**
      * Find stories by reporter ID.
      * 
      * @param reporterId the reporter ID
      * @return list of stories reported by the specified user
      */
     List<Story> findByReporterId(String reporterId);
+
+    /**
+     * Count stories created between the given timestamps.
+     */
+    long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+
+    /**
+     * Count stories created between the given timestamps with the specified status.
+     */
+    @Query("SELECT COUNT(s) FROM Story s WHERE s.createdAt BETWEEN :start AND :end AND s.status = :status")
+    long countByCreatedAtBetweenAndStatus(@Param("start") LocalDateTime start,
+                                         @Param("end") LocalDateTime end,
+                                         @Param("status") StoryStatus status);
 
     /**
      * Find stories by project ID with pagination.
@@ -187,12 +212,24 @@ public interface StoryRepository extends JpaRepository<Story, String> {
     long countByPriority(StoryPriority priority);
 
     /**
+     * Count stories grouped by priority.
+     */
+    @Query("SELECT s.priority, COUNT(s) FROM Story s GROUP BY s.priority")
+    List<Object[]> countStoriesByPriority();
+
+    /**
      * Count stories by project ID.
      * 
      * @param projectId the project ID
      * @return count of stories for the specified project
      */
     long countByProjectId(String projectId);
+
+    /**
+     * Fetch only story IDs for a given project.
+     */
+    @Query("SELECT s.id FROM Story s WHERE s.projectId = :projectId")
+    List<String> findIdsByProjectId(@Param("projectId") String projectId);
 
     /**
      * Count stories by sprint ID.
@@ -246,6 +283,22 @@ public interface StoryRepository extends JpaRepository<Story, String> {
      */
     @Query("SELECT s FROM Story s WHERE s.sprintId = :sprintId ORDER BY s.orderIndex ASC")
     List<Story> findStoriesBySprintOrderedByIndex(@Param("sprintId") String sprintId);
+
+    /**
+     * Count stories grouped by assignee for the provided IDs.
+     */
+    @Query("SELECT s.assigneeId, COUNT(s) FROM Story s WHERE s.assigneeId IN :assigneeIds GROUP BY s.assigneeId")
+    List<Object[]> countStoriesByAssigneeIds(@Param("assigneeIds") Collection<String> assigneeIds);
+
+    /**
+     * Find recently updated stories after the given timestamp (limited to 10).
+     */
+    List<Story> findTop10ByUpdatedAtAfterOrderByUpdatedAtDesc(LocalDateTime since);
+
+    /**
+     * Find recently updated stories for a project after the given timestamp (limited to 10).
+     */
+    List<Story> findTop10ByProjectIdAndUpdatedAtAfterOrderByUpdatedAtDesc(String projectId, LocalDateTime since);
 
     /**
      * Find stories with no sprint assignment.

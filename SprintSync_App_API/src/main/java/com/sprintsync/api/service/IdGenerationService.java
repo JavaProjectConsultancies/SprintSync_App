@@ -52,6 +52,7 @@ public class IdGenerationService {
     private static final String QUALITY_GATES_PREFIX = "QLTY";
     private static final String STORIES_PREFIX = "STRY";
     private static final String TASKS_PREFIX = "TASK";
+    private static final String ISSUES_PREFIX = "ISSU";
     private static final String SUBTASKS_PREFIX = "SUBT";
     private static final String TIME_ENTRIES_PREFIX = "TIME";
     private static final String NOTIFICATIONS_PREFIX = "NOTF";
@@ -246,6 +247,10 @@ public class IdGenerationService {
         return generateTransactionTableId(TASKS_PREFIX);
     }
 
+    public String generateIssueId() {
+        return generateTransactionTableId(ISSUES_PREFIX);
+    }
+
     public String generateSubtaskId() {
         return generateTransactionTableId(SUBTASKS_PREFIX);
     }
@@ -331,7 +336,7 @@ public class IdGenerationService {
         String prefix = extractPrefix(id);
         return PROJECT_TEAM_MEMBERS_PREFIX.equals(prefix) || SPRINTS_PREFIX.equals(prefix) ||
                QUALITY_GATES_PREFIX.equals(prefix) || STORIES_PREFIX.equals(prefix) ||
-               TASKS_PREFIX.equals(prefix) || SUBTASKS_PREFIX.equals(prefix) ||
+               TASKS_PREFIX.equals(prefix) || ISSUES_PREFIX.equals(prefix) || SUBTASKS_PREFIX.equals(prefix) ||
                TIME_ENTRIES_PREFIX.equals(prefix) || NOTIFICATIONS_PREFIX.equals(prefix) ||
                COMMENTS_PREFIX.equals(prefix) || ATTACHMENTS_PREFIX.equals(prefix) ||
                ACTIVITY_LOGS_PREFIX.equals(prefix) || TODOS_PREFIX.equals(prefix) ||

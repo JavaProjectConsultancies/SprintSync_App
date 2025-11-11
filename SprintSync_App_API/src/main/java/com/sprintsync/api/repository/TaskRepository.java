@@ -7,7 +7,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -82,6 +84,19 @@ public interface TaskRepository extends JpaRepository<Task, String> {
     List<Task> findByCreatedAtBetween(LocalDateTime startDate, LocalDateTime endDate);
 
     /**
+     * Count tasks created between dates
+     */
+    long countByCreatedAtBetween(LocalDateTime startDate, LocalDateTime endDate);
+
+    /**
+     * Count tasks created between dates with the given status
+     */
+    @Query("SELECT COUNT(t) FROM Task t WHERE t.createdAt BETWEEN :startDate AND :endDate AND t.status = :status")
+    long countByCreatedAtBetweenAndStatus(@Param("startDate") LocalDateTime startDate,
+                                         @Param("endDate") LocalDateTime endDate,
+                                         @Param("status") TaskStatus status);
+
+    /**
      * Find tasks updated between dates
      */
     List<Task> findByUpdatedAtBetween(LocalDateTime startDate, LocalDateTime endDate);
@@ -89,29 +104,37 @@ public interface TaskRepository extends JpaRepository<Task, String> {
     /**
      * Find tasks by due date before specified date
      */
-    List<Task> findByDueDateBefore(LocalDateTime date);
+    List<Task> findByDueDateBefore(LocalDate date);
 
     /**
      * Find tasks by due date after specified date
      */
-    List<Task> findByDueDateAfter(LocalDateTime date);
+    List<Task> findByDueDateAfter(LocalDate date);
 
     /**
      * Find tasks by due date between dates
      */
-    List<Task> findByDueDateBetween(LocalDateTime startDate, LocalDateTime endDate);
+    List<Task> findByDueDateBetween(LocalDate startDate, LocalDate endDate);
 
     /**
      * Find overdue tasks (due date before now and status not completed)
      */
-    @Query("SELECT t FROM Task t WHERE t.dueDate < :now AND t.status != 'COMPLETED'")
-    List<Task> findOverdueTasks(@Param("now") LocalDateTime now);
+    @Query("SELECT t FROM Task t WHERE t.dueDate IS NOT NULL AND t.dueDate < :today AND t.status <> :completedStatus")
+    List<Task> findOverdueTasks(@Param("today") LocalDate today, @Param("completedStatus") TaskStatus completedStatus);
+
+    /**
+     * Count overdue tasks (due date before now and status not completed)
+     */
+    @Query("SELECT COUNT(t) FROM Task t WHERE t.dueDate IS NOT NULL AND t.dueDate < :today AND t.status <> :completedStatus")
+    long countOverdueTasks(@Param("today") LocalDate today, @Param("completedStatus") TaskStatus completedStatus);
 
     /**
      * Find tasks due soon (due date within specified days)
      */
-    @Query("SELECT t FROM Task t WHERE t.dueDate BETWEEN :now AND :dueSoon AND t.status != 'COMPLETED'")
-    List<Task> findTasksDueSoon(@Param("now") LocalDateTime now, @Param("dueSoon") LocalDateTime dueSoon);
+    @Query("SELECT t FROM Task t WHERE t.dueDate BETWEEN :today AND :dueSoon AND t.status <> :completedStatus")
+    List<Task> findTasksDueSoon(@Param("today") LocalDate today,
+                                @Param("dueSoon") LocalDate dueSoon,
+                                @Param("completedStatus") TaskStatus completedStatus);
 
     /**
      * Count tasks by status
@@ -129,9 +152,44 @@ public interface TaskRepository extends JpaRepository<Task, String> {
     long countByAssigneeId(String assigneeId);
 
     /**
+     * Count tasks by assignee and status
+     */
+    long countByAssigneeIdAndStatus(String assigneeId, TaskStatus status);
+
+    /**
      * Count tasks by story
      */
     long countByStoryId(String storyId);
+
+    /**
+     * Count tasks across multiple stories.
+     */
+    @Query("SELECT COUNT(t) FROM Task t WHERE t.storyId IN :storyIds")
+    long countByStoryIds(@Param("storyIds") Collection<String> storyIds);
+
+    /**
+     * Count tasks with a given status across multiple stories.
+     */
+    @Query("SELECT COUNT(t) FROM Task t WHERE t.storyId IN :storyIds AND t.status = :status")
+    long countByStoryIdsAndStatus(@Param("storyIds") Collection<String> storyIds, @Param("status") TaskStatus status);
+
+    /**
+     * Count tasks grouped by status without loading entities
+     */
+    @Query("SELECT t.status, COUNT(t) FROM Task t GROUP BY t.status")
+    List<Object[]> countTasksByStatus();
+
+    /**
+     * Count tasks grouped by priority without loading entities
+     */
+    @Query("SELECT t.priority, COUNT(t) FROM Task t GROUP BY t.priority")
+    List<Object[]> countTasksByPriority();
+
+    /**
+     * Count tasks for the given assignees
+     */
+    @Query("SELECT t.assigneeId, COUNT(t) FROM Task t WHERE t.assigneeId IN :assigneeIds GROUP BY t.assigneeId")
+    List<Object[]> countTasksByAssigneeIds(@Param("assigneeIds") Collection<String> assigneeIds);
 
     /**
      * Count tasks by sprint
@@ -255,6 +313,21 @@ public interface TaskRepository extends JpaRepository<Task, String> {
     List<Task> findRecentlyUpdatedTasks(@Param("since") LocalDateTime since);
 
     /**
+     * Find recent tasks updated after the given timestamp (limited to 10)
+     */
+    List<Task> findTop10ByUpdatedAtAfterOrderByUpdatedAtDesc(LocalDateTime since);
+
+    /**
+     * Find recent tasks for an assignee (limited to 10)
+     */
+    List<Task> findTop10ByAssigneeIdOrderByUpdatedAtDesc(String assigneeId);
+
+    /**
+     * Find recent tasks for an assignee updated after the given timestamp (limited to 10)
+     */
+    List<Task> findTop10ByAssigneeIdAndUpdatedAtAfterOrderByUpdatedAtDesc(String assigneeId, LocalDateTime since);
+
+    /**
      * Find tasks by complexity level
      */
     // Note: Task entity doesn't have complexity field in current database schema
@@ -280,4 +353,33 @@ public interface TaskRepository extends JpaRepository<Task, String> {
      */
     @Query("SELECT t FROM Task t WHERE t.actualHours >= :minTime ORDER BY t.actualHours DESC")
     List<Task> findTasksByTimeSpent(@Param("minTime") Integer minTime);
+
+    /**
+     * Update task status directly using native query (for custom lane statuses)
+     */
+    @Query(value = "UPDATE tasks SET status = :statusValue, updated_at = NOW() WHERE id = :taskId", nativeQuery = true)
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional
+    void updateTaskStatusDirectly(@Param("taskId") String taskId, @Param("statusValue") String statusValue);
+    
+    /**
+     * Find task with raw status value (for custom lane statuses)
+     * This query returns the raw status string from the database
+     */
+    @Query(value = "SELECT status FROM tasks WHERE id = :taskId", nativeQuery = true)
+    String findStatusById(@Param("taskId") String taskId);
+    
+    /**
+     * Find all tasks with raw status values (for custom lane statuses)
+     * This returns tasks with their raw status strings from the database
+     */
+    @Query(value = "SELECT t.*, t.status as raw_status FROM tasks t WHERE t.story_id = :storyId", nativeQuery = true)
+    List<Object[]> findTasksWithRawStatusByStoryId(@Param("storyId") String storyId);
+    
+    /**
+     * Find the maximum task number for a given story
+     * Used to assign sequential task numbers when creating new tasks
+     */
+    @Query("SELECT COALESCE(MAX(t.taskNumber), 0) FROM Task t WHERE t.storyId = :storyId")
+    Integer findMaxTaskNumberByStoryId(@Param("storyId") String storyId);
 }

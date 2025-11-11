@@ -1,6 +1,7 @@
 package com.sprintsync.api.service;
 
 import com.sprintsync.api.entity.Task;
+import com.sprintsync.api.entity.Notification;
 import com.sprintsync.api.entity.enums.TaskStatus;
 import com.sprintsync.api.repository.TaskRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +28,9 @@ public class TaskService {
     @Autowired
     private IdGenerationService idGenerationService;
 
+    @Autowired
+    private NotificationService notificationService;
+
     /**
      * Get all tasks with pagination
      */
@@ -35,10 +39,24 @@ public class TaskService {
     }
 
     /**
+     * Get all tasks without pagination.
+     */
+    public List<Task> getAllTasks() {
+        List<Task> tasks = taskRepository.findAll();
+        tasks.forEach(this::populateRawStatus);
+        return tasks;
+    }
+
+    /**
      * Get task by ID
+     * Preserves custom lane status values by fetching raw status from database
      */
     public Task getTaskById(String id) {
-        return taskRepository.findById(id).orElse(null);
+        Task task = taskRepository.findById(id).orElse(null);
+        if (task != null) {
+            populateRawStatus(task);
+        }
+        return task;
     }
 
     /**
@@ -48,9 +66,49 @@ public class TaskService {
         if (task.getId() == null) {
             task.setId(idGenerationService.generateTaskId());
         }
+        
+        // Always auto-assign task number to ensure sequential numbering within each story
+        // If taskNumber is null, 0, or 1 (default), calculate the next sequential number
+        boolean shouldAutoAssign = task.getTaskNumber() == null || 
+                                   task.getTaskNumber() == 0 || 
+                                   task.getTaskNumber() == 1;
+        
+        if (shouldAutoAssign && task.getStoryId() != null) {
+            Integer maxTaskNumber = taskRepository.findMaxTaskNumberByStoryId(task.getStoryId());
+            if (maxTaskNumber == null) {
+                maxTaskNumber = 0;
+            }
+            // Set to next number (maxTaskNumber + 1)
+            // If maxTaskNumber is 0 and taskNumber was already 1, this sets it to 1 (no change, but explicit)
+            // If maxTaskNumber is 2 and taskNumber was 1 (default), this sets it to 3 (correct next number)
+            task.setTaskNumber(maxTaskNumber + 1);
+        }
+        
         task.setCreatedAt(LocalDateTime.now());
         task.setUpdatedAt(LocalDateTime.now());
-        return taskRepository.save(task);
+        Task savedTask = taskRepository.save(task);
+        
+        // Create notification if task is created with an assignee
+        if (savedTask.getAssigneeId() != null && !savedTask.getAssigneeId().isEmpty()) {
+            try {
+                String title = "New Task Assignment";
+                String message = "You have been assigned to task: " + savedTask.getTitle();
+                notificationService.createNotification(
+                    savedTask.getAssigneeId(),
+                    title,
+                    message,
+                    "task",
+                    "task",
+                    savedTask.getId()
+                );
+            } catch (Exception e) {
+                // Log error but don't fail the task creation
+                System.err.println("Failed to create notification for task creation: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        
+        return savedTask;
     }
 
     /**
@@ -58,6 +116,37 @@ public class TaskService {
      */
     public Task updateTask(Task task) {
         if (taskRepository.existsById(task.getId())) {
+            Optional<Task> existingTaskOpt = taskRepository.findById(task.getId());
+            if (existingTaskOpt.isPresent()) {
+                Task existingTask = existingTaskOpt.get();
+                String oldAssigneeId = existingTask.getAssigneeId();
+                String newAssigneeId = task.getAssigneeId();
+                
+                // Check if assignee changed and create notification
+                if (newAssigneeId != null && !newAssigneeId.isEmpty() && 
+                    !newAssigneeId.equals(oldAssigneeId)) {
+                    // Assignee changed, create notification
+                    try {
+                        String title = "New Task Assignment";
+                        String message = "You have been assigned to task: " + task.getTitle();
+                        System.out.println("Creating notification for user: " + newAssigneeId + ", task: " + task.getTitle());
+                        Notification createdNotification = notificationService.createNotification(
+                            newAssigneeId,
+                            title,
+                            message,
+                            "task",
+                            "task",
+                            task.getId()
+                        );
+                        System.out.println("Notification created successfully: " + createdNotification.getId());
+                    } catch (Exception e) {
+                        // Log error but don't fail the update
+                        System.err.println("Failed to create notification for task assignment: " + e.getMessage());
+                        e.printStackTrace();
+                    }
+                }
+            }
+            
             task.setUpdatedAt(LocalDateTime.now());
             return taskRepository.save(task);
         }
@@ -77,9 +166,15 @@ public class TaskService {
 
     /**
      * Get tasks by story ID
+     * Preserves custom lane status values by fetching raw status from database
      */
     public List<Task> getTasksByStoryId(String storyId) {
-        return taskRepository.findByStoryId(storyId);
+        List<Task> tasks = taskRepository.findByStoryId(storyId);
+        
+        // For each task, get the raw status from database and set it if it's a custom lane status
+        tasks.forEach(this::populateRawStatus);
+        
+        return tasks;
     }
 
     /**
@@ -105,6 +200,7 @@ public class TaskService {
 
     /**
      * Update task status
+     * Supports both standard TaskStatus enum values and custom lane status values (strings)
      */
     public Task updateTaskStatus(String id, TaskStatus status) {
         Optional<Task> optionalTask = taskRepository.findById(id);
@@ -113,6 +209,31 @@ public class TaskService {
             task.setStatus(status);
             task.setUpdatedAt(LocalDateTime.now());
             return taskRepository.save(task);
+        }
+        return null;
+    }
+    
+    /**
+     * Update task status with custom string value (for custom workflow lanes)
+     */
+    public Task updateTaskStatus(String id, String statusValue) {
+        Optional<Task> optionalTask = taskRepository.findById(id);
+        if (optionalTask.isPresent()) {
+            Task task = optionalTask.get();
+            try {
+                // Try to convert to TaskStatus enum
+                TaskStatus status = TaskStatus.fromValue(statusValue);
+                task.setStatus(status);
+                task.setUpdatedAt(LocalDateTime.now());
+                return taskRepository.save(task);
+            } catch (IllegalArgumentException e) {
+                // If it's a custom lane status (starts with "custom_lane_"), 
+                // we need to store it directly in the database using native query
+                // The TaskStatusConverter will handle reading it back
+                taskRepository.updateTaskStatusDirectly(id, statusValue);
+                // Return the updated task
+                return taskRepository.findById(id).orElse(null);
+            }
         }
         return null;
     }
@@ -126,7 +247,31 @@ public class TaskService {
             Task task = optionalTask.get();
             task.setAssigneeId(assigneeId);
             task.setUpdatedAt(LocalDateTime.now());
-            return taskRepository.save(task);
+            Task savedTask = taskRepository.save(task);
+            
+            // Create notification for the assigned user
+            if (assigneeId != null && !assigneeId.isEmpty()) {
+                try {
+                    String title = "New Task Assignment";
+                    String message = "You have been assigned to task: " + task.getTitle();
+                    System.out.println("Creating notification for user: " + assigneeId + ", task: " + task.getTitle());
+                    Notification createdNotification = notificationService.createNotification(
+                        assigneeId,
+                        title,
+                        message,
+                        "task",
+                        "task",
+                        task.getId()
+                    );
+                    System.out.println("Notification created successfully: " + createdNotification.getId());
+                } catch (Exception e) {
+                    // Log error but don't fail the assignment
+                    System.err.println("Failed to create notification for task assignment: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            }
+            
+            return savedTask;
         }
         return null;
     }
@@ -338,5 +483,34 @@ public class TaskService {
      */
     public long getTaskCountByPriority(String priority) {
         return taskRepository.countByPriority(priority);
+    }
+
+    /**
+     * Populate raw status details for a task to preserve custom lane statuses.
+     */
+    private void populateRawStatus(Task task) {
+        if (task == null || task.getId() == null) {
+            return;
+        }
+
+        try {
+            String rawStatus = taskRepository.findStatusById(task.getId());
+            if (rawStatus != null) {
+                if (rawStatus.startsWith("custom_lane_")) {
+                    task.setRawStatus(rawStatus);
+                } else {
+                    try {
+                        TaskStatus enumStatus = TaskStatus.fromValue(rawStatus);
+                        if (!enumStatus.equals(task.getStatus())) {
+                            task.setRawStatus(rawStatus);
+                        }
+                    } catch (IllegalArgumentException e) {
+                        task.setRawStatus(rawStatus);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error getting raw status for task " + task.getId() + ": " + e.getMessage());
+        }
     }
 }

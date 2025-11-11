@@ -2,7 +2,10 @@ package com.sprintsync.api.entity;
 
 import com.sprintsync.api.entity.enums.UserRole;
 import com.sprintsync.api.entity.enums.ExperienceLevel;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.sprintsync.api.entity.converter.ExperienceLevelConverter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -35,7 +38,8 @@ public class User extends BaseEntity {
     private String name;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "role", nullable = false)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "role", nullable = false, columnDefinition = "user_role")
     @NotNull
     private UserRole role;
 
@@ -54,6 +58,9 @@ public class User extends BaseEntity {
 
     @Column(name = "hourly_rate", precision = 10, scale = 2)
     private BigDecimal hourlyRate;
+
+    @Column(name = "ctc", precision = 15, scale = 2)
+    private BigDecimal ctc;
 
     @Column(name = "availability_percentage")
     private Integer availabilityPercentage;
@@ -86,6 +93,7 @@ public class User extends BaseEntity {
         this.email = email;
     }
 
+    @JsonIgnore
     public String getPasswordHash() {
         return passwordHash;
     }
@@ -148,6 +156,14 @@ public class User extends BaseEntity {
 
     public void setHourlyRate(BigDecimal hourlyRate) {
         this.hourlyRate = hourlyRate;
+    }
+
+    public BigDecimal getCtc() {
+        return ctc;
+    }
+
+    public void setCtc(BigDecimal ctc) {
+        this.ctc = ctc;
     }
 
     public Integer getAvailabilityPercentage() {

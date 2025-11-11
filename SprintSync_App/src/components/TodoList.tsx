@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -9,9 +9,26 @@ import { Progress } from './ui/progress';
 import { Plus, Filter, BarChart3, CheckCircle2, Clock, AlertTriangle } from 'lucide-react';
 import TodoItem from './TodoItem';
 import { TodoItem as TodoItemType } from '../types';
+import { useAuth } from '../contexts/AuthContextEnhanced';
+import { useTasksByAssignee } from '../hooks/api/useTasks';
+import { taskApiService } from '../services/api';
+import { Task } from '../types/api';
+import LoadingSpinner from './LoadingSpinner';
 
 const TodoList: React.FC = () => {
-  const [todos, setTodos] = useState<TodoItemType[]>([]);
+  const { user } = useAuth();
+  
+  // Fetch tasks assigned to the logged-in user directly from API
+  // Only fetch if user ID is available
+  const shouldFetch = !!user?.id;
+  const { 
+    data: assignedTasksData, 
+    loading: tasksLoading, 
+    error: tasksError,
+    refetch: refetchTasks
+  } = useTasksByAssignee(user?.id || '', undefined);
+  
+  const [localTodos, setLocalTodos] = useState<TodoItemType[]>([]);
   const [newTodo, setNewTodo] = useState('');
   const [newPriority, setNewPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [newCategory, setNewCategory] = useState<'work' | 'personal' | 'shopping' | 'health'>('work');
@@ -19,7 +36,116 @@ const TodoList: React.FC = () => {
   const [priorityFilter, setPriorityFilter] = useState<'all' | 'low' | 'medium' | 'high'>('all');
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'work' | 'personal' | 'shopping' | 'health'>('all');
 
-  // Load todos from localStorage on component mount
+  // Validate and normalize tasks data
+  const assignedTasks = useMemo(() => {
+    // Skip if user is not loaded or user ID is invalid
+    if (!shouldFetch || !assignedTasksData) return [];
+    
+    // Ensure data is an array
+    const tasks = Array.isArray(assignedTasksData) ? assignedTasksData : [];
+    
+    // Validate each task has required fields
+    return tasks.filter((task: any) => {
+      const isValid = task && 
+             typeof task.id === 'string' && 
+             typeof task.title === 'string' &&
+             task.id.trim() !== '' &&
+             task.title.trim() !== '';
+      
+      if (!isValid) {
+        console.warn('[TodoList] Invalid task structure:', task);
+      }
+      
+      return isValid;
+    });
+  }, [assignedTasksData, shouldFetch]);
+
+  // Transform Task to TodoItem format with validation
+  const transformTaskToTodoItem = (task: Task): TodoItemType | null => {
+    try {
+      // Validate task structure
+      if (!task || !task.id || !task.title) {
+        console.warn('Invalid task structure:', task);
+        return null;
+      }
+
+      const normalizedStatus = task.status?.toString().toLowerCase().trim() || '';
+      const isCompleted = normalizedStatus === 'done' || normalizedStatus === 'completed' || normalizedStatus === 'done';
+      
+      // Map priority: CRITICAL -> high, HIGH -> high, MEDIUM -> medium, LOW -> low
+      let priority: 'low' | 'medium' | 'high' = 'medium';
+      const normalizedPriority = task.priority?.toString().toLowerCase() || '';
+      if (normalizedPriority === 'critical' || normalizedPriority === 'high') {
+        priority = 'high';
+      } else if (normalizedPriority === 'low') {
+        priority = 'low';
+      }
+      
+      // Validate dates
+      let createdAt: Date;
+      let updatedAt: Date;
+      let completedAt: Date | undefined;
+
+      try {
+        createdAt = task.createdAt ? new Date(task.createdAt) : new Date();
+        if (isNaN(createdAt.getTime())) createdAt = new Date();
+        
+        updatedAt = task.updatedAt ? new Date(task.updatedAt) : new Date();
+        if (isNaN(updatedAt.getTime())) updatedAt = new Date();
+        
+        if (isCompleted && task.updatedAt) {
+          completedAt = new Date(task.updatedAt);
+          if (isNaN(completedAt.getTime())) completedAt = undefined;
+        }
+      } catch (dateError) {
+        console.warn('Error parsing dates for task:', task.id, dateError);
+        createdAt = new Date();
+        updatedAt = new Date();
+        completedAt = undefined;
+      }
+      
+      return {
+        id: task.id,
+        text: task.title.trim(),
+        completed: isCompleted,
+        priority: priority,
+        category: 'work', // Default to work for assigned tasks
+        createdAt,
+        updatedAt,
+        completedAt
+      };
+    } catch (error) {
+      console.error('Error transforming task to TodoItem:', task, error);
+      return null;
+    }
+  };
+
+  // Transform assigned tasks to TodoItems with validation
+  const taskTodos = useMemo(() => {
+    const transformed = assignedTasks
+      .map(transformTaskToTodoItem)
+      .filter((item): item is TodoItemType => item !== null);
+    
+    // Debug logging
+    if (user) {
+      console.log('[TodoList] Fetched tasks:', {
+        userId: user.id,
+        totalTasksFromAPI: assignedTasks.length,
+        validTransformedTasks: transformed.length,
+        sampleTask: transformed[0] || null
+      });
+    }
+    
+    return transformed;
+  }, [assignedTasks, user]);
+
+  // Combine local todos and task todos
+  const todos = useMemo(() => {
+    // Use task todos from database, local todos are kept separate for personal tasks
+    return [...taskTodos, ...localTodos];
+  }, [taskTodos, localTodos]);
+
+  // Load local todos from localStorage on component mount
   useEffect(() => {
     const savedTodos = localStorage.getItem('sprintSync-todos');
     if (savedTodos) {
@@ -29,20 +155,20 @@ const TodoList: React.FC = () => {
         updatedAt: new Date(todo.updatedAt),
         completedAt: todo.completedAt ? new Date(todo.completedAt) : undefined
       }));
-      setTodos(parsedTodos);
+      setLocalTodos(parsedTodos);
     }
   }, []);
 
-  // Save todos to localStorage whenever todos change
+  // Save local todos to localStorage whenever they change
   useEffect(() => {
-    localStorage.setItem('sprintSync-todos', JSON.stringify(todos));
-  }, [todos]);
+    localStorage.setItem('sprintSync-todos', JSON.stringify(localTodos));
+  }, [localTodos]);
 
   const addTodo = () => {
     if (!newTodo.trim()) return;
 
     const todo: TodoItemType = {
-      id: Date.now().toString(),
+      id: `local-${Date.now().toString()}`,
       text: newTodo.trim(),
       completed: false,
       priority: newPriority,
@@ -51,22 +177,141 @@ const TodoList: React.FC = () => {
       updatedAt: new Date()
     };
 
-    setTodos(prev => [todo, ...prev]);
+    setLocalTodos(prev => [todo, ...prev]);
     setNewTodo('');
   };
 
-  const updateTodo = (id: string, updates: Partial<TodoItemType>) => {
-    setTodos(prev => prev.map(todo => 
-      todo.id === id ? { ...todo, ...updates } : todo
-    ));
+  const updateTodo = async (id: string, updates: Partial<TodoItemType>) => {
+    // Check if it's a local todo or a task todo
+    const isLocalTodo = id.startsWith('local-');
+    
+    if (isLocalTodo) {
+      // Update local todo
+      setLocalTodos(prev => prev.map(todo => 
+        todo.id === id ? { ...todo, ...updates, updatedAt: new Date() } : todo
+      ));
+    } else {
+      // Update task in database
+      try {
+        const task = assignedTasks.find((t: Task) => t.id === id);
+        if (!task) {
+          console.warn('Task not found for update:', id);
+          return;
+        }
+
+        const taskUpdates: Partial<Task> = {};
+        
+        // Map TodoItem updates to Task updates
+        if (updates.completed !== undefined) {
+          taskUpdates.status = (updates.completed ? 'DONE' : 'TO_DO') as any;
+        }
+        if (updates.text !== undefined && updates.text.trim() !== '') {
+          taskUpdates.title = updates.text.trim();
+        }
+        if (updates.priority !== undefined) {
+          // Map priority back: high -> CRITICAL, medium -> MEDIUM, low -> LOW
+          const priorityMap: Record<string, string> = {
+            'high': 'CRITICAL',
+            'medium': 'MEDIUM',
+            'low': 'LOW'
+          };
+          taskUpdates.priority = priorityMap[updates.priority] as any;
+        }
+        
+        // Validate that we have updates to make
+        if (Object.keys(taskUpdates).length === 0) {
+          console.warn('No valid updates provided for task:', id);
+          return;
+        }
+
+        console.log('[TodoList] Updating task:', { id, updates: taskUpdates });
+        await taskApiService.updateTask(id, taskUpdates);
+        
+        // Refetch tasks to get updated data
+        if (refetchTasks) {
+          await refetchTasks();
+        }
+      } catch (error) {
+        console.error('Failed to update task:', error);
+        // Show user-friendly error message
+        alert('Failed to update task. Please try again.');
+      }
+    }
   };
 
-  const deleteTodo = (id: string) => {
-    setTodos(prev => prev.filter(todo => todo.id !== id));
+  const deleteTodo = async (id: string) => {
+    // Check if it's a local todo or a task todo
+    const isLocalTodo = id.startsWith('local-');
+    
+    if (isLocalTodo) {
+      // Delete local todo
+      setLocalTodos(prev => prev.filter(todo => todo.id !== id));
+    } else {
+      // Delete task from database
+      try {
+        // Validate task exists before deletion
+        const task = assignedTasks.find((t: Task) => t.id === id);
+        if (!task) {
+          console.warn('Task not found for deletion:', id);
+          return;
+        }
+
+        console.log('[TodoList] Deleting task:', id);
+        await taskApiService.deleteTask(id);
+        
+        // Refetch tasks to get updated data
+        if (refetchTasks) {
+          await refetchTasks();
+        }
+      } catch (error) {
+        console.error('Failed to delete task:', error);
+        // Show user-friendly error message
+        alert('Failed to delete task. Please try again.');
+      }
+    }
   };
 
-  const clearCompleted = () => {
-    setTodos(prev => prev.filter(todo => !todo.completed));
+  const clearCompleted = async () => {
+    // Clear completed local todos
+    setLocalTodos(prev => prev.filter(todo => !todo.completed));
+    
+    // Delete completed tasks from database
+    const completedTaskIds = assignedTasks
+      .filter((task: Task) => {
+        const normalizedStatus = task.status?.toString().toLowerCase().trim() || '';
+        return normalizedStatus === 'done' || normalizedStatus === 'completed';
+      })
+      .map((task: Task) => task.id)
+      .filter((id): id is string => typeof id === 'string' && id.trim() !== '');
+    
+    if (completedTaskIds.length === 0) {
+      return;
+    }
+
+    console.log('[TodoList] Clearing completed tasks:', completedTaskIds.length);
+    
+    // Delete completed tasks one by one
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (const taskId of completedTaskIds) {
+      try {
+        await taskApiService.deleteTask(taskId);
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to delete completed task ${taskId}:`, error);
+        failCount++;
+      }
+    }
+    
+    // Refetch tasks after deletion
+    if (successCount > 0 && refetchTasks) {
+      await refetchTasks();
+    }
+    
+    if (failCount > 0) {
+      alert(`Failed to delete ${failCount} completed task(s). Please try again.`);
+    }
   };
 
   // Filter todos based on current filters
@@ -96,6 +341,47 @@ const TodoList: React.FC = () => {
     shopping: todos.filter(t => t.category === 'shopping' && !t.completed).length,
     health: todos.filter(t => t.category === 'health' && !t.completed).length
   };
+
+  // Show loading spinner while fetching tasks or if user is not loaded
+  if (!user || tasksLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <LoadingSpinner message={!user ? "Loading user information..." : "Loading your assigned tasks..."} />
+      </div>
+    );
+  }
+
+  // Show error message if tasks failed to load
+  if (tasksError) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <div className="flex flex-col items-center space-y-4">
+            <AlertTriangle className="w-12 h-12 text-red-500" />
+            <div>
+              <h3 className="font-medium text-red-600">Failed to load tasks</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                {tasksError instanceof Error ? tasksError.message : 'An error occurred while loading your tasks'}
+              </p>
+              {!user?.id && (
+                <p className="text-sm text-muted-foreground mt-2 text-yellow-600">
+                  Please make sure you are logged in.
+                </p>
+              )}
+            </div>
+            <div className="flex space-x-2">
+              <Button onClick={() => refetchTasks && refetchTasks()} variant="outline">
+                Retry
+              </Button>
+              <Button onClick={() => window.location.reload()} variant="outline">
+                Reload Page
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">

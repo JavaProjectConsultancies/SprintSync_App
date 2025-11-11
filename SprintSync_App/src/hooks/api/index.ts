@@ -5,7 +5,7 @@
 export { useApi } from './useApi';
 
 // Entity-specific hooks
-export { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from './useUsers';
+export { useUsers, useCreateUser, useUpdateUser, useDeleteUser, useActiveUsers } from './useUsers';
 export { useProjects, useCreateProject } from './useProjects';
 export { useSprints, useCreateSprint, useUpdateSprint, useDeleteSprint } from './useSprints';
 export { useStories, useCreateStory, useUpdateStory, useDeleteStory } from './useStories';

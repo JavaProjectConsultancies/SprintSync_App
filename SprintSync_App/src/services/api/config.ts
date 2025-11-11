@@ -1,12 +1,33 @@
 // API Configuration
+// Use environment variable if available, otherwise default to localhost
+const getApiBaseUrl = () => {
+  // Check for Vite environment variable (VITE_API_BASE_URL)
+  if (import.meta.env?.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  // Check for React environment variable (REACT_APP_API_BASE_URL)
+  if ((window as any).process?.env?.REACT_APP_API_BASE_URL) {
+    return (window as any).process.env.REACT_APP_API_BASE_URL;
+  }
+  // Default to localhost
+  return 'http://localhost:8080/api';
+};
+
 export const API_CONFIG = {
-  BASE_URL: 'http://localhost:8080/api',
+  BASE_URL: getApiBaseUrl(),
   TIMEOUT: 120000, // Increased to 120 seconds for very slow database queries
   HEADERS: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
 };
+
+// Log API configuration on startup (for debugging)
+console.log('API Configuration:', {
+  BASE_URL: API_CONFIG.BASE_URL,
+  TIMEOUT: API_CONFIG.TIMEOUT,
+  ENV_VITE: import.meta.env?.VITE_API_BASE_URL,
+});
 
 // API Endpoints
 export const API_ENDPOINTS = {
@@ -35,6 +56,9 @@ export const API_ENDPOINTS = {
   
   // Time Tracking
   TIME_ENTRIES: '/time-entries',
+  
+  // Attachments
+  ATTACHMENTS: '/attachments',
 } as const;
 
 // HTTP Methods

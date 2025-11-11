@@ -10,7 +10,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- ENUMS (Data Types)
 -- =============================================
 
-CREATE TYPE user_role AS ENUM ('admin', 'manager', 'developer', 'designer');
+CREATE TYPE user_role AS ENUM ('admin', 'manager', 'developer', 'qa');
 CREATE TYPE experience_level AS ENUM ('junior', 'mid', 'senior', 'lead');
 CREATE TYPE project_status AS ENUM ('planning', 'active', 'paused', 'completed', 'cancelled');
 CREATE TYPE project_priority AS ENUM ('low', 'medium', 'high', 'critical');
@@ -71,8 +71,9 @@ CREATE TABLE users (
     department_id UUID REFERENCES departments(id),
     domain_id UUID REFERENCES domains(id),
     avatar_url TEXT,
-    experience experience_level DEFAULT 'mid',
+    experience experience_level DEFAULT 'E1',
     hourly_rate DECIMAL(10,2),
+    ctc DECIMAL(15,2),
     availability_percentage INTEGER DEFAULT 100 CHECK (availability_percentage >= 0 AND availability_percentage <= 100),
     skills JSONB DEFAULT '[]',
     is_active BOOLEAN DEFAULT true,
@@ -256,6 +257,7 @@ CREATE TABLE subtasks (
     due_date DATE,
     bug_type VARCHAR(50),                            -- Bug categorization (functional, ui, performance, security, integration)
     severity VARCHAR(20),                            -- Bug severity (low, medium, high, critical)
+    category VARCHAR(50),                            -- Subtask category (Development, Documentation, Idle, Learning, Meeting, Support, Testing, Training)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -733,3 +735,10 @@ CREATE TRIGGER task_status_notification_trigger
     FOR EACH ROW 
     WHEN (OLD.status IS DISTINCT FROM NEW.status)
     EXECUTE FUNCTION notify_task_status_change();
+
+-- =============================================
+-- MIGRATION SQL FOR EXISTING DATABASES
+-- =============================================
+
+-- Add category column to subtasks table if it doesn't exist
+ALTER TABLE subtasks ADD COLUMN IF NOT EXISTS category VARCHAR(50);

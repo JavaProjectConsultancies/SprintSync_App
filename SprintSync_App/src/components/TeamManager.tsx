@@ -38,7 +38,7 @@ import { userApiService } from '../services/api/entities/userApi';
 interface TeamMember {
   id: string;
   name: string;
-  role: 'manager' | 'developer' | 'designer' | 'analyst' | 'tester' | 'devops';
+  role: 'manager' | 'developer' | 'qa' | 'analyst' | 'tester' | 'devops';
   skills: string[];
   availability: number; // percentage
   department: string;
@@ -102,7 +102,7 @@ const DraggableTeamMember = ({ member, isSelected, onSelect, onViewDetails }: {
     switch (role) {
       case 'manager': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'developer': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'designer': return 'bg-pink-100 text-pink-800 border-pink-200';
+      case 'qa': return 'bg-pink-100 text-pink-800 border-pink-200';
       case 'analyst': return 'bg-green-100 text-green-800 border-green-200';
       case 'tester': return 'bg-orange-100 text-orange-800 border-orange-200';
       case 'devops': return 'bg-red-100 text-red-800 border-red-200';
@@ -225,10 +225,10 @@ const DraggableTeamMember = ({ member, isSelected, onSelect, onViewDetails }: {
 
             {/* Rate */}
             <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Rate</span>
+              <span className="text-muted-foreground">CTC</span>
               <div className="flex items-center space-x-1">
                 <IndianRupee className="w-3 h-3" />
-                <span>{(member.hourlyRate || 0).toLocaleString()}/hr</span>
+                <span>{(member.hourlyRate || 0).toLocaleString()}</span>
               </div>
             </div>
 
@@ -432,7 +432,7 @@ const SelectedTeamDropZone = ({ selectedMembers, onDrop, onRemove, onViewDetails
                           • Optimal team size is 7-8 members per project (Current: {selectedMembers.length})
                         </li>
                       )}
-                      {selectedMembers.filter(m => m.role === 'manager').length === 0 && (
+                      {selectedMembers.filter(m => m.role === 'manager' || m.role === 'qa').length === 0 && (
                         <li>• Consider adding a project manager for better coordination</li>
                       )}
                       {selectedMembers.filter(m => m.role === 'tester').length === 0 && (
@@ -445,7 +445,7 @@ const SelectedTeamDropZone = ({ selectedMembers, onDrop, onRemove, onViewDetails
                         <li>• Consider optimizing team composition to reduce costs</li>
                       )}
                       {selectedMembers.length >= 7 && selectedMembers.length <= 8 && 
-                       selectedMembers.filter(m => m.role === 'manager').length > 0 &&
+                       selectedMembers.filter(m => m.role === 'manager' || m.role === 'qa').length > 0 &&
                        teamAnalysis.budgetUtilization <= 90 && (
                         <li className="text-green-600">• Team composition looks optimal! ✓</li>
                       )}
@@ -891,7 +891,7 @@ const TeamManager = ({
                         <SelectItem value="all">All Roles</SelectItem>
                         <SelectItem value="manager">Manager</SelectItem>
                         <SelectItem value="developer">Developer</SelectItem>
-                        <SelectItem value="designer">Designer</SelectItem>
+                        <SelectItem value="qa">QA</SelectItem>
                         <SelectItem value="analyst">Analyst</SelectItem>
                         <SelectItem value="tester">Tester</SelectItem>
                         <SelectItem value="devops">DevOps</SelectItem>
@@ -1080,7 +1080,7 @@ const TeamManager = ({
                   <Card>
                     <CardContent className="p-4 text-center">
                       <div className="text-2xl font-bold text-purple-600">₹{selectedUserForDetails.hourlyRate}</div>
-                      <div className="text-sm text-muted-foreground">Hourly Rate</div>
+                      <div className="text-sm text-muted-foreground">CTC</div>
                     </CardContent>
                   </Card>
                   <Card>

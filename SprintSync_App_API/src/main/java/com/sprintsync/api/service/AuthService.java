@@ -4,22 +4,17 @@ import com.sprintsync.api.dto.AuthRequest;
 import com.sprintsync.api.dto.AuthResponse;
 import com.sprintsync.api.dto.RegisterRequest;
 import com.sprintsync.api.entity.User;
-import com.sprintsync.api.entity.enums.UserRole;
 import com.sprintsync.api.repository.UserRepository;
 import com.sprintsync.api.security.CustomUserDetailsService;
 import com.sprintsync.api.security.JwtUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -34,24 +29,24 @@ public class AuthService {
     
     private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
     
-    private final AuthenticationManager authenticationManager;
     private final CustomUserDetailsService userDetailsService;
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final PendingRegistrationService pendingRegistrationService;
     
     @Autowired
     public AuthService(
-            AuthenticationManager authenticationManager,
             CustomUserDetailsService userDetailsService,
             JwtUtil jwtUtil,
             UserRepository userRepository,
-            PasswordEncoder passwordEncoder) {
-        this.authenticationManager = authenticationManager;
+            PasswordEncoder passwordEncoder,
+            PendingRegistrationService pendingRegistrationService) {
         this.userDetailsService = userDetailsService;
         this.jwtUtil = jwtUtil;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.pendingRegistrationService = pendingRegistrationService;
     }
     
     /**
@@ -61,7 +56,6 @@ public class AuthService {
         try {
             logger.info("Attempting authentication for user: {}", authRequest.getEmail());
             
-            // TEMPORARY: Direct password comparison for testing
             Optional<User> userOpt = userRepository.findByEmail(authRequest.getEmail());
             if (userOpt.isEmpty()) {
                 logger.warn("User not found: {}", authRequest.getEmail());
@@ -69,9 +63,35 @@ public class AuthService {
             }
             
             User user = userOpt.get();
-            if (!user.getPasswordHash().equals(authRequest.getPassword())) {
-                logger.warn("Password mismatch for user: {}", authRequest.getEmail());
-                throw new RuntimeException("Invalid email or password");
+            
+            // Check if user is active
+            if (!user.getIsActive()) {
+                logger.warn("User account is inactive: {}", authRequest.getEmail());
+                throw new RuntimeException("Account is disabled. Please contact administrator.");
+            }
+            
+            String storedPasswordHash = user.getPasswordHash();
+            String providedPassword = authRequest.getPassword();
+            
+            // Try BCrypt password matching first (for hashed passwords)
+            boolean passwordMatches = passwordEncoder.matches(providedPassword, storedPasswordHash);
+            
+            // If BCrypt matching fails, try plain text comparison (for migration scenario)
+            if (!passwordMatches) {
+                logger.debug("BCrypt matching failed, trying plain text comparison for user: {}", authRequest.getEmail());
+                if (storedPasswordHash.equals(providedPassword)) {
+                    // Plain text password matches - hash it and update in database
+                    logger.info("Plain text password detected for user: {}. Hashing password...", authRequest.getEmail());
+                    String hashedPassword = passwordEncoder.encode(providedPassword);
+                    user.setPasswordHash(hashedPassword);
+                    userRepository.save(user);
+                    logger.info("Password hashed and saved for user: {}", authRequest.getEmail());
+                    passwordMatches = true;
+                } else {
+                    // Neither BCrypt nor plain text matches
+                    logger.warn("Password mismatch for user: {}", authRequest.getEmail());
+                    throw new RuntimeException("Invalid email or password");
+                }
             }
             
             // Create user details manually
@@ -107,48 +127,33 @@ public class AuthService {
     }
     
     /**
-     * Register new user
+     * Register new user - now saves to pending registrations for admin approval
      */
-    public AuthResponse register(RegisterRequest registerRequest) {
+    public Map<String, Object> register(RegisterRequest registerRequest) {
         try {
             logger.info("Attempting registration for user: {}", registerRequest.getEmail());
             
-            // Check if user already exists
-            if (userRepository.findByEmail(registerRequest.getEmail()).isPresent()) {
-                throw new RuntimeException("User with email " + registerRequest.getEmail() + " already exists");
-            }
+            // Create pending registration instead of direct user creation
+            com.sprintsync.api.entity.enums.UserRole role = registerRequest.getRole() != null 
+                ? registerRequest.getRole() 
+                : com.sprintsync.api.entity.enums.UserRole.developer;
             
-            // Create new user
-            User user = new User();
-            user.setName(registerRequest.getName());
-            user.setEmail(registerRequest.getEmail());
-            user.setPasswordHash(passwordEncoder.encode(registerRequest.getPassword()));
-            user.setRole(registerRequest.getRole());
-            user.setDepartmentId(registerRequest.getDepartment());
-            user.setDomainId(registerRequest.getDomain());
-            user.setAvatarUrl(registerRequest.getAvatarUrl());
-            user.setIsActive(true);
-            user.setCreatedAt(LocalDateTime.now());
-            user.setUpdatedAt(LocalDateTime.now());
+            pendingRegistrationService.createPendingRegistration(
+                registerRequest.getName(),
+                registerRequest.getEmail(),
+                registerRequest.getPassword(),
+                role,
+                registerRequest.getDepartment(),
+                registerRequest.getDomain()
+            );
             
-            // Save user
-            User savedUser = userRepository.save(user);
+            logger.info("Registration request submitted for admin approval: {}", registerRequest.getEmail());
             
-            // Generate token for immediate login
-            UserDetails userDetails = userDetailsService.loadUserByUsername(savedUser.getEmail());
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Registration request submitted successfully. Waiting for admin approval.");
             
-            Map<String, Object> claims = new HashMap<>();
-            claims.put("userId", savedUser.getId());
-            claims.put("name", savedUser.getName());
-            claims.put("role", savedUser.getRole().name());
-            claims.put("department", savedUser.getDepartmentId());
-            claims.put("domain", savedUser.getDomainId());
-            
-            String token = jwtUtil.generateToken(userDetails, claims);
-            
-            logger.info("Registration successful for user: {}", savedUser.getEmail());
-            
-            return new AuthResponse(token, savedUser, jwtUtil.getExpirationTime());
+            return response;
             
         } catch (Exception e) {
             logger.error("Registration error for user: {} - {}", registerRequest.getEmail(), e.getMessage());

@@ -13,7 +13,7 @@ CREATE SCHEMA IF NOT EXISTS sprintsync;
 -- ENUMS
 -- =============================================
 
-CREATE TYPE user_role AS ENUM ('admin', 'manager', 'developer', 'designer');
+CREATE TYPE user_role AS ENUM ('admin', 'manager', 'developer', 'qa');
 CREATE TYPE experience_level AS ENUM ('junior', 'mid', 'senior', 'lead');
 CREATE TYPE project_status AS ENUM ('planning', 'active', 'paused', 'completed', 'cancelled');
 CREATE TYPE project_priority AS ENUM ('low', 'medium', 'high', 'critical');
@@ -188,6 +188,7 @@ CREATE TABLE subtasks (
     actual_hours DECIMAL(5,2) DEFAULT 0,
     order_index INTEGER DEFAULT 0,
     due_date DATE,
+    category VARCHAR(50),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

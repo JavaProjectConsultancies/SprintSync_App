@@ -43,6 +43,19 @@ public class TaskController {
     }
 
     /**
+     * Get all tasks without pagination
+     */
+    @GetMapping("/all")
+    public ResponseEntity<List<Task>> getAllTasksList() {
+        try {
+            List<Task> tasks = taskService.getAllTasks();
+            return ResponseEntity.ok(tasks);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
      * Get task by ID
      */
     @GetMapping("/{id}")
@@ -161,12 +174,26 @@ public class TaskController {
 
     /**
      * Update task status
+     * Supports both TaskStatus enum values and custom lane status strings
      */
     @PatchMapping("/{id}/status")
-    public ResponseEntity<Task> updateTaskStatus(@PathVariable String id, @RequestBody Map<String, TaskStatus> statusUpdate) {
+    public ResponseEntity<Task> updateTaskStatus(@PathVariable String id, @RequestBody Map<String, Object> statusUpdate) {
         try {
-            TaskStatus newStatus = statusUpdate.get("status");
-            Task updatedTask = taskService.updateTaskStatus(id, newStatus);
+            Object statusObj = statusUpdate.get("status");
+            Task updatedTask;
+            
+            if (statusObj instanceof String) {
+                // Handle custom lane status strings
+                String statusValue = (String) statusObj;
+                updatedTask = taskService.updateTaskStatus(id, statusValue);
+            } else if (statusObj instanceof TaskStatus) {
+                // Handle TaskStatus enum
+                TaskStatus status = (TaskStatus) statusObj;
+                updatedTask = taskService.updateTaskStatus(id, status);
+            } else {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            }
+            
             if (updatedTask != null) {
                 return ResponseEntity.ok(updatedTask);
             } else {
@@ -182,6 +209,24 @@ public class TaskController {
      */
     @PatchMapping("/{id}/assign")
     public ResponseEntity<Task> assignTask(@PathVariable String id, @RequestBody Map<String, String> assignment) {
+        try {
+            String assigneeId = assignment.get("assigneeId");
+            Task updatedTask = taskService.assignTask(id, assigneeId);
+            if (updatedTask != null) {
+                return ResponseEntity.ok(updatedTask);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
+
+    /**
+     * Update task assignee (alternative endpoint)
+     */
+    @PatchMapping("/{id}/assignee")
+    public ResponseEntity<Task> updateTaskAssignee(@PathVariable String id, @RequestBody Map<String, String> assignment) {
         try {
             String assigneeId = assignment.get("assigneeId");
             Task updatedTask = taskService.assignTask(id, assigneeId);

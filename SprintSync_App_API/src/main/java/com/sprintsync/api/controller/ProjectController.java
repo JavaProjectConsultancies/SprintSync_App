@@ -4,18 +4,27 @@ import com.sprintsync.api.dto.ProjectDto;
 import com.sprintsync.api.dto.CreateProjectRequest;
 import com.sprintsync.api.dto.CreateProjectResponse;
 import com.sprintsync.api.entity.Project;
+import com.sprintsync.api.entity.User;
 import com.sprintsync.api.entity.enums.Priority;
 import com.sprintsync.api.entity.enums.ProjectStatus;
+import com.sprintsync.api.entity.enums.UserRole;
+import com.sprintsync.api.service.AuthService;
 import com.sprintsync.api.service.ProjectService;
 import com.sprintsync.api.service.ProjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import jakarta.validation.Valid;
+
+import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,13 +42,17 @@ import java.util.stream.Collectors;
 @CrossOrigin(origins = "*")
 public class ProjectController {
 
+    private static final Logger logger = LoggerFactory.getLogger(ProjectController.class);
+
     private final ProjectService projectService;
     private final ProjectMapper projectMapper;
+    private final AuthService authService;
 
     @Autowired
-    public ProjectController(ProjectService projectService, ProjectMapper projectMapper) {
+    public ProjectController(ProjectService projectService, ProjectMapper projectMapper, AuthService authService) {
         this.projectService = projectService;
         this.projectMapper = projectMapper;
+        this.authService = authService;
     }
 
     /**
@@ -49,6 +62,7 @@ public class ProjectController {
      * @return ResponseEntity containing the created project
      */
     @PostMapping
+    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
     public ResponseEntity<Project> createProject(@RequestBody Project project) {
         try {
             Project createdProject = projectService.createProject(project);
@@ -65,6 +79,7 @@ public class ProjectController {
      * @return ResponseEntity containing the comprehensive project creation response
      */
     @PostMapping("/comprehensive")
+    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
     public ResponseEntity<CreateProjectResponse> createProjectComprehensive(@RequestBody CreateProjectRequest request) {
         try {
             CreateProjectResponse response = projectService.createProjectWithRelatedEntities(request);
@@ -88,6 +103,7 @@ public class ProjectController {
      * @return ResponseEntity containing the project DTO if found
      */
     @GetMapping("/{id}")
+    @Cacheable(value = "projects", key = "#id")
     public ResponseEntity<ProjectDto> getProjectById(@PathVariable String id) {
         Optional<Project> project = projectService.findById(id);
         return project.map(p -> ResponseEntity.ok(projectMapper.toDto(p)))
@@ -104,6 +120,7 @@ public class ProjectController {
      * @return ResponseEntity containing page of project DTOs
      */
     @GetMapping
+    @Cacheable(value = "projects-summary", key = "#page + '-' + #size + '-' + #sortBy + '-' + #sortDir")
     public ResponseEntity<Map<String, Object>> getAllProjects(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
@@ -113,7 +130,7 @@ public class ProjectController {
         org.springframework.data.domain.Page<Project> projects = projectService.getAllProjects(page, size, sortBy, sortDir);
         
         // Convert to DTOs (lightweight mapping to keep list endpoint fast)
-        org.springframework.data.domain.Page<ProjectDto> projectDtos = projects.map(project -> projectMapper.toDto(project, false));
+        org.springframework.data.domain.Page<ProjectDto> projectDtos = projects.map(project -> projectMapper.toDto(project, false, false));
         
         // Return in frontend-compatible format
         Map<String, Object> response = new HashMap<>();
@@ -136,12 +153,13 @@ public class ProjectController {
      * @return ResponseEntity containing list of all projects
      */
     @GetMapping("/all")
+    @Cacheable(value = "projects-summary", key = "'all'")
     public ResponseEntity<Map<String, Object>> getAllProjectsList() {
         List<Project> projects = projectService.getAllProjects();
         
         // Convert to DTOs
         List<ProjectDto> projectDtos = projects.stream()
-                .map(project -> projectMapper.toDto(project, false))
+                .map(project -> projectMapper.toDto(project, false, false))
                 .collect(Collectors.toList());
         
         // Return in frontend-compatible format
@@ -157,6 +175,48 @@ public class ProjectController {
         response.put("empty", projectDtos.isEmpty());
         
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/accessible")
+    public ResponseEntity<Map<String, Object>> getAccessibleProjects(HttpServletRequest request) {
+        try {
+            String token = extractTokenFromRequest(request);
+            if (token == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(createEmptyProjectResponse("Authentication token not provided."));
+            }
+
+            User currentUser = authService.getCurrentUser(token);
+            if (currentUser == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(createEmptyProjectResponse("Unable to identify current user."));
+            }
+
+            List<Project> projects;
+            if (currentUser.getRole() == UserRole.admin) {
+                projects = projectService.getAllProjects();
+            } else {
+                projects = projectService.getProjectsForUser(currentUser.getId());
+            }
+            List<ProjectDto> projectDtos = projects.stream()
+                    .map(project -> projectMapper.toDto(project, false, false))
+                    .collect(Collectors.toList());
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("content", projectDtos);
+            response.put("totalElements", (long) projectDtos.size());
+            response.put("totalPages", 1);
+            response.put("size", projectDtos.size());
+            response.put("number", 0);
+            response.put("first", true);
+            response.put("last", true);
+            response.put("numberOfElements", projectDtos.size());
+            response.put("empty", projectDtos.isEmpty());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("Failed to load accessible projects: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createEmptyProjectResponse("Failed to load accessible projects."));
+        }
     }
 
     /**
@@ -281,6 +341,7 @@ public class ProjectController {
      * @return ResponseEntity containing the updated project
      */
     @PutMapping("/{id}")
+    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
     public ResponseEntity<Project> updateProject(@PathVariable String id, @RequestBody Project projectDetails) {
         try {
             projectDetails.setId(id);
@@ -332,6 +393,7 @@ public class ProjectController {
      * @return ResponseEntity with no content if successful
      */
     @DeleteMapping("/{id}")
+    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
     public ResponseEntity<Void> deleteProject(@PathVariable String id) {
         try {
             projectService.deleteProject(id);
@@ -382,5 +444,31 @@ public class ProjectController {
     public ResponseEntity<String> getProjectStatistics() {
         String stats = projectService.getProjectStatistics();
         return ResponseEntity.ok(stats);
+    }
+
+    private Map<String, Object> createEmptyProjectResponse(String message) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", message);
+        response.put("content", Collections.emptyList());
+        response.put("totalElements", 0L);
+        response.put("totalPages", 0);
+        response.put("size", 0);
+        response.put("number", 0);
+        response.put("first", true);
+        response.put("last", true);
+        response.put("numberOfElements", 0);
+        response.put("empty", true);
+        return response;
+    }
+
+    private String extractTokenFromRequest(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        String bearer = request.getHeader("Authorization");
+        if (bearer != null && bearer.startsWith("Bearer ")) {
+            return bearer.substring(7);
+        }
+        return null;
     }
 }

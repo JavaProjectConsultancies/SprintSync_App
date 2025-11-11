@@ -75,11 +75,12 @@ export const teamMemberApi = {
     }
   },
 
-  // Create a new team member
-  async createTeamMember(teamMember: CreateTeamMemberRequest): Promise<TeamMember> {
+  // Create a new team member (assign user to project)
+  // Backend returns an object: { success, message, data: ProjectTeamMember }
+  // We don't rely on this shape here; callers should refresh lists from server after success
+  async createTeamMember(teamMember: CreateTeamMemberRequest): Promise<void> {
     try {
-      const response = await apiClient.post<TeamMember>('/project-team-members/add-to-project', teamMember);
-      return response.data;
+      await apiClient.post('/project-team-members/add-to-project', teamMember);
     } catch (error) {
       console.error('Error creating team member:', error);
       throw error;

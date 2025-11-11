@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { User, UserRole } from '../types';
 import { authApiService, LoginResponse } from '../services/api/authApi';
 import { apiClient } from '../services/api/client';
@@ -8,7 +9,7 @@ const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   admin: ['view_projects', 'manage_projects', 'view_team', 'manage_users', 'view_analytics', 'manage_system'],
   manager: ['view_projects', 'manage_projects', 'view_team', 'view_analytics'],
   developer: ['view_projects', 'view_team'],
-  designer: ['view_projects', 'view_team']
+  qa: ['view_projects', 'manage_projects', 'view_team', 'view_analytics']
 };
 
 interface AuthContextType {
@@ -96,10 +97,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           id: userData.id,
           name: userData.name,
           email: userData.email,
-          role: userData.role.toLowerCase() as UserRole,
-          avatar: userData.avatar,
-          department: userData.department,
-          domain: userData.domain,
+          role: (userData.role ? (typeof userData.role === 'string' ? userData.role.toLowerCase() : String(userData.role).toLowerCase()) : 'developer') as UserRole,
+          avatar: userData.avatarUrl || userData.avatar,
+          department: userData.departmentId || userData.department,
+          domain: userData.domainId || userData.domain,
           assignedProjects: [], // This would come from a separate API call
         };
 
@@ -108,7 +109,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         saveAuthData(authToken, localUser);
         apiClient.setAuthToken(authToken);
         
+        // Prefetch projects immediately after login for faster page loads
+        import('../hooks/api/useProjects').then(({ prefetchProjects, invalidateProjectsCache }) => {
+          invalidateProjectsCache(localUser.id);
+          prefetchProjects(localUser.id).catch(() => {
+            // Silently fail - projects will be fetched when needed
+          });
+        });
+        
         console.log('Login successful:', localUser);
+        
+        // Note: Navigation to dashboard should be handled by the component calling login
+        // This ensures all users are redirected to dashboard after login
+        
         return true;
       } else {
         throw new Error(response.message || 'Login failed');
@@ -138,6 +151,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = () => {
+    // Invalidate projects cache on logout
+    import('../hooks/api/useProjects').then(({ invalidateProjectsCache }) => {
+      invalidateProjectsCache();
+    });
+    
     setUser(null);
     setToken(null);
     clearAuthData();
@@ -153,14 +171,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const response = await authApiService.getCurrentUser();
       if (response.success && response.data) {
         const userData = response.data;
+        
+        // Safely handle role conversion with fallback
+        let userRole: string = 'developer'; // Default role
+        if (userData.role) {
+          if (typeof userData.role === 'string') {
+            userRole = userData.role.toLowerCase();
+          } else {
+            userRole = String(userData.role).toLowerCase();
+          }
+        }
+        
         const localUser: User = {
           id: userData.id,
-          name: userData.name,
+          name: userData.name || userData.email || 'Unknown User',
           email: userData.email,
-          role: userData.role.toLowerCase() as UserRole,
-          avatar: userData.avatar,
-          department: userData.department,
-          domain: userData.domain,
+          role: (userRole as UserRole) || 'developer',
+          avatar: userData.avatar || userData.avatarUrl,
+          department: userData.department || userData.departmentId,
+          domain: userData.domain || userData.domainId,
           assignedProjects: [],
         };
         
@@ -182,12 +211,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const canAccessProject = (projectId: string): boolean => {
     if (!user) return false;
     
-    // Admin can access all projects
-    if (user.role === 'admin') return true;
+    // Admin, Manager, and QA can access all projects
+    if (user.role === 'admin' || user.role === 'manager' || user.role === 'qa') return true;
     
-    // For now, allow all users to access all projects
-    // In a real app, this would check user's assigned projects
-    return true;
+    // Other roles can only access assigned projects
+    return user.assignedProjects?.includes(projectId) || false;
   };
 
   const clearLoginError = () => {
@@ -214,6 +242,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUser(localUser);
     saveAuthData(authToken, localUser);
     apiClient.setAuthToken(authToken);
+    
+    // Prefetch projects immediately after setting auth state
+    import('../hooks/api/useProjects').then(({ prefetchProjects, invalidateProjectsCache }) => {
+      invalidateProjectsCache(localUser.id);
+      prefetchProjects(localUser.id).catch(() => {
+        // Silently fail - projects will be fetched when needed
+      });
+    });
+    
     setLoginError(null);
     
     console.log('Auth state set successfully');

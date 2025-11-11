@@ -24,7 +24,7 @@ CREATE TABLE domains (
 );
 
 -- User roles enum
-CREATE TYPE user_role AS ENUM ('admin', 'manager', 'developer', 'designer');
+CREATE TYPE user_role AS ENUM ('admin', 'manager', 'developer', 'qa');
 
 -- Experience levels enum
 CREATE TYPE experience_level AS ENUM ('junior', 'mid', 'senior', 'lead');
@@ -191,6 +191,7 @@ CREATE TABLE subtasks (
     actual_hours DECIMAL(5,2) DEFAULT 0,
     order_index INTEGER DEFAULT 0,
     due_date DATE,
+    category VARCHAR(50),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

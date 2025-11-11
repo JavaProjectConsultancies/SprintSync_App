@@ -51,7 +51,13 @@ export const useProjectById = (projectId: string | number) => {
   const [error, setError] = useState<{ message: string; status?: number } | null>(null);
 
   const fetchProject = async () => {
-    if (!projectId) return;
+    // Skip API call if projectId is empty, 'SKIP', or invalid
+    if (!projectId || projectId === 'SKIP' || projectId.toString().trim() === '') {
+      setProject(null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     
     try {
       setLoading(true);

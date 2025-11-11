@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -6,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Alert, AlertDescription } from './ui/alert';
 import { Loader2, Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
 import { authApiService, LoginRequest } from '../services/api/authApi';
+import LoadingSpinner from './LoadingSpinner';
 
 interface LoginFormProps {
   onLoginSuccess: (token: string, user: any) => void;
@@ -14,6 +16,7 @@ interface LoginFormProps {
 }
 
 const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isLoading = false }) => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState<LoginRequest>({
     email: '',
     password: '',
@@ -108,16 +111,27 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
     }
   };
 
-  const demoLogin = (role: 'admin' | 'manager' | 'developer' | 'designer') => {
+  const demoLogin = (role: 'admin' | 'manager' | 'developer' | 'qa') => {
     const demoCredentials = {
       admin: { email: 'admin@demo.com', password: 'admin123' },
       manager: { email: 'manager@demo.com', password: 'manager123' },
       developer: { email: 'developer@demo.com', password: 'dev123' },
-      designer: { email: 'designer@demo.com', password: 'design123' },
+      qa: { email: 'qa@demo.com', password: 'qa123' },
     };
 
     setFormData(demoCredentials[role]);
   };
+
+  // Show loading spinner during login
+  if (isSubmitting || isLoading) {
+    return (
+      <Card className="w-full max-w-md mx-auto">
+        <CardContent className="py-12">
+          <LoadingSpinner message="Signing in..." />
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full max-w-md mx-auto">
@@ -239,11 +253,24 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
           <Button
             variant="outline"
             size="sm"
-            onClick={() => demoLogin('designer')}
+            onClick={() => demoLogin('qa')}
             disabled={isSubmitting || isLoading}
           >
             <User className="mr-1 h-3 w-3" />
-            Designer
+            QA
+          </Button>
+        </div>
+
+        {/* Footer Link */}
+        <div className="mt-4 text-center text-sm">
+          <span className="text-muted-foreground">Don't have an account? </span>
+          <Button
+            variant="link"
+            onClick={() => navigate('/register')}
+            className="p-0 text-green-600 hover:text-green-700 h-auto"
+            disabled={isSubmitting || isLoading}
+          >
+            Create Account
           </Button>
         </div>
       </CardContent>

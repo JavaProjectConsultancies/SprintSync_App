@@ -166,11 +166,11 @@ const AppSidebar: React.FC = () => {
           ]
         },
       ];
-    } else if (userRole === 'manager') {
-      // Manager has access to all sidebar widgets
+    } else if (userRole === 'manager' || userRole === 'qa') {
+      // Manager and QA have access to all sidebar widgets
       return allMenuItems;
     } else {
-      // Developer and Designer have limited access (excluding admin panel)
+      // Developer has limited access (excluding admin panel)
       return allMenuItems.filter(item => item.title !== 'ADMINISTRATION');
     }
   };
@@ -209,6 +209,7 @@ const AppSidebar: React.FC = () => {
       case 'developer':
         return 'bg-green-100 text-green-800 border-green-200';
       case 'designer':
+      case 'qa':
         return 'bg-purple-100 text-purple-800 border-purple-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
@@ -224,7 +225,8 @@ const AppSidebar: React.FC = () => {
       case 'developer':
         return Code;
       case 'designer':
-        return Palette;
+      case 'qa':
+        return TestTube;
       default:
         return User;
     }

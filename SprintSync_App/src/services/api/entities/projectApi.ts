@@ -7,7 +7,6 @@ export class ProjectApiService {
   // Get all projects (with pagination support)
   async getProjects(params?: PaginationParams): Promise<ApiResponse<Project[]>> {
     const response = await apiClient.get<any>(API_ENDPOINTS.PROJECTS, params);
-    console.log('getProjects raw response:', response);
     
     // Backend returns { content: [...], totalElements: ..., ... }
     let normalized: Project[] = [];
@@ -19,14 +18,12 @@ export class ProjectApiService {
       normalized = response.data.content;
     }
     
-    console.log('getProjects normalized:', normalized);
     return { ...response, data: normalized } as ApiResponse<Project[]>;
   }
 
   // Get all projects without pagination
   async getAllProjects(): Promise<ApiResponse<Project[]>> {
     const response = await apiClient.get<any>(`${API_ENDPOINTS.PROJECTS}/all`);
-    console.log('getAllProjects raw response:', response);
     
     // Backend returns { content: [...], totalElements: ..., ... }
     let normalized: Project[] = [];
@@ -38,7 +35,19 @@ export class ProjectApiService {
       normalized = response.data.content;
     }
     
-    console.log('getAllProjects normalized:', normalized);
+    return { ...response, data: normalized } as ApiResponse<Project[]>;
+  }
+
+  async getAccessibleProjects(): Promise<ApiResponse<Project[]>> {
+    const response = await apiClient.get<any>(`${API_ENDPOINTS.PROJECTS}/accessible`);
+
+    let normalized: Project[] = [];
+    if (Array.isArray(response.data)) {
+      normalized = response.data;
+    } else if (response.data && typeof response.data === 'object' && Array.isArray(response.data.content)) {
+      normalized = response.data.content;
+    }
+
     return { ...response, data: normalized } as ApiResponse<Project[]>;
   }
 

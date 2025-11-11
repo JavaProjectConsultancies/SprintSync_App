@@ -2,6 +2,7 @@ package com.sprintsync.api.controller;
 
 import com.sprintsync.api.entity.User;
 import com.sprintsync.api.entity.enums.UserRole;
+import com.sprintsync.api.entity.enums.ExperienceLevel;
 import com.sprintsync.api.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -13,6 +14,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.Optional;
 
 /**
@@ -85,19 +89,31 @@ public class UserController {
      * @return ResponseEntity containing page of users
      */
     @GetMapping
-    public ResponseEntity<Page<User>> getAllUsers(
+    public ResponseEntity<?> getAllUsers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "name") String sortBy,
             @RequestParam(defaultValue = "asc") String sortDir) {
-        
-        Sort sort = sortDir.equalsIgnoreCase("desc") ? 
-                   Sort.by(sortBy).descending() : 
-                   Sort.by(sortBy).ascending();
-        
-        Pageable pageable = PageRequest.of(page, size, sort);
-        Page<User> users = userService.getAllUsers(pageable);
-        return ResponseEntity.ok(users);
+        try {
+            Sort sort = sortDir.equalsIgnoreCase("desc") ? 
+                       Sort.by(sortBy).descending() : 
+                       Sort.by(sortBy).ascending();
+            
+            Pageable pageable = PageRequest.of(page, size, sort);
+            Page<User> users = userService.getAllUsers(pageable);
+            
+            // Clear password hashes before returning
+            users.getContent().forEach(user -> user.setPasswordHash(null));
+            
+            return ResponseEntity.ok(users);
+        } catch (Exception e) {
+            System.err.println("Error fetching users with pagination: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                "success", false,
+                "message", "Error fetching users: " + e.getMessage()
+            ));
+        }
     }
 
     /**
@@ -141,9 +157,36 @@ public class UserController {
      * @return ResponseEntity containing list of active users
      */
     @GetMapping("/active")
-    public ResponseEntity<List<User>> getActiveUsers() {
-        List<User> users = userService.findActiveUsers();
-        return ResponseEntity.ok(users);
+    public ResponseEntity<?> getActiveUsers(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "1000") int size) {
+        try {
+            List<User> users = userService.findActiveUsers();
+
+            users.sort((user1, user2) -> {
+                String name1 = user1.getName() != null ? user1.getName() : "";
+                String name2 = user2.getName() != null ? user2.getName() : "";
+                return name1.compareToIgnoreCase(name2);
+            });
+            
+            // Clear password hashes before returning
+            users.forEach(user -> user.setPasswordHash(null));
+            
+            // Apply pagination manually if needed
+            int start = page * size;
+            int end = Math.min(start + size, users.size());
+            List<User> paginatedUsers = start < users.size() ? 
+                users.subList(start, end) : new ArrayList<>();
+            
+            return ResponseEntity.ok(paginatedUsers);
+        } catch (Exception e) {
+            System.err.println("Error fetching active users: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                "success", false,
+                "message", "Error fetching active users: " + e.getMessage()
+            ));
+        }
     }
 
     /**
@@ -275,5 +318,46 @@ public class UserController {
         String stats = String.format("Total Users: %d, Active Users: %d, Managers: %d, Developers: %d", 
                                    totalUsers, activeUsers, managers, developers);
         return ResponseEntity.ok(stats);
+    }
+
+    /**
+     * Get all available experience levels.
+     * 
+     * @return ResponseEntity containing list of experience levels
+     */
+    @GetMapping("/experience-levels")
+    public ResponseEntity<ExperienceLevel[]> getExperienceLevels() {
+        return ResponseEntity.ok(ExperienceLevel.values());
+    }
+
+    /**
+     * Get user statistics.
+     * 
+     * @return ResponseEntity containing user statistics
+     */
+    @GetMapping("/statistics")
+    public ResponseEntity<Map<String, Object>> getUserStatistics() {
+        try {
+            long totalUsers = userService.getAllUsers().size();
+            long activeUsers = userService.findActiveUsers().size();
+            
+            // Count roles manually to avoid potential issues
+            long managers = userService.getAllUsers().stream()
+                .filter(user -> user.getRole() == UserRole.manager)
+                .count();
+            long developers = userService.getAllUsers().stream()
+                .filter(user -> user.getRole() == UserRole.developer)
+                .count();
+            
+            Map<String, Object> stats = new HashMap<>();
+            stats.put("totalUsers", totalUsers);
+            stats.put("activeUsers", activeUsers);
+            stats.put("managers", managers);
+            stats.put("developers", developers);
+            
+            return ResponseEntity.ok(stats);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 }

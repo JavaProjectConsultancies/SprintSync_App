@@ -12,7 +12,12 @@ public class TaskStatusConverter implements AttributeConverter<TaskStatus, Strin
         if (attribute == null) {
             return null;
         }
-        return attribute.getValue();
+        // If attribute is a TaskStatus enum, return its value
+        if (attribute instanceof TaskStatus) {
+            return attribute.getValue();
+        }
+        // Otherwise, treat it as a string (for custom lane statuses)
+        return attribute.toString();
     }
 
     @Override
@@ -20,6 +25,19 @@ public class TaskStatusConverter implements AttributeConverter<TaskStatus, Strin
         if (dbData == null) {
             return null;
         }
-        return TaskStatus.fromValue(dbData);
+        // Check if it's a custom lane status (starts with "custom_lane_")
+        if (dbData.startsWith("custom_lane_")) {
+            // For custom lanes, return IN_PROGRESS as the enum value
+            // The actual custom value will be preserved in the database
+            // When tasks are fetched, we'll need to use a custom query to get the raw status
+            return TaskStatus.IN_PROGRESS;
+        }
+        try {
+            return TaskStatus.fromValue(dbData);
+        } catch (IllegalArgumentException e) {
+            // If it's not a recognized enum value, check if it's another custom status
+            // Default to IN_PROGRESS for any unrecognized status
+            return TaskStatus.IN_PROGRESS;
+        }
     }
 }

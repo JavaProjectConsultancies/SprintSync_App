@@ -30,6 +30,10 @@ export const subtaskApiService = {
   getSubtasksByTask: (taskId: string, params?: any) => 
     apiClient.get<Subtask[]>(`${BASE_URL}/task/${taskId}`, { params }),
 
+  // Issue-specific operations
+  getSubtasksByIssue: (issueId: string, params?: any) => 
+    apiClient.get<Subtask[]>(`${BASE_URL}/issue/${issueId}`, { params }),
+
   // Search and filter operations
   searchSubtasks: (query: string, params?: any) => 
     apiClient.get<Subtask[]>(`${BASE_URL}/search`, { 

@@ -94,7 +94,9 @@ public class DomainService {
      * @return list of active domains
      */
     public List<Domain> findActiveDomains() {
-        return domainRepository.findByIsActiveTrue();
+        return domainRepository.findAll().stream()
+            .filter(d -> d.getIsActive() != null && d.getIsActive())
+            .toList();
     }
 
     /**

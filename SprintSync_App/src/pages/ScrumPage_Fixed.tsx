@@ -147,7 +147,7 @@ const ScrumPage: React.FC = () => {
   const [selectedTaskStatus, setSelectedTaskStatus] = useState<string>('');
 
   // Role-based permissions
-  const canManageSprintsAndStories = user?.role === 'admin' || user?.role === 'manager';
+  const canManageSprintsAndStories = user?.role === 'admin' || user?.role === 'manager' || user?.role === 'qa';
   const canAddTasks = true;
   const canLogEffort = true;
 

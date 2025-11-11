@@ -132,7 +132,7 @@ public interface UserRepository extends JpaRepository<User, String> {
      * 
      * @return list of users with manager role
      */
-    @Query("SELECT u FROM User u WHERE u.role = 'MANAGER' AND u.isActive = true")
+    @Query("SELECT u FROM User u WHERE u.role = 'manager' AND u.isActive = true")
     List<User> findProjectManagers();
 
     /**
@@ -140,7 +140,7 @@ public interface UserRepository extends JpaRepository<User, String> {
      * 
      * @return list of active developers
      */
-    @Query("SELECT u FROM User u WHERE u.role = 'DEVELOPER' AND u.isActive = true")
+    @Query("SELECT u FROM User u WHERE u.role = 'developer' AND u.isActive = true")
     List<User> findActiveDevelopers();
 
     /**

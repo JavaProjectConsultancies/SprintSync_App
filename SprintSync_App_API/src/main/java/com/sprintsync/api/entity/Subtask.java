@@ -2,7 +2,6 @@ package com.sprintsync.api.entity;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -20,9 +19,11 @@ import java.util.List;
 @Table(name = "subtasks")
 public class Subtask extends BaseEntity {
 
-    @NotNull(message = "Task ID cannot be null")
-    @Column(name = "task_id", nullable = false)
+    @Column(name = "task_id")
     private String taskId;
+
+    @Column(name = "issue_id", nullable = true)
+    private String issueId;
 
     @NotBlank(message = "Subtask title cannot be blank")
     @Column(name = "title", nullable = false)
@@ -55,6 +56,9 @@ public class Subtask extends BaseEntity {
     @Column(name = "severity")
     private String severity;
 
+    @Column(name = "category")
+    private String category;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "labels", columnDefinition = "jsonb")
     private List<String> labels;
@@ -75,6 +79,14 @@ public class Subtask extends BaseEntity {
 
     public void setTaskId(String taskId) {
         this.taskId = taskId;
+    }
+
+    public String getIssueId() {
+        return issueId;
+    }
+
+    public void setIssueId(String issueId) {
+        this.issueId = issueId;
     }
 
     public String getTitle() {
@@ -155,6 +167,14 @@ public class Subtask extends BaseEntity {
 
     public void setSeverity(String severity) {
         this.severity = severity;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
     }
 
     public List<String> getLabels() {

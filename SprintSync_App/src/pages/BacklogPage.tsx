@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -7,7 +7,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Separator } from '../components/ui/separator';
 import { Checkbox } from '../components/ui/checkbox';
@@ -36,12 +36,20 @@ import {
   SortAsc,
   SortDesc,
   Eye,
-  GitBranch
+  GitBranch,
+  X,
+  Loader2,
+  ChevronDown
 } from 'lucide-react';
 import EffortManager from '../components/EffortManager';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
+import { useProjects } from '../hooks/api/useProjects';
+import { useStoriesByProject } from '../hooks/api/useStories';
+import { Story, Task } from '../types/api';
+import LoadingSpinner from '../components/LoadingSpinner';
+import { useAuth } from '../contexts/AuthContextEnhanced';
 
 interface EffortEntry {
   id: string;
@@ -53,39 +61,12 @@ interface EffortEntry {
   billable: boolean;
 }
 
-interface Task {
-  id: string;
-  title: string;
-  description: string;
-  status: 'backlog' | 'sprint-ready' | 'in-progress' | 'done';
-  priority: 'critical' | 'high' | 'medium' | 'low';
-  assignee?: string;
-  reporter: string;
-  storyPoints: number;
-  labels: string[];
-  dueDate?: string;
-  createdDate: string;
-  sprint?: string;
-  subtasks: number;
-  completedSubtasks: number;
-  attachments: number;
-  comments: number;
-  efforts?: EffortEntry[];
-  totalEffort?: number;
-}
-
-interface Sprint {
-  id: string;
-  name: string;
-  goal: string;
-  status: 'planned' | 'active' | 'completed';
-  startDate: string;
-  endDate: string;
-  capacity: number;
-  tasks: string[]; // task IDs
+interface StoryWithTasks extends Story {
+  tasks: Task[];
 }
 
 const BacklogPage: React.FC = () => {
+  const { user } = useAuth();
   const [view, setView] = useState<'list' | 'grid'>('list');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -93,178 +74,173 @@ const BacklogPage: React.FC = () => {
   const [assigneeFilter, setAssigneeFilter] = useState('all');
   const [sortBy, setSortBy] = useState('priority');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
-  const [isNewSprintOpen, setIsNewSprintOpen] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
   const [isEffortManagerOpen, setIsEffortManagerOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<string>('');
+  const [storiesWithTasks, setStoriesWithTasks] = useState<StoryWithTasks[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
   
   const [selectedTaskForEffort, setSelectedTaskForEffort] = useState<Task | null>(null);
+  const [expandedStories, setExpandedStories] = useState<Set<string>>(new Set());
 
-  // Mock data
-  const [tasks, setTasks] = useState<Task[]>([
-    {
-      id: 'TASK-101',
-      title: 'Implement User Authentication System',
-      description: 'Design and develop a comprehensive user authentication system with JWT tokens, password reset functionality, and social login integration.',
-      status: 'in-progress',
-      priority: 'critical',
-      assignee: 'Priya Mehta',
-      reporter: 'Arjun Sharma',
-      storyPoints: 8,
-      labels: ['authentication', 'backend', 'security'],
-      dueDate: '2024-02-15',
-      createdDate: '2024-02-01',
-      sprint: 'Sprint 3',
-      subtasks: 5,
-      completedSubtasks: 2,
-      attachments: 2,
-      comments: 3,
-      efforts: [],
-      totalEffort: 0
-    },
-    {
-      id: 'TASK-102',
-      title: 'Design Product Catalog Interface',
-      description: 'Create responsive product listing pages with filtering, search, and sorting capabilities.',
-      status: 'sprint-ready',
-      priority: 'high',
-      assignee: 'Sneha Patel',
-      reporter: 'Vikram Singh',
-      storyPoints: 5,
-      labels: ['frontend', 'ui', 'catalog'],
-      dueDate: '2024-02-20',
-      createdDate: '2024-02-03',
-      subtasks: 3,
-      completedSubtasks: 0,
-      attachments: 1,
-      comments: 2,
-      efforts: [],
-      totalEffort: 0
-    },
-    {
-      id: 'TASK-103',
-      title: 'Set up CI/CD Pipeline',
-      description: 'Configure automated testing and deployment pipeline using GitHub Actions.',
-      status: 'backlog',
-      priority: 'medium',
-      assignee: 'Ritu Sharma',
-      reporter: 'Arjun Sharma',
-      storyPoints: 3,
-      labels: ['devops', 'automation', 'deployment'],
-      createdDate: '2024-02-05',
-      subtasks: 4,
-      completedSubtasks: 0,
-      attachments: 0,
-      comments: 1,
-      efforts: [],
-      totalEffort: 0
-    },
-    {
-      id: 'TASK-104',
-      title: 'API Integration for Payment Gateway',
-      description: 'Integrate Razorpay payment gateway with proper error handling and webhook support.',
-      status: 'backlog',
-      priority: 'high',
-      reporter: 'Kavya Nair',
-      storyPoints: 8,
-      labels: ['backend', 'payment', 'api'],
-      dueDate: '2024-02-25',
-      createdDate: '2024-02-06',
-      subtasks: 6,
-      completedSubtasks: 0,
-      attachments: 0,
-      comments: 0,
-      efforts: [],
-      totalEffort: 0
-    },
-    {
-      id: 'TASK-105',
-      title: 'Mobile App Testing Framework',
-      description: 'Set up automated testing framework for mobile applications with device coverage.',
-      status: 'done',
-      priority: 'medium',
-      assignee: 'Aman Singh',
-      reporter: 'Ananya Iyer',
-      storyPoints: 5,
-      labels: ['testing', 'mobile', 'automation'],
-      createdDate: '2024-01-28',
-      subtasks: 3,
-      completedSubtasks: 3,
-      attachments: 2,
-      comments: 5,
-      efforts: [],
-      totalEffort: 0
+  // Role-based permissions
+  const canManageSprintsAndStories =
+    user?.role?.toUpperCase() === "MANAGER" ||
+    user?.role?.toUpperCase() === "QA" ||
+    user?.role?.toUpperCase() === "ADMIN";
+
+  // Fetch projects
+  const { data: projects, loading: projectsLoading } = useProjects();
+
+  // Fetch stories by project
+  const { data: storiesData, loading: storiesLoading, refetch: refetchStories } = useStoriesByProject(
+    selectedProject || 'SKIP'
+  );
+
+  // Fetch tasks for all stories
+  const fetchTasksForStories = useCallback(async (stories: Story[]) => {
+    if (!stories || stories.length === 0) {
+      setStoriesWithTasks([]);
+      return;
     }
-  ]);
 
-  const [sprints, setSprints] = useState<Sprint[]>([
-    {
-      id: 'sprint-3',
-      name: 'Sprint 3',
-      goal: 'Complete authentication system and setup payment integration',
-      status: 'active',
-      startDate: '2024-02-05',
-      endDate: '2024-02-19',
-      capacity: 40,
-      tasks: ['TASK-101']
-    },
-    {
-      id: 'sprint-4',
-      name: 'Sprint 4',
-      goal: 'Finish product catalog and mobile testing framework',
-      status: 'planned',
-      startDate: '2024-02-19',
-      endDate: '2024-03-05',
-      capacity: 35,
-      tasks: []
-    }
-  ]);
-
-  const [newTask, setNewTask] = useState({
-    title: '',
-    description: '',
-    priority: 'medium',
-    assignee: '',
-    storyPoints: 1,
-    labels: '',
-    dueDate: ''
-  });
-
-  // Filtered and sorted tasks
-  const filteredTasks = useMemo(() => {
-    let filtered = tasks.filter(task => {
-      const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           task.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           task.labels.some(label => label.toLowerCase().includes(searchTerm.toLowerCase()));
+    setTasksLoading(true);
+    try {
+      const token = localStorage.getItem('authToken') || '';
       
-      const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
-      const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
-      const matchesAssignee = assigneeFilter === 'all' || task.assignee === assigneeFilter;
+      const storyTasksPromises = stories.map(async (story: Story) => {
+        try {
+          const response = await fetch(`http://localhost:8080/api/tasks/story/${story.id}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            const tasks = Array.isArray(data) ? data : (data?.data || []);
+            return { story, tasks };
+          }
+          return { story, tasks: [] };
+        } catch (error) {
+          console.error(`Error fetching tasks for story ${story.id}:`, error);
+          return { story, tasks: [] };
+        }
+      });
+
+      const results = await Promise.all(storyTasksPromises);
+      let storiesWithTasksData = results.map(({ story, tasks }) => ({
+        ...story,
+        tasks: tasks || []
+      }));
+
+      // Role-based filtering: Non-managers/admins see only their assigned tasks
+      if (!canManageSprintsAndStories && user) {
+        storiesWithTasksData = storiesWithTasksData.map((story) => ({
+          ...story,
+          tasks: story.tasks.filter((task) => task.assigneeId === user.id),
+        })).filter((story) => story.tasks.length > 0); // Only keep stories that have at least one user-assigned task
+
+        console.log(
+          `Filtered backlog stories with tasks for user ${user.name}: showing ${storiesWithTasksData.length} stories with assigned tasks`,
+        );
+      }
+      
+      setStoriesWithTasks(storiesWithTasksData);
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+      setStoriesWithTasks([]);
+    } finally {
+      setTasksLoading(false);
+    }
+  }, [canManageSprintsAndStories, user]);
+
+  // Fetch tasks when stories change
+  useEffect(() => {
+    if (storiesData && storiesData.length > 0) {
+      fetchTasksForStories(storiesData);
+    } else {
+      setStoriesWithTasks([]);
+    }
+  }, [storiesData, fetchTasksForStories]);
+
+  // Filter stories: only show stories with overdue incomplete tasks
+  const filteredStories = useMemo(() => {
+    if (!storiesWithTasks || storiesWithTasks.length === 0) {
+      return [];
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Filter stories that have at least one overdue incomplete task
+    let filtered = storiesWithTasks.filter(story => {
+      if (!story.tasks || story.tasks.length === 0) {
+        return false; // No tasks, don't show
+      }
+
+      // Check if story has at least one overdue incomplete task
+      const hasOverdueIncompleteTask = story.tasks.some(task => {
+        if (!task.dueDate) {
+          return false; // No due date, skip
+        }
+
+        const taskDueDate = new Date(task.dueDate);
+        taskDueDate.setHours(0, 0, 0, 0);
+        const isOverdue = taskDueDate < today;
+        const isIncomplete = task.status !== 'DONE' && task.status !== 'CANCELLED';
+        
+        return isOverdue && isIncomplete;
+      });
+
+      return hasOverdueIncompleteTask;
+    });
+
+    // Apply additional filters
+    filtered = filtered.filter(story => {
+      const matchesSearch = story.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (story.description && story.description.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      const matchesStatus = statusFilter === 'all' || story.status === statusFilter;
+      
+      const priorityMap: { [key: string]: string } = {
+        'critical': 'CRITICAL',
+        'high': 'HIGH',
+        'medium': 'MEDIUM',
+        'low': 'LOW'
+      };
+      const matchesPriority = priorityFilter === 'all' || story.priority === priorityMap[priorityFilter];
+      
+      const matchesAssignee = assigneeFilter === 'all' || story.assigneeId === assigneeFilter;
 
       return matchesSearch && matchesStatus && matchesPriority && matchesAssignee;
     });
 
-    // Sort tasks
+    // Sort stories
     filtered.sort((a, b) => {
       let aValue, bValue;
       
       switch (sortBy) {
         case 'priority':
-          const priorityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
-          aValue = priorityOrder[a.priority as keyof typeof priorityOrder];
-          bValue = priorityOrder[b.priority as keyof typeof priorityOrder];
+          const priorityOrder = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
+          aValue = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
+          bValue = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
           break;
         case 'storyPoints':
-          aValue = a.storyPoints;
-          bValue = b.storyPoints;
+          aValue = a.storyPoints || 0;
+          bValue = b.storyPoints || 0;
           break;
         case 'dueDate':
-          aValue = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
-          bValue = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+          // Use the earliest overdue task due date
+          const aTasks = a.tasks.filter(t => t.dueDate && new Date(t.dueDate) < today);
+          const bTasks = b.tasks.filter(t => t.dueDate && new Date(t.dueDate) < today);
+          aValue = aTasks.length > 0 ? Math.min(...aTasks.map(t => new Date(t.dueDate!).getTime())) : Infinity;
+          bValue = bTasks.length > 0 ? Math.min(...bTasks.map(t => new Date(t.dueDate!).getTime())) : Infinity;
           break;
         case 'created':
-          aValue = new Date(a.createdDate).getTime();
-          bValue = new Date(b.createdDate).getTime();
+          aValue = new Date(a.createdAt).getTime();
+          bValue = new Date(b.createdAt).getTime();
           break;
         default:
           aValue = a.title;
@@ -279,39 +255,18 @@ const BacklogPage: React.FC = () => {
     });
 
     return filtered;
-  }, [tasks, searchTerm, statusFilter, priorityFilter, assigneeFilter, sortBy, sortOrder]);
+  }, [storiesWithTasks, searchTerm, statusFilter, priorityFilter, assigneeFilter, sortBy, sortOrder]);
 
-  const createTask = () => {
-    const task: Task = {
-      id: `TASK-${Date.now()}`,
-      title: newTask.title,
-      description: newTask.description,
-      status: 'backlog',
-      priority: newTask.priority as any,
-      assignee: newTask.assignee || undefined,
-      reporter: 'Current User',
-      storyPoints: newTask.storyPoints,
-      labels: newTask.labels.split(',').map(l => l.trim()).filter(l => l),
-      dueDate: newTask.dueDate || undefined,
-      createdDate: new Date().toISOString(),
-      subtasks: 0,
-      completedSubtasks: 0,
-      attachments: 0,
-      comments: 0
-    };
-
-    setTasks([...tasks, task]);
-    setNewTask({
-      title: '',
-      description: '',
-      priority: 'medium',
-      assignee: '',
-      storyPoints: 1,
-      labels: '',
-      dueDate: ''
+  // Convert filtered stories to tasks for display (flattening tasks from stories)
+  const tasks = useMemo(() => {
+    const allTasks: Task[] = [];
+    filteredStories.forEach(story => {
+      if (story.tasks && story.tasks.length > 0) {
+        allTasks.push(...story.tasks);
+      }
     });
-    setIsNewTaskOpen(false);
-  };
+    return allTasks;
+  }, [filteredStories]);
 
   const toggleTaskSelection = (taskId: string) => {
     setSelectedTasks(prev => 
@@ -321,39 +276,9 @@ const BacklogPage: React.FC = () => {
     );
   };
 
-  const moveTasksToSprint = (sprintId: string) => {
-    setSprints(sprints.map(sprint => 
-      sprint.id === sprintId 
-        ? { ...sprint, tasks: [...sprint.tasks, ...selectedTasks] }
-        : sprint
-    ));
-    setTasks(tasks.map(task => 
-      selectedTasks.includes(task.id) 
-        ? { ...task, status: 'sprint-ready' as any, sprint: sprints.find(s => s.id === sprintId)?.name }
-        : task
-    ));
-    setSelectedTasks([]);
-  };
-
   // Handle effort logging
   const handleLogEffort = (effortData: Omit<EffortEntry, 'id'>) => {
-    const newEffort: EffortEntry = {
-      id: `effort-${Date.now()}`,
-      ...effortData
-    };
-
-    if (selectedTaskForEffort) {
-      setTasks(prev => prev.map(task => 
-        task.id === selectedTaskForEffort.id
-          ? {
-              ...task,
-              efforts: [...(task.efforts || []), newEffort],
-              totalEffort: (task.totalEffort || 0) + effortData.timeSpent
-            }
-          : task
-      ));
-    }
-
+    // Handle effort logging if needed
     setSelectedTaskForEffort(null);
   };
 
@@ -363,21 +288,39 @@ const BacklogPage: React.FC = () => {
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'backlog': return 'bg-gray-100 text-gray-800';
-      case 'sprint-ready': return 'bg-blue-100 text-blue-800';
-      case 'in-progress': return 'bg-yellow-100 text-yellow-800';
-      case 'done': return 'bg-green-100 text-green-800';
+    switch (status?.toUpperCase()) {
+      case 'BACKLOG':
+      case 'TO_DO':
+      case 'TODO': return 'bg-gray-100 text-gray-800';
+      case 'SPRINT_READY':
+      case 'IN_PROGRESS': return 'bg-yellow-100 text-yellow-800';
+      case 'QA_REVIEW':
+      case 'REVIEW': return 'bg-blue-100 text-blue-800';
+      case 'DONE': return 'bg-green-100 text-green-800';
+      case 'BLOCKED': return 'bg-red-100 text-red-800';
+      case 'CANCELLED': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
   const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'critical': return 'bg-red-100 text-red-800';
-      case 'high': return 'bg-orange-100 text-orange-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'low': return 'bg-green-100 text-green-800';
+    const p = priority?.toUpperCase();
+    switch (p) {
+      case 'CRITICAL': return 'bg-red-100 text-red-800';
+      case 'HIGH': return 'bg-orange-100 text-orange-800';
+      case 'MEDIUM': return 'bg-yellow-100 text-yellow-800';
+      case 'LOW': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStoryStatusColor = (status: string) => {
+    switch (status?.toUpperCase()) {
+      case 'BACKLOG': return 'bg-gray-100 text-gray-800';
+      case 'TODO': return 'bg-blue-100 text-blue-800';
+      case 'IN_PROGRESS': return 'bg-yellow-100 text-yellow-800';
+      case 'REVIEW': return 'bg-purple-100 text-purple-800';
+      case 'DONE': return 'bg-green-100 text-green-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -389,133 +332,174 @@ const BacklogPage: React.FC = () => {
     });
   };
 
-  const TaskCard: React.FC<{ task: Task }> = ({ task }) => (
-    <Card className={`cursor-pointer hover:shadow-md transition-shadow ${
-      selectedTasks.includes(task.id) ? 'ring-2 ring-primary bg-gradient-light' : ''
-    }`}>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              checked={selectedTasks.includes(task.id)}
-              onCheckedChange={() => toggleTaskSelection(task.id)}
-            />
-            <div className="space-y-1">
-              <h4 className="font-medium text-sm leading-tight">{task.title}</h4>
-              <div className="flex items-center space-x-2">
-                <Badge variant="outline" className="text-xs font-mono">
-                  {task.id}
-                </Badge>
-                <Badge variant="outline" className={`text-xs ${getStatusColor(task.status)}`}>
-                  {task.status.replace('-', ' ')}
-                </Badge>
-              </div>
-            </div>
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                <MoreVertical className="w-3 h-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleOpenEffortManager(task)}>
-                <Clock className="w-4 h-4 mr-2" />
-                Manage Efforts
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Eye className="w-4 h-4 mr-2" />
-                View Details
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Edit className="w-4 h-4 mr-2" />
-                Edit Task
-              </DropdownMenuItem>
-              <DropdownMenuItem className="text-red-600">
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+  const toggleStoryExpansion = (storyId: string) => {
+    setExpandedStories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(storyId)) {
+        newSet.delete(storyId);
+      } else {
+        newSet.add(storyId);
+      }
+      return newSet;
+    });
+  };
 
-        <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
-          {task.description}
-        </p>
+  // Story Card Component
+  const StoryCard: React.FC<{ story: StoryWithTasks }> = ({ story }) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const overdueTasks = story.tasks?.filter(task => {
+      if (!task.dueDate) return false;
+      const taskDueDate = new Date(task.dueDate);
+      taskDueDate.setHours(0, 0, 0, 0);
+      return taskDueDate < today && task.status !== 'DONE' && task.status !== 'CANCELLED';
+    }) || [];
 
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Badge variant="outline" className={`text-xs ${getPriorityColor(task.priority)}`}>
-              <Flag className="w-2 h-2 mr-1" />
-              {task.priority}
-            </Badge>
-            <div className="flex items-center space-x-1 text-xs text-muted-foreground">
-              <Target className="w-3 h-3" />
-              <span>{task.storyPoints}</span>
-            </div>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            {task.assignee && (
-              <Avatar className="w-6 h-6">
-                <AvatarFallback className="text-xs bg-gradient-to-br from-green-100 to-cyan-100">
-                  {task.assignee.split(' ').map(n => n[0]).join('')}
-                </AvatarFallback>
-              </Avatar>
-            )}
-            {task.dueDate && (
-              <div className="flex items-center space-x-1 text-xs text-muted-foreground">
-                <Calendar className="w-3 h-3" />
-                <span>{formatDate(task.dueDate)}</span>
-              </div>
-            )}
-          </div>
-        </div>
+    const isExpanded = expandedStories.has(story.id);
 
-        {task.subtasks > 0 && (
-          <div className="mt-3">
-            <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-              <span>Subtasks</span>
-              <span>{task.completedSubtasks}/{task.subtasks}</span>
-            </div>
-            <Progress value={(task.completedSubtasks / task.subtasks) * 100} className="h-1" />
-          </div>
-        )}
-
-        {(task.comments > 0 || task.attachments > 0) && (
-          <div className="flex items-center space-x-3 mt-3 text-xs text-muted-foreground">
-            {task.comments > 0 && (
-              <div className="flex items-center space-x-1">
-                <CheckCircle2 className="w-3 h-3" />
-                <span>{task.comments}</span>
-              </div>
-            )}
-            {task.attachments > 0 && (
-              <div className="flex items-center space-x-1">
-                <GitBranch className="w-3 h-3" />
-                <span>{task.attachments}</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {task.labels.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-3">
-            {task.labels.slice(0, 3).map(label => (
-              <Badge key={label} variant="secondary" className="text-xs px-1 py-0">
-                {label}
+    return (
+      <Card className="mb-4">
+        <CardHeader 
+          className="cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => toggleStoryExpansion(story.id)}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <ChevronDown 
+                className={`w-4 h-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+              />
+              <h3 className="font-semibold text-lg">{story.title}</h3>
+              <Badge variant="outline" className={`text-xs ${getStoryStatusColor(story.status)}`}>
+                {story.status}
               </Badge>
-            ))}
-            {task.labels.length > 3 && (
-              <Badge variant="secondary" className="text-xs px-1 py-0">
-                +{task.labels.length - 3}
-              </Badge>
-            )}
+            </div>
           </div>
+        </CardHeader>
+        {isExpanded && (
+          <CardContent>
+            <div className="space-y-4">
+              {/* Story Info */}
+              {story.description && (
+                <p className="text-sm text-muted-foreground">{story.description}</p>
+              )}
+              <div className="flex items-center space-x-4 text-sm">
+                <Badge variant="outline" className={`${getPriorityColor(story.priority)}`}>
+                  <Flag className="w-3 h-3 mr-1" />
+                  {story.priority}
+                </Badge>
+                {story.storyPoints && (
+                  <div className="flex items-center space-x-1 text-muted-foreground">
+                    <Target className="w-4 h-4" />
+                    <span>{story.storyPoints} points</span>
+                  </div>
+                )}
+                {overdueTasks.length > 0 && (
+                  <Badge variant="destructive" className="text-xs">
+                    <AlertCircle className="w-3 h-3 mr-1" />
+                    {overdueTasks.length} overdue task{overdueTasks.length > 1 ? 's' : ''}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Tasks */}
+              {story.tasks && story.tasks.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium">Tasks ({story.tasks.length})</h4>
+                    <div className="text-xs text-muted-foreground">
+                      {story.tasks.filter(t => t.status === 'DONE').length} completed
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {story.tasks.map(task => {
+                      const isOverdue = task.dueDate && new Date(task.dueDate) < today;
+                      const isIncomplete = task.status !== 'DONE' && task.status !== 'CANCELLED';
+                      const isOverdueAndIncomplete = isOverdue && isIncomplete;
+
+                      return (
+                        <Card 
+                          key={task.id} 
+                          className={`border-l-4 ${
+                            isOverdueAndIncomplete ? 'border-l-red-500 bg-red-50' : 
+                            task.status === 'DONE' ? 'border-l-green-500 bg-green-50' :
+                            'border-l-blue-500'
+                          }`}
+                        >
+                          <CardContent className="p-3">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <h5 className="text-sm font-medium">{task.title}</h5>
+                                  <Badge variant="outline" className={`text-xs ${getStatusColor(task.status)}`}>
+                                    {task.status?.replace('_', ' ') || 'TO_DO'}
+                                  </Badge>
+                                  {isOverdueAndIncomplete && (
+                                    <Badge variant="destructive" className="text-xs">
+                                      Overdue
+                                    </Badge>
+                                  )}
+                                </div>
+                                {task.description && (
+                                  <p className="text-xs text-muted-foreground mb-2">{task.description}</p>
+                                )}
+                                <div className="flex items-center space-x-4 text-xs text-muted-foreground">
+                                  <Badge variant="outline" className={`${getPriorityColor(task.priority)}`}>
+                                    {task.priority}
+                                  </Badge>
+                                  {task.dueDate && (
+                                    <div className="flex items-center space-x-1">
+                                      <Calendar className="w-3 h-3" />
+                                      <span className={isOverdue ? 'text-red-600 font-medium' : ''}>
+                                        {formatDate(task.dueDate)}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {task.estimatedHours && (
+                                    <div className="flex items-center space-x-1">
+                                      <Clock className="w-3 h-3" />
+                                      <span>{task.estimatedHours}h</span>
+                                    </div>
+                                  )}
+                                  {task.actualHours > 0 && (
+                                    <div className="flex items-center space-x-1">
+                                      <Target className="w-3 h-3" />
+                                      <span>{task.actualHours}h actual</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                    <MoreVertical className="w-3 h-3" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => handleOpenEffortManager(task)}>
+                                    <Clock className="w-4 h-4 mr-2" />
+                                    Manage Efforts
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem>
+                                    <Eye className="w-4 h-4 mr-2" />
+                                    View Details
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
         )}
-      </CardContent>
-    </Card>
-  );
+      </Card>
+    );
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -523,9 +507,24 @@ const BacklogPage: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Product Backlog</h1>
-          <p className="text-muted-foreground">Manage and prioritize your project tasks</p>
+          <p className="text-muted-foreground">Stories with overdue incomplete tasks</p>
         </div>
         <div className="flex items-center space-x-3">
+          {/* Project Selector */}
+          <Select value={selectedProject || "all"} onValueChange={(value) => setSelectedProject(value === "all" ? "" : value)}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder={projectsLoading ? "Loading projects..." : "Select Project"} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Projects</SelectItem>
+              {projects?.map(project => (
+                <SelectItem key={project.id} value={project.id}>
+                  {project.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <div className="flex items-center space-x-1 bg-muted rounded-lg p-1">
             <Button
               variant={view === 'list' ? 'default' : 'ghost'}
@@ -544,116 +543,6 @@ const BacklogPage: React.FC = () => {
               <Grid3x3 className="w-4 h-4" />
             </Button>
           </div>
-          <Dialog open={isNewTaskOpen} onOpenChange={setIsNewTaskOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-gradient-primary text-white border-0 hover:opacity-90">
-                <Plus className="w-4 h-4 mr-2" />
-                New Story
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Create New Story</DialogTitle>
-                <DialogDescription>
-                  Add a new story to your product backlog
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="task-title">Title *</Label>
-                  <Input
-                    id="task-title"
-                    placeholder="Enter task title"
-                    value={newTask.title}
-                    onChange={(e) => setNewTask(prev => ({ ...prev, title: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="task-description">Description</Label>
-                  <Textarea
-                    id="task-description"
-                    placeholder="Describe the task requirements and acceptance criteria"
-                    value={newTask.description}
-                    onChange={(e) => setNewTask(prev => ({ ...prev, description: e.target.value }))}
-                    rows={4}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Priority</Label>
-                    <Select value={newTask.priority} onValueChange={(value) => setNewTask(prev => ({ ...prev, priority: value }))}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="critical">Critical</SelectItem>
-                        <SelectItem value="high">High</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="low">Low</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Story Points</Label>
-                    <Select value={newTask.storyPoints.toString()} onValueChange={(value) => setNewTask(prev => ({ ...prev, storyPoints: parseInt(value) }))}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">1</SelectItem>
-                        <SelectItem value="2">2</SelectItem>
-                        <SelectItem value="3">3</SelectItem>
-                        <SelectItem value="5">5</SelectItem>
-                        <SelectItem value="8">8</SelectItem>
-                        <SelectItem value="13">13</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Assignee</Label>
-                    <Select value={newTask.assignee} onValueChange={(value) => setNewTask(prev => ({ ...prev, assignee: value }))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select assignee" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Priya Mehta">Priya Mehta</SelectItem>
-                        <SelectItem value="Rohit Kumar">Rohit Kumar</SelectItem>
-                        <SelectItem value="Sneha Patel">Sneha Patel</SelectItem>
-                        <SelectItem value="Aman Singh">Aman Singh</SelectItem>
-                        <SelectItem value="Ritu Sharma">Ritu Sharma</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Due Date</Label>
-                    <Input
-                      type="date"
-                      value={newTask.dueDate}
-                      onChange={(e) => setNewTask(prev => ({ ...prev, dueDate: e.target.value }))}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Labels</Label>
-                  <Input
-                    placeholder="Enter labels separated by commas"
-                    value={newTask.labels}
-                    onChange={(e) => setNewTask(prev => ({ ...prev, labels: e.target.value }))}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsNewTaskOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={createTask} className="bg-gradient-primary text-white">
-                  Create Task
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         </div>
       </div>
 
@@ -679,10 +568,11 @@ const BacklogPage: React.FC = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="backlog">Backlog</SelectItem>
-                <SelectItem value="sprint-ready">Sprint Ready</SelectItem>
-                <SelectItem value="in-progress">In Progress</SelectItem>
-                <SelectItem value="done">Done</SelectItem>
+                <SelectItem value="BACKLOG">Backlog</SelectItem>
+                <SelectItem value="TODO">To Do</SelectItem>
+                <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                <SelectItem value="REVIEW">Review</SelectItem>
+                <SelectItem value="DONE">Done</SelectItem>
               </SelectContent>
             </Select>
 
@@ -748,151 +638,86 @@ const BacklogPage: React.FC = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4 text-center">
-            <div className="text-2xl font-semibold text-blue-600">{tasks.filter(t => t.status === 'backlog').length}</div>
-            <div className="text-sm text-muted-foreground">Backlog</div>
+            <div className="text-2xl font-semibold text-blue-600">{filteredStories.length}</div>
+            <div className="text-sm text-muted-foreground">Stories with Overdue Tasks</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <div className="text-2xl font-semibold text-yellow-600">{tasks.filter(t => t.status === 'sprint-ready').length}</div>
-            <div className="text-sm text-muted-foreground">Sprint Ready</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-semibold text-orange-600">{tasks.filter(t => t.status === 'in-progress').length}</div>
-            <div className="text-sm text-muted-foreground">In Progress</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-semibold text-green-600">{tasks.filter(t => t.status === 'done').length}</div>
-            <div className="text-sm text-muted-foreground">Completed</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Sprint Planning */}
-      {selectedTasks.length > 0 && (
-        <Card className="border-primary">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <CheckCircle2 className="w-5 h-5 text-primary" />
-                <span className="font-medium">{selectedTasks.length} tasks selected</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                {sprints.map(sprint => (
-                  <Button
-                    key={sprint.id}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => moveTasksToSprint(sprint.id)}
-                    className="flex items-center space-x-2"
-                  >
-                    <Play className="w-3 h-3" />
-                    <span>Add to {sprint.name}</span>
-                  </Button>
-                ))}
-                <Button variant="outline" size="sm" onClick={() => setSelectedTasks([])}>
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
+            <div className="text-2xl font-semibold text-red-600">
+              {tasks.filter(t => {
+                if (!t.dueDate) return false;
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const taskDueDate = new Date(t.dueDate);
+                taskDueDate.setHours(0, 0, 0, 0);
+                return taskDueDate < today && t.status !== 'DONE' && t.status !== 'CANCELLED';
+              }).length}
             </div>
+            <div className="text-sm text-muted-foreground">Overdue Incomplete Tasks</div>
           </CardContent>
         </Card>
-      )}
-
-      {/* Tasks List */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-medium">Stories ({filteredTasks.length})</h3>
-          <div className="flex items-center space-x-2">
-            {filteredTasks.reduce((sum, task) => sum + task.storyPoints, 0) > 0 && (
-              <Badge variant="secondary">
-                Total: {filteredTasks.reduce((sum, task) => sum + task.storyPoints, 0)} points
-              </Badge>
-            )}
-          </div>
-        </div>
-
-        {view === 'grid' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredTasks.map(task => (
-              <TaskCard key={task.id} task={task} />
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {filteredTasks.map(task => (
-              <TaskCard key={task.id} task={task} />
-            ))}
-          </div>
-        )}
-
-        {filteredTasks.length === 0 && (
-          <Card>
-            <CardContent className="p-12 text-center">
-              <div className="text-muted-foreground space-y-2">
-                <Target className="w-12 h-12 mx-auto opacity-50" />
-                <p>No tasks found</p>
-                <p className="text-sm">Try adjusting your filters or create a new task</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        <Card>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-semibold text-yellow-600">
+              {tasks.filter(t => t.status === 'IN_PROGRESS' || t.status === 'TO_DO').length}
+            </div>
+            <div className="text-sm text-muted-foreground">Incomplete Tasks</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-semibold text-green-600">
+              {tasks.filter(t => t.status === 'DONE').length}
+            </div>
+            <div className="text-sm text-muted-foreground">Completed Tasks</div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Active Sprints Overview */}
-      <Card>
-        <CardHeader>
+      {/* Loading State */}
+      {(projectsLoading && projects === null) || (storiesLoading && storiesData === null) || tasksLoading ? (
+        <LoadingSpinner message="Loading Backlog..." fullScreen />
+      ) : (
+        <>
+        <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center space-x-2">
-              <BarChart3 className="w-5 h-5" />
-              <span>Active Sprints</span>
-            </CardTitle>
-            <Button variant="outline" size="sm">
-              <Plus className="w-4 h-4 mr-2" />
-              New Sprint
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {sprints.filter(sprint => sprint.status === 'active' || sprint.status === 'planned').map(sprint => (
-            <div key={sprint.id} className="p-4 border rounded-lg space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <Badge variant={sprint.status === 'active' ? 'default' : 'secondary'}>
-                    {sprint.status === 'active' ? (
-                      <Play className="w-3 h-3 mr-1" />
-                    ) : (
-                      <Pause className="w-3 h-3 mr-1" />
-                    )}
-                    {sprint.name}
-                  </Badge>
-                  <span className="text-sm text-muted-foreground">{sprint.goal}</span>
-                </div>
-                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                  <Calendar className="w-4 h-4" />
-                  <span>{formatDate(sprint.startDate)} - {formatDate(sprint.endDate)}</span>
-                </div>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <div className="text-sm">
-                  <span className="text-muted-foreground">Tasks: </span>
-                  <span className="font-medium">{sprint.tasks.length}</span>
-                  <span className="text-muted-foreground"> • Capacity: </span>
-                  <span className="font-medium">{sprint.capacity} points</span>
-                </div>
-                <Button variant="ghost" size="sm">
-                  View Sprint
-                </Button>
-              </div>
+            <h3 className="font-medium">
+              Stories with Overdue Incomplete Tasks ({filteredStories.length})
+            </h3>
+            <div className="flex items-center space-x-2">
+              {filteredStories.reduce((sum, story) => sum + (story.storyPoints || 0), 0) > 0 && (
+                <Badge variant="secondary">
+                  Total: {filteredStories.reduce((sum, story) => sum + (story.storyPoints || 0), 0)} points
+                </Badge>
+              )}
             </div>
-          ))}
-        </CardContent>
-      </Card>
+          </div>
+
+          {filteredStories.length > 0 ? (
+            <div className="space-y-4">
+              {filteredStories.map(story => (
+                <StoryCard key={story.id} story={story} />
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <div className="text-muted-foreground space-y-2">
+                  <Target className="w-12 h-12 mx-auto opacity-50" />
+                  <p>No stories with overdue incomplete tasks found</p>
+                  <p className="text-sm">
+                    {selectedProject 
+                      ? 'Stories are filtered to show only those with tasks that are past their due date and still incomplete.'
+                      : 'Please select a project to view stories.'}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+        </>
+      )}
 
       {/* Effort Manager */}
       <EffortManager 

@@ -20,7 +20,11 @@ export { releaseApiService } from './entities/releaseApi';
 export { sprintApiService } from './entities/sprintApi';
 export { storyApiService } from './entities/storyApi';
 export { taskApiService } from './entities/taskApi';
+export { issueApiService } from './entities/issueApi';
 export { subtaskApiService } from './entities/subtaskApi';
+export { attachmentApiService } from './entities/attachmentApi';
+export { workflowLaneApiService } from './entities/workflowLaneApi';
+export type { WorkflowLane } from './entities/workflowLaneApi';
 
 // Utility API Services
 export { dashboardApiService } from './utilities/dashboardApi';
@@ -39,6 +43,7 @@ export type {
   Sprint,
   Story,
   Task,
+  Issue,
   Subtask,
   TimeEntry,
   QualityGate,
@@ -46,6 +51,8 @@ export type {
   Notification,
   Comment,
   Todo,
+  Attachment,
+  ActivityLog,
   DashboardMetrics,
   ChartData,
   SearchFilters,

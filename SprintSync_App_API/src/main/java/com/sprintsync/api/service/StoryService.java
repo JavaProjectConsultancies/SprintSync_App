@@ -28,11 +28,17 @@ public class StoryService {
 
     private final StoryRepository storyRepository;
     private final IdGenerationService idGenerationService;
+    private NotificationService notificationService;
 
     @Autowired
     public StoryService(StoryRepository storyRepository, IdGenerationService idGenerationService) {
         this.storyRepository = storyRepository;
         this.idGenerationService = idGenerationService;
+    }
+
+    @Autowired
+    public void setNotificationService(NotificationService notificationService) {
+        this.notificationService = notificationService;
     }
 
     /**
@@ -272,7 +278,28 @@ public class StoryService {
         if (storyOptional.isPresent()) {
             Story story = storyOptional.get();
             story.setAssigneeId(assigneeId);
-            return storyRepository.save(story);
+            Story savedStory = storyRepository.save(story);
+            
+            // Create notification for the assigned user
+            if (assigneeId != null && !assigneeId.isEmpty() && notificationService != null) {
+                try {
+                    String title = "New Story Assignment";
+                    String message = "You have been assigned to story: " + story.getTitle();
+                    notificationService.createNotification(
+                        assigneeId,
+                        title,
+                        message,
+                        "task",
+                        "story",
+                        story.getId()
+                    );
+                } catch (Exception e) {
+                    // Log error but don't fail the assignment
+                    System.err.println("Failed to create notification for story assignment: " + e.getMessage());
+                }
+            }
+            
+            return savedStory;
         } else {
             throw new IllegalArgumentException("Story not found with ID: " + id);
         }

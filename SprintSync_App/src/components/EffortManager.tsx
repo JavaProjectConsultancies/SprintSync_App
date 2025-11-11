@@ -19,7 +19,7 @@ import {
   History, 
   Target, 
   User, 
-  DollarSign, 
+  IndianRupee, 
   Timer, 
   Plus,
   CalendarIcon,
@@ -641,7 +641,7 @@ const EffortManager: React.FC<EffortManagerProps> = ({
                   <Card>
                     <CardContent className="p-4 space-y-4">
                       <div className="flex items-center space-x-2 mb-3">
-                        <DollarSign className="w-4 h-4 text-green-600" />
+                        <IndianRupee className="w-4 h-4 text-green-600" />
                         <h3 className="font-medium">Billing Information</h3>
                       </div>
 
@@ -703,7 +703,7 @@ const EffortManager: React.FC<EffortManagerProps> = ({
                           )}
                           
                           <div className="flex items-center space-x-2">
-                            <DollarSign className={`w-4 h-4 ${formData.billable ? 'text-green-600' : 'text-gray-400'}`} />
+                            <IndianRupee className={`w-4 h-4 ${formData.billable ? 'text-green-600' : 'text-gray-400'}`} />
                             <span className={`text-sm ${formData.billable ? 'text-green-600' : 'text-gray-500'}`}>
                               {formData.billable ? 'Billable' : 'Non-billable'}
                             </span>
@@ -872,7 +872,7 @@ const EffortManager: React.FC<EffortManagerProps> = ({
                                           </div>
                                           <span className="text-sm font-medium capitalize">{effort.category}</span>
                                           <Badge variant={effort.billable ? "default" : "secondary"} className="text-xs">
-                                            <DollarSign className="w-3 h-3 mr-1" />
+                                            <IndianRupee className="w-3 h-3 mr-1" />
                                             {effort.billable ? 'Billable' : 'Non-billable'}
                                           </Badge>
                                           {effort.taskTitle && (

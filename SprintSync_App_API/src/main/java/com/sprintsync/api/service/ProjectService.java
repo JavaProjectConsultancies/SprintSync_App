@@ -339,6 +339,10 @@ public class ProjectService {
         return projectRepository.findAll();
     }
 
+    public List<Project> getProjectsForUser(String userId) {
+        return projectRepository.findProjectsByUserAccess(userId);
+    }
+
     /**
      * Get all projects with pagination.
      * 

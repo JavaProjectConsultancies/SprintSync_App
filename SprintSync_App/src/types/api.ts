@@ -18,13 +18,14 @@ export interface User extends BaseEntity {
   avatarUrl?: string;
   experience?: string;
   hourlyRate?: number;
+  ctc?: number;
   availabilityPercentage?: number;
   skills?: string;
   isActive: boolean;
   lastLogin?: string;
 }
 
-export type UserRole = 'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'DESIGNER' | 'TESTER' | 'ANALYST';
+export type UserRole = 'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'QA' | 'TESTER' | 'ANALYST';
 
 // Department entity
 export interface Department extends BaseEntity {
@@ -149,15 +150,34 @@ export interface Task extends BaseEntity {
   estimatedHours?: number;
   actualHours: number;
   orderIndex: number;
+  taskNumber?: number;
   dueDate?: string;
   labels?: string[];
 }
 
 export type TaskStatus = 'TO_DO' | 'IN_PROGRESS' | 'QA_REVIEW' | 'DONE' | 'BLOCKED' | 'CANCELLED';
 
+// Issue entity (similar to Task but without template functionality)
+export interface Issue extends BaseEntity {
+  storyId: string;
+  title: string;
+  description?: string;
+  status: TaskStatus;
+  priority: Priority;
+  assigneeId?: string;
+  reporterId?: string;
+  estimatedHours?: number;
+  actualHours: number;
+  orderIndex: number;
+  issueNumber?: number;
+  dueDate?: string;
+  labels?: string[];
+}
+
 // Subtask entity
 export interface Subtask extends BaseEntity {
-  taskId: string;
+  taskId?: string;
+  issueId?: string;
   title: string;
   description?: string;
   isCompleted: boolean;
@@ -168,6 +188,7 @@ export interface Subtask extends BaseEntity {
   dueDate?: string;
   bugType?: string;
   severity?: string;
+  category?: string;
   priority?: Priority;
   status?: TaskStatus;
   labels?: string[];
@@ -313,5 +334,20 @@ export interface ActivityLog {
   description?: string;
   ipAddress?: string;
   userAgent?: string;
+  createdAt: string;
+}
+
+// Attachment entity
+export interface Attachment {
+  id: string;
+  uploadedBy?: string;
+  entityType: string;
+  entityId: string;
+  fileName: string;
+  fileSize?: number;
+  fileType?: string;
+  fileUrl: string;
+  thumbnailUrl?: string;
+  isPublic?: boolean;
   createdAt: string;
 }

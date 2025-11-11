@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContextEnhanced';
 import LoginForm from './components/LoginForm';
@@ -16,6 +16,7 @@ import NotificationDropdown from './components/NotificationDropdown';
 import { Toaster } from './components/ui/sonner';
 import { Brain, Sparkles, ChevronRight } from 'lucide-react';
 import sprintSyncLogo from 'figma:asset/aadf192e83d08c7cc03896c06b452017e84d04aa.png';
+import PageTransition from './components/PageTransition';
 
 // Import page components
 import ProjectsPage from './pages/ProjectsPage';
@@ -29,6 +30,7 @@ import ReportsPage from './pages/ReportsPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPanelPage from './pages/AdminPanelPage';
 import TodoListPage from './pages/TodoListPage';
+import RegistrationPage from './pages/RegistrationPage';
 
 // Import API integration components
 // import ApiIntegrationDemo from './components/ApiIntegrationDemo';
@@ -64,6 +66,34 @@ const AppContent: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Ensure users are redirected to dashboard after login
+  // This effect runs when user state changes (after login)
+  useEffect(() => {
+    // If user is logged in and navigates to an invalid route, redirect to dashboard
+    // This ensures all users always land on dashboard after login
+    if (user) {
+      // If somehow user lands on a non-existent route, redirect to dashboard
+      const validRoutes = ['/', '/projects', '/backlog', '/scrum', '/time-tracking', 
+                          '/ai-insights', '/team-allocation', '/reports', '/profile', 
+                          '/admin-panel', '/todo-list'];
+      const isValidRoute = validRoutes.includes(location.pathname) || 
+                          location.pathname.startsWith('/projects/');
+      
+      if (!isValidRoute && location.pathname !== '/') {
+        navigate('/');
+      }
+      
+      // Prefetch projects when navigating to dashboard for faster loading
+      if (location.pathname === '/' && user.id) {
+        import('./hooks/api/useProjects').then(({ prefetchProjects }) => {
+          prefetchProjects(user.id).catch(() => {
+            // Silently fail - projects will be fetched by hook
+          });
+        });
+      }
+    }
+  }, [user, location.pathname, navigate]);
+
   // Get page title and description based on route
   const getPageInfo = (path: string) => {
     const routes: { [key: string]: { title: string; description: string; icon: string } } = {
@@ -92,7 +122,7 @@ const AppContent: React.FC = () => {
       admin: ['/', '/projects', '/team-allocation', '/reports', '/profile', '/admin-panel'],
       manager: ['/', '/projects', '/scrum', '/time-tracking', '/ai-insights', '/team-allocation', '/reports', '/profile', '/todo-list'],
       developer: ['/', '/projects', '/scrum', '/time-tracking', '/ai-insights', '/reports', '/profile', '/todo-list'], // Removed team-allocation for developers
-      designer: ['/', '/projects', '/scrum', '/time-tracking', '/ai-insights', '/reports', '/profile', '/todo-list'] // Removed team-allocation for designers
+      qa: ['/', '/projects', '/scrum', '/time-tracking', '/ai-insights', '/team-allocation', '/reports', '/profile', '/todo-list'] // QA has manager-level access including team-allocation
     };
     
     return roleAccess[role]?.includes(path) || false;
@@ -145,47 +175,58 @@ const AppContent: React.FC = () => {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-white to-cyan-50">
-        <div className="w-full max-w-md p-6">
-          <div className="text-center mb-8">
-            <div className="flex justify-center mb-4">
-              <img 
-                src={sprintSyncLogo} 
-                alt="SprintSync" 
-                className="w-16 h-16 object-contain"
-              />
-            </div>
-            <h1 className="text-2xl font-bold text-green-600">SprintSync</h1>
-            <p className="text-muted-foreground">Your Agile Project Management Solution</p>
-          </div>
-          
-          <LoginForm
-            onLoginSuccess={(token, userData) => {
-              console.log('Login successful from LoginForm - Token:', token);
-              console.log('Login successful from LoginForm - User:', userData);
+      <Routes>
+        <Route path="/register" element={<RegistrationPage />} />
+        <Route path="*" element={
+          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-white to-cyan-50">
+            <div className="w-full max-w-md p-6">
+              <div className="text-center mb-8">
+                <div className="flex justify-center mb-4">
+                  <img 
+                    src={sprintSyncLogo} 
+                    alt="SprintSync" 
+                    className="w-16 h-16 object-contain"
+                  />
+                </div>
+                <h1 className="text-2xl font-bold text-green-600">SprintSync</h1>
+                <p className="text-muted-foreground">Your Agile Project Management Solution</p>
+              </div>
               
-              // Directly set the auth state with the received data
-              setAuthState(token, userData);
-              console.log('Auth state updated successfully');
-            }}
-            onLoginError={(error) => {
-              console.error('Login failed from LoginForm:', error);
-              // The AuthContext will handle the error state
-            }}
-            isLoading={isLoading}
-          />
-          
-          {loginError && (
-            <div className="mt-4">
-              <Alert className="border-red-200 bg-red-50">
-                <AlertDescription className="text-red-800">
-                  {loginError}
-                </AlertDescription>
-              </Alert>
+              <LoginForm
+                onLoginSuccess={(token, userData) => {
+                  console.log('Login successful from LoginForm - Token:', token);
+                  console.log('Login successful from LoginForm - User:', userData);
+                  
+                  // Directly set the auth state with the received data
+                  setAuthState(token, userData);
+                  console.log('Auth state updated successfully');
+                  
+                  // Redirect to dashboard after successful login (for all users)
+                  // Use setTimeout to ensure state is updated before navigation
+                  setTimeout(() => {
+                    navigate('/');
+                  }, 100);
+                }}
+                onLoginError={(error) => {
+                  console.error('Login failed from LoginForm:', error);
+                  // The AuthContext will handle the error state
+                }}
+                isLoading={isLoading}
+              />
+              
+              {loginError && (
+                <div className="mt-4">
+                  <Alert className="border-red-200 bg-red-50">
+                    <AlertDescription className="text-red-800">
+                      {loginError}
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        } />
+      </Routes>
     );
   }
 
@@ -202,6 +243,7 @@ const AppContent: React.FC = () => {
       case 'developer':
         return 'bg-green-100 text-green-800 border-green-200';
       case 'designer':
+      case 'qa':
         return 'bg-purple-100 text-purple-800 border-purple-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
@@ -344,77 +386,79 @@ const AppContent: React.FC = () => {
 
           {/* Route Content - Uses remaining space */}
           <div className="flex-1 min-h-0 px-6 pb-6">
-                <Routes>
-                  {/* Dashboard - accessible by all roles */}
-                  <Route path="/" element={<Dashboard />} />
-                  
-                  {/* Projects - accessible by all roles */}
-                  <Route path="/projects" element={<ProjectsPage />} />
-                  <Route path="/projects/:id" element={<ProjectDetailsPage />} />
-                  
-                  {/* Backlog - accessible by all roles */}
-                  <Route path="/backlog" element={<BacklogPage />} />
-                  
-                  {/* Scrum Management - accessible by manager, developer, designer */}
-                  <Route path="/scrum" element={
-                    <ProtectedRoute allowedRoles={['manager', 'developer', 'designer']}>
-                      <ScrumPage />
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* Time Tracking - accessible by manager, developer, designer */}
-                  <Route path="/time-tracking" element={
-                    <ProtectedRoute allowedRoles={['manager', 'developer', 'designer']}>
-                      <TimeTrackingPage />
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* AI Insights - accessible by manager, developer, designer */}
-                  <Route path="/ai-insights" element={
-                    <ProtectedRoute allowedRoles={['manager', 'developer', 'designer']}>
-                      <AIInsightsPage />
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* Team Allocation - accessible by admin and manager only */}
-                  <Route path="/team-allocation" element={
-                    <ProtectedRoute allowedRoles={['admin', 'manager']}>
-                      <TeamAllocationPage />
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* Reports - accessible by all roles */}
-                  <Route path="/reports" element={<ReportsPage />} />
-                  
-                  {/* Profile - accessible by all roles */}
-                  <Route path="/profile" element={<ProfilePage />} />
-                  
-                  {/* Admin Panel - accessible by admin only */}
-                  <Route path="/admin-panel" element={
-                    <ProtectedRoute allowedRoles={['admin']}>
-                      <AdminPanelPage />
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* Todo List - accessible by manager, developer, designer */}
-                  <Route path="/todo-list" element={
-                    <ProtectedRoute allowedRoles={['manager', 'developer', 'designer']}>
-                      <TodoListPage />
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* API Demo - accessible by all roles */}
-                  {/* <Route path="/api-demo" element={<ApiIntegrationDemo />} /> */}
-                  
-                  {/* API Status - accessible by all roles */}
-                  {/* <Route path="/api-status" element={<ApiStatusChecker />} /> */}
-                  
-                  {/* API Test - accessible by all roles */}
-                  {/* <Route path="/api-test" element={<ApiTestComponent />} /> */}
-                  
-                  {/* Catch-all route for preview and other unmatched paths */}
-                  <Route path="*" element={<Dashboard />} />
-                </Routes>
+                <PageTransition>
+                  <Routes>
+                    {/* Dashboard - accessible by all roles */}
+                    <Route path="/" element={<Dashboard />} />
+                    
+                    {/* Projects - accessible by all roles */}
+                    <Route path="/projects" element={<ProjectsPage />} />
+                    <Route path="/projects/:id" element={<ProjectDetailsPage />} />
+                    
+                    {/* Backlog - accessible by all roles */}
+                    <Route path="/backlog" element={<BacklogPage />} />
+                    
+                    {/* Scrum Management - accessible by manager, developer, designer */}
+                    <Route path="/scrum" element={
+                      <ProtectedRoute allowedRoles={['manager', 'developer', 'qa']}>
+                        <ScrumPage />
+                      </ProtectedRoute>
+                    } />
+                    
+                    {/* Time Tracking - accessible by manager, developer, designer */}
+                    <Route path="/time-tracking" element={
+                      <ProtectedRoute allowedRoles={['manager', 'developer', 'qa']}>
+                        <TimeTrackingPage />
+                      </ProtectedRoute>
+                    } />
+                    
+                    {/* AI Insights - accessible by manager, developer, designer */}
+                    <Route path="/ai-insights" element={
+                      <ProtectedRoute allowedRoles={['manager', 'developer', 'qa']}>
+                        <AIInsightsPage />
+                      </ProtectedRoute>
+                    } />
+                    
+                    {/* Team Allocation - accessible by admin, manager, and qa (qa has manager-level access) */}
+                    <Route path="/team-allocation" element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager', 'qa']}>
+                        <TeamAllocationPage />
+                      </ProtectedRoute>
+                    } />
+                    
+                    {/* Reports - accessible by all roles */}
+                    <Route path="/reports" element={<ReportsPage />} />
+                    
+                    {/* Profile - accessible by all roles */}
+                    <Route path="/profile" element={<ProfilePage />} />
+                    
+                    {/* Admin Panel - accessible by admin only */}
+                    <Route path="/admin-panel" element={
+                      <ProtectedRoute allowedRoles={['admin']}>
+                        <AdminPanelPage />
+                      </ProtectedRoute>
+                    } />
+                    
+                    {/* Todo List - accessible by manager, developer, designer */}
+                    <Route path="/todo-list" element={
+                      <ProtectedRoute allowedRoles={['manager', 'developer', 'qa']}>
+                        <TodoListPage />
+                      </ProtectedRoute>
+                    } />
+                    
+                    {/* API Demo - accessible by all roles */}
+                    {/* <Route path="/api-demo" element={<ApiIntegrationDemo />} /> */}
+                    
+                    {/* API Status - accessible by all roles */}
+                    {/* <Route path="/api-status" element={<ApiStatusChecker />} /> */}
+                    
+                    {/* API Test - accessible by all roles */}
+                    {/* <Route path="/api-test" element={<ApiTestComponent />} /> */}
+                    
+                    {/* Catch-all route for preview and other unmatched paths */}
+                    <Route path="*" element={<Dashboard />} />
+                  </Routes>
+                </PageTransition>
           </div>
         </main>
       </SidebarInset>

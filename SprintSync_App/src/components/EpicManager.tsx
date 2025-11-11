@@ -169,12 +169,103 @@ const EpicManager = ({
     completedStoryPoints: epics.reduce((sum, epic) => sum + epic.completedStoryPoints, 0)
   };
 
-  const handleCreateFromTemplate = () => {
+  // Helper function to convert API Epic to local Epic format for display
+  const convertApiEpicToLocal = (apiEpic: ApiEpic): Epic => {
+    // Map API status to local status
+    const mapApiStatusToLocal = (status: string): EpicStatus => {
+      switch (status) {
+        case 'PLANNING': return 'planning';
+        case 'ACTIVE': return 'in-progress';
+        case 'COMPLETED': return 'completed';
+        case 'CANCELLED': return 'cancelled';
+        default: return 'planning';
+      }
+    };
+
+    // Map API priority to local priority
+    const mapApiPriorityToLocal = (priority: string): 'low' | 'medium' | 'high' | 'critical' => {
+      switch (priority) {
+        case 'LOW': return 'low';
+        case 'MEDIUM': return 'medium';
+        case 'HIGH': return 'high';
+        case 'CRITICAL': return 'critical';
+        default: return 'medium';
+      }
+    };
+
+    return {
+      id: apiEpic.id,
+      projectId: apiEpic.projectId,
+      title: apiEpic.title,
+      description: apiEpic.description || '',
+      summary: apiEpic.summary || '',
+      priority: mapApiPriorityToLocal(apiEpic.priority),
+      status: mapApiStatusToLocal(apiEpic.status),
+      assigneeId: apiEpic.assigneeId,
+      owner: apiEpic.owner,
+      startDate: apiEpic.startDate || new Date().toISOString(),
+      endDate: apiEpic.endDate || new Date().toISOString(),
+      progress: apiEpic.progress || 0,
+      storyPoints: apiEpic.storyPoints || 0,
+      completedStoryPoints: 0, // API doesn't provide this, default to 0
+      linkedMilestones: [], // API doesn't provide this
+      linkedStories: [], // API doesn't provide this
+      labels: [], // API doesn't provide this
+      components: [], // API doesn't provide this
+      theme: apiEpic.theme || '',
+      businessValue: apiEpic.businessValue || '',
+      acceptanceCriteria: [], // API doesn't provide this
+      risks: [], // API doesn't provide this
+      dependencies: [], // API doesn't provide this
+      createdAt: apiEpic.createdAt,
+      updatedAt: apiEpic.updatedAt,
+      completedAt: undefined
+    };
+  };
+
+  // Handle creating epic from template
+  const handleCreateFromTemplate = async () => {
     if (selectedTemplate) {
-      const newEpic = createEpicFromTemplate(selectedTemplate, projectId, currentUserId);
-      onAddEpic(newEpic);
-      setSelectedTemplate(null);
-      setShowTemplateDialog(false);
+      try {
+        // Create epic from template (local format)
+        const templateEpic = createEpicFromTemplate(selectedTemplate, projectId, currentUserId);
+        
+        // Map template epic data to API structure
+        const apiEpicData: Omit<ApiEpic, 'id' | 'createdAt' | 'updatedAt'> = {
+          title: templateEpic.title || selectedTemplate.title,
+          description: templateEpic.description || selectedTemplate.description,
+          summary: templateEpic.summary || selectedTemplate.summary,
+          theme: templateEpic.theme || selectedTemplate.theme,
+          businessValue: templateEpic.businessValue || selectedTemplate.businessValue,
+          projectId: projectId,
+          status: 'PLANNING', // Map 'backlog' from template to 'PLANNING' for API
+          priority: mapPriorityToApi(templateEpic.priority || selectedTemplate.priority),
+          owner: currentUserId,
+          assigneeId: templateEpic.assigneeId || undefined,
+          startDate: templateEpic.startDate ? new Date(templateEpic.startDate).toISOString().split('T')[0] : undefined,
+          endDate: templateEpic.endDate ? new Date(templateEpic.endDate).toISOString().split('T')[0] : undefined,
+          storyPoints: templateEpic.storyPoints || selectedTemplate.estimatedStoryPoints || 0,
+          progress: 0,
+          isActive: true
+        };
+
+        // Save epic to database via API
+        const createdEpicResponse = await createEpicApi(apiEpicData);
+        console.log('Epic created from template successfully:', createdEpicResponse);
+        
+        // Convert API epic to local format for display
+        const localEpic = convertApiEpicToLocal(createdEpicResponse.data);
+        
+        // Call the parent callback to refresh the epic list with the created epic
+        onAddEpic(localEpic);
+        
+        // Reset template selection and close dialog
+        setSelectedTemplate(null);
+        setShowTemplateDialog(false);
+      } catch (error) {
+        console.error('Failed to create epic from template:', error);
+        // Error is already handled by the hook
+      }
     }
   };
 
@@ -201,11 +292,14 @@ const EpicManager = ({
           isActive: true
         };
 
-        const createdEpic = await createEpicApi(apiEpicData);
-        console.log('Epic created successfully:', createdEpic);
+        const createdEpicResponse = await createEpicApi(apiEpicData);
+        console.log('Epic created successfully:', createdEpicResponse);
+        
+        // Convert API epic to local format for display
+        const localEpic = convertApiEpicToLocal(createdEpicResponse.data);
         
         // Call the parent callback to refresh the epic list with the created epic
-        onAddEpic(createdEpic);
+        onAddEpic(localEpic);
         
         setShowAddDialog(false);
         
@@ -288,8 +382,9 @@ const EpicManager = ({
                 From Template
               </Button>
               <Button
+                variant="outline"
                 onClick={() => setShowAddDialog(true)}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="border-blue-300 text-blue-700 hover:bg-blue-50"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Create Epic
@@ -517,6 +612,11 @@ const EpicManager = ({
               Choose from predefined epic templates to quickly create common project initiatives.
             </DialogDescription>
           </DialogHeader>
+          {createError && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-3">
+              <p className="text-sm text-red-600">{createError}</p>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
             {epicTemplates.map((template) => (
               <Card 
@@ -558,14 +658,18 @@ const EpicManager = ({
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowTemplateDialog(false)}>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowTemplateDialog(false)}
+              disabled={createLoading}
+            >
               Cancel
             </Button>
             <Button 
               onClick={handleCreateFromTemplate}
-              disabled={!selectedTemplate}
+              disabled={!selectedTemplate || createLoading}
             >
-              Create Epic from Template
+              {createLoading ? 'Creating...' : 'Create Epic from Template'}
             </Button>
           </DialogFooter>
         </DialogContent>

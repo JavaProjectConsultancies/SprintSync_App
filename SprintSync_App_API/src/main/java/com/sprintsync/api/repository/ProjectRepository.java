@@ -184,4 +184,7 @@ public interface ProjectRepository extends JpaRepository<Project, String> {
      */
     @Query("SELECT MAX(p.id) FROM Project p")
     Optional<String> findMaxId();
+
+    @Query("SELECT DISTINCT p FROM Project p WHERE EXISTS (SELECT 1 FROM ProjectTeamMember ptm WHERE ptm.projectId = p.id AND ptm.userId = :userId)")
+    List<Project> findProjectsByUserAccess(@Param("userId") String userId);
 }

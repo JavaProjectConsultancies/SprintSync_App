@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContextEnhanced';
 import { useNavigation } from '../contexts/NavigationContext';
@@ -14,35 +14,173 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { Bell, Check, AlertTriangle, Users, FolderKanban, Brain, Clock, ExternalLink } from 'lucide-react';
-import { mockNotifications } from '../data/mockData';
+import { notificationApiService } from '../services/api/entities/notificationApi';
 import { toast } from 'sonner';
+
+interface Notification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: string;
+  isRead: boolean;
+  createdAt: string;
+  relatedEntityType?: string;
+  relatedEntityId?: string;
+}
 
 const NotificationDropdown: React.FC = () => {
   const { user } = useAuth();
   const { navigateTo } = useNavigation();
   const navigate = useNavigate();
-  const [notifications, setNotifications] = useState(mockNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const mapNotificationType = (type: string): string => {
+    const typeMap: { [key: string]: string } = {
+      'task': 'task-assignment',
+      'project': 'project-risk',
+      'story': 'task-assignment',
+      'system': 'deadline-warning'
+    };
+    return typeMap[type] || 'task-assignment';
+  };
+
+  const getActionUrl = (type: string, entityId: string): string => {
+    const urlMap: { [key: string]: string } = {
+      'task': '/scrum/tasks',
+      'project': '/projects',
+      'story': '/scrum/stories'
+    };
+    return urlMap[type] || '/dashboard';
+  };
+
+  const fetchNotifications = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setLoading(true);
+      const response = await notificationApiService.getNotificationsByUserId(user.id);
+      
+      console.log('Notification API Response:', response);
+      console.log('User ID:', user.id);
+      
+      // Handle response - data might be directly an array or wrapped
+      const notificationsData = Array.isArray(response.data) 
+        ? response.data 
+        : (response.data?.data || response.data?.content || []);
+      
+      console.log('Notifications Data:', notificationsData);
+      
+      // Transform backend notifications to match frontend format
+      const transformedNotifications = notificationsData.map((n: any) => ({
+        id: n.id,
+        userId: n.userId,
+        title: n.title,
+        message: n.message,
+        type: mapNotificationType(n.type || 'task'),
+        isRead: n.isRead || false,
+        read: n.isRead || false,
+        createdAt: n.createdAt || n.created_at || new Date().toISOString(),
+        relatedEntityType: n.relatedEntityType,
+        relatedEntityId: n.relatedEntityId,
+        priority: 'medium',
+        actionUrl: n.relatedEntityId ? getActionUrl(n.type || 'task', n.relatedEntityId) : undefined
+      }));
+      
+      console.log('Transformed Notifications:', transformedNotifications);
+      setNotifications(transformedNotifications);
+    } catch (error: any) {
+      console.error('Failed to fetch notifications:', error);
+      console.error('Error details:', error.message, error.status, error.code);
+      // Don't show error toast on initial load, just log it
+      if (notifications.length > 0) {
+        toast.error('Failed to load notifications');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch notifications when component mounts or user changes
+  useEffect(() => {
+    if (user?.id) {
+      fetchNotifications();
+      
+      // Set up periodic refresh every 30 seconds
+      const interval = setInterval(() => {
+        fetchNotifications();
+      }, 30000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [user?.id]);
 
   if (!user) return null;
 
-  // Filter notifications for current user
-  const userNotifications = notifications.filter(n => n.userId === user.id);
-  const unreadCount = userNotifications.filter(n => !n.read).length;
-
-  const markAsRead = (notificationId: string) => {
-    setNotifications(prev => 
-      prev.map(n => 
-        n.id === notificationId ? { ...n, read: true } : n
-      )
-    );
+  // Normalize user ID for comparison (handle different formats)
+  const normalizeUserId = (id: string) => {
+    if (!id) return '';
+    // Remove any whitespace and convert to lowercase for comparison
+    return id.trim().toLowerCase();
   };
 
-  const markAllAsRead = () => {
-    setNotifications(prev => 
-      prev.map(n => 
-        n.userId === user.id ? { ...n, read: true } : n
-      )
-    );
+  const currentUserId = normalizeUserId(user.id);
+  
+  // Filter notifications for current user (handle different ID formats)
+  const userNotifications = notifications.filter(n => {
+    const notificationUserId = normalizeUserId(n.userId);
+    const matches = notificationUserId === currentUserId;
+    if (!matches && n.userId && user.id) {
+      console.log('User ID mismatch:', {
+        notificationUserId: n.userId,
+        currentUserId: user.id,
+        normalizedNotification: notificationUserId,
+        normalizedCurrent: currentUserId
+      });
+    }
+    return matches;
+  });
+  const unreadCount = userNotifications.filter(n => !n.read && !n.isRead).length;
+
+  const markAsRead = async (notificationId: string) => {
+    try {
+      await notificationApiService.markAsRead(notificationId);
+      setNotifications(prev => 
+        prev.map(n => 
+          n.id === notificationId ? { ...n, read: true, isRead: true } : n
+        )
+      );
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+      // Update UI optimistically even if API call fails
+      setNotifications(prev => 
+        prev.map(n => 
+          n.id === notificationId ? { ...n, read: true, isRead: true } : n
+        )
+      );
+    }
+  };
+
+  const markAllAsRead = async () => {
+    if (!user?.id) return;
+    
+    try {
+      await notificationApiService.markAllAsRead(user.id);
+      setNotifications(prev => 
+        prev.map(n => 
+          n.userId === user.id ? { ...n, read: true, isRead: true } : n
+        )
+      );
+    } catch (error) {
+      console.error('Failed to mark all notifications as read:', error);
+      // Update UI optimistically even if API call fails
+      setNotifications(prev => 
+        prev.map(n => 
+          n.userId === user.id ? { ...n, read: true, isRead: true } : n
+        )
+      );
+    }
   };
 
   const handleNotificationClick = (notification: any) => {
@@ -146,8 +284,18 @@ const NotificationDropdown: React.FC = () => {
     return date.toLocaleDateString();
   };
 
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Refresh notifications when dropdown opens
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    if (open && user?.id) {
+      fetchNotifications();
+    }
+  };
+
   return (
-    <DropdownMenu>
+    <DropdownMenu open={isOpen} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-4 w-4" />
@@ -191,7 +339,7 @@ const NotificationDropdown: React.FC = () => {
                 <DropdownMenuItem
                   key={notification.id}
                   className={`flex flex-col items-start p-4 cursor-pointer hover:bg-gray-50 transition-colors ${
-                    !notification.read ? 'bg-blue-50' : ''
+                    (!notification.read && !notification.isRead) ? 'bg-blue-50' : ''
                   }`}
                   onClick={() => handleNotificationClick(notification)}
                 >
@@ -205,7 +353,7 @@ const NotificationDropdown: React.FC = () => {
                           {notification.title}
                         </h4>
                         <div className="flex items-center space-x-2">
-                          {!notification.read && (
+                          {(!notification.read && !notification.isRead) && (
                             <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1"></div>
                           )}
                           {notification.actionUrl && (
@@ -219,9 +367,9 @@ const NotificationDropdown: React.FC = () => {
                       <div className="flex items-center justify-between">
                         <Badge 
                           variant="outline" 
-                          className={`text-xs ${getPriorityColor(notification.priority)}`}
+                          className={`text-xs ${getPriorityColor(notification.priority || 'medium')}`}
                         >
-                          {notification.priority}
+                          {notification.priority || 'medium'}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
                           {formatTimeAgo(notification.createdAt)}
