@@ -8,18 +8,28 @@ import com.sprintsync.api.repository.ProjectTeamMemberRepository;
 import com.sprintsync.api.repository.SprintRepository;
 import com.sprintsync.api.repository.TaskRepository;
 import com.sprintsync.api.repository.StoryRepository;
+import com.sprintsync.api.entity.enums.SprintStatus;
+import com.sprintsync.api.entity.enums.TaskStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Service for mapping between Project entity and ProjectDto
  */
 @Service
 public class ProjectMapper {
+
+    private static final Logger logger = LoggerFactory.getLogger(ProjectMapper.class);
 
     @Autowired
     private UserRepository userRepository;
@@ -67,10 +77,14 @@ public class ProjectMapper {
      * Convert Project entity to ProjectDto
      */
     public ProjectDto toDto(Project project) {
-        return toDto(project, true);
+        return toDto(project, true, true);
     }
 
     public ProjectDto toDto(Project project, boolean includeDetails) {
+        return toDto(project, includeDetails, includeDetails);
+    }
+
+    public ProjectDto toDto(Project project, boolean includeDetails, boolean includeTeamMetrics) {
         if (project == null) {
             return null;
         }
@@ -106,7 +120,7 @@ public class ProjectMapper {
         }
 
         // Get team members and high-level metrics
-        dto.setTeamMembers(getTeamMembers(project.getId()));
+        dto.setTeamMembers(getTeamMembers(project.getId(), includeTeamMetrics));
         dto.setSprints(getSprintCount(project.getId()));
         dto.setCompletedSprints(getCompletedSprintCount(project.getId()));
         dto.setTotalTasks(getTotalTaskCount(project.getId()));
@@ -224,75 +238,104 @@ public class ProjectMapper {
     /**
      * Get team members for a project
      */
-    private List<TeamMemberDto> getTeamMembers(String projectId) {
-        final List<TeamMemberDto> teamMembers = new ArrayList<>();
-        
+    private List<TeamMemberDto> getTeamMembers(String projectId, boolean includeMetrics) {
         try {
-            System.out.println("DEBUG: Fetching team members for project: " + projectId);
-            
-            // Get team members from repository
-            List<com.sprintsync.api.entity.ProjectTeamMember> projectTeamMembers = 
-                projectTeamMemberRepository.findByProjectId(projectId);
-            
-            projectTeamMembers.forEach(teamMember -> {
-                userRepository.findById(teamMember.getUserId()).ifPresent(user -> {
-                    TeamMemberDto dto = new TeamMemberDto();
-                    dto.setId(user.getId());
-                    dto.setName(user.getName());
-                    dto.setRole(teamMember.getRole());
-                    dto.setIsTeamLead(teamMember.getIsTeamLead());
-                    dto.setAvailability(teamMember.getAllocationPercentage());
-                    
-                    // Get department name
-                    if (user.getDepartmentId() != null) {
-                        departmentRepository.findById(user.getDepartmentId())
-                            .ifPresent(dept -> dto.setDepartment(dept.getName()));
-                    }
-                    
-                    // Calculate real workload based on task assignments
+            List<com.sprintsync.api.entity.ProjectTeamMember> assignments = projectTeamMemberRepository.findByProjectId(projectId);
+            if (assignments == null || assignments.isEmpty()) {
+                return Collections.emptyList();
+            }
+
+            List<String> userIds = assignments.stream()
+                    .map(com.sprintsync.api.entity.ProjectTeamMember::getUserId)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .collect(Collectors.toList());
+
+            if (userIds.isEmpty()) {
+                return Collections.emptyList();
+            }
+
+            Map<String, com.sprintsync.api.entity.User> usersById = userRepository.findAllById(userIds).stream()
+                    .collect(Collectors.toMap(com.sprintsync.api.entity.User::getId, user -> user));
+
+            if (usersById.isEmpty()) {
+                return Collections.emptyList();
+            }
+
+            Set<String> departmentIds = usersById.values().stream()
+                    .map(com.sprintsync.api.entity.User::getDepartmentId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+
+            Map<String, String> departmentNamesById = departmentIds.isEmpty()
+                    ? Collections.emptyMap()
+                    : departmentRepository.findAllById(departmentIds).stream()
+                        .collect(Collectors.toMap(com.sprintsync.api.entity.Department::getId,
+                                                  com.sprintsync.api.entity.Department::getName));
+
+            List<TeamMemberDto> teamMembers = new ArrayList<>(assignments.size());
+
+            for (com.sprintsync.api.entity.ProjectTeamMember assignment : assignments) {
+                com.sprintsync.api.entity.User user = usersById.get(assignment.getUserId());
+                if (user == null) {
+                    continue;
+                }
+
+                TeamMemberDto dto = new TeamMemberDto();
+                dto.setId(user.getId());
+                dto.setName(user.getName());
+                dto.setRole(assignment.getRole());
+                dto.setIsTeamLead(assignment.getIsTeamLead());
+                dto.setAvailability(assignment.getAllocationPercentage());
+
+                if (user.getDepartmentId() != null) {
+                    dto.setDepartment(departmentNamesById.get(user.getDepartmentId()));
+                }
+
+                dto.setExperience(user.getExperience() != null ? user.getExperience().getValue() : "mid");
+                dto.setHourlyRate(user.getHourlyRate() != null ? user.getHourlyRate().doubleValue() : 0.0);
+                dto.setAvatar(user.getAvatarUrl());
+                dto.setSkills(parseSkills(user.getSkills()));
+
+                if (includeMetrics) {
                     dto.setWorkload(calculateWorkload(user.getId()));
-                    
-                    // Calculate real performance based on task completion rates
                     dto.setPerformance(calculatePerformance(user.getId()));
-                    
-                    // Set additional user data
-                    dto.setExperience(user.getExperience() != null ? user.getExperience().getValue() : "mid");
-                    dto.setHourlyRate(user.getHourlyRate() != null ? user.getHourlyRate().doubleValue() : 0.0);
-                    dto.setAvatar(user.getAvatarUrl());
-                    
-                    // Set skills - parse JSON string to String array
-                    if (user.getSkills() != null && !user.getSkills().trim().isEmpty()) {
-                        try {
-                            // Parse JSON array string to String array
-                            String skillsJson = user.getSkills().trim();
-                            if (skillsJson.startsWith("[") && skillsJson.endsWith("]")) {
-                                // Remove brackets and split by comma
-                                skillsJson = skillsJson.substring(1, skillsJson.length() - 1);
-                                String[] skills = skillsJson.split(",");
-                                // Clean up each skill (remove quotes and trim)
-                                for (int i = 0; i < skills.length; i++) {
-                                    skills[i] = skills[i].trim().replaceAll("^\"|\"$", "");
-                                }
-                                dto.setSkills(skills);
-                            }
-                        } catch (Exception e) {
-                            System.err.println("Error parsing skills for user " + user.getId() + ": " + e.getMessage());
-                            dto.setSkills(new String[0]); // Set empty array if parsing fails
-                        }
-                    } else {
-                        dto.setSkills(new String[0]); // Set empty array if no skills
-                    }
-                    
-                    teamMembers.add(dto);
-                });
-            });
-            
+                }
+
+                teamMembers.add(dto);
+            }
+
+            return teamMembers;
         } catch (Exception e) {
-            System.err.println("DEBUG: Error fetching team members: " + e.getMessage());
-            e.printStackTrace();
+            logger.warn("Failed to load team members for project {}: {}", projectId, e.getMessage());
+            return Collections.emptyList();
         }
-        
-        return teamMembers;
+    }
+
+    private String[] parseSkills(String skillsJson) {
+        if (skillsJson == null || skillsJson.trim().isEmpty()) {
+            return new String[0];
+        }
+
+        try {
+            String trimmed = skillsJson.trim();
+            if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+                trimmed = trimmed.substring(1, trimmed.length() - 1);
+                if (trimmed.isEmpty()) {
+                    return new String[0];
+                }
+
+                String[] skills = trimmed.split(",");
+                for (int i = 0; i < skills.length; i++) {
+                    skills[i] = skills[i].trim().replaceAll("^\"|\"$", "");
+                }
+                return skills;
+            }
+        } catch (Exception ex) {
+            logger.debug("Unable to parse skills JSON '{}': {}", skillsJson, ex.getMessage());
+        }
+
+        return new String[0];
     }
 
     /**
@@ -395,10 +438,7 @@ public class ProjectMapper {
      */
     private Integer getCompletedSprintCount(String projectId) {
         try {
-            // Count completed sprints by project ID
-            return (int) sprintRepository.findByProjectId(projectId).stream()
-                .filter(sprint -> "completed".equalsIgnoreCase(sprint.getStatus().getValue()))
-                .count();
+            return (int) sprintRepository.countByProjectIdAndStatus(projectId, SprintStatus.COMPLETED);
         } catch (Exception e) {
             return 0;
         }
@@ -409,16 +449,12 @@ public class ProjectMapper {
      */
     private Integer getTotalTaskCount(String projectId) {
         try {
-            // Get all stories for this project
-            List<com.sprintsync.api.entity.Story> stories = storyRepository.findByProjectId(projectId);
-            
-            // Count all tasks across all stories
-            int totalTasks = 0;
-            for (com.sprintsync.api.entity.Story story : stories) {
-                totalTasks += taskRepository.countByStoryId(story.getId());
+            List<String> storyIds = storyRepository.findIdsByProjectId(projectId);
+            if (storyIds == null || storyIds.isEmpty()) {
+                return 0;
             }
-            
-            return totalTasks;
+
+            return (int) taskRepository.countByStoryIds(storyIds);
         } catch (Exception e) {
             return 0;
         }
@@ -429,21 +465,12 @@ public class ProjectMapper {
      */
     private Integer getCompletedTaskCount(String projectId) {
         try {
-            // Get all stories for this project
-            List<com.sprintsync.api.entity.Story> stories = storyRepository.findByProjectId(projectId);
-            
-            // Count completed tasks across all stories
-            int completedTasks = 0;
-            for (com.sprintsync.api.entity.Story story : stories) {
-                List<com.sprintsync.api.entity.Task> tasks = taskRepository.findByStoryId(story.getId());
-                for (com.sprintsync.api.entity.Task task : tasks) {
-                    if ("DONE".equalsIgnoreCase(task.getStatus().name())) {
-                        completedTasks++;
-                    }
-                }
+            List<String> storyIds = storyRepository.findIdsByProjectId(projectId);
+            if (storyIds == null || storyIds.isEmpty()) {
+                return 0;
             }
-            
-            return completedTasks;
+
+            return (int) taskRepository.countByStoryIdsAndStatus(storyIds, TaskStatus.DONE);
         } catch (Exception e) {
             return 0;
         }

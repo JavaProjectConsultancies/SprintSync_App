@@ -3,6 +3,7 @@ package com.sprintsync.api.service;
 import com.sprintsync.api.entity.*;
 import com.sprintsync.api.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -764,20 +765,18 @@ public class SearchService {
     /**
      * Search overdue items
      */
+    @Cacheable(cacheNames = "searchOverdue", cacheManager = "shortLivedCacheManager", key = "#entityType == null ? 'all' : #entityType")
     public Map<String, Object> searchOverdueItems(String entityType) {
         Map<String, Object> results = new HashMap<>();
-        LocalDateTime now = LocalDateTime.now();
+        LocalDate today = LocalDate.now();
         
         if (entityType == null || "task".equals(entityType)) {
-            List<Task> tasks = taskRepository.findOverdueTasks(now);
+            List<Task> tasks = taskRepository.findOverdueTasks(today, com.sprintsync.api.entity.enums.TaskStatus.DONE);
             results.put("tasks", tasks);
         }
         
         if (entityType == null || "subtask".equals(entityType)) {
-            List<Subtask> subtasks = subtaskRepository.findAll().stream()
-                .filter(subtask -> subtask.getDueDate() != null && subtask.getDueDate().isBefore(now.toLocalDate()))
-                .filter(subtask -> !subtask.getIsCompleted())
-                .collect(Collectors.toList());
+            List<Subtask> subtasks = subtaskRepository.findOverdueSubtasks(today);
             results.put("subtasks", subtasks);
         }
         

@@ -15,6 +15,7 @@ import {
 import { usePendingRegistrations, useDeletePendingRegistration } from '../hooks/api/usePendingRegistrations';
 import { useDepartments } from '../hooks/api/useDepartments';
 import { useDomains } from '../hooks/api/useDomains';
+import { normalizeExperienceValue } from '../hooks/api/useExperienceLevels';
 import { PendingRegistration } from '../services/api/entities/pendingRegistrationApi';
 import AddUserForm from './AddUserForm';
 
@@ -112,7 +113,7 @@ const PendingRegistrationsTab: React.FC<PendingRegistrationsTabProps> = ({ onRef
       departmentId: pendingReg.departmentId || 'none',
       domainId: pendingReg.domainId || 'none',
       avatarUrl: '',
-      experience: 'mid',
+      experience: normalizeExperienceValue(pendingReg.experience) || 'E1',
       hourlyRate: '',
       availabilityPercentage: '100',
       skills: '',

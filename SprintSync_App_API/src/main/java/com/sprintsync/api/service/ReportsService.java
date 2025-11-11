@@ -3,6 +3,7 @@ package com.sprintsync.api.service;
 import com.sprintsync.api.entity.*;
 import com.sprintsync.api.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -522,16 +523,15 @@ public class ReportsService {
     /**
      * Generate overdue report
      */
+    @Cacheable(cacheNames = "reportsOverdue", cacheManager = "shortLivedCacheManager", key = "'global'")
     public Map<String, Object> generateOverdueReport() {
         Map<String, Object> report = new HashMap<>();
         
-        List<Task> overdueTasks = taskRepository.findOverdueTasks(LocalDateTime.now());
+        LocalDate today = LocalDate.now();
+        List<Task> overdueTasks = taskRepository.findOverdueTasks(today, com.sprintsync.api.entity.enums.TaskStatus.DONE);
         report.put("overdueTasks", overdueTasks);
         
-        List<Subtask> overdueSubtasks = subtaskRepository.findAll().stream()
-            .filter(subtask -> subtask.getDueDate() != null && subtask.getDueDate().isBefore(LocalDateTime.now().toLocalDate()))
-            .filter(subtask -> !subtask.getIsCompleted())
-            .collect(Collectors.toList());
+        List<Subtask> overdueSubtasks = subtaskRepository.findOverdueSubtasks(today);
         report.put("overdueSubtasks", overdueSubtasks);
         
         report.put("totalOverdue", overdueTasks.size() + overdueSubtasks.size());

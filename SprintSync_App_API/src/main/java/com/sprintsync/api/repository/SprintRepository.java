@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -141,6 +142,12 @@ public interface SprintRepository extends JpaRepository<Sprint, String> {
     long countByProjectId(String projectId);
 
     /**
+     * Count sprints by project and status
+     */
+    @Query("SELECT COUNT(s) FROM Sprint s WHERE s.projectId = :projectId AND s.status = :status")
+    long countByProjectIdAndStatus(@Param("projectId") String projectId, @Param("status") SprintStatus status);
+
+    /**
      * Count sprints by created by user
      */
     // Note: Sprint entity doesn't have createdBy field in current database schema
@@ -199,6 +206,16 @@ public interface SprintRepository extends JpaRepository<Sprint, String> {
      */
     @Query("SELECT s FROM Sprint s ORDER BY s.updatedAt DESC")
     List<Sprint> findRecentlyUpdatedSprints();
+
+    /**
+     * Find recently updated sprints after the given timestamp (limited to 5).
+     */
+    List<Sprint> findTop5ByUpdatedAtAfterOrderByUpdatedAtDesc(LocalDateTime since);
+
+    /**
+     * Find recently updated sprints for a project after the given timestamp (limited to 5).
+     */
+    List<Sprint> findTop5ByProjectIdAndUpdatedAtAfterOrderByUpdatedAtDesc(String projectId, LocalDateTime since);
 
     /**
      * Find sprints starting today

@@ -16,6 +16,7 @@ import NotificationDropdown from './components/NotificationDropdown';
 import { Toaster } from './components/ui/sonner';
 import { Brain, Sparkles, ChevronRight } from 'lucide-react';
 import sprintSyncLogo from 'figma:asset/aadf192e83d08c7cc03896c06b452017e84d04aa.png';
+import PageTransition from './components/PageTransition';
 
 // Import page components
 import ProjectsPage from './pages/ProjectsPage';
@@ -80,6 +81,15 @@ const AppContent: React.FC = () => {
       
       if (!isValidRoute && location.pathname !== '/') {
         navigate('/');
+      }
+      
+      // Prefetch projects when navigating to dashboard for faster loading
+      if (location.pathname === '/' && user.id) {
+        import('./hooks/api/useProjects').then(({ prefetchProjects }) => {
+          prefetchProjects(user.id).catch(() => {
+            // Silently fail - projects will be fetched by hook
+          });
+        });
       }
     }
   }, [user, location.pathname, navigate]);
@@ -376,77 +386,79 @@ const AppContent: React.FC = () => {
 
           {/* Route Content - Uses remaining space */}
           <div className="flex-1 min-h-0 px-6 pb-6">
-                <Routes>
-                  {/* Dashboard - accessible by all roles */}
-                  <Route path="/" element={<Dashboard />} />
-                  
-                  {/* Projects - accessible by all roles */}
-                  <Route path="/projects" element={<ProjectsPage />} />
-                  <Route path="/projects/:id" element={<ProjectDetailsPage />} />
-                  
-                  {/* Backlog - accessible by all roles */}
-                  <Route path="/backlog" element={<BacklogPage />} />
-                  
-                  {/* Scrum Management - accessible by manager, developer, designer */}
-                  <Route path="/scrum" element={
-                    <ProtectedRoute allowedRoles={['manager', 'developer', 'qa']}>
-                      <ScrumPage />
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* Time Tracking - accessible by manager, developer, designer */}
-                  <Route path="/time-tracking" element={
-                    <ProtectedRoute allowedRoles={['manager', 'developer', 'qa']}>
-                      <TimeTrackingPage />
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* AI Insights - accessible by manager, developer, designer */}
-                  <Route path="/ai-insights" element={
-                    <ProtectedRoute allowedRoles={['manager', 'developer', 'qa']}>
-                      <AIInsightsPage />
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* Team Allocation - accessible by admin, manager, and qa (qa has manager-level access) */}
-                  <Route path="/team-allocation" element={
-                    <ProtectedRoute allowedRoles={['admin', 'manager', 'qa']}>
-                      <TeamAllocationPage />
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* Reports - accessible by all roles */}
-                  <Route path="/reports" element={<ReportsPage />} />
-                  
-                  {/* Profile - accessible by all roles */}
-                  <Route path="/profile" element={<ProfilePage />} />
-                  
-                  {/* Admin Panel - accessible by admin only */}
-                  <Route path="/admin-panel" element={
-                    <ProtectedRoute allowedRoles={['admin']}>
-                      <AdminPanelPage />
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* Todo List - accessible by manager, developer, designer */}
-                  <Route path="/todo-list" element={
-                    <ProtectedRoute allowedRoles={['manager', 'developer', 'qa']}>
-                      <TodoListPage />
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* API Demo - accessible by all roles */}
-                  {/* <Route path="/api-demo" element={<ApiIntegrationDemo />} /> */}
-                  
-                  {/* API Status - accessible by all roles */}
-                  {/* <Route path="/api-status" element={<ApiStatusChecker />} /> */}
-                  
-                  {/* API Test - accessible by all roles */}
-                  {/* <Route path="/api-test" element={<ApiTestComponent />} /> */}
-                  
-                  {/* Catch-all route for preview and other unmatched paths */}
-                  <Route path="*" element={<Dashboard />} />
-                </Routes>
+                <PageTransition>
+                  <Routes>
+                    {/* Dashboard - accessible by all roles */}
+                    <Route path="/" element={<Dashboard />} />
+                    
+                    {/* Projects - accessible by all roles */}
+                    <Route path="/projects" element={<ProjectsPage />} />
+                    <Route path="/projects/:id" element={<ProjectDetailsPage />} />
+                    
+                    {/* Backlog - accessible by all roles */}
+                    <Route path="/backlog" element={<BacklogPage />} />
+                    
+                    {/* Scrum Management - accessible by manager, developer, designer */}
+                    <Route path="/scrum" element={
+                      <ProtectedRoute allowedRoles={['manager', 'developer', 'qa']}>
+                        <ScrumPage />
+                      </ProtectedRoute>
+                    } />
+                    
+                    {/* Time Tracking - accessible by manager, developer, designer */}
+                    <Route path="/time-tracking" element={
+                      <ProtectedRoute allowedRoles={['manager', 'developer', 'qa']}>
+                        <TimeTrackingPage />
+                      </ProtectedRoute>
+                    } />
+                    
+                    {/* AI Insights - accessible by manager, developer, designer */}
+                    <Route path="/ai-insights" element={
+                      <ProtectedRoute allowedRoles={['manager', 'developer', 'qa']}>
+                        <AIInsightsPage />
+                      </ProtectedRoute>
+                    } />
+                    
+                    {/* Team Allocation - accessible by admin, manager, and qa (qa has manager-level access) */}
+                    <Route path="/team-allocation" element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager', 'qa']}>
+                        <TeamAllocationPage />
+                      </ProtectedRoute>
+                    } />
+                    
+                    {/* Reports - accessible by all roles */}
+                    <Route path="/reports" element={<ReportsPage />} />
+                    
+                    {/* Profile - accessible by all roles */}
+                    <Route path="/profile" element={<ProfilePage />} />
+                    
+                    {/* Admin Panel - accessible by admin only */}
+                    <Route path="/admin-panel" element={
+                      <ProtectedRoute allowedRoles={['admin']}>
+                        <AdminPanelPage />
+                      </ProtectedRoute>
+                    } />
+                    
+                    {/* Todo List - accessible by manager, developer, designer */}
+                    <Route path="/todo-list" element={
+                      <ProtectedRoute allowedRoles={['manager', 'developer', 'qa']}>
+                        <TodoListPage />
+                      </ProtectedRoute>
+                    } />
+                    
+                    {/* API Demo - accessible by all roles */}
+                    {/* <Route path="/api-demo" element={<ApiIntegrationDemo />} /> */}
+                    
+                    {/* API Status - accessible by all roles */}
+                    {/* <Route path="/api-status" element={<ApiStatusChecker />} /> */}
+                    
+                    {/* API Test - accessible by all roles */}
+                    {/* <Route path="/api-test" element={<ApiTestComponent />} /> */}
+                    
+                    {/* Catch-all route for preview and other unmatched paths */}
+                    <Route path="*" element={<Dashboard />} />
+                  </Routes>
+                </PageTransition>
           </div>
         </main>
       </SidebarInset>

@@ -28,6 +28,12 @@ import {
 import { User as UserType } from '../types/api';
 import { useDepartments } from '../hooks/api/useDepartments';
 import { useDomains } from '../hooks/api/useDomains';
+import {
+  EXPERIENCE_LEVEL_LABELS,
+  ExperienceLevelCode,
+  getExperienceLabel,
+  normalizeExperienceValue,
+} from '../hooks/api/useExperienceLevels';
 import './UserDetailsModal.css';
 
 interface UserDetailsModalProps {
@@ -35,6 +41,55 @@ interface UserDetailsModalProps {
   onClose: () => void;
   user: UserType | null;
 }
+
+const EXPERIENCE_LEVEL_COLORS: Record<ExperienceLevelCode, string> = {
+  E1: 'bg-green-100 text-green-800 border-green-200',
+  E2: 'bg-green-100 text-green-800 border-green-200',
+  M1: 'bg-blue-100 text-blue-800 border-blue-200',
+  M2: 'bg-blue-100 text-blue-800 border-blue-200',
+  M3: 'bg-blue-100 text-blue-800 border-blue-200',
+  L1: 'bg-purple-100 text-purple-800 border-purple-200',
+  L2: 'bg-purple-100 text-purple-800 border-purple-200',
+  L3: 'bg-purple-100 text-purple-800 border-purple-200',
+  S1: 'bg-red-100 text-red-800 border-red-200',
+};
+
+const isExperienceLevelCode = (
+  value: string
+): value is ExperienceLevelCode => value in EXPERIENCE_LEVEL_COLORS;
+
+const normalizeExperienceCode = (
+  experience?: string | null
+): ExperienceLevelCode | undefined => {
+  const normalized = normalizeExperienceValue(experience || undefined);
+  if (normalized && isExperienceLevelCode(normalized)) {
+    return normalized;
+  }
+
+  return undefined;
+};
+
+const getExperienceBadgeClass = (experience?: string | null): string => {
+  const code = normalizeExperienceCode(experience);
+  if (code) {
+    return EXPERIENCE_LEVEL_COLORS[code];
+  }
+
+  return 'bg-gray-100 text-gray-800 border-gray-200';
+};
+
+const getExperienceDisplayLabel = (experience?: string | null): string => {
+  if (!experience) {
+    return 'Not Set';
+  }
+
+  const code = normalizeExperienceCode(experience);
+  if (code) {
+    return EXPERIENCE_LEVEL_LABELS[code];
+  }
+
+  return getExperienceLabel(experience);
+};
 
 const UserDetailsModal: React.FC<UserDetailsModalProps> = ({ isOpen, onClose, user }) => {
   // Fetch departments and domains data
@@ -72,16 +127,6 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({ isOpen, onClose, us
       case 'QA': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'TESTER': return 'bg-orange-100 text-orange-800 border-orange-200';
       case 'ANALYST': return 'bg-cyan-100 text-cyan-800 border-cyan-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
-  const getExperienceColor = (experience: string) => {
-    switch (experience) {
-      case 'junior': return 'bg-green-100 text-green-800 border-green-200';
-      case 'mid': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'senior': return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'lead': return 'bg-red-100 text-red-800 border-red-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -239,8 +284,8 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({ isOpen, onClose, us
                   <Star className="w-4 h-4 text-gray-500" />
                   <span className="text-sm font-medium">Experience</span>
                 </div>
-                <Badge className={`${getExperienceColor(user.experience || 'mid')} border`}>
-                  {user.experience ? user.experience.charAt(0).toUpperCase() + user.experience.slice(1) : 'Mid-level'}
+                <Badge className={`${getExperienceBadgeClass(user.experience)} border`}>
+                  {getExperienceDisplayLabel(user.experience)}
                 </Badge>
               </div>
 

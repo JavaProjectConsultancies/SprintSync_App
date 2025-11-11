@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -56,6 +56,7 @@ import AddUserForm from '../components/AddUserForm';
 import EditUserForm from '../components/EditUserForm';
 import UserDetailsModal from '../components/UserDetailsModal';
 import PendingRegistrationsTab from '../components/PendingRegistrationsTab';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const AdminPanelPage: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
@@ -333,6 +334,28 @@ const AdminPanelPage: React.FC = () => {
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
+
+  // Check if any API is still loading, but only if data is not already present
+  const isLoadingAny = useMemo(() => {
+    return (usersLoading && usersData === null && !usersError) ||
+           (projectsLoading && projectsData === null && !projectsError) ||
+           (statsLoading && userStats === null) ||
+           (experienceLevelsLoading && experienceLevels === null && !experienceLevelsError) ||
+           (departmentsLoading && departmentsData === null && !departmentsError) ||
+           (domainsLoading && domainsData === null && !domainsError);
+  }, [
+    usersLoading, usersData, usersError,
+    projectsLoading, projectsData, projectsError,
+    statsLoading, userStats,
+    experienceLevelsLoading, experienceLevels, experienceLevelsError,
+    departmentsLoading, departmentsData, departmentsError,
+    domainsLoading, domainsData, domainsError,
+  ]);
+
+  // Show loading spinner until all APIs are fetched
+  if (isLoadingAny) {
+    return <LoadingSpinner message="Loading Admin Panel..." fullScreen />;
+  }
 
   return (
     <div className="p-6 space-y-6">

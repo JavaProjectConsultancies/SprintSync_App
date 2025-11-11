@@ -48,6 +48,8 @@ import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useProjects } from '../hooks/api/useProjects';
 import { useStoriesByProject } from '../hooks/api/useStories';
 import { Story, Task } from '../types/api';
+import LoadingSpinner from '../components/LoadingSpinner';
+import { useAuth } from '../contexts/AuthContextEnhanced';
 
 interface EffortEntry {
   id: string;
@@ -64,6 +66,7 @@ interface StoryWithTasks extends Story {
 }
 
 const BacklogPage: React.FC = () => {
+  const { user } = useAuth();
   const [view, setView] = useState<'list' | 'grid'>('list');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -79,6 +82,12 @@ const BacklogPage: React.FC = () => {
   
   const [selectedTaskForEffort, setSelectedTaskForEffort] = useState<Task | null>(null);
   const [expandedStories, setExpandedStories] = useState<Set<string>>(new Set());
+
+  // Role-based permissions
+  const canManageSprintsAndStories =
+    user?.role?.toUpperCase() === "MANAGER" ||
+    user?.role?.toUpperCase() === "QA" ||
+    user?.role?.toUpperCase() === "ADMIN";
 
   // Fetch projects
   const { data: projects, loading: projectsLoading } = useProjects();
@@ -121,10 +130,22 @@ const BacklogPage: React.FC = () => {
       });
 
       const results = await Promise.all(storyTasksPromises);
-      const storiesWithTasksData = results.map(({ story, tasks }) => ({
+      let storiesWithTasksData = results.map(({ story, tasks }) => ({
         ...story,
         tasks: tasks || []
       }));
+
+      // Role-based filtering: Non-managers/admins see only their assigned tasks
+      if (!canManageSprintsAndStories && user) {
+        storiesWithTasksData = storiesWithTasksData.map((story) => ({
+          ...story,
+          tasks: story.tasks.filter((task) => task.assigneeId === user.id),
+        })).filter((story) => story.tasks.length > 0); // Only keep stories that have at least one user-assigned task
+
+        console.log(
+          `Filtered backlog stories with tasks for user ${user.name}: showing ${storiesWithTasksData.length} stories with assigned tasks`,
+        );
+      }
       
       setStoriesWithTasks(storiesWithTasksData);
     } catch (error) {
@@ -133,7 +154,7 @@ const BacklogPage: React.FC = () => {
     } finally {
       setTasksLoading(false);
     }
-  }, []);
+  }, [canManageSprintsAndStories, user]);
 
   // Fetch tasks when stories change
   useEffect(() => {
@@ -655,17 +676,10 @@ const BacklogPage: React.FC = () => {
       </div>
 
       {/* Loading State */}
-      {(storiesLoading || tasksLoading) && (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <Loader2 className="w-8 h-8 mx-auto animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground mt-4">Loading stories and tasks...</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Stories List */}
-      {!storiesLoading && !tasksLoading && (
+      {(projectsLoading && projects === null) || (storiesLoading && storiesData === null) || tasksLoading ? (
+        <LoadingSpinner message="Loading Backlog..." fullScreen />
+      ) : (
+        <>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-medium">
@@ -702,6 +716,7 @@ const BacklogPage: React.FC = () => {
             </Card>
           )}
         </div>
+        </>
       )}
 
       {/* Effort Manager */}

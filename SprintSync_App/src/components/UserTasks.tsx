@@ -479,149 +479,154 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
         </Card>
       )}
 
-      {/* Pending Tasks */}
-      {pendingTasks.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-              <span>Pending Tasks ({pendingTasks.length})</span>
-            </CardTitle>
-            <CardDescription>Tasks waiting to be started</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {pendingTasks.map((task) => (
-                <div 
-                  key={task.id} 
-                  className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-                  onClick={() => handleTaskClick(task)}
-                >
-                  <div className="flex-shrink-0 mt-1">
-                    {getTaskTypeIcon(task.type)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between">
-                      <h4 className="font-medium text-sm hover:text-blue-600">{task.title}</h4>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant="outline" className={getPriorityColor(task.priority)}>
-                          {task.priority}
-                        </Badge>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleStartTask(task);
-                          }}
-                          title="Start task"
-                        >
-                          <CheckSquare className="w-4 h-4" />
-                        </Button>
+      {/* Pending Tasks and Overdue Tasks - Side by Side */}
+      {(pendingTasks.length > 0 || overdueTasks.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Pending Tasks */}
+          {pendingTasks.length > 0 && (
+            <Card className="flex flex-col">
+              <CardHeader className="flex-shrink-0">
+                <CardTitle className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                  <span>Pending Tasks ({pendingTasks.length})</span>
+                </CardTitle>
+                <CardDescription>Tasks waiting to be started</CardDescription>
+              </CardHeader>
+              <CardContent className="flex-1 overflow-hidden flex flex-col">
+                <div className="space-y-3 overflow-y-auto max-h-[300px] pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                  {pendingTasks.map((task) => (
+                    <div 
+                      key={task.id} 
+                      className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                      onClick={() => handleTaskClick(task)}
+                    >
+                      <div className="flex-shrink-0 mt-1">
+                        {getTaskTypeIcon(task.type)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between">
+                          <h4 className="font-medium text-sm hover:text-blue-600">{task.title}</h4>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant="outline" className={getPriorityColor(task.priority)}>
+                              {task.priority}
+                            </Badge>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStartTask(task);
+                              }}
+                              title="Start task"
+                            >
+                              <CheckSquare className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
+                        <div className="flex items-center space-x-4 mt-2 text-xs text-muted-foreground">
+                          <span className="flex items-center space-x-1">
+                            <Calendar className="w-3 h-3" />
+                            <span>{formatDate(task.dueDate)}</span>
+                          </span>
+                          <span className="flex items-center space-x-1">
+                            <Clock className="w-3 h-3" />
+                            <span>{task.estimatedHours}h</span>
+                          </span>
+                          <span 
+                            className="flex items-center space-x-1 hover:text-blue-600 cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleProjectClick(task.projectId, task.projectName);
+                            }}
+                            title="View project"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            <span>{task.projectName}</span>
+                          </span>
+                        </div>
                       </div>
                     </div>
-                    <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
-                    <div className="flex items-center space-x-4 mt-2 text-xs text-muted-foreground">
-                      <span className="flex items-center space-x-1">
-                        <Calendar className="w-3 h-3" />
-                        <span>{formatDate(task.dueDate)}</span>
-                      </span>
-                      <span className="flex items-center space-x-1">
-                        <Clock className="w-3 h-3" />
-                        <span>{task.estimatedHours}h</span>
-                      </span>
-                      <span 
-                        className="flex items-center space-x-1 hover:text-blue-600 cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleProjectClick(task.projectId, task.projectName);
-                        }}
-                        title="View project"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        <span>{task.projectName}</span>
-                      </span>
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              </CardContent>
+            </Card>
+          )}
 
-      {/* Overdue Tasks Alert */}
-      {overdueTasks.length > 0 && (
-        <Card className="border-red-200 bg-red-50">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2 text-red-800">
-              <AlertTriangle className="w-5 h-5" />
-              <span>Overdue Tasks ({overdueTasks.length})</span>
-            </CardTitle>
-            <CardDescription className="text-red-700">
-              These tasks are past their due date and need immediate attention
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {overdueTasks.map((task) => (
-                <div 
-                  key={task.id} 
-                  className="flex items-start space-x-3 p-3 border border-red-200 rounded-lg bg-white cursor-pointer hover:bg-red-50 transition-colors"
-                  onClick={() => handleTaskClick(task)}
-                >
-                  <div className="flex-shrink-0 mt-1">
-                    {getTaskTypeIcon(task.type)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between">
-                      <h4 className="font-medium text-sm text-red-800 hover:text-red-600">{task.title}</h4>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant="outline" className="bg-red-100 text-red-800 border-red-200">
-                          {task.priority}
-                        </Badge>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleStartTask(task);
-                          }}
-                          title="Urgent: Start task now"
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          <AlertTriangle className="w-4 h-4" />
-                        </Button>
+          {/* Overdue Tasks Alert */}
+          {overdueTasks.length > 0 && (
+            <Card className="border-red-200 bg-red-50 flex flex-col">
+              <CardHeader className="flex-shrink-0">
+                <CardTitle className="flex items-center space-x-2 text-red-800">
+                  <AlertTriangle className="w-5 h-5" />
+                  <span>Overdue Tasks ({overdueTasks.length})</span>
+                </CardTitle>
+                <CardDescription className="text-red-700">
+                  These tasks are past their due date and need immediate attention
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex-1 overflow-hidden flex flex-col">
+                <div className="space-y-3 overflow-y-auto max-h-[300px] pr-2 scrollbar-thin scrollbar-thumb-red-300 scrollbar-track-red-100">
+                  {overdueTasks.map((task) => (
+                    <div 
+                      key={task.id} 
+                      className="flex items-start space-x-3 p-3 border border-red-200 rounded-lg bg-white cursor-pointer hover:bg-red-50 transition-colors"
+                      onClick={() => handleTaskClick(task)}
+                    >
+                      <div className="flex-shrink-0 mt-1">
+                        {getTaskTypeIcon(task.type)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between">
+                          <h4 className="font-medium text-sm text-red-800 hover:text-red-600">{task.title}</h4>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant="outline" className="bg-red-100 text-red-800 border-red-200">
+                              {task.priority}
+                            </Badge>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStartTask(task);
+                              }}
+                              title="Urgent: Start task now"
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              <AlertTriangle className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        <p className="text-sm text-red-700 mt-1">{task.description}</p>
+                        <div className="flex items-center space-x-4 mt-2 text-xs text-red-600">
+                          <span className="flex items-center space-x-1">
+                            <Calendar className="w-3 h-3" />
+                            <span className="font-medium">{formatDate(task.dueDate)}</span>
+                          </span>
+                          <span className="flex items-center space-x-1">
+                            <Clock className="w-3 h-3" />
+                            <span>{task.estimatedHours}h</span>
+                          </span>
+                          <span 
+                            className="flex items-center space-x-1 hover:text-red-800 cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleProjectClick(task.projectId, task.projectName);
+                            }}
+                            title="View project"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            <span>{task.projectName}</span>
+                          </span>
+                        </div>
                       </div>
                     </div>
-                    <p className="text-sm text-red-700 mt-1">{task.description}</p>
-                    <div className="flex items-center space-x-4 mt-2 text-xs text-red-600">
-                      <span className="flex items-center space-x-1">
-                        <Calendar className="w-3 h-3" />
-                        <span className="font-medium">{formatDate(task.dueDate)}</span>
-                      </span>
-                      <span className="flex items-center space-x-1">
-                        <Clock className="w-3 h-3" />
-                        <span>{task.estimatedHours}h</span>
-                      </span>
-                      <span 
-                        className="flex items-center space-x-1 hover:text-red-800 cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleProjectClick(task.projectId, task.projectName);
-                        }}
-                        title="View project"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        <span>{task.projectName}</span>
-                      </span>
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       )}
     </div>
   );

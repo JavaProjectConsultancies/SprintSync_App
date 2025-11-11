@@ -161,9 +161,13 @@ public class UserController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "1000") int size) {
         try {
-            Sort sort = Sort.by("name").ascending();
-            Pageable pageable = PageRequest.of(page, size, sort);
             List<User> users = userService.findActiveUsers();
+
+            users.sort((user1, user2) -> {
+                String name1 = user1.getName() != null ? user1.getName() : "";
+                String name2 = user2.getName() != null ? user2.getName() : "";
+                return name1.compareToIgnoreCase(name2);
+            });
             
             // Clear password hashes before returning
             users.forEach(user -> user.setPasswordHash(null));

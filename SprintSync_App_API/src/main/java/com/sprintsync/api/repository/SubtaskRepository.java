@@ -6,7 +6,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -102,17 +104,29 @@ public interface SubtaskRepository extends JpaRepository<Subtask, String> {
     /**
      * Find subtasks by due date before specified date
      */
-    List<Subtask> findByDueDateBefore(LocalDateTime date);
+    List<Subtask> findByDueDateBefore(LocalDate date);
 
     /**
      * Find subtasks by due date after specified date
      */
-    List<Subtask> findByDueDateAfter(LocalDateTime date);
+    List<Subtask> findByDueDateAfter(LocalDate date);
 
     /**
      * Find subtasks by due date between dates
      */
-    List<Subtask> findByDueDateBetween(LocalDateTime startDate, LocalDateTime endDate);
+    List<Subtask> findByDueDateBetween(LocalDate startDate, LocalDate endDate);
+
+    /**
+     * Find overdue subtasks (due date before today and not completed)
+     */
+    @Query("SELECT s FROM Subtask s WHERE s.dueDate IS NOT NULL AND s.dueDate < :today AND s.isCompleted = false")
+    List<Subtask> findOverdueSubtasks(@Param("today") LocalDate today);
+
+    /**
+     * Count overdue subtasks (due date before today and not completed)
+     */
+    @Query("SELECT COUNT(s) FROM Subtask s WHERE s.dueDate IS NOT NULL AND s.dueDate < :today AND s.isCompleted = false")
+    long countOverdueSubtasks(@Param("today") LocalDate today);
 
     /**
      * Find subtasks without assignee
@@ -172,6 +186,17 @@ public interface SubtaskRepository extends JpaRepository<Subtask, String> {
      * Count subtasks by assignee
      */
     long countByAssigneeId(String assigneeId);
+
+    /**
+     * Count subtasks by assignee and completion status
+     */
+    long countByAssigneeIdAndIsCompleted(String assigneeId, Boolean isCompleted);
+
+    /**
+     * Count subtasks for the given assignees
+     */
+    @Query("SELECT s.assigneeId, COUNT(s) FROM Subtask s WHERE s.assigneeId IN :assigneeIds GROUP BY s.assigneeId")
+    List<Object[]> countSubtasksByAssigneeIds(@Param("assigneeIds") Collection<String> assigneeIds);
 
     /**
      * Count subtasks by task
@@ -278,6 +303,21 @@ public interface SubtaskRepository extends JpaRepository<Subtask, String> {
      */
     @Query("SELECT s FROM Subtask s WHERE s.updatedAt >= :since ORDER BY s.updatedAt DESC")
     List<Subtask> findRecentlyUpdatedSubtasks(@Param("since") LocalDateTime since);
+
+    /**
+     * Find recent subtasks updated after the given timestamp (limited to 10)
+     */
+    List<Subtask> findTop10ByUpdatedAtAfterOrderByUpdatedAtDesc(LocalDateTime since);
+
+    /**
+     * Find recent subtasks for an assignee (limited to 10)
+     */
+    List<Subtask> findTop10ByAssigneeIdOrderByUpdatedAtDesc(String assigneeId);
+
+    /**
+     * Find recent subtasks for an assignee updated after the given timestamp (limited to 10)
+     */
+    List<Subtask> findTop10ByAssigneeIdAndUpdatedAtAfterOrderByUpdatedAtDesc(String assigneeId, LocalDateTime since);
 
     /**
      * Find subtasks by time spent

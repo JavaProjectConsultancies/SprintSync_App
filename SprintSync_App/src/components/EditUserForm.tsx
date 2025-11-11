@@ -35,7 +35,7 @@ import EnhancedScrollToTopButton from './EnhancedScrollToTopButton';
 import { useUpdateUser } from '../hooks/api/useUsers';
 import { useDepartments } from '../hooks/api/useDepartments';
 import { useDomains } from '../hooks/api/useDomains';
-import { useExperienceLevels } from '../hooks/api/useExperienceLevels';
+import { useExperienceLevels, normalizeExperienceValue } from '../hooks/api/useExperienceLevels';
 import { User } from '../types/api';
 import { calculateHourlyRateFromCTC } from '../utils/salaryCalculator';
 import './EditUserForm.css';
@@ -93,7 +93,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
     departmentId: 'none',
     domainId: 'none',
     avatarUrl: '',
-    experience: 'mid',
+    experience: 'E1',
     hourlyRate: '',
     ctc: '',
     availabilityPercentage: '100',
@@ -133,7 +133,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
         departmentId: user.departmentId || 'none',
         domainId: user.domainId || 'none',
         avatarUrl: user.avatarUrl || '',
-        experience: user.experience || 'E1',
+        experience: normalizeExperienceValue(user.experience) || 'E1',
         hourlyRate: (user.hourlyRate != null && user.hourlyRate !== undefined) ? String(user.hourlyRate) : '',
         ctc: (user.ctc != null && user.ctc !== undefined) ? String(user.ctc) : '',
         availabilityPercentage: (user.availabilityPercentage != null && user.availabilityPercentage !== undefined) ? String(user.availabilityPercentage) : '100',
@@ -278,7 +278,9 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
     hourlyRate: data.hourlyRate ? Number(data.hourlyRate) : undefined,
     ctc: data.ctc ? Number(data.ctc) : undefined,
     availabilityPercentage: Number(data.availabilityPercentage),
-    experience: data.experience ? data.experience.toLowerCase() : undefined,
+    experience: data.experience
+      ? normalizeExperienceValue(data.experience) || 'E1'
+      : undefined,
     skills: data.skills.trim() ? JSON.stringify(data.skills.split(',').map(s => s.trim())) : undefined
   });
 
@@ -369,20 +371,34 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
   };
 
   const handleInputChange = (field: keyof FormData, value: string | boolean) => {
+    let nextValue: string | boolean = value;
+    if (field === 'experience' && typeof value === 'string') {
+      nextValue = normalizeExperienceValue(value) || 'E1';
+    }
+
     const updatedFormData = {
       ...formData,
-      [field]: value
+      [field]: nextValue
     };
 
     // Auto-calculate hourly rate when CTC or experience changes
     if (field === 'ctc' || field === 'experience') {
-      const ctcValue = field === 'ctc' ? parseFloat(value as string) : parseFloat(updatedFormData.ctc);
-      const experienceValue = field === 'experience' ? (value as string) : updatedFormData.experience;
+      const ctcValue =
+        field === 'ctc'
+          ? parseFloat(value as string)
+          : parseFloat(updatedFormData.ctc);
+      const experienceValue =
+        field === 'experience'
+          ? (nextValue as string)
+          : updatedFormData.experience;
 
       // Only calculate if both CTC and experience are valid
       if (ctcValue && ctcValue > 0 && experienceValue) {
         try {
-          const calculatedHourlyRate = calculateHourlyRateFromCTC(ctcValue, experienceValue);
+          const calculatedHourlyRate = calculateHourlyRateFromCTC(
+            ctcValue,
+            experienceValue
+          );
           updatedFormData.hourlyRate = calculatedHourlyRate.toFixed(2);
         } catch (error) {
           console.error('Error calculating hourly rate:', error);
@@ -568,7 +584,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
       departmentId: 'none',
       domainId: 'none',
       avatarUrl: '',
-      experience: 'mid',
+      experience: 'E1',
       hourlyRate: '',
       ctc: '',
       availabilityPercentage: '100',

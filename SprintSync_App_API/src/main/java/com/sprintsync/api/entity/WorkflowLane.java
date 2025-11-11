@@ -3,11 +3,6 @@ package com.sprintsync.api.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
-
-import java.time.LocalDateTime;
-
 /**
  * WorkflowLane entity representing custom workflow lanes/columns in Scrum boards.
  * Maps to the 'workflow_lanes' table in the database.

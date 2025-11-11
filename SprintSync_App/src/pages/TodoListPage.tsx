@@ -15,8 +15,8 @@ const TodoListPage: React.FC = () => {
               <CheckSquare className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-semibold text-green-600">Personal Todo List</h1>
-              <p className="text-muted-foreground">Manage your personal tasks and stay organized</p>
+              <h1 className="text-3xl font-semibold text-green-600">My Tasks</h1>
+              <p className="text-muted-foreground">View and manage all tasks assigned to you</p>
             </div>
           </div>
         </div>
@@ -24,7 +24,7 @@ const TodoListPage: React.FC = () => {
         <div className="hidden md:flex items-center space-x-2">
           <Badge variant="outline" className="bg-gradient-to-r from-green-50 to-cyan-50 border-green-200">
             <ListTodo className="w-3 h-3 mr-1" />
-            Personal Productivity
+            Assigned Tasks
           </Badge>
         </div>
       </div>
@@ -75,10 +75,10 @@ const TodoListPage: React.FC = () => {
               <TrendingUp className="w-6 h-6 text-white" />
             </div>
             <div className="flex-1">
-              <h3 className="font-medium text-green-600">Personal Todo Management</h3>
+              <h3 className="font-medium text-green-600">Task Management</h3>
               <p className="text-sm text-muted-foreground mt-1">
-                This personal todo list is separate from your project tasks and helps you manage individual productivity. 
-                All data is stored locally in your browser for privacy.
+                View all tasks assigned to you from your projects. You can mark tasks as complete, update priorities, and manage your workload. 
+                Personal todos can also be added and stored locally in your browser.
               </p>
             </div>
             <div className="hidden md:flex items-center space-x-2">

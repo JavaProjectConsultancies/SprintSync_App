@@ -1419,7 +1419,7 @@ const ScrumPage: React.FC = () => {
 
     // Additional validation: ensure story's projectId matches selected project
 
-    return stories.filter((story: Story) => {
+    let filteredStories = stories.filter((story: Story) => {
       // Ensure story belongs to the selected project
 
       if (story.projectId !== selectedProject) {
@@ -1442,7 +1442,39 @@ const ScrumPage: React.FC = () => {
 
       return true;
     });
+
+    // Don't filter stories here based on allTasks - that creates a timing issue
+    // Stories will be filtered for display after tasks are fetched
+    return filteredStories;
   }, [selectedSprint, selectedProject, sprintStoriesData, currentSprint]);
+
+  // Filter sprint stories for display (after tasks are loaded)
+  const filteredSprintStories = useMemo(() => {
+    if (!sprintStories || sprintStories.length === 0) {
+      return [];
+    }
+
+    // Role-based filtering: Non-managers/admins see only stories with tasks assigned to them
+    if (!canManageSprintsAndStories && user) {
+      // Filter stories to show only those that have at least one task assigned to the current user
+      const filtered = sprintStories.filter((story: Story) => {
+        // Check if this story has any tasks assigned to the current user
+        const hasUserTask = allTasks.some(
+          (task) => task.storyId === story.id && task.assigneeId === user.id,
+        );
+        return hasUserTask;
+      });
+
+      console.log(
+        `Filtered sprint stories for user ${user.name}: showing ${filtered.length} stories with assigned tasks out of ${sprintStories.length} total`,
+      );
+
+      return filtered;
+    }
+
+    // Managers/admins see all stories
+    return sprintStories;
+  }, [sprintStories, allTasks, canManageSprintsAndStories, user]);
 
   const backlogStories = useMemo(() => {
     if (!selectedProject) return [];
@@ -1470,6 +1502,7 @@ const ScrumPage: React.FC = () => {
       return true;
     });
   }, [selectedProject, backlogStoriesData]);
+
 
   // Workflow lanes - filter by selected board and separate into lanes after In Progress and lanes after QA
 
@@ -2024,10 +2057,22 @@ const ScrumPage: React.FC = () => {
   // Get stories by column status
 
   const projectBacklogStories = useMemo(() => {
-    return backlogStories.filter(
+    let stories = backlogStories.filter(
       (story) => story.projectId === selectedProject,
     );
-  }, [backlogStories, selectedProject]);
+
+    // Role-based filtering: Non-managers/admins see only stories with tasks assigned to them
+    if (!canManageSprintsAndStories && user) {
+      stories = stories.filter((story) => {
+        const hasUserTask = allTasks.some(
+          (task) => task.storyId === story.id && task.assigneeId === user.id,
+        );
+        return hasUserTask;
+      });
+    }
+
+    return stories;
+  }, [backlogStories, selectedProject, canManageSprintsAndStories, user, allTasks]);
 
   const selectedBacklogStories = useMemo(() => {
     if (selectedBacklogStoryIds.length === 0) return [] as Story[];
@@ -2047,19 +2092,19 @@ const ScrumPage: React.FC = () => {
     }
 
     if (storiesScope === "all") {
-      const sprintStoryIds = new Set(sprintStories.map((story) => story.id));
+      const sprintStoryIds = new Set(filteredSprintStories.map((story) => story.id));
 
       const uniqueBacklogStories = projectBacklogStories.filter(
         (story) => !sprintStoryIds.has(story.id),
       );
 
-      return [...sprintStories, ...uniqueBacklogStories];
+      return [...filteredSprintStories, ...uniqueBacklogStories];
     }
 
-    return sprintStories;
+    return filteredSprintStories;
   }, [
     storiesScope,
-    sprintStories,
+    filteredSprintStories,
     projectBacklogStories,
     selectedBacklogStories,
   ]);
@@ -2537,10 +2582,22 @@ const ScrumPage: React.FC = () => {
       });
 
       const results = await Promise.all(storyTasksPromises);
-      const storiesWithTasksData = results.map(({ story, tasks }) => ({
+      let storiesWithTasksData = results.map(({ story, tasks }) => ({
         ...story,
         tasks: tasks || [],
       }));
+
+      // Role-based filtering: Non-managers/admins see only their assigned tasks
+      if (!canManageSprintsAndStories && user) {
+        storiesWithTasksData = storiesWithTasksData.map((story) => ({
+          ...story,
+          tasks: story.tasks.filter((task) => task.assigneeId === user.id),
+        })).filter((story) => story.tasks.length > 0); // Only keep stories that have at least one user-assigned task
+
+        console.log(
+          `Filtered backlog stories with tasks for user ${user.name}: showing ${storiesWithTasksData.length} stories with assigned tasks`,
+        );
+      }
 
       setBacklogStoriesWithTasks(storiesWithTasksData);
     } catch (error) {
@@ -2549,7 +2606,7 @@ const ScrumPage: React.FC = () => {
     } finally {
       setBacklogTasksLoading(false);
     }
-  }, []);
+  }, [canManageSprintsAndStories, user]);
 
   // Fetch tasks when backlog stories change
   useEffect(() => {
@@ -2666,11 +2723,16 @@ const ScrumPage: React.FC = () => {
     const allTasks: Task[] = [];
     filteredBacklogStories.forEach((story) => {
       if (story.tasks && story.tasks.length > 0) {
-        allTasks.push(...story.tasks);
+        // For non-managers/admins, tasks are already filtered in fetchTasksForBacklogStories
+        // For managers/admins, show all tasks
+        const tasksToAdd = !canManageSprintsAndStories && user
+          ? story.tasks.filter((task) => task.assigneeId === user.id)
+          : story.tasks;
+        allTasks.push(...tasksToAdd);
       }
     });
     return allTasks;
-  }, [filteredBacklogStories]);
+  }, [filteredBacklogStories, canManageSprintsAndStories, user]);
 
   // Get all backlog stories (including those without tasks) for proper integration
   const allBacklogStoriesForDisplay = useMemo(() => {
@@ -2684,10 +2746,20 @@ const ScrumPage: React.FC = () => {
     const storiesWithTasksMap = new Map(
       backlogStoriesWithTasks.map((s) => [s.id, s]),
     );
-    const allStories = backlogStories.map((story) => {
+    let allStories = backlogStories.map((story) => {
       const storyWithTasks = storiesWithTasksMap.get(story.id);
       return storyWithTasks || { ...story, tasks: [] };
     });
+
+    // Role-based filtering: Non-managers/admins see only stories with tasks assigned to them
+    if (!canManageSprintsAndStories && user) {
+      allStories = allStories
+        .map((story) => ({
+          ...story,
+          tasks: story.tasks?.filter((task) => task.assigneeId === user.id) || [],
+        }))
+        .filter((story) => story.tasks.length > 0); // Only keep stories that have at least one user-assigned task
+    }
 
     console.log("All stories after combining:", allStories.length);
 
@@ -2722,6 +2794,7 @@ const ScrumPage: React.FC = () => {
 
     console.log("Filtered stories:", filtered.length);
 
+    // Sort filtered stories
     return filtered.sort((a, b) => {
       let aValue, bValue;
 
@@ -2777,6 +2850,8 @@ const ScrumPage: React.FC = () => {
     backlogAssigneeFilter,
     backlogSortBy,
     backlogSortOrder,
+    canManageSprintsAndStories,
+    user,
   ]);
 
   // Helper functions for backlog page
@@ -6381,15 +6456,6 @@ const ScrumPage: React.FC = () => {
                 <p className="text-muted-foreground">
                   All project stories, sprints, and tasks
                 </p>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                {canManageSprintsAndStories && (
-                  <Button onClick={() => setIsAddStoryDialogOpen(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Story
-                  </Button>
-                )}
               </div>
             </div>
 
@@ -10870,13 +10936,6 @@ const ScrumPage: React.FC = () => {
 
                 <div className="w-80 border-l border-gray-200 bg-gray-50 overflow-auto">
                   <div className="p-6 space-y-6">
-                    {/* Improve Work Item */}
-
-                    <Button className="w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white">
-                      <Zap className="w-4 h-4 mr-2" />
-                      Improve Work Item
-                    </Button>
-
                     {/* Subtask Details Section (Replacing Effort Details) */}
 
                     <div>
@@ -11865,13 +11924,6 @@ const ScrumPage: React.FC = () => {
 
               <div className="w-80 border-l border-gray-200 bg-gray-50 overflow-auto">
                 <div className="p-6 space-y-6">
-                  {/* Improve Work Item */}
-
-                  <Button className="w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white">
-                    <Zap className="w-4 h-4 mr-2" />
-                    Improve Work Item
-                  </Button>
-
                   {/* Subtask Details Section */}
 
                   <div>

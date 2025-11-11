@@ -3,6 +3,7 @@ package com.sprintsync.api.service;
 import com.sprintsync.api.entity.*;
 import com.sprintsync.api.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -41,6 +42,7 @@ public class DashboardService {
     /**
      * Get overall dashboard statistics
      */
+    @Cacheable(cacheNames = "dashboardStats", cacheManager = "shortLivedCacheManager", key = "'global'")
     public Map<String, Object> getDashboardStatistics() {
         Map<String, Object> statistics = new HashMap<>();
         
@@ -62,11 +64,8 @@ public class DashboardService {
         statistics.put("completedTasks", taskRepository.countByStatus(com.sprintsync.api.entity.enums.TaskStatus.DONE));
         
         // Overdue counts
-        statistics.put("overdueTasks", taskRepository.findOverdueTasks(LocalDateTime.now()).size());
-        statistics.put("overdueSubtasks", subtaskRepository.findAll().stream()
-            .filter(subtask -> subtask.getDueDate() != null && subtask.getDueDate().isBefore(LocalDateTime.now().toLocalDate()))
-            .filter(subtask -> !subtask.getIsCompleted())
-            .count());
+        statistics.put("overdueTasks", taskRepository.countOverdueTasks(LocalDate.now(), com.sprintsync.api.entity.enums.TaskStatus.DONE));
+        statistics.put("overdueSubtasks", subtaskRepository.countOverdueSubtasks(LocalDate.now()));
         
         return statistics;
     }
@@ -104,24 +103,19 @@ public class DashboardService {
     /**
      * Get dashboard statistics for a specific user
      */
+    @Cacheable(cacheNames = "userDashboardStats", cacheManager = "shortLivedCacheManager", key = "#userId")
     public Map<String, Object> getUserDashboardStatistics(String userId) {
         Map<String, Object> statistics = new HashMap<>();
         
         // User-specific counts
         statistics.put("assignedTasks", taskRepository.countByAssigneeId(userId));
         statistics.put("assignedSubtasks", subtaskRepository.countByAssigneeId(userId));
-        statistics.put("assignedStories", storyRepository.findByAssigneeId(userId).size());
+        statistics.put("assignedStories", storyRepository.countByAssigneeId(userId));
         
         // User's completed work
-        statistics.put("completedTasks", taskRepository.findByAssigneeId(userId).stream()
-            .filter(task -> task.getStatus() == com.sprintsync.api.entity.enums.TaskStatus.DONE)
-            .count());
-        statistics.put("completedSubtasks", subtaskRepository.findByAssigneeId(userId).stream()
-            .filter(subtask -> subtask.getIsCompleted())
-            .count());
-        statistics.put("completedStories", storyRepository.findByAssigneeId(userId).stream()
-            .filter(story -> story.getStatus() == com.sprintsync.api.entity.enums.StoryStatus.DONE)
-            .count());
+        statistics.put("completedTasks", taskRepository.countByAssigneeIdAndStatus(userId, com.sprintsync.api.entity.enums.TaskStatus.DONE));
+        statistics.put("completedSubtasks", subtaskRepository.countByAssigneeIdAndIsCompleted(userId, true));
+        statistics.put("completedStories", storyRepository.countByAssigneeIdAndStatus(userId, com.sprintsync.api.entity.enums.StoryStatus.DONE));
         
         return statistics;
     }
@@ -129,22 +123,22 @@ public class DashboardService {
     /**
      * Get recent activities
      */
+    @Cacheable(cacheNames = "dashboardRecent", cacheManager = "shortLivedCacheManager", key = "'global'")
     public Map<String, Object> getRecentActivities() {
         Map<String, Object> activities = new HashMap<>();
         
         // Recent tasks
-        List<Task> recentTasks = taskRepository.findRecentlyUpdatedTasks(LocalDateTime.now().minusDays(7));
-        activities.put("recentTasks", recentTasks.stream().limit(10).collect(Collectors.toList()));
+        LocalDateTime since = LocalDateTime.now().minusDays(7);
+        List<Task> recentTasks = taskRepository.findTop10ByUpdatedAtAfterOrderByUpdatedAtDesc(since);
+        activities.put("recentTasks", recentTasks);
         
         // Recent stories
-        List<Story> recentStories = storyRepository.findAll().stream()
-            .filter(story -> story.getUpdatedAt().isAfter(LocalDateTime.now().minusDays(7)))
-            .collect(Collectors.toList());
-        activities.put("recentStories", recentStories.stream().limit(10).collect(Collectors.toList()));
+        List<Story> recentStories = storyRepository.findTop10ByUpdatedAtAfterOrderByUpdatedAtDesc(since);
+        activities.put("recentStories", recentStories);
         
         // Recent sprints
-        List<Sprint> recentSprints = sprintRepository.findRecentlyUpdatedSprints();
-        activities.put("recentSprints", recentSprints.stream().limit(5).collect(Collectors.toList()));
+        List<Sprint> recentSprints = sprintRepository.findTop5ByUpdatedAtAfterOrderByUpdatedAtDesc(since);
+        activities.put("recentSprints", recentSprints);
         
         return activities;
     }
@@ -161,11 +155,8 @@ public class DashboardService {
         activities.put("recentTasks", recentTasks);
         
         // Recent stories for project
-        List<Story> recentStories = storyRepository.findByProjectId(projectId).stream()
-            .filter(story -> story.getUpdatedAt().isAfter(LocalDateTime.now().minusDays(7)))
-            .sorted((s1, s2) -> s2.getUpdatedAt().compareTo(s1.getUpdatedAt()))
-            .limit(10)
-            .collect(Collectors.toList());
+        LocalDateTime since = LocalDateTime.now().minusDays(7);
+        List<Story> recentStories = storyRepository.findTop10ByProjectIdAndUpdatedAtAfterOrderByUpdatedAtDesc(projectId, since);
         activities.put("recentStories", recentStories);
         
         return activities;
@@ -178,19 +169,12 @@ public class DashboardService {
         Map<String, Object> activities = new HashMap<>();
         
         // Recent tasks assigned to user
-        List<Task> recentTasks = taskRepository.findByAssigneeId(userId).stream()
-            .filter(task -> task.getUpdatedAt().isAfter(LocalDateTime.now().minusDays(7)))
-            .sorted((t1, t2) -> t2.getUpdatedAt().compareTo(t1.getUpdatedAt()))
-            .limit(10)
-            .collect(Collectors.toList());
+        LocalDateTime since = LocalDateTime.now().minusDays(7);
+        List<Task> recentTasks = taskRepository.findTop10ByAssigneeIdAndUpdatedAtAfterOrderByUpdatedAtDesc(userId, since);
         activities.put("recentTasks", recentTasks);
         
         // Recent subtasks assigned to user
-        List<Subtask> recentSubtasks = subtaskRepository.findByAssigneeId(userId).stream()
-            .filter(subtask -> subtask.getUpdatedAt().isAfter(LocalDateTime.now().minusDays(7)))
-            .sorted((s1, s2) -> s2.getUpdatedAt().compareTo(s1.getUpdatedAt()))
-            .limit(10)
-            .collect(Collectors.toList());
+        List<Subtask> recentSubtasks = subtaskRepository.findTop10ByAssigneeIdAndUpdatedAtAfterOrderByUpdatedAtDesc(userId, since);
         activities.put("recentSubtasks", recentSubtasks);
         
         return activities;
@@ -439,16 +423,26 @@ public class DashboardService {
     /**
      * Get task distribution
      */
+    @Cacheable(cacheNames = "dashboardTaskDistribution", cacheManager = "shortLivedCacheManager", key = "'global'")
     public Map<String, Object> getTaskDistribution() {
         Map<String, Object> distribution = new HashMap<>();
         
-        List<Task> allTasks = taskRepository.findAll();
-        Map<com.sprintsync.api.entity.enums.TaskStatus, Long> statusDistribution = allTasks.stream()
-            .collect(Collectors.groupingBy(Task::getStatus, Collectors.counting()));
+        Map<com.sprintsync.api.entity.enums.TaskStatus, Long> statusDistribution = new EnumMap<>(com.sprintsync.api.entity.enums.TaskStatus.class);
+        taskRepository.countTasksByStatus().forEach(row -> {
+            if (row[0] instanceof com.sprintsync.api.entity.enums.TaskStatus status) {
+                long count = ((Number) row[1]).longValue();
+                statusDistribution.put(status, count);
+            }
+        });
         distribution.put("statusDistribution", statusDistribution);
         
-        Map<String, Long> priorityDistribution = allTasks.stream()
-            .collect(Collectors.groupingBy(task -> task.getPriority().getValue(), Collectors.counting()));
+        Map<String, Long> priorityDistribution = new LinkedHashMap<>();
+        taskRepository.countTasksByPriority().forEach(row -> {
+            if (row[0] instanceof com.sprintsync.api.entity.enums.Priority priority) {
+                long count = ((Number) row[1]).longValue();
+                priorityDistribution.put(priority.getValue(), count);
+            }
+        });
         distribution.put("priorityDistribution", priorityDistribution);
         
         return distribution;
@@ -475,17 +469,28 @@ public class DashboardService {
     /**
      * Get priority distribution
      */
+    @Cacheable(cacheNames = "dashboardPriorityDistribution", cacheManager = "shortLivedCacheManager", key = "'global'")
     public Map<String, Object> getPriorityDistribution() {
         Map<String, Object> distribution = new HashMap<>();
         
         // Task priority distribution
-        Map<String, Long> taskPriorityDistribution = taskRepository.findAll().stream()
-            .collect(Collectors.groupingBy(task -> task.getPriority().getValue(), Collectors.counting()));
+        Map<String, Long> taskPriorityDistribution = new LinkedHashMap<>();
+        taskRepository.countTasksByPriority().forEach(row -> {
+            if (row[0] instanceof com.sprintsync.api.entity.enums.Priority priority) {
+                long count = ((Number) row[1]).longValue();
+                taskPriorityDistribution.put(priority.getValue(), count);
+            }
+        });
         distribution.put("taskPriorityDistribution", taskPriorityDistribution);
         
         // Story priority distribution
-        Map<String, Long> storyPriorityDistribution = storyRepository.findAll().stream()
-            .collect(Collectors.groupingBy(story -> story.getPriority().getValue(), Collectors.counting()));
+        Map<String, Long> storyPriorityDistribution = new LinkedHashMap<>();
+        storyRepository.countStoriesByPriority().forEach(row -> {
+            if (row[0] instanceof com.sprintsync.api.entity.enums.StoryPriority priority) {
+                long count = ((Number) row[1]).longValue();
+                storyPriorityDistribution.put(priority.getValue(), count);
+            }
+        });
         distribution.put("storyPriorityDistribution", storyPriorityDistribution);
         
         return distribution;
@@ -513,16 +518,15 @@ public class DashboardService {
     /**
      * Get overdue items
      */
+    @Cacheable(cacheNames = "dashboardOverdue", cacheManager = "shortLivedCacheManager", key = "'global'")
     public Map<String, Object> getOverdueItems() {
         Map<String, Object> overdueItems = new HashMap<>();
         
-        List<Task> overdueTasks = taskRepository.findOverdueTasks(LocalDateTime.now());
+        LocalDate today = LocalDate.now();
+        List<Task> overdueTasks = taskRepository.findOverdueTasks(today, com.sprintsync.api.entity.enums.TaskStatus.DONE);
         overdueItems.put("overdueTasks", overdueTasks);
         
-        List<Subtask> overdueSubtasks = subtaskRepository.findAll().stream()
-            .filter(subtask -> subtask.getDueDate() != null && subtask.getDueDate().isBefore(LocalDateTime.now().toLocalDate()))
-            .filter(subtask -> !subtask.getIsCompleted())
-            .collect(Collectors.toList());
+        List<Subtask> overdueSubtasks = subtaskRepository.findOverdueSubtasks(today);
         overdueItems.put("overdueSubtasks", overdueSubtasks);
         
         overdueItems.put("totalOverdue", overdueTasks.size() + overdueSubtasks.size());
@@ -551,16 +555,17 @@ public class DashboardService {
     /**
      * Get upcoming deadlines
      */
+    @Cacheable(cacheNames = "dashboardUpcomingDeadlines", cacheManager = "shortLivedCacheManager", key = "'global'")
     public Map<String, Object> getUpcomingDeadlines() {
         Map<String, Object> deadlines = new HashMap<>();
         
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime nextWeek = now.plusDays(7);
+        LocalDate today = LocalDate.now();
+        LocalDate nextWeek = today.plusDays(7);
         
-        List<Task> upcomingTasks = taskRepository.findByDueDateBetween(now, nextWeek);
+        List<Task> upcomingTasks = taskRepository.findByDueDateBetween(today, nextWeek);
         deadlines.put("upcomingTasks", upcomingTasks);
         
-        List<Subtask> upcomingSubtasks = subtaskRepository.findByDueDateBetween(now, nextWeek);
+        List<Subtask> upcomingSubtasks = subtaskRepository.findByDueDateBetween(today, nextWeek);
         deadlines.put("upcomingSubtasks", upcomingSubtasks);
         
         return deadlines;
@@ -585,21 +590,43 @@ public class DashboardService {
     /**
      * Get team allocation overview
      */
+    @Cacheable(cacheNames = "dashboardTeamAllocation", cacheManager = "shortLivedCacheManager", key = "'global'")
     public Map<String, Object> getTeamAllocationOverview() {
         Map<String, Object> allocation = new HashMap<>();
         
         List<User> allUsers = userRepository.findAll();
         allocation.put("totalUsers", allUsers.size());
         
+        Set<String> userIds = allUsers.stream()
+            .map(User::getId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+
+        Map<String, Long> taskCountsByUser = userIds.isEmpty() ? Collections.emptyMap() :
+            taskRepository.countTasksByAssigneeIds(userIds).stream()
+                .filter(row -> row[0] != null)
+                .collect(Collectors.toMap(row -> (String) row[0], row -> ((Number) row[1]).longValue()));
+
+        Map<String, Long> subtaskCountsByUser = userIds.isEmpty() ? Collections.emptyMap() :
+            subtaskRepository.countSubtasksByAssigneeIds(userIds).stream()
+                .filter(row -> row[0] != null)
+                .collect(Collectors.toMap(row -> (String) row[0], row -> ((Number) row[1]).longValue()));
+
+        Map<String, Long> storyCountsByUser = userIds.isEmpty() ? Collections.emptyMap() :
+            storyRepository.countStoriesByAssigneeIds(userIds).stream()
+                .filter(row -> row[0] != null)
+                .collect(Collectors.toMap(row -> (String) row[0], row -> ((Number) row[1]).longValue()));
+
         // Calculate allocation per user
         List<Map<String, Object>> userAllocations = allUsers.stream()
             .map(user -> {
                 Map<String, Object> userAllocation = new HashMap<>();
-                userAllocation.put("userId", user.getId());
+                String userId = user.getId();
+                userAllocation.put("userId", userId);
                 userAllocation.put("userName", user.getName());
-                userAllocation.put("assignedTasks", taskRepository.countByAssigneeId(user.getId()));
-                userAllocation.put("assignedSubtasks", subtaskRepository.countByAssigneeId(user.getId()));
-                userAllocation.put("assignedStories", storyRepository.findByAssigneeId(user.getId()).size());
+                userAllocation.put("assignedTasks", taskCountsByUser.getOrDefault(userId, 0L));
+                userAllocation.put("assignedSubtasks", subtaskCountsByUser.getOrDefault(userId, 0L));
+                userAllocation.put("assignedStories", storyCountsByUser.getOrDefault(userId, 0L));
                 return userAllocation;
             })
             .collect(Collectors.toList());
@@ -713,6 +740,7 @@ public class DashboardService {
     /**
      * Get custom date range statistics
      */
+    @Cacheable(cacheNames = "dateRangeStats", cacheManager = "shortLivedCacheManager", key = "#startDate.toString().concat(':').concat(#endDate.toString())")
     public Map<String, Object> getDateRangeStatistics(LocalDate startDate, LocalDate endDate) {
         Map<String, Object> statistics = new HashMap<>();
         
@@ -720,26 +748,20 @@ public class DashboardService {
         LocalDateTime endDateTime = endDate.atTime(23, 59, 59);
         
         // Tasks created in date range
-        List<Task> tasksCreated = taskRepository.findByCreatedAtBetween(startDateTime, endDateTime);
-        statistics.put("tasksCreated", tasksCreated.size());
+        long tasksCreated = taskRepository.countByCreatedAtBetween(startDateTime, endDateTime);
+        statistics.put("tasksCreated", tasksCreated);
         
         // Tasks completed in date range
-        List<Task> tasksCompleted = tasksCreated.stream()
-            .filter(task -> task.getStatus() == com.sprintsync.api.entity.enums.TaskStatus.DONE)
-            .collect(Collectors.toList());
-        statistics.put("tasksCompleted", tasksCompleted.size());
+        long tasksCompleted = taskRepository.countByCreatedAtBetweenAndStatus(startDateTime, endDateTime, com.sprintsync.api.entity.enums.TaskStatus.DONE);
+        statistics.put("tasksCompleted", tasksCompleted);
         
         // Stories created in date range
-        List<Story> storiesCreated = storyRepository.findAll().stream()
-            .filter(story -> story.getCreatedAt().isAfter(startDateTime) && story.getCreatedAt().isBefore(endDateTime))
-            .collect(Collectors.toList());
-        statistics.put("storiesCreated", storiesCreated.size());
+        long storiesCreated = storyRepository.countByCreatedAtBetween(startDateTime, endDateTime);
+        statistics.put("storiesCreated", storiesCreated);
         
         // Stories completed in date range
-        List<Story> storiesCompleted = storiesCreated.stream()
-            .filter(story -> story.getStatus() == com.sprintsync.api.entity.enums.StoryStatus.DONE)
-            .collect(Collectors.toList());
-        statistics.put("storiesCompleted", storiesCompleted.size());
+        long storiesCompleted = storyRepository.countByCreatedAtBetweenAndStatus(startDateTime, endDateTime, com.sprintsync.api.entity.enums.StoryStatus.DONE);
+        statistics.put("storiesCompleted", storiesCompleted);
         
         return statistics;
     }

@@ -43,6 +43,19 @@ public class TaskController {
     }
 
     /**
+     * Get all tasks without pagination
+     */
+    @GetMapping("/all")
+    public ResponseEntity<List<Task>> getAllTasksList() {
+        try {
+            List<Task> tasks = taskService.getAllTasks();
+            return ResponseEntity.ok(tasks);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
      * Get task by ID
      */
     @GetMapping("/{id}")

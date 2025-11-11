@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -71,6 +71,7 @@ import { apiClient } from '../services/api/client';
 import { projectApiService } from '../services/api/entities/projectApi';
 import { attachmentApiService } from '../services/api';
 import { toast } from 'sonner';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 interface Stakeholder {
   id: string;
@@ -1676,6 +1677,22 @@ const ProjectsPage: React.FC = () => {
       navigate('/projects', { replace: true });
     }
   }, [searchParams, canAddProject, isNewProjectDialogOpen, navigate]);
+
+  // Check if any API is still loading, but only if data is not already present
+  const isLoadingAny = useMemo(() => {
+    return (projectsLoading && apiProjects === null && !projectsError) ||
+           (usersLoading && apiUsers === null && !usersError) ||
+           (departmentsLoading && apiDepartments === null && !departmentsError);
+  }, [
+    projectsLoading, apiProjects, projectsError,
+    usersLoading, apiUsers, usersError,
+    departmentsLoading, apiDepartments, departmentsError,
+  ]);
+
+  // Show loading spinner until all APIs are fetched
+  if (isLoadingAny) {
+    return <LoadingSpinner message="Loading Projects..." fullScreen />;
+  }
 
   // Render different views based on state
   if (showProjectDetails && selectedProject) {

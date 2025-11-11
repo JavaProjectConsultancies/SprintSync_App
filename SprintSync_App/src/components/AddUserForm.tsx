@@ -37,7 +37,7 @@ import { useCreateUser, useUpdateUser } from '../hooks/api/useUsers';
 import { useApprovePendingRegistration, useDeletePendingRegistration } from '../hooks/api/usePendingRegistrations';
 import { useDepartments } from '../hooks/api/useDepartments';
 import { useDomains } from '../hooks/api/useDomains';
-import { useExperienceLevels } from '../hooks/api/useExperienceLevels';
+import { useExperienceLevels, normalizeExperienceValue } from '../hooks/api/useExperienceLevels';
 import { User } from '../types/api';
 import { calculateHourlyRateFromCTC } from '../utils/salaryCalculator';
 import './AddUserForm.css';
@@ -134,7 +134,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
         departmentId: initialData?.departmentId || 'none',
         domainId: initialData?.domainId || 'none',
         avatarUrl: initialData?.avatarUrl || '',
-        experience: initialData?.experience || 'E1',
+        experience: normalizeExperienceValue(initialData?.experience) || 'E1',
         hourlyRate: initialData?.hourlyRate || '',
         ctc: initialData?.ctc || '',
         availabilityPercentage: initialData?.availabilityPercentage || '100',
@@ -264,15 +264,26 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
   };
 
   const handleInputChange = (field: keyof FormData, value: string | boolean) => {
+    let nextValue: string | boolean = value;
+    if (field === 'experience' && typeof value === 'string') {
+      nextValue = normalizeExperienceValue(value) || 'E1';
+    }
+
     const updatedFormData = {
       ...formData,
-      [field]: value
+      [field]: nextValue
     };
 
     // Auto-calculate hourly rate when CTC or experience changes
     if (field === 'ctc' || field === 'experience') {
-      const ctcValue = field === 'ctc' ? parseFloat(value as string) : parseFloat(updatedFormData.ctc);
-      const experienceValue = field === 'experience' ? (value as string) : updatedFormData.experience;
+      const ctcValue =
+        field === 'ctc'
+          ? parseFloat(value as string)
+          : parseFloat(updatedFormData.ctc);
+      const experienceValue =
+        field === 'experience'
+          ? (nextValue as string)
+          : updatedFormData.experience;
 
       // Only calculate if both CTC and experience are valid
       if (ctcValue && ctcValue > 0 && experienceValue) {
@@ -321,7 +332,9 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
         departmentId: formData.departmentId === 'none' ? undefined : formData.departmentId,
         domainId: formData.domainId === 'none' ? undefined : formData.domainId,
         avatarUrl: formData.avatarUrl.trim() || undefined,
-        experience: formData.experience ? formData.experience.toLowerCase() : undefined, // Convert to lowercase to match backend enum
+        experience: formData.experience
+          ? normalizeExperienceValue(formData.experience) || 'E1'
+          : undefined,
         hourlyRate: formData.hourlyRate ? parseFloat(formData.hourlyRate) : undefined,
         ctc: formData.ctc ? parseFloat(formData.ctc) : undefined,
         availabilityPercentage: parseInt(formData.availabilityPercentage) || 100,
@@ -420,7 +433,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
       departmentId: 'none',
       domainId: 'none',
       avatarUrl: '',
-      experience: 'mid',
+      experience: 'E1',
       hourlyRate: '',
       availabilityPercentage: '100',
       skills: '',

@@ -5,7 +5,6 @@ import com.sprintsync.api.entity.User;
 import com.sprintsync.api.entity.enums.UserRole;
 import com.sprintsync.api.repository.PendingRegistrationRepository;
 import com.sprintsync.api.repository.UserRepository;
-import com.sprintsync.api.service.IdGenerationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -109,6 +109,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         saveAuthData(authToken, localUser);
         apiClient.setAuthToken(authToken);
         
+        // Prefetch projects immediately after login for faster page loads
+        import('../hooks/api/useProjects').then(({ prefetchProjects, invalidateProjectsCache }) => {
+          invalidateProjectsCache(localUser.id);
+          prefetchProjects(localUser.id).catch(() => {
+            // Silently fail - projects will be fetched when needed
+          });
+        });
+        
         console.log('Login successful:', localUser);
         
         // Note: Navigation to dashboard should be handled by the component calling login
@@ -143,6 +151,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = () => {
+    // Invalidate projects cache on logout
+    import('../hooks/api/useProjects').then(({ invalidateProjectsCache }) => {
+      invalidateProjectsCache();
+    });
+    
     setUser(null);
     setToken(null);
     clearAuthData();
@@ -229,6 +242,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUser(localUser);
     saveAuthData(authToken, localUser);
     apiClient.setAuthToken(authToken);
+    
+    // Prefetch projects immediately after setting auth state
+    import('../hooks/api/useProjects').then(({ prefetchProjects, invalidateProjectsCache }) => {
+      invalidateProjectsCache(localUser.id);
+      prefetchProjects(localUser.id).catch(() => {
+        // Silently fail - projects will be fetched when needed
+      });
+    });
+    
     setLoginError(null);
     
     console.log('Auth state set successfully');

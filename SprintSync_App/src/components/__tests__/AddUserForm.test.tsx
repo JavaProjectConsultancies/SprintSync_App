@@ -37,10 +37,15 @@ jest.mock('../../hooks/api/useDomains', () => ({
 jest.mock('../../hooks/api/useExperienceLevels', () => ({
   useExperienceLevels: () => ({
     experienceLevels: [
-      { value: 'junior', label: 'Junior' },
-      { value: 'mid', label: 'Mid-level' },
-      { value: 'senior', label: 'Senior' },
-      { value: 'lead', label: 'Lead' }
+      { value: 'E1', label: 'E1 - 0-1 yr' },
+      { value: 'E2', label: 'E2 - 1-3 yrs' },
+      { value: 'M1', label: 'M1 - 3-7 yrs' },
+      { value: 'M2', label: 'M2 - 5-8 yrs' },
+      { value: 'M3', label: 'M3 - 7-10 yrs' },
+      { value: 'L1', label: 'L1 - 10-15 yrs' },
+      { value: 'L2', label: 'L2 - 12-18 yrs' },
+      { value: 'L3', label: 'L3 - 15+ yrs' },
+      { value: 'S1', label: 'S1 - 20+ yrs' }
     ],
     loading: false,
     error: null

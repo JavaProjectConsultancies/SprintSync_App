@@ -10,13 +10,11 @@ import com.sprintsync.api.security.JwtUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -31,7 +29,6 @@ public class AuthService {
     
     private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
     
-    private final AuthenticationManager authenticationManager;
     private final CustomUserDetailsService userDetailsService;
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
@@ -40,13 +37,11 @@ public class AuthService {
     
     @Autowired
     public AuthService(
-            AuthenticationManager authenticationManager,
             CustomUserDetailsService userDetailsService,
             JwtUtil jwtUtil,
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             PendingRegistrationService pendingRegistrationService) {
-        this.authenticationManager = authenticationManager;
         this.userDetailsService = userDetailsService;
         this.jwtUtil = jwtUtil;
         this.userRepository = userRepository;

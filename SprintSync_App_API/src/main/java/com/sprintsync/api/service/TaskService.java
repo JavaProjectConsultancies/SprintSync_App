@@ -39,37 +39,22 @@ public class TaskService {
     }
 
     /**
+     * Get all tasks without pagination.
+     */
+    public List<Task> getAllTasks() {
+        List<Task> tasks = taskRepository.findAll();
+        tasks.forEach(this::populateRawStatus);
+        return tasks;
+    }
+
+    /**
      * Get task by ID
      * Preserves custom lane status values by fetching raw status from database
      */
     public Task getTaskById(String id) {
         Task task = taskRepository.findById(id).orElse(null);
         if (task != null) {
-            try {
-                String rawStatus = taskRepository.findStatusById(id);
-                if (rawStatus != null) {
-                    // Set the raw status if it's a custom lane status or if it doesn't match the converted status
-                    if (rawStatus.startsWith("custom_lane_")) {
-                        task.setRawStatus(rawStatus);
-                    } else {
-                        // Check if the raw status matches the converted status
-                        try {
-                            TaskStatus enumStatus = TaskStatus.fromValue(rawStatus);
-                            // If conversion succeeds, check if it matches
-                            if (!enumStatus.equals(task.getStatus())) {
-                                // Status doesn't match, might be a custom value
-                                task.setRawStatus(rawStatus);
-                            }
-                        } catch (IllegalArgumentException e) {
-                            // Not a valid enum value, treat as custom
-                            task.setRawStatus(rawStatus);
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                // If we can't get raw status, continue with converted status
-                System.err.println("Error getting raw status for task " + id + ": " + e.getMessage());
-            }
+            populateRawStatus(task);
         }
         return task;
     }
@@ -187,35 +172,7 @@ public class TaskService {
         List<Task> tasks = taskRepository.findByStoryId(storyId);
         
         // For each task, get the raw status from database and set it if it's a custom lane status
-        tasks.forEach(task -> {
-            try {
-                String rawStatus = taskRepository.findStatusById(task.getId());
-                if (rawStatus != null) {
-                    // Set the raw status if it's a custom lane status or if it doesn't match the converted status
-                    if (rawStatus.startsWith("custom_lane_")) {
-                        task.setRawStatus(rawStatus);
-                    } else {
-                        // Check if the raw status matches the converted status
-                        // If not, it might be a custom status
-                        try {
-                            TaskStatus enumStatus = TaskStatus.fromValue(rawStatus);
-                            // If conversion succeeds, check if it matches
-                            if (!enumStatus.equals(task.getStatus())) {
-                                // Status doesn't match, might be a custom value
-                                task.setRawStatus(rawStatus);
-                            }
-                        } catch (IllegalArgumentException e) {
-                            // Not a valid enum value, treat as custom
-                            task.setRawStatus(rawStatus);
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                // If we can't get raw status, continue with converted status
-                // Log error for debugging
-                System.err.println("Error getting raw status for task " + task.getId() + ": " + e.getMessage());
-            }
-        });
+        tasks.forEach(this::populateRawStatus);
         
         return tasks;
     }
@@ -526,5 +483,34 @@ public class TaskService {
      */
     public long getTaskCountByPriority(String priority) {
         return taskRepository.countByPriority(priority);
+    }
+
+    /**
+     * Populate raw status details for a task to preserve custom lane statuses.
+     */
+    private void populateRawStatus(Task task) {
+        if (task == null || task.getId() == null) {
+            return;
+        }
+
+        try {
+            String rawStatus = taskRepository.findStatusById(task.getId());
+            if (rawStatus != null) {
+                if (rawStatus.startsWith("custom_lane_")) {
+                    task.setRawStatus(rawStatus);
+                } else {
+                    try {
+                        TaskStatus enumStatus = TaskStatus.fromValue(rawStatus);
+                        if (!enumStatus.equals(task.getStatus())) {
+                            task.setRawStatus(rawStatus);
+                        }
+                    } catch (IllegalArgumentException e) {
+                        task.setRawStatus(rawStatus);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error getting raw status for task " + task.getId() + ": " + e.getMessage());
+        }
     }
 }

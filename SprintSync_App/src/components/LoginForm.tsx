@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Alert, AlertDescription } from './ui/alert';
 import { Loader2, Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
 import { authApiService, LoginRequest } from '../services/api/authApi';
+import LoadingSpinner from './LoadingSpinner';
 
 interface LoginFormProps {
   onLoginSuccess: (token: string, user: any) => void;
@@ -120,6 +121,17 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
 
     setFormData(demoCredentials[role]);
   };
+
+  // Show loading spinner during login
+  if (isSubmitting || isLoading) {
+    return (
+      <Card className="w-full max-w-md mx-auto">
+        <CardContent className="py-12">
+          <LoadingSpinner message="Signing in..." />
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full max-w-md mx-auto">
