@@ -47,6 +47,7 @@ import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useProjects } from '../hooks/api/useProjects';
 import { useStoriesByProject } from '../hooks/api/useStories';
+import { useUsers } from '../hooks/api/useUsers';
 import { Story, Task } from '../types/api';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useAuth } from '../contexts/AuthContextEnhanced';
@@ -83,14 +84,24 @@ const BacklogPage: React.FC = () => {
   const [selectedTaskForEffort, setSelectedTaskForEffort] = useState<Task | null>(null);
   const [expandedStories, setExpandedStories] = useState<Set<string>>(new Set());
 
-  // Role-based permissions
-  const canManageSprintsAndStories =
-    user?.role?.toUpperCase() === "MANAGER" ||
-    user?.role?.toUpperCase() === "QA" ||
-    user?.role?.toUpperCase() === "ADMIN";
+  // Role-based permissions - Only managers can see all stories and tasks
+  const isManager = user?.role?.toUpperCase() === "MANAGER";
 
   // Fetch projects
   const { data: projects, loading: projectsLoading } = useProjects();
+  const { data: usersData, loading: usersLoading } = useUsers({ page: 0, size: 1000 });
+
+  const userMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (Array.isArray(usersData)) {
+      usersData.forEach((user) => {
+        if (user?.id) {
+          map[user.id] = user.name || user.email || user.id;
+        }
+      });
+    }
+    return map;
+  }, [usersData]);
 
   // Fetch stories by project
   const { data: storiesData, loading: storiesLoading, refetch: refetchStories } = useStoriesByProject(
@@ -135,8 +146,9 @@ const BacklogPage: React.FC = () => {
         tasks: tasks || []
       }));
 
-      // Role-based filtering: Non-managers/admins see only their assigned tasks
-      if (!canManageSprintsAndStories && user) {
+      // Role-based filtering: Only managers see all tasks
+      // Non-managers see only their assigned tasks
+      if (!isManager && user) {
         storiesWithTasksData = storiesWithTasksData.map((story) => ({
           ...story,
           tasks: story.tasks.filter((task) => task.assigneeId === user.id),
@@ -154,7 +166,7 @@ const BacklogPage: React.FC = () => {
     } finally {
       setTasksLoading(false);
     }
-  }, [canManageSprintsAndStories, user]);
+  }, [isManager, user]);
 
   // Fetch tasks when stories change
   useEffect(() => {
@@ -165,7 +177,7 @@ const BacklogPage: React.FC = () => {
     }
   }, [storiesData, fetchTasksForStories]);
 
-  // Filter stories: only show stories with overdue incomplete tasks
+  // Filter stories: managers see all stories, non-managers see only stories where they are assigned to at least one task
   const filteredStories = useMemo(() => {
     if (!storiesWithTasks || storiesWithTasks.length === 0) {
       return [];
@@ -174,27 +186,33 @@ const BacklogPage: React.FC = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Filter stories that have at least one overdue incomplete task
+    // Managers see all stories that belong to sprints
+    // Non-managers see only stories where they are assigned to at least one task
     let filtered = storiesWithTasks.filter(story => {
+      // Only show stories that belong to a sprint
+      if (!story.sprintId || story.sprintId.trim() === '') {
+        return false;
+      }
+
+      // Managers see all stories with tasks
+      if (isManager) {
+        return story.tasks && story.tasks.length > 0;
+      }
+
+      // Non-managers: only show stories where they are assigned to at least one task
+      if (!user?.id) {
+        return false; // No user, don't show
+      }
+
       if (!story.tasks || story.tasks.length === 0) {
         return false; // No tasks, don't show
       }
 
-      // Check if story has at least one overdue incomplete task
-      const hasOverdueIncompleteTask = story.tasks.some(task => {
-        if (!task.dueDate) {
-          return false; // No due date, skip
-        }
-
-        const taskDueDate = new Date(task.dueDate);
-        taskDueDate.setHours(0, 0, 0, 0);
-        const isOverdue = taskDueDate < today;
-        const isIncomplete = task.status !== 'DONE' && task.status !== 'CANCELLED';
-        
-        return isOverdue && isIncomplete;
+      const hasUserAssignedTask = story.tasks.some(task => {
+        return task.assigneeId === user.id;
       });
 
-      return hasOverdueIncompleteTask;
+      return hasUserAssignedTask;
     });
 
     // Apply additional filters
@@ -255,7 +273,7 @@ const BacklogPage: React.FC = () => {
     });
 
     return filtered;
-  }, [storiesWithTasks, searchTerm, statusFilter, priorityFilter, assigneeFilter, sortBy, sortOrder]);
+  }, [storiesWithTasks, searchTerm, statusFilter, priorityFilter, assigneeFilter, sortBy, sortOrder, user?.id, isManager]);
 
   // Convert filtered stories to tasks for display (flattening tasks from stories)
   const tasks = useMemo(() => {
@@ -414,15 +432,34 @@ const BacklogPage: React.FC = () => {
                   <div className="space-y-2">
                     {story.tasks.map(task => {
                       const isOverdue = task.dueDate && new Date(task.dueDate) < today;
-                      const isIncomplete = task.status !== 'DONE' && task.status !== 'CANCELLED';
+                      const taskStatusUpper = task.status?.toUpperCase() || '';
+                      const isTaskDoneStatus = taskStatusUpper === 'DONE';
+                      const isTaskCancelled = taskStatusUpper === 'CANCELLED';
+                      const isIncomplete = !isTaskDoneStatus && !isTaskCancelled;
                       const isOverdueAndIncomplete = isOverdue && isIncomplete;
+                      const isDoneAfterDue = isTaskDoneStatus && isOverdue; // Task completed after due date
+                      const isUserAssigned = user?.id && task.assigneeId === user.id;
+                      const isDoneBeforeDue = isTaskDoneStatus && task.dueDate && new Date(task.dueDate) >= today;
+                      const enrichedTask = task as Task & { assigneeName?: string };
+                      const resolvedAssigneeName =
+                        enrichedTask.assigneeName ||
+                        (task.assigneeId ? userMap[task.assigneeId] : null);
+                      const assigneeLabel =
+                        resolvedAssigneeName ||
+                        (!task.assigneeId
+                          ? 'Unassigned'
+                          : usersLoading
+                            ? 'Loading...'
+                            : 'Unknown user');
 
                       return (
                         <Card 
                           key={task.id} 
                           className={`border-l-4 ${
                             isOverdueAndIncomplete ? 'border-l-red-500 bg-red-50' : 
-                            task.status === 'DONE' ? 'border-l-green-500 bg-green-50' :
+                            isDoneBeforeDue ? 'border-l-green-300 bg-green-50' :
+                            isTaskDoneStatus ? 'border-l-green-500 bg-green-50' :
+                            isUserAssigned ? 'border-l-purple-500 bg-purple-50' :
                             'border-l-blue-500'
                           }`}
                         >
@@ -430,11 +467,18 @@ const BacklogPage: React.FC = () => {
                             <div className="flex items-start justify-between">
                               <div className="flex-1">
                                 <div className="flex items-center space-x-2 mb-1">
-                                  <h5 className="text-sm font-medium">{task.title}</h5>
+                                  <h5 className="text-sm font-medium">
+                                    {task.title}
+                                  </h5>
                                   <Badge variant="outline" className={`text-xs ${getStatusColor(task.status)}`}>
                                     {task.status?.replace('_', ' ') || 'TO_DO'}
                                   </Badge>
                                   {isOverdueAndIncomplete && (
+                                    <Badge variant="destructive" className="text-xs">
+                                      Overdue
+                                    </Badge>
+                                  )}
+                                  {isDoneAfterDue && (
                                     <Badge variant="destructive" className="text-xs">
                                       Overdue
                                     </Badge>
@@ -449,9 +493,13 @@ const BacklogPage: React.FC = () => {
                                   </Badge>
                                   {task.dueDate && (
                                     <div className="flex items-center space-x-1">
-                                      <Calendar className="w-3 h-3" />
-                                      <span className={isOverdue ? 'text-red-600 font-medium' : ''}>
+                                      <Calendar className={`w-3 h-3 ${isDoneBeforeDue ? 'text-green-400' : isOverdue ? 'text-red-600' : ''}`} />
+                                      <span className={
+                                        isDoneBeforeDue ? 'text-green-600 font-medium' :
+                                        isOverdue ? 'text-red-600 font-medium' : ''
+                                      }>
                                         {formatDate(task.dueDate)}
+                                        {isDoneBeforeDue && ' (Completed Early)'}
                                       </span>
                                     </div>
                                   )}
@@ -461,6 +509,14 @@ const BacklogPage: React.FC = () => {
                                       <span>{task.estimatedHours}h</span>
                                     </div>
                                   )}
+                              {assigneeLabel && (
+                                <div className="flex items-center space-x-1">
+                                  <User className="w-3 h-3" />
+                                  <span className="font-bold text-black">
+                                    {assigneeLabel}
+                                  </span>
+                                </div>
+                              )}
                                   {task.actualHours > 0 && (
                                     <div className="flex items-center space-x-1">
                                       <Target className="w-3 h-3" />
@@ -507,7 +563,7 @@ const BacklogPage: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Product Backlog</h1>
-          <p className="text-muted-foreground">Stories with overdue incomplete tasks</p>
+          <p className="text-muted-foreground">{isManager ? 'All stories and tasks in sprints' : 'Stories where you are assigned to tasks'}</p>
         </div>
         <div className="flex items-center space-x-3">
           {/* Project Selector */}
@@ -639,7 +695,7 @@ const BacklogPage: React.FC = () => {
         <Card>
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-semibold text-blue-600">{filteredStories.length}</div>
-            <div className="text-sm text-muted-foreground">Stories with Overdue Tasks</div>
+            <div className="text-sm text-muted-foreground">{isManager ? 'All Stories' : 'My Assigned Stories'}</div>
           </CardContent>
         </Card>
         <Card>
@@ -683,7 +739,7 @@ const BacklogPage: React.FC = () => {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-medium">
-              Stories with Overdue Incomplete Tasks ({filteredStories.length})
+              {isManager ? 'All Stories' : 'Stories with My Assigned Tasks'} ({filteredStories.length})
             </h3>
             <div className="flex items-center space-x-2">
               {filteredStories.reduce((sum, story) => sum + (story.storyPoints || 0), 0) > 0 && (
@@ -705,11 +761,13 @@ const BacklogPage: React.FC = () => {
               <CardContent className="p-12 text-center">
                 <div className="text-muted-foreground space-y-2">
                   <Target className="w-12 h-12 mx-auto opacity-50" />
-                  <p>No stories with overdue incomplete tasks found</p>
+                  <p>{isManager ? 'No stories found' : 'No stories with your assigned tasks found'}</p>
                   <p className="text-sm">
-                    {selectedProject 
-                      ? 'Stories are filtered to show only those with tasks that are past their due date and still incomplete.'
-                      : 'Please select a project to view stories.'}
+                    {selectedProject
+                      ? (isManager 
+                          ? "No stories found for this project." 
+                          : "You are not assigned to any tasks in stories for this project.")
+                      : "Please select a project to view stories."}
                   </p>
                 </div>
               </CardContent>

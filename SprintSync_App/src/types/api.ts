@@ -349,5 +349,6 @@ export interface Attachment {
   fileUrl: string;
   thumbnailUrl?: string;
   isPublic?: boolean;
+  attachmentType?: 'file' | 'url'; // 'file' for file uploads, 'url' for links
   createdAt: string;
 }

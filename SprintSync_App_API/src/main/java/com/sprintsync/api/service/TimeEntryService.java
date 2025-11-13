@@ -68,10 +68,53 @@ public class TimeEntryService {
      * @throws IllegalArgumentException if time entry not found
      */
     public TimeEntry updateTimeEntry(TimeEntry timeEntry) {
-        if (!timeEntryRepository.existsById(timeEntry.getId())) {
-            throw new IllegalArgumentException("Time entry not found with ID: " + timeEntry.getId());
+        if (timeEntry == null || timeEntry.getId() == null) {
+            throw new IllegalArgumentException("Time entry and ID are required");
         }
-        return timeEntryRepository.save(timeEntry);
+        
+        // Fetch existing time entry to merge data
+        TimeEntry existingTimeEntry = timeEntryRepository.findById(timeEntry.getId())
+                .orElseThrow(() -> new IllegalArgumentException("Time entry not found with ID: " + timeEntry.getId()));
+        
+        // Update only provided fields
+        // Required fields - only update if provided (not null)
+        if (timeEntry.getUserId() != null) {
+            existingTimeEntry.setUserId(timeEntry.getUserId());
+        }
+        if (timeEntry.getDescription() != null && !timeEntry.getDescription().trim().isEmpty()) {
+            existingTimeEntry.setDescription(timeEntry.getDescription());
+        }
+        if (timeEntry.getEntryType() != null) {
+            existingTimeEntry.setEntryType(timeEntry.getEntryType());
+        }
+        if (timeEntry.getHoursWorked() != null) {
+            existingTimeEntry.setHoursWorked(timeEntry.getHoursWorked());
+        }
+        if (timeEntry.getWorkDate() != null) {
+            existingTimeEntry.setWorkDate(timeEntry.getWorkDate());
+        }
+        if (timeEntry.getIsBillable() != null) {
+            existingTimeEntry.setIsBillable(timeEntry.getIsBillable());
+        }
+        
+        // Optional fields - update if provided (including null to allow clearing)
+        if (timeEntry.getProjectId() != null) {
+            existingTimeEntry.setProjectId(timeEntry.getProjectId());
+        }
+        if (timeEntry.getStoryId() != null) {
+            existingTimeEntry.setStoryId(timeEntry.getStoryId());
+        }
+        if (timeEntry.getTaskId() != null) {
+            existingTimeEntry.setTaskId(timeEntry.getTaskId());
+        }
+        if (timeEntry.getSubtaskId() != null) {
+            existingTimeEntry.setSubtaskId(timeEntry.getSubtaskId());
+        }
+        // startTime and endTime can be null (to clear them)
+        existingTimeEntry.setStartTime(timeEntry.getStartTime());
+        existingTimeEntry.setEndTime(timeEntry.getEndTime());
+        
+        return timeEntryRepository.save(existingTimeEntry);
     }
 
     /**

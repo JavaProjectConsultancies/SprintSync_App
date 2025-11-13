@@ -103,6 +103,8 @@ const ProjectDetailsPage = () => {
   const [attachments, setAttachments] = useState<any[]>([]);
   const [isLoadingAttachments, setIsLoadingAttachments] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [attachmentUrl, setAttachmentUrl] = useState<string>('');
+  const [attachmentUrlName, setAttachmentUrlName] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
   
   // Requirement form state
@@ -175,38 +177,62 @@ const ProjectDetailsPage = () => {
     }
   };
 
-  // Handle file upload
+  // Validate URL format
+  const isValidUrl = (urlString: string): boolean => {
+    try {
+      const url = new URL(urlString);
+      return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
+
+  // Handle file upload or URL submission
   const handleUploadFile = async () => {
-    if (!selectedFile || !id || !user) {
-      toast.error('Please select a file');
+    if (!id || !user) {
+      toast.error('Project ID or user not found');
+      return;
+    }
+
+    // Check if uploading a file or URL
+    const isUrlUpload = attachmentUrl.trim().length > 0;
+    const isFileUpload = selectedFile !== null;
+
+    if (!isFileUpload && !isUrlUpload) {
+      toast.error('Please select a file or enter a URL');
       return;
     }
 
     try {
       setIsUploading(true);
 
-      // Read file as base64 for now (in production, use proper file storage)
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64Data = reader.result as string;
-        
-        // Create attachment record
+      if (isUrlUpload) {
+        // Validate URL
+        if (!isValidUrl(attachmentUrl.trim())) {
+          toast.error('Please enter a valid URL (must start with http:// or https://)');
+          setIsUploading(false);
+          return;
+        }
+
+        // Create URL attachment record
         const attachmentData = {
           uploadedBy: user.id,
           entityType: 'project',
           entityId: id,
-          fileName: selectedFile.name,
-          fileSize: selectedFile.size,
-          fileType: selectedFile.type,
-          fileUrl: base64Data, // Store as base64, in production use proper storage URL
+          fileName: attachmentUrlName.trim() || attachmentUrl.trim(),
+          fileSize: undefined,
+          fileType: 'url',
+          fileUrl: attachmentUrl.trim(),
+          attachmentType: 'url' as const,
           isPublic: false
         };
 
         const response = await attachmentApiService.createAttachment(attachmentData);
         
         if (response.success) {
-          toast.success('File uploaded successfully');
-          setSelectedFile(null);
+          toast.success('URL added successfully');
+          setAttachmentUrl('');
+          setAttachmentUrlName('');
           
           // Reload attachments
           const refreshResponse = await attachmentApiService.getAttachmentsByEntity('project', id);
@@ -214,14 +240,48 @@ const ProjectDetailsPage = () => {
             setAttachments(refreshResponse.data);
           }
         } else {
-          toast.error('Failed to upload file');
+          toast.error('Failed to add URL');
         }
-      };
-      
-      reader.readAsDataURL(selectedFile);
+      } else if (isFileUpload && selectedFile) {
+        // Read file as base64 for now (in production, use proper file storage)
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const base64Data = reader.result as string;
+          
+          // Create file attachment record
+          const attachmentData = {
+            uploadedBy: user.id,
+            entityType: 'project',
+            entityId: id,
+            fileName: selectedFile.name,
+            fileSize: selectedFile.size,
+            fileType: selectedFile.type,
+            fileUrl: base64Data, // Store as base64, in production use proper storage URL
+            attachmentType: 'file' as const,
+            isPublic: false
+          };
+
+          const response = await attachmentApiService.createAttachment(attachmentData);
+          
+          if (response.success) {
+            toast.success('File uploaded successfully');
+            setSelectedFile(null);
+            
+            // Reload attachments
+            const refreshResponse = await attachmentApiService.getAttachmentsByEntity('project', id);
+            if (refreshResponse.data) {
+              setAttachments(refreshResponse.data);
+            }
+          } else {
+            toast.error('Failed to upload file');
+          }
+        };
+        
+        reader.readAsDataURL(selectedFile);
+      }
     } catch (error) {
-      console.error('Error uploading file:', error);
-      toast.error('Failed to upload file. Please try again.');
+      console.error('Error uploading attachment:', error);
+      toast.error('Failed to upload attachment. Please try again.');
     } finally {
       setIsUploading(false);
     }
@@ -844,7 +904,7 @@ const ProjectDetailsPage = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-xl font-semibold text-blue-800">Project Attachments</h3>
-                <p className="text-blue-600 mt-1">Upload and manage project files</p>
+                <p className="text-blue-600 mt-1">Upload files and add URLs/links to this project</p>
               </div>
               <div className="flex items-center space-x-4">
                 <div className="text-right">
@@ -883,52 +943,69 @@ const ProjectDetailsPage = () => {
             </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {attachments.map((attachment: any) => (
-                <Card key={attachment.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3 flex-1 min-w-0">
-                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <FileText className="w-5 h-5 text-blue-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate" title={attachment.fileName}>
-                            {attachment.fileName}
-                          </p>
-                          {attachment.fileSize && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {formatFileSize(attachment.fileSize)}
+              {attachments.map((attachment: any) => {
+                const isUrl = attachment.attachmentType === 'url' || (!attachment.attachmentType && attachment.fileType === 'url');
+                return (
+                  <Card key={attachment.id} className="hover:shadow-md transition-shadow">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                            isUrl ? 'bg-green-100' : 'bg-blue-100'
+                          }`}>
+                            {isUrl ? (
+                              <Link className="w-5 h-5 text-green-600" />
+                            ) : (
+                              <FileText className="w-5 h-5 text-blue-600" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate" title={attachment.fileName}>
+                              {attachment.fileName}
                             </p>
-                          )}
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {new Date(attachment.createdAt).toLocaleDateString()}
-                          </p>
+                            {isUrl ? (
+                              <p className="text-xs text-muted-foreground mt-1 break-all line-clamp-2" title={attachment.fileUrl}>
+                                {attachment.fileUrl}
+                              </p>
+                            ) : attachment.fileSize ? (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {formatFileSize(attachment.fileSize)}
+                              </p>
+                            ) : null}
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {new Date(attachment.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => window.open(attachment.fileUrl, '_blank')}
+                            title={isUrl ? "Open link" : "View file"}
+                          >
+                            {isUrl ? (
+                              <Link className="w-4 h-4" />
+                            ) : (
+                              <Eye className="w-4 h-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleDeleteFile(attachment.id)}
+                            title="Delete attachment"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex flex-col gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0"
-                          onClick={() => window.open(attachment.fileUrl, '_blank')}
-                          title="View file"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => handleDeleteFile(attachment.id)}
-                          title="Delete file"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>
@@ -1400,15 +1477,16 @@ const ProjectDetailsPage = () => {
           style={{ width: '90vw', height: '90vh', maxWidth: '90vw', maxHeight: '90vh' }}
         >
           <DialogHeader>
-            <DialogTitle className="text-xl">Upload Attachment</DialogTitle>
+            <DialogTitle className="text-xl">Add Attachment</DialogTitle>
             <DialogDescription className="text-base">
-              Upload files to attach to this project. All file types are supported.
+              Upload files or add URLs to attach to this project. All file types are supported.
             </DialogDescription>
           </DialogHeader>
           
-          <div className="flex-1 space-y-4 overflow-y-auto">
+          <div className="flex-1 space-y-6 overflow-y-auto">
+            {/* File Upload Section */}
             <div className="space-y-2">
-              <Label htmlFor="file-upload">Select File</Label>
+              <Label htmlFor="file-upload">Upload File</Label>
               <div className="flex items-center gap-2">
                 <Input
                   id="file-upload"
@@ -1431,25 +1509,80 @@ const ProjectDetailsPage = () => {
                 </div>
               )}
             </div>
+
+            {/* Separator */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">Or</span>
+              </div>
+            </div>
+
+            {/* URL Input Section */}
+            <div className="space-y-2">
+              <Label htmlFor="url-input">Add URL/Link</Label>
+              <div className="space-y-2">
+                <Input
+                  id="url-input"
+                  type="url"
+                  placeholder="https://example.com/document.pdf"
+                  value={attachmentUrl}
+                  onChange={(e) => setAttachmentUrl(e.target.value)}
+                  className="w-full"
+                />
+                <Input
+                  id="url-name-input"
+                  type="text"
+                  placeholder="Link name (optional)"
+                  value={attachmentUrlName}
+                  onChange={(e) => setAttachmentUrlName(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+              {attachmentUrl && (
+                <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                  <div className="flex items-center gap-2">
+                    <Link className="w-4 h-4 text-green-600" />
+                    <div>
+                      <p className="text-sm font-medium">{attachmentUrlName || attachmentUrl}</p>
+                      <p className="text-xs text-muted-foreground break-all">{attachmentUrl}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           
           <DialogFooter className="flex-shrink-0">
             <Button variant="outline" onClick={() => {
               setIsAddRequirementDialogOpen(false);
               setSelectedFile(null);
+              setAttachmentUrl('');
+              setAttachmentUrlName('');
             }}>
               Cancel
             </Button>
-            <Button onClick={handleUploadFile} disabled={!selectedFile || isUploading}>
+            <Button onClick={handleUploadFile} disabled={(!selectedFile && !attachmentUrl.trim()) || isUploading}>
               {isUploading ? (
                 <>
                   <Upload className="w-4 h-4 mr-2 animate-pulse" />
-                  Uploading...
+                  {selectedFile ? 'Uploading...' : 'Adding...'}
                 </>
               ) : (
                 <>
-                  <Upload className="w-4 h-4 mr-2" />
-                  Upload File
+                  {selectedFile ? (
+                    <>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Upload File
+                    </>
+                  ) : (
+                    <>
+                      <Link className="w-4 h-4 mr-2" />
+                      Add URL
+                    </>
+                  )}
                 </>
               )}
             </Button>

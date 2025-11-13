@@ -252,12 +252,27 @@ const ScrumPage: React.FC = () => {
   >(null);
 
   const [isAddSubtaskDialogOpen, setIsAddSubtaskDialogOpen] = useState(false);
+  const [isEditSubtaskDialogOpen, setIsEditSubtaskDialogOpen] = useState(false);
+  const [selectedSubtaskForEdit, setSelectedSubtaskForEdit] = useState<Subtask | null>(null);
 
   const [selectedTaskForSubtask, setSelectedTaskForSubtask] =
     useState<Task | null>(null);
 
   const [selectedIssueForSubtask, setSelectedIssueForSubtask] =
     useState<Issue | null>(null);
+  
+  // State for task logs/time entries
+  const [taskLogs, setTaskLogs] = useState<TimeEntry[]>([]);
+  const [loadingTaskLogs, setLoadingTaskLogs] = useState(false);
+  const [selectedLogForEdit, setSelectedLogForEdit] = useState<TimeEntry | null>(null);
+  const [isEditLogDialogOpen, setIsEditLogDialogOpen] = useState(false);
+  const [editLogData, setEditLogData] = useState({
+    hoursWorked: 0,
+    description: "",
+    workDate: new Date().toISOString().split("T")[0],
+    startTime: "",
+    endTime: "",
+  });
 
   const [isStoryDetailsOpen, setIsStoryDetailsOpen] = useState(false);
 
@@ -342,12 +357,18 @@ const ScrumPage: React.FC = () => {
     endDate: "",
   });
 
-  // Effort logging state (JIRA-style: log on subtasks)
+  // Effort logging state (JIRA-style: log on subtasks, tasks, and issues)
 
   const [isLogEffortDialogOpen, setIsLogEffortDialogOpen] = useState(false);
 
   const [selectedSubtaskForEffort, setSelectedSubtaskForEffort] =
     useState<Subtask | null>(null);
+
+  const [selectedTaskForEffort, setSelectedTaskForEffort] =
+    useState<Task | null>(null);
+
+  const [selectedIssueForEffort, setSelectedIssueForEffort] =
+    useState<Issue | null>(null);
 
   const [effortLog, setEffortLog] = useState({
     hours: 0,
@@ -401,11 +422,18 @@ const ScrumPage: React.FC = () => {
     user?.role?.toUpperCase() === "MANAGER" ||
     user?.role?.toUpperCase() === "QA";
 
-  const canAddTasks = canManageSprintsAndStories; // Only managers and QA can add tasks
+  // Only MANAGER can create stories, tasks, and issues
+  const isManager = user?.role?.toUpperCase() === "MANAGER";
+
+  // Only managers can add tasks and issues
+  const canAddTasks = isManager; // Only managers can create tasks and issues
 
   const canCreateBoards = canManageSprintsAndStories; // Only managers and QA can create boards
 
   const canLogEffort = true;
+
+  // Check if user is a developer (not MANAGER or QA)
+  const isDeveloper = user?.role?.toUpperCase() !== "MANAGER" && user?.role?.toUpperCase() !== "QA";
 
   // All users can create subtasks (checked individually where needed)
 
@@ -493,6 +521,31 @@ const ScrumPage: React.FC = () => {
 
     fetchStoryAttachments();
   }, [selectedStoryForDetails?.id, isStoryDetailsOpen]);
+
+  // Fetch task logs when task details dialog opens
+  useEffect(() => {
+    const fetchTaskLogs = async () => {
+      if (selectedTaskForDetails?.id && isTaskDetailsOpen) {
+        setLoadingTaskLogs(true);
+        try {
+          const response = await timeEntryApiService.getTimeEntriesByTask(selectedTaskForDetails.id);
+          const logs = Array.isArray(response.data) 
+            ? response.data 
+            : (Array.isArray(response) ? response : []);
+          setTaskLogs(logs);
+        } catch (error) {
+          console.error("Error fetching task logs:", error);
+          setTaskLogs([]);
+        } finally {
+          setLoadingTaskLogs(false);
+        }
+      } else {
+        setTaskLogs([]);
+      }
+    };
+
+    fetchTaskLogs();
+  }, [selectedTaskForDetails?.id, isTaskDetailsOpen]);
 
   // Fetch parent story attachments when task details dialog opens
 
@@ -2311,9 +2364,28 @@ const ScrumPage: React.FC = () => {
         return mappedStatus === status;
       });
 
+      // Sort tasks: For "To Do" column, show user-assigned tasks first
+      const isTodoColumn = status === "todo" || status === "TO_DO" || status === "TODO" || 
+                          mapTaskStatusToColumn("TO_DO") === status ||
+                          (status && status.toLowerCase() === "todo");
+      
+      if (isTodoColumn) {
+        filteredTasks.sort((a, b) => {
+          const aIsUserAssigned = user?.id && a.assigneeId === user.id;
+          const bIsUserAssigned = user?.id && b.assigneeId === user.id;
+          
+          // User-assigned tasks come first
+          if (aIsUserAssigned && !bIsUserAssigned) return -1;
+          if (!aIsUserAssigned && bIsUserAssigned) return 1;
+          
+          // If both are user-assigned or both are not, maintain original order
+          return 0;
+        });
+      }
+
       return filteredTasks;
     },
-    [allTasks, boardStories, workflowLanes, mapTaskStatusToColumn],
+    [allTasks, boardStories, workflowLanes, mapTaskStatusToColumn, user],
   );
 
   // Group tasks by their parent story (only from stories in current sprint)
@@ -2351,17 +2423,31 @@ const ScrumPage: React.FC = () => {
     );
 
     // Sort tasks by task number within each story group
+    // For "To Do" column, prioritize user-assigned tasks first
+
+    const isTodoColumn = status === "todo" || status === "TO_DO" || status === "TODO" || 
+                        (status && status.toLowerCase() === "todo");
 
     Object.keys(grouped).forEach((storyTitle) => {
       grouped[storyTitle].tasks.sort((a, b) => {
-        const aNum = a.taskNumber || 0;
+        // For "To Do" column, user-assigned tasks come first
+        if (isTodoColumn && user?.id) {
+          const aIsUserAssigned = a.assigneeId === user.id;
+          const bIsUserAssigned = b.assigneeId === user.id;
+          
+          if (aIsUserAssigned && !bIsUserAssigned) return -1;
+          if (!aIsUserAssigned && bIsUserAssigned) return 1;
+        }
 
+        // Then sort by task number
+        const aNum = a.taskNumber || 0;
         const bNum = b.taskNumber || 0;
 
         if (aNum !== bNum) {
           return aNum - bNum;
         }
 
+        // Finally by creation date
         return (
           new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
         );
@@ -3032,6 +3118,17 @@ const ScrumPage: React.FC = () => {
                       const isIncomplete =
                         task.status !== "DONE" && task.status !== "CANCELLED";
                       const isOverdueAndIncomplete = isOverdue && isIncomplete;
+                      const enrichedTask = task as Task & { assigneeName?: string };
+                      const resolvedAssigneeName =
+                        enrichedTask.assigneeName ||
+                        (task.assigneeId ? getUserName(task.assigneeId) : null);
+                      const assigneeLabel =
+                        resolvedAssigneeName ||
+                        (!task.assigneeId
+                          ? "Unassigned"
+                          : usersLoading
+                            ? "Loading..."
+                            : "Unknown user");
 
                       return (
                         <Card
@@ -3096,6 +3193,14 @@ const ScrumPage: React.FC = () => {
                                     <div className="flex items-center space-x-1">
                                       <Clock className="w-3 h-3" />
                                       <span>{task.estimatedHours}h</span>
+                                    </div>
+                                  )}
+                                  {assigneeLabel && (
+                                    <div className="flex items-center space-x-1">
+                                      <User className="w-3 h-3" />
+                                      <span className="font-bold text-black">
+                                        {assigneeLabel}
+                                      </span>
                                     </div>
                                   )}
                                   {task.actualHours > 0 && (
@@ -3193,6 +3298,8 @@ const ScrumPage: React.FC = () => {
 
         thumbnailUrl: undefined,
 
+        attachmentType: 'file' as const,
+
         isPublic: true,
       });
     } catch (error) {
@@ -3202,9 +3309,40 @@ const ScrumPage: React.FC = () => {
     }
   };
 
+  // Helper function to create URL attachment
+  const createUrlAttachment = async (
+    url: string,
+    name: string,
+    entityType: string,
+    entityId: string,
+  ): Promise<void> => {
+    try {
+      await attachmentApiService.createAttachment({
+        uploadedBy: user?.id,
+        entityType,
+        entityId,
+        fileName: name,
+        fileSize: undefined,
+        fileType: 'url',
+        fileUrl: url,
+        attachmentType: 'url' as const,
+        isPublic: true,
+      });
+    } catch (error) {
+      console.error("Error creating URL attachment:", error);
+      throw error;
+    }
+  };
+
   // Story creation handler
 
   const handleCreateStory = async () => {
+    // Only managers can create stories
+    if (!isManager) {
+      toast.error("Only managers can create stories");
+      return;
+    }
+
     if (!selectedProject) {
       alert("Please select a project first");
 
@@ -3332,6 +3470,21 @@ const ScrumPage: React.FC = () => {
 
   const moveItem = useCallback(
     async (id: string, newStatus: string, itemType: string) => {
+      // Prevent developers from moving tasks/issues to Done column only
+      // Developers can add tasks to all other lanes including manager-created lanes
+      if (isDeveloper) {
+        if (newStatus === "done") {
+          toast.error("Developers cannot move tasks/issues to Done column");
+          return;
+        }
+        // Check if the status maps to DONE
+        const mappedStatus = mapColumnToTaskStatus(newStatus);
+        if (mappedStatus === "DONE") {
+          toast.error("Developers cannot move tasks/issues to Done column");
+          return;
+        }
+      }
+
       if (itemType === ItemTypes.TASK) {
         // Check if newStatus is a valid default status or a custom lane statusValue
 
@@ -3345,6 +3498,58 @@ const ScrumPage: React.FC = () => {
           const task = allTasks.find((t) => t.id === id);
 
           const oldStatus = task?.status;
+          
+          // Prevent non-managers from moving tasks from "In Progress" back to "To Do"
+          const isMovingFromInProgressToTodo = 
+            (oldStatus === "IN_PROGRESS" || oldStatus === "in_progress") && 
+            (newStatus === "todo" || newStatus === "TO_DO" || newStatus === "TODO");
+          
+          if (isMovingFromInProgressToTodo && !canManageSprintsAndStories) {
+            toast.error("Only managers can move tasks from In Progress back to To Do");
+            // Log blocked attempt
+            try {
+              await activityLogApiService.createActivityLog({
+                userId: user?.id || "",
+                entityType: "tasks",
+                entityId: id,
+                action: "status_change_blocked",
+                description: `Attempted to move task from ${oldStatus} to TODO (blocked - manager only)`,
+                oldValues: JSON.stringify({ status: oldStatus }),
+                newValues: JSON.stringify({ status: "TODO" }),
+                ipAddress: undefined,
+                userAgent: undefined,
+              });
+            } catch (error) {
+              console.error("Failed to log blocked activity:", error);
+            }
+            return;
+          }
+
+          // Prevent non-managers from moving tasks from "To Do" to "In Progress"
+          const isMovingFromTodoToInProgress = 
+            (oldStatus === "TO_DO" || oldStatus === "TODO" || oldStatus === "todo" || oldStatus === "to_do") && 
+            (newStatus === "inprogress" || newStatus === "IN_PROGRESS" || newStatus === "in_progress");
+          
+          if (isMovingFromTodoToInProgress && !canManageSprintsAndStories) {
+            toast.error("Only managers can move tasks from To Do to In Progress");
+            // Log blocked attempt
+            try {
+              await activityLogApiService.createActivityLog({
+                userId: user?.id || "",
+                entityType: "tasks",
+                entityId: id,
+                action: "status_change_blocked",
+                description: `Attempted to move task from ${oldStatus} to IN_PROGRESS (blocked - manager only)`,
+                oldValues: JSON.stringify({ status: oldStatus }),
+                newValues: JSON.stringify({ status: "IN_PROGRESS" }),
+                ipAddress: undefined,
+                userAgent: undefined,
+              });
+            } catch (error) {
+              console.error("Failed to log blocked activity:", error);
+            }
+            return;
+          }
 
           const mappedStatus = mapColumnToTaskStatus(newStatus);
 
@@ -3355,25 +3560,24 @@ const ScrumPage: React.FC = () => {
           });
 
           // Log activity
-
           try {
+            const isMovingToInProgress = mappedStatus === "IN_PROGRESS" || mappedStatus === "in_progress";
+            const isMovingFromTodo = oldStatus === "TO_DO" || oldStatus === "TODO" || oldStatus === "todo" || oldStatus === "to_do";
+            
+            let description = `Changed status from ${oldStatus} to ${mappedStatus}`;
+            if (isMovingFromTodo && isMovingToInProgress && canManageSprintsAndStories) {
+              description = `Manager moved task from To Do to In Progress`;
+            }
+
             await activityLogApiService.createActivityLog({
               userId: user?.id || "",
-
               entityType: "tasks",
-
               entityId: id,
-
               action: "status_changed",
-
-              description: `Changed status from ${oldStatus} to ${mappedStatus}`,
-
+              description: description,
               oldValues: JSON.stringify({ status: oldStatus }),
-
               newValues: JSON.stringify({ status: mappedStatus }),
-
               ipAddress: undefined, // Not tracking IP from frontend
-
               userAgent: undefined, // Not tracking user agent from frontend
             });
           } catch (error) {
@@ -3399,6 +3603,58 @@ const ScrumPage: React.FC = () => {
           const issue = allIssues.find((i) => i.id === id);
 
           const oldStatus = issue?.status;
+          
+          // Prevent non-managers from moving issues from "In Progress" back to "To Do"
+          const isMovingFromInProgressToTodo = 
+            (oldStatus === "IN_PROGRESS" || oldStatus === "in_progress") && 
+            (newStatus === "todo" || newStatus === "TO_DO" || newStatus === "TODO");
+          
+          if (isMovingFromInProgressToTodo && !canManageSprintsAndStories) {
+            toast.error("Only managers can move issues from In Progress back to To Do");
+            // Log blocked attempt
+            try {
+              await activityLogApiService.createActivityLog({
+                userId: user?.id || "",
+                entityType: "issues",
+                entityId: id,
+                action: "status_change_blocked",
+                description: `Attempted to move issue from ${oldStatus} to TODO (blocked - manager only)`,
+                oldValues: JSON.stringify({ status: oldStatus }),
+                newValues: JSON.stringify({ status: "TODO" }),
+                ipAddress: undefined,
+                userAgent: undefined,
+              });
+            } catch (error) {
+              console.error("Failed to log blocked activity:", error);
+            }
+            return;
+          }
+
+          // Prevent non-managers from moving issues from "To Do" to "In Progress"
+          const isMovingFromTodoToInProgress = 
+            (oldStatus === "TO_DO" || oldStatus === "TODO" || oldStatus === "todo" || oldStatus === "to_do") && 
+            (newStatus === "inprogress" || newStatus === "IN_PROGRESS" || newStatus === "in_progress");
+          
+          if (isMovingFromTodoToInProgress && !canManageSprintsAndStories) {
+            toast.error("Only managers can move issues from To Do to In Progress");
+            // Log blocked attempt
+            try {
+              await activityLogApiService.createActivityLog({
+                userId: user?.id || "",
+                entityType: "issues",
+                entityId: id,
+                action: "status_change_blocked",
+                description: `Attempted to move issue from ${oldStatus} to IN_PROGRESS (blocked - manager only)`,
+                oldValues: JSON.stringify({ status: oldStatus }),
+                newValues: JSON.stringify({ status: "IN_PROGRESS" }),
+                ipAddress: undefined,
+                userAgent: undefined,
+              });
+            } catch (error) {
+              console.error("Failed to log blocked activity:", error);
+            }
+            return;
+          }
 
           const mappedStatus = mapColumnToTaskStatus(newStatus);
 
@@ -3409,25 +3665,24 @@ const ScrumPage: React.FC = () => {
           });
 
           // Log activity
-
           try {
+            const isMovingToInProgress = mappedStatus === "IN_PROGRESS" || mappedStatus === "in_progress";
+            const isMovingFromTodo = oldStatus === "TO_DO" || oldStatus === "TODO" || oldStatus === "todo" || oldStatus === "to_do";
+            
+            let description = `Changed issue status from ${oldStatus} to ${mappedStatus}`;
+            if (isMovingFromTodo && isMovingToInProgress && canManageSprintsAndStories) {
+              description = `Manager moved issue from To Do to In Progress`;
+            }
+
             await activityLogApiService.createActivityLog({
               userId: user?.id || "",
-
               entityType: "issues",
-
               entityId: id,
-
               action: "status_changed",
-
-              description: `Changed issue status from ${oldStatus} to ${mappedStatus}`,
-
+              description: description,
               oldValues: JSON.stringify({ status: oldStatus }),
-
               newValues: JSON.stringify({ status: mappedStatus }),
-
               ipAddress: undefined,
-
               userAgent: undefined,
             });
           } catch (error) {
@@ -3516,6 +3771,8 @@ const ScrumPage: React.FC = () => {
       allIssues,
       workflowLanes,
       user,
+      isDeveloper,
+      lanesAfterQA,
     ],
   );
 
@@ -3604,7 +3861,11 @@ const ScrumPage: React.FC = () => {
   // Add Story Handler
 
   const handleAddStory = async () => {
-    if (!canManageSprintsAndStories) return;
+    // Only managers can create stories
+    if (!isManager) {
+      toast.error("Only managers can create stories");
+      return;
+    }
 
     const createdStory = await createStoryMutate({
       projectId: selectedProject,
@@ -3997,9 +4258,9 @@ const ScrumPage: React.FC = () => {
   };
 
   const handleAddTask = async (taskDataFromDialog: any) => {
-    if (!canAddTasks) {
-      toast.error("Only Managers and QA can create tasks");
-
+    // Only managers can create tasks
+    if (!isManager) {
+      toast.error("Only managers can create tasks");
       return;
     }
 
@@ -4066,8 +4327,16 @@ const ScrumPage: React.FC = () => {
         done: "DONE",
       };
 
+      const requestedStatus = taskDataFromDialog.status?.toLowerCase() || "todo";
+      
+      // Prevent developers from creating tasks with Done status
+      if (isDeveloper && (requestedStatus === "done" || statusMap[requestedStatus] === "DONE")) {
+        toast.error("Developers cannot add tasks to Done column. Please select another status.");
+        return;
+      }
+
       const apiStatus =
-        statusMap[taskDataFromDialog.status?.toLowerCase() || "todo"] ||
+        statusMap[requestedStatus] ||
         "TO_DO";
 
       // Map due date format (dd/MM/yy) to ISO string
@@ -4131,21 +4400,34 @@ const ScrumPage: React.FC = () => {
 
       if (response && response.data) {
         // Upload attachments if any
+        const hasFiles = taskDataFromDialog.attachments && taskDataFromDialog.attachments.length > 0;
+        const hasUrls = taskDataFromDialog.attachmentUrls && taskDataFromDialog.attachmentUrls.length > 0;
 
-        if (
-          taskDataFromDialog.attachments &&
-          taskDataFromDialog.attachments.length > 0
-        ) {
+        if (hasFiles || hasUrls) {
           try {
-            const uploadPromises = taskDataFromDialog.attachments.map(
-              (file: File) =>
-                uploadFileAndCreateAttachment(file, "task", response.data.id),
-            );
+            const uploadPromises: Promise<void>[] = [];
+            
+            // Upload files
+            if (hasFiles) {
+              uploadPromises.push(...taskDataFromDialog.attachments.map(
+                (file: File) =>
+                  uploadFileAndCreateAttachment(file, "task", response.data.id),
+              ));
+            }
+
+            // Create URL attachments
+            if (hasUrls) {
+              uploadPromises.push(...taskDataFromDialog.attachmentUrls.map(
+                (item: { url: string; name: string }) =>
+                  createUrlAttachment(item.url, item.name, "task", response.data.id),
+              ));
+            }
 
             await Promise.all(uploadPromises);
 
+            const totalAttachments = (taskDataFromDialog.attachments?.length || 0) + (taskDataFromDialog.attachmentUrls?.length || 0);
             toast.success(
-              `Task created with ${taskDataFromDialog.attachments.length} attachment(s)`,
+              `Task created with ${totalAttachments} attachment(s)`,
             );
           } catch (error) {
             console.error("Error uploading attachments:", error);
@@ -4168,9 +4450,9 @@ const ScrumPage: React.FC = () => {
   // Add Issue Handler - Similar to handleAddTask
 
   const handleAddIssue = async (issueDataFromDialog: any) => {
-    if (!canAddTasks) {
-      toast.error("Only Managers and QA can create issues");
-
+    // Only managers can create issues
+    if (!isManager) {
+      toast.error("Only managers can create issues");
       return;
     }
 
@@ -4247,8 +4529,16 @@ const ScrumPage: React.FC = () => {
         done: "DONE",
       };
 
+      const requestedStatus = issueDataFromDialog.status?.toLowerCase() || "todo";
+      
+      // Prevent developers from creating issues with Done status
+      if (isDeveloper && (requestedStatus === "done" || statusMap[requestedStatus] === "DONE")) {
+        toast.error("Developers cannot add issues to Done column. Please select another status.");
+        return;
+      }
+
       const apiStatus =
-        statusMap[issueDataFromDialog.status?.toLowerCase() || "todo"] ||
+        statusMap[requestedStatus] ||
         "TO_DO";
 
       // Map due date format (dd/MM/yy) to ISO string
@@ -4413,21 +4703,34 @@ const ScrumPage: React.FC = () => {
         }
 
         // Upload attachments if any
+        const hasFiles = issueDataFromDialog.attachments && issueDataFromDialog.attachments.length > 0;
+        const hasUrls = issueDataFromDialog.attachmentUrls && issueDataFromDialog.attachmentUrls.length > 0;
 
-        if (
-          issueDataFromDialog.attachments &&
-          issueDataFromDialog.attachments.length > 0
-        ) {
+        if (hasFiles || hasUrls) {
           try {
-            const uploadPromises = issueDataFromDialog.attachments.map(
-              (file: File) =>
-                uploadFileAndCreateAttachment(file, "issue", createdIssueId),
-            );
+            const uploadPromises: Promise<void>[] = [];
+            
+            // Upload files
+            if (hasFiles) {
+              uploadPromises.push(...issueDataFromDialog.attachments.map(
+                (file: File) =>
+                  uploadFileAndCreateAttachment(file, "issue", createdIssueId),
+              ));
+            }
+
+            // Create URL attachments
+            if (hasUrls) {
+              uploadPromises.push(...issueDataFromDialog.attachmentUrls.map(
+                (item: { url: string; name: string }) =>
+                  createUrlAttachment(item.url, item.name, "issue", createdIssueId),
+              ));
+            }
 
             await Promise.all(uploadPromises);
 
+            const totalAttachments = (issueDataFromDialog.attachments?.length || 0) + (issueDataFromDialog.attachmentUrls?.length || 0);
             toast.success(
-              `Issue created with ${issueDataFromDialog.attachments.length} attachment(s)`,
+              `Issue created with ${totalAttachments} attachment(s)`,
             );
           } catch (error) {
             console.error("Error uploading attachments:", error);
@@ -4531,6 +4834,93 @@ const ScrumPage: React.FC = () => {
       toast.error("Please select a task or issue");
 
       return;
+    }
+
+    // Validation: Check subtask category limits and hours
+    if (selectedTaskForSubtask) {
+      // Get all existing subtasks for this task
+      const existingSubtasks = allSubtasks.filter(
+        (st) => st.taskId === selectedTaskForSubtask.id
+      );
+
+      // Check category limits: Max 2 Major, Max 1 Other
+      const category = newSubtask.category || "";
+      if (category === "Major") {
+        const majorCount = existingSubtasks.filter(
+          (st) => st.category === "Major"
+        ).length;
+        if (majorCount >= 2) {
+          toast.error("Maximum 2 Major subtasks allowed per task");
+          return;
+        }
+      } else if (category === "Other") {
+        const otherCount = existingSubtasks.filter(
+          (st) => st.category === "Other"
+        ).length;
+        if (otherCount >= 1) {
+          toast.error("Maximum 1 Other subtask allowed per task");
+          return;
+        }
+      }
+
+      // Check total hours: Sum of all subtask hours must not exceed task hours
+      const taskEstimatedHours = selectedTaskForSubtask.estimatedHours || 0;
+      if (taskEstimatedHours > 0) {
+        const existingSubtaskHours = existingSubtasks.reduce(
+          (sum, st) => sum + (st.estimatedHours || 0),
+          0
+        );
+        const newSubtaskHours = newSubtask.estimatedHours || 0;
+        const totalSubtaskHours = existingSubtaskHours + newSubtaskHours;
+
+        if (totalSubtaskHours > taskEstimatedHours) {
+          toast.error(
+            `Total subtask hours (${totalSubtaskHours}h) cannot exceed task hours (${taskEstimatedHours}h). Please reduce subtask hours.`
+          );
+          return;
+        }
+      }
+    } else if (selectedIssueForSubtask) {
+      // Similar validation for issues
+      const existingSubtasks = allSubtasks.filter(
+        (st) => st.issueId === selectedIssueForSubtask.id
+      );
+
+      const category = newSubtask.category || "";
+      if (category === "Major") {
+        const majorCount = existingSubtasks.filter(
+          (st) => st.category === "Major"
+        ).length;
+        if (majorCount >= 2) {
+          toast.error("Maximum 2 Major subtasks allowed per issue");
+          return;
+        }
+      } else if (category === "Other") {
+        const otherCount = existingSubtasks.filter(
+          (st) => st.category === "Other"
+        ).length;
+        if (otherCount >= 1) {
+          toast.error("Maximum 1 Other subtask allowed per issue");
+          return;
+        }
+      }
+
+      const issueEstimatedHours = selectedIssueForSubtask.estimatedHours || 0;
+      if (issueEstimatedHours > 0) {
+        const existingSubtaskHours = existingSubtasks.reduce(
+          (sum, st) => sum + (st.estimatedHours || 0),
+          0
+        );
+        const newSubtaskHours = newSubtask.estimatedHours || 0;
+        const totalSubtaskHours = existingSubtaskHours + newSubtaskHours;
+
+        if (totalSubtaskHours > issueEstimatedHours) {
+          toast.error(
+            `Total subtask hours (${totalSubtaskHours}h) cannot exceed issue hours (${issueEstimatedHours}h). Please reduce subtask hours.`
+          );
+          return;
+        }
+      }
     }
 
     setIsCreatingSubtask(true);
@@ -4693,6 +5083,334 @@ const ScrumPage: React.FC = () => {
       console.error("Error creating subtask:", error);
     } finally {
       setIsCreatingSubtask(false);
+    }
+  };
+
+  // Edit Subtask Handler
+  const handleEditSubtask = async () => {
+    if (!selectedSubtaskForEdit || !newSubtask.title.trim()) {
+      toast.error("Please enter a subtask title");
+      return;
+    }
+
+    // Validation: Check subtask category limits and hours
+    if (selectedSubtaskForEdit.taskId) {
+      // Get all existing subtasks for this task (excluding the one being edited)
+      const existingSubtasks = allSubtasks.filter(
+        (st) => st.taskId === selectedSubtaskForEdit.taskId && st.id !== selectedSubtaskForEdit.id
+      );
+
+      // Find the parent task
+      const parentTask = allTasks.find(
+        (t) => t.id === selectedSubtaskForEdit.taskId
+      );
+
+      if (parentTask) {
+        // Check category limits: Max 2 Major, Max 1 Other
+        const category = newSubtask.category || "";
+        if (category === "Major") {
+          const majorCount = existingSubtasks.filter(
+            (st) => st.category === "Major"
+          ).length;
+          // Only check if the category is being changed to Major
+          if (selectedSubtaskForEdit.category !== "Major" && majorCount >= 2) {
+            toast.error("Maximum 2 Major subtasks allowed per task");
+            return;
+          }
+        } else if (category === "Other") {
+          const otherCount = existingSubtasks.filter(
+            (st) => st.category === "Other"
+          ).length;
+          // Only check if the category is being changed to Other
+          if (selectedSubtaskForEdit.category !== "Other" && otherCount >= 1) {
+            toast.error("Maximum 1 Other subtask allowed per task");
+            return;
+          }
+        }
+
+        // Check total hours: Sum of all subtask hours must not exceed task hours
+        const taskEstimatedHours = parentTask.estimatedHours || 0;
+        if (taskEstimatedHours > 0) {
+          const existingSubtaskHours = existingSubtasks.reduce(
+            (sum, st) => sum + (st.estimatedHours || 0),
+            0
+          );
+          const editedSubtaskHours = newSubtask.estimatedHours || 0;
+          const totalSubtaskHours = existingSubtaskHours + editedSubtaskHours;
+
+          if (totalSubtaskHours > taskEstimatedHours) {
+            toast.error(
+              `Total subtask hours (${totalSubtaskHours}h) cannot exceed task hours (${taskEstimatedHours}h). Please reduce subtask hours.`
+            );
+            return;
+          }
+        }
+      }
+    } else if (selectedSubtaskForEdit.issueId) {
+      // Similar validation for issues
+      const existingSubtasks = allSubtasks.filter(
+        (st) => st.issueId === selectedSubtaskForEdit.issueId && st.id !== selectedSubtaskForEdit.id
+      );
+
+      const parentIssue = allIssues.find(
+        (i) => i.id === selectedSubtaskForEdit.issueId
+      );
+
+      if (parentIssue) {
+        const category = newSubtask.category || "";
+        if (category === "Major") {
+          const majorCount = existingSubtasks.filter(
+            (st) => st.category === "Major"
+          ).length;
+          if (selectedSubtaskForEdit.category !== "Major" && majorCount >= 2) {
+            toast.error("Maximum 2 Major subtasks allowed per issue");
+            return;
+          }
+        } else if (category === "Other") {
+          const otherCount = existingSubtasks.filter(
+            (st) => st.category === "Other"
+          ).length;
+          if (selectedSubtaskForEdit.category !== "Other" && otherCount >= 1) {
+            toast.error("Maximum 1 Other subtask allowed per issue");
+            return;
+          }
+        }
+
+        const issueEstimatedHours = parentIssue.estimatedHours || 0;
+        if (issueEstimatedHours > 0) {
+          const existingSubtaskHours = existingSubtasks.reduce(
+            (sum, st) => sum + (st.estimatedHours || 0),
+            0
+          );
+          const editedSubtaskHours = newSubtask.estimatedHours || 0;
+          const totalSubtaskHours = existingSubtaskHours + editedSubtaskHours;
+
+          if (totalSubtaskHours > issueEstimatedHours) {
+            toast.error(
+              `Total subtask hours (${totalSubtaskHours}h) cannot exceed issue hours (${issueEstimatedHours}h). Please reduce subtask hours.`
+            );
+            return;
+          }
+        }
+      }
+    }
+
+    setIsCreatingSubtask(true);
+
+    try {
+      // Format due date if provided
+      let formattedDueDate: string | undefined = undefined;
+      if (newSubtask.dueDate) {
+        try {
+          const date = new Date(newSubtask.dueDate);
+          if (!isNaN(date.getTime())) {
+            formattedDueDate = date.toISOString().split("T")[0];
+          }
+        } catch (e) {
+          console.error("Error formatting due date:", e);
+        }
+      }
+
+      const subtaskData = {
+        title: newSubtask.title,
+        description: newSubtask.description,
+        assigneeId: newSubtask.assigneeId || undefined,
+        estimatedHours: newSubtask.estimatedHours,
+        dueDate: formattedDueDate,
+        category: newSubtask.category || undefined,
+      };
+
+      // Update subtask in database via API
+      console.log("Updating subtask in database:", {
+        id: selectedSubtaskForEdit.id,
+        data: subtaskData
+      });
+      
+      const updateResponse = await subtaskApiService.updateSubtask(selectedSubtaskForEdit.id, subtaskData);
+      
+      // Verify the update was successful
+      if (!updateResponse) {
+        throw new Error("No response received from server");
+      }
+      
+      if (!updateResponse.success) {
+        throw new Error(updateResponse.message || "Failed to update subtask in database");
+      }
+      
+      if (!updateResponse.data) {
+        throw new Error("Update response missing data");
+      }
+      
+      console.log("Subtask updated successfully in database:", updateResponse.data);
+      
+      // Update local state immediately with the updated subtask from database
+      setAllSubtasks((prev) =>
+        prev.map((st) =>
+          st.id === selectedSubtaskForEdit.id
+            ? { ...st, ...updateResponse.data }
+            : st
+        )
+      );
+
+      // Log activity for subtask update
+      try {
+        if (selectedSubtaskForEdit.taskId) {
+          await activityLogApiService.createActivityLog({
+            userId: user?.id || "",
+            entityType: "tasks",
+            entityId: selectedSubtaskForEdit.taskId,
+            action: "subtask_updated",
+            description: `Updated subtask "${newSubtask.title}"`,
+            oldValues: JSON.stringify(selectedSubtaskForEdit),
+            newValues: JSON.stringify(subtaskData),
+            ipAddress: undefined,
+            userAgent: undefined,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to log activity:", error);
+      }
+
+      toast.success("Subtask updated successfully");
+
+      // Refresh tasks to update subtasks
+      if (sprintStories.length > 0) {
+        fetchAllTasks(sprintStories, true);
+      }
+
+      // Manually refetch subtasks for the specific task
+      if (selectedSubtaskForEdit.taskId) {
+        try {
+          const response = await subtaskApiService.getSubtasksByTask(
+            selectedSubtaskForEdit.taskId,
+          );
+          setAllSubtasks((prev) => {
+            const otherSubtasks = prev.filter(
+              (st) => st.taskId !== selectedSubtaskForEdit.taskId,
+            );
+            return [...otherSubtasks, ...response.data];
+          });
+        } catch (error) {
+          console.error("Failed to refetch subtasks:", error);
+        }
+      }
+
+      // Reset form and close dialog
+      setNewSubtask({
+        title: "",
+        description: "",
+        taskId: "",
+        assigneeId: "",
+        estimatedHours: 0,
+        category: "",
+        dueDate: "",
+      });
+
+      setIsEditSubtaskDialogOpen(false);
+      setSelectedSubtaskForEdit(null);
+    } catch (error: any) {
+      console.error("Error updating subtask:", error);
+      toast.error(
+        error?.message || "Failed to update subtask. Please try again.",
+      );
+    } finally {
+      setIsCreatingSubtask(false);
+    }
+  };
+
+  // Edit Time Entry Handler
+  const handleEditTimeEntry = async () => {
+    if (!selectedLogForEdit || !editLogData.hoursWorked || editLogData.hoursWorked <= 0) {
+      toast.error("Please enter valid hours");
+      return;
+    }
+
+    try {
+      // Ensure description is not empty (required field)
+      if (!editLogData.description || editLogData.description.trim() === "") {
+        toast.error("Description is required");
+        return;
+      }
+
+      // Build update data with all required fields from the original entry
+      // The backend expects the full TimeEntry object, so we need to preserve all required fields
+      const updateData: Partial<TimeEntry> = {
+        // Preserve all required fields from the original entry
+        userId: selectedLogForEdit.userId,
+        entryType: selectedLogForEdit.entryType || 'development',
+        isBillable: selectedLogForEdit.isBillable !== undefined ? selectedLogForEdit.isBillable : true,
+        // Update fields
+        hoursWorked: editLogData.hoursWorked,
+        description: editLogData.description.trim(),
+        workDate: editLogData.workDate,
+        // Optional fields - preserve if they exist, or set to undefined if empty
+        startTime: editLogData.startTime && editLogData.startTime.trim() !== "" ? editLogData.startTime : undefined,
+        endTime: editLogData.endTime && editLogData.endTime.trim() !== "" ? editLogData.endTime : undefined,
+        // Preserve optional IDs if they exist
+        projectId: selectedLogForEdit.projectId || undefined,
+        storyId: selectedLogForEdit.storyId || undefined,
+        taskId: selectedLogForEdit.taskId || undefined,
+        subtaskId: selectedLogForEdit.subtaskId || undefined,
+      };
+
+      console.log("Updating time entry in database:", {
+        id: selectedLogForEdit.id,
+        data: updateData
+      });
+
+      const updateResponse = await timeEntryApiService.updateTimeEntry(selectedLogForEdit.id, updateData);
+
+      if (!updateResponse || !updateResponse.success) {
+        throw new Error(updateResponse?.message || "Failed to update time entry in database");
+      }
+
+      console.log("Time entry updated successfully in database:", updateResponse.data);
+
+      // Update local state
+      setTaskLogs((prev) =>
+        prev.map((log) =>
+          log.id === selectedLogForEdit.id
+            ? { ...log, ...updateResponse.data }
+            : log
+        )
+      );
+
+      // Log activity
+      try {
+        if (selectedLogForEdit.taskId) {
+          await activityLogApiService.createActivityLog({
+            userId: user?.id || "",
+            entityType: "tasks",
+            entityId: selectedLogForEdit.taskId,
+            action: "time_entry_updated",
+            description: `Updated time entry: ${editLogData.hoursWorked}h`,
+            oldValues: JSON.stringify(selectedLogForEdit),
+            newValues: JSON.stringify(updateData),
+            ipAddress: undefined,
+            userAgent: undefined,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to log activity:", error);
+      }
+
+      toast.success("Time entry updated successfully");
+
+      // Reset form and close dialog
+      setEditLogData({
+        hoursWorked: 0,
+        description: "",
+        workDate: new Date().toISOString().split("T")[0],
+        startTime: "",
+        endTime: "",
+      });
+      setIsEditLogDialogOpen(false);
+      setSelectedLogForEdit(null);
+    } catch (error: any) {
+      console.error("Error updating time entry:", error);
+      toast.error(
+        error?.message || "Failed to update time entry. Please try again.",
+      );
     }
   };
 
@@ -5017,400 +5735,10 @@ const ScrumPage: React.FC = () => {
                       </div>
                     )}
                   </div>
-
-                  {/* Epic Template Dialog */}
-
-                  <Dialog
-                    open={isEpicTemplateDialogOpen}
-                    onOpenChange={setIsEpicTemplateDialogOpen}
-                  >
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Select Epic Template</DialogTitle>
-
-                        <DialogDescription>
-                          Choose a template to create an epic for this project.
-                        </DialogDescription>
-                      </DialogHeader>
-
-                      <div className="space-y-2">
-                        {[
-                          {
-                            id: "tpl-auth",
-                            title: "User Authentication",
-                            summary: "Implement secure login/registration",
-                            priority: "HIGH",
-                            status: "PLANNING",
-                          },
-
-                          {
-                            id: "tpl-payments",
-                            title: "Payment Gateway Integration",
-                            summary: "Integrate multiple payment providers",
-                            priority: "CRITICAL",
-                            status: "PLANNING",
-                          },
-
-                          {
-                            id: "tpl-dashboard",
-                            title: "Analytics Dashboard",
-                            summary: "Interactive charts and KPIs",
-                            priority: "MEDIUM",
-                            status: "PLANNING",
-                          },
-                        ].map((tpl) => (
-                          <Card
-                            key={tpl.id}
-                            className="cursor-pointer hover:shadow"
-                            onClick={async () => {
-                              if (!selectedProject) {
-                                toast.error("Select a project first");
-                                return;
-                              }
-
-                              try {
-                                const payload: any = {
-                                  title: tpl.title,
-
-                                  description: tpl.summary,
-
-                                  summary: tpl.summary,
-
-                                  projectId: selectedProject,
-
-                                  status: tpl.status,
-
-                                  priority: tpl.priority,
-
-                                  owner: user?.id || "",
-
-                                  isActive: true,
-                                };
-
-                                const { epicApiService } = await import(
-                                  "../services/api/entities/epicApi"
-                                );
-
-                                await epicApiService.createEpic(payload);
-
-                                const list =
-                                  await epicApiService.getEpicsByProject(
-                                    selectedProject,
-                                  );
-
-                                setProjectEpics(
-                                  (list as any).data ??
-                                    (Array.isArray(list) ? list : []),
-                                );
-
-                                setIsEpicTemplateDialogOpen(false);
-
-                                toast.success("Epic created from template");
-                              } catch (e: any) {
-                                console.error(e);
-
-                                toast.error(
-                                  e?.message || "Failed to create epic",
-                                );
-                              }
-                            }}
-                          >
-                            <CardContent className="p-4">
-                              <div className="flex items-start justify-between">
-                                <div>
-                                  <h4 className="font-medium">{tpl.title}</h4>
-
-                                  <p className="text-sm text-muted-foreground">
-                                    {tpl.summary}
-                                  </p>
-                                </div>
-
-                                <Badge variant="outline" className="text-xs">
-                                  {tpl.priority.toString().toLowerCase()}
-                                </Badge>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-
-                  {/* Add Epic Dialog */}
-
-                  <Dialog
-                    open={isAddEpicDialogOpen}
-                    onOpenChange={setIsAddEpicDialogOpen}
-                  >
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Create Epic</DialogTitle>
-                      </DialogHeader>
-
-                      <div className="space-y-3">
-                        <div>
-                          <Label>Title</Label>
-
-                          <Input
-                            value={newEpic.title}
-                            onChange={(e) =>
-                              setNewEpic((prev) => ({
-                                ...prev,
-                                title: e.target.value,
-                              }))
-                            }
-                          />
-                        </div>
-
-                        <div>
-                          <Label>Description</Label>
-
-                          <Textarea
-                            value={newEpic.description}
-                            onChange={(e) =>
-                              setNewEpic((prev) => ({
-                                ...prev,
-                                description: e.target.value,
-                              }))
-                            }
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <Label>Priority</Label>
-
-                            <Select
-                              value={newEpic.priority}
-                              onValueChange={(v) =>
-                                setNewEpic((prev) => ({
-                                  ...prev,
-                                  priority: v as any,
-                                }))
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-
-                              <SelectContent>
-                                <SelectItem value="LOW">Low</SelectItem>
-
-                                <SelectItem value="MEDIUM">Medium</SelectItem>
-
-                                <SelectItem value="HIGH">High</SelectItem>
-
-                                <SelectItem value="CRITICAL">
-                                  Critical
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          <div>
-                            <Label>Status</Label>
-
-                            <Select
-                              value={newEpic.status}
-                              onValueChange={(v) =>
-                                setNewEpic((prev) => ({
-                                  ...prev,
-                                  status: v as any,
-                                }))
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-
-                              <SelectContent>
-                                <SelectItem value="PLANNING">
-                                  Planning
-                                </SelectItem>
-
-                                <SelectItem value="ACTIVE">Active</SelectItem>
-
-                                <SelectItem value="COMPLETED">
-                                  Completed
-                                </SelectItem>
-
-                                <SelectItem value="CANCELLED">
-                                  Cancelled
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      </div>
-
-                      <DialogFooter>
-                        <Button
-                          variant="outline"
-                          onClick={() => setIsAddEpicDialogOpen(false)}
-                        >
-                          Cancel
-                        </Button>
-
-                        <Button
-                          onClick={async () => {
-                            if (!selectedProject) {
-                              toast.error("Select a project first");
-                              return;
-                            }
-
-                            if (!newEpic.title.trim()) {
-                              toast.error("Title is required");
-                              return;
-                            }
-
-                            try {
-                              const payload: any = {
-                                title: newEpic.title,
-
-                                description: newEpic.description,
-
-                                projectId: selectedProject,
-
-                                status: newEpic.status,
-
-                                priority: newEpic.priority,
-
-                                owner: user?.id || "",
-
-                                isActive: true,
-                              };
-
-                              const { epicApiService } = await import(
-                                "../services/api/entities/epicApi"
-                              );
-
-                              await epicApiService.createEpic(payload);
-
-                              const list =
-                                await epicApiService.getEpicsByProject(
-                                  selectedProject,
-                                );
-
-                              setProjectEpics(
-                                (list as any).data ??
-                                  (Array.isArray(list) ? list : []),
-                              );
-
-                              setIsAddEpicDialogOpen(false);
-
-                              setNewEpic({
-                                title: "",
-                                description: "",
-                                priority: "MEDIUM",
-                                status: "PLANNING",
-                                startDate: "",
-                                endDate: "",
-                              });
-
-                              toast.success("Epic created");
-                            } catch (e: any) {
-                              console.error(e);
-
-                              toast.error(
-                                e?.message || "Failed to create epic",
-                              );
-                            }
-                          }}
-                        >
-                          Create
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
                 </div>
               ))}
             </div>
           )}
-        </div>
-
-        {/* Comments Section */}
-
-        <div className="space-y-3 pt-6 border-t border-gray-200">
-          <h3 className="text-sm font-semibold text-gray-900">Comments</h3>
-
-          <div className="flex items-start space-x-3">
-            <Avatar className="h-8 w-8">
-              <AvatarFallback className="bg-blue-100 text-blue-800 text-xs">
-                {user?.name
-                  ?.split(" ")
-                  .map((n) => n[0])
-                  .join("")
-                  .toUpperCase() || "U"}
-              </AvatarFallback>
-            </Avatar>
-
-            <div className="flex-1">
-              <Textarea
-                placeholder="Add a comment..."
-                value={taskComment}
-                onChange={(e) => setTaskComment(e.target.value)}
-                className="min-h-[80px] resize-none"
-              />
-
-              <div className="flex justify-between items-center mt-2">
-                <p className="text-xs text-gray-500">
-                  Pro tip: @ mention team members
-                </p>
-
-                <Button size="sm" disabled={!taskComment.trim()}>
-                  Comment
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Work Log Summary */}
-
-        <div className="space-y-3 pt-6 border-t border-gray-200">
-          <h3 className="text-sm font-semibold text-gray-900">
-            Work Log Summary
-          </h3>
-
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div>
-                <div className="text-lg font-semibold text-blue-600">
-                  {selectedTaskForDetails?.estimatedHours || 0}h
-                </div>
-
-                <div className="text-xs text-gray-600">Estimated</div>
-              </div>
-
-              <div>
-                <div className="text-lg font-semibold text-green-600">
-                  {selectedTaskForDetails?.actualHours || 0}h
-                </div>
-
-                <div className="text-xs text-gray-600">Logged</div>
-              </div>
-
-              <div>
-                <div className="text-lg font-semibold text-orange-600">
-                  {Math.max(
-                    0,
-                    (selectedTaskForDetails?.estimatedHours || 0) -
-                      (selectedTaskForDetails?.actualHours || 0),
-                  ).toFixed(1)}
-                  h
-                </div>
-
-                <div className="text-xs text-gray-600">Remaining</div>
-              </div>
-            </div>
-
-            <div className="mt-3 pt-3 border-t border-gray-200">
-              <p className="text-xs text-gray-600 text-center">
-                Work is logged on subtasks. See "Child Work Items" tab to log
-                work.
-              </p>
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -5573,6 +5901,201 @@ const ScrumPage: React.FC = () => {
     } catch (error) {
       toast.error("Failed to log effort");
 
+      console.error("Error logging effort:", error);
+    }
+  };
+
+  // Log Effort Handler for Tasks
+  const handleLogTaskEffort = async () => {
+    if (!selectedTaskForEffort || !effortLog.hours || effortLog.hours <= 0) {
+      toast.error("Please enter valid hours");
+      return;
+    }
+
+    if (!effortLog.description.trim()) {
+      toast.error("Please enter a description");
+      return;
+    }
+
+    if (!user?.id) {
+      toast.error("User not authenticated");
+      return;
+    }
+
+    try {
+      // Create time entry for the task
+      const timeEntryData = {
+        userId: user?.id || "",
+        projectId: selectedProject || undefined,
+        storyId: selectedTaskForEffort.storyId || undefined,
+        taskId: selectedTaskForEffort.id,
+        description: effortLog.description,
+        entryType: "development" as const,
+        hoursWorked: effortLog.hours,
+        workDate: effortLog.workDate,
+        startTime: effortLog.startTime && effortLog.startTime.trim() ? effortLog.startTime : undefined,
+        endTime: effortLog.endTime && effortLog.endTime.trim() ? effortLog.endTime : undefined,
+        isBillable: true,
+      };
+
+      console.log("Creating time entry for task with data:", timeEntryData);
+      await timeEntryApiService.createTimeEntry(timeEntryData);
+
+      // Update task actual hours
+      const newTaskActualHours = (selectedTaskForEffort.actualHours || 0) + effortLog.hours;
+      await taskApiService.updateTaskActualHours(selectedTaskForEffort.id, newTaskActualHours);
+
+      // Automatically move task to IN_PROGRESS if it's currently in TO_DO status
+      const currentStatus = selectedTaskForEffort.status?.toUpperCase() || "";
+      if (currentStatus === "TO_DO" || currentStatus === "TODO") {
+        try {
+          await updateTaskStatusMutate({
+            id: selectedTaskForEffort.id,
+            status: "IN_PROGRESS" as any,
+          });
+
+          // Log activity for status change
+          try {
+            await activityLogApiService.createActivityLog({
+              userId: user?.id || "",
+              entityType: "tasks",
+              entityId: selectedTaskForEffort.id,
+              action: "status_changed",
+              description: `Task automatically moved to IN_PROGRESS after logging effort`,
+              oldValues: JSON.stringify({ status: currentStatus }),
+              newValues: JSON.stringify({ status: "IN_PROGRESS" }),
+              ipAddress: undefined,
+              userAgent: undefined,
+            });
+          } catch (error) {
+            console.error("Failed to log activity for status change:", error);
+          }
+
+          toast.success("Task moved to In Progress automatically");
+        } catch (error) {
+          console.error("Failed to update task status to IN_PROGRESS:", error);
+          // Don't show error toast as the main operation (logging effort) succeeded
+        }
+      }
+
+      // Log activity for effort logging
+      try {
+        await activityLogApiService.createActivityLog({
+          userId: user?.id || "",
+          entityType: "tasks",
+          entityId: selectedTaskForEffort.id,
+          action: "effort_logged",
+          description: `Logged ${effortLog.hours}h on task "${selectedTaskForEffort.title}"`,
+          newValues: JSON.stringify({
+            hours: effortLog.hours,
+            description: effortLog.description,
+            workDate: effortLog.workDate,
+          }),
+          ipAddress: undefined,
+          userAgent: undefined,
+        });
+      } catch (error) {
+        console.error("Failed to log activity:", error);
+      }
+
+      toast.success(`Logged ${effortLog.hours}h effort on task successfully`);
+
+      // Refresh tasks
+      if (sprintStories.length > 0) {
+        fetchAllTasks(sprintStories, true);
+      }
+
+      setEffortLog({
+        hours: 0,
+        description: "",
+        workDate: new Date().toISOString().split("T")[0],
+        startTime: "",
+        endTime: "",
+      });
+
+      setIsLogEffortDialogOpen(false);
+      setSelectedTaskForEffort(null);
+    } catch (error) {
+      toast.error("Failed to log effort");
+      console.error("Error logging effort:", error);
+    }
+  };
+
+  // Log Effort Handler for Issues
+  const handleLogIssueEffort = async () => {
+    if (!selectedIssueForEffort || !effortLog.hours || effortLog.hours <= 0) {
+      toast.error("Please enter valid hours");
+      return;
+    }
+
+    if (!effortLog.description.trim()) {
+      toast.error("Please enter a description");
+      return;
+    }
+
+    if (!user?.id) {
+      toast.error("User not authenticated");
+      return;
+    }
+
+    try {
+      // Create time entry for the issue
+      const timeEntryData = {
+        userId: user?.id || "",
+        projectId: selectedProject || undefined,
+        storyId: selectedIssueForEffort.storyId || undefined,
+        issueId: selectedIssueForEffort.id,
+        description: effortLog.description,
+        entryType: "development" as const,
+        hoursWorked: effortLog.hours,
+        workDate: effortLog.workDate,
+        startTime: effortLog.startTime && effortLog.startTime.trim() ? effortLog.startTime : undefined,
+        endTime: effortLog.endTime && effortLog.endTime.trim() ? effortLog.endTime : undefined,
+        isBillable: true,
+      };
+
+      console.log("Creating time entry for issue with data:", timeEntryData);
+      await timeEntryApiService.createTimeEntry(timeEntryData);
+
+      // Log activity for effort logging
+      try {
+        await activityLogApiService.createActivityLog({
+          userId: user?.id || "",
+          entityType: "issues",
+          entityId: selectedIssueForEffort.id,
+          action: "effort_logged",
+          description: `Logged ${effortLog.hours}h on issue "${selectedIssueForEffort.title}"`,
+          newValues: JSON.stringify({
+            hours: effortLog.hours,
+            description: effortLog.description,
+            workDate: effortLog.workDate,
+          }),
+          ipAddress: undefined,
+          userAgent: undefined,
+        });
+      } catch (error) {
+        console.error("Failed to log activity:", error);
+      }
+
+      toast.success(`Logged ${effortLog.hours}h effort on issue successfully`);
+
+      // Refresh issues
+      if (sprintStories.length > 0) {
+        fetchAllTasks(sprintStories, true);
+      }
+
+      setEffortLog({
+        hours: 0,
+        description: "",
+        workDate: new Date().toISOString().split("T")[0],
+        startTime: "",
+        endTime: "",
+      });
+
+      setIsLogEffortDialogOpen(false);
+      setSelectedIssueForEffort(null);
+    } catch (error) {
+      toast.error("Failed to log effort");
       console.error("Error logging effort:", error);
     }
   };
@@ -5864,18 +6387,61 @@ const ScrumPage: React.FC = () => {
                 I{issueNumber}
               </Badge>
 
-              {assigneeName && (
-                <div className="flex items-center space-x-1">
-                  <User className="w-3 h-3 text-red-500" />
+              <div className="flex items-center space-x-2">
+                {assigneeName && (
+                  <div className="flex items-center space-x-1">
+                    <User className="w-3 h-3 text-red-500" />
 
-                  <span
-                    className="text-xs text-red-600 truncate max-w-[100px]"
-                    title={assigneeName}
-                  >
-                    {assigneeName}
-                  </span>
-                </div>
-              )}
+                    <span
+                      className="text-xs text-red-600 truncate max-w-[100px]"
+                      title={assigneeName}
+                    >
+                      {assigneeName}
+                    </span>
+                  </div>
+                )}
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <MoreVertical className="w-3 h-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedIssueForEffort(issue);
+                        setEffortLog({
+                          hours: 0,
+                          description: "",
+                          workDate: new Date().toISOString().split("T")[0],
+                          startTime: "",
+                          endTime: "",
+                        });
+                        setIsLogEffortDialogOpen(true);
+                      }}
+                    >
+                      <Clock className="w-4 h-4 mr-2" />
+                      Log Work
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleViewIssueDetails();
+                      }}
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      View Details
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
 
             {/* Issue Name - Clickable */}
@@ -5920,7 +6486,6 @@ const ScrumPage: React.FC = () => {
 
     const handleViewTaskDetails = () => {
       setSelectedTaskForDetails(task);
-
       setIsTaskDetailsOpen(true);
     };
 
@@ -5991,18 +6556,61 @@ const ScrumPage: React.FC = () => {
                 T{taskNumber}
               </Badge>
 
-              {assigneeName && (
-                <div className="flex items-center space-x-1">
-                  <User className="w-3 h-3 text-gray-500" />
+              <div className="flex items-center space-x-2">
+                {assigneeName && (
+                  <div className="flex items-center space-x-1">
+                    <User className="w-3 h-3 text-gray-500" />
 
-                  <span
-                    className="text-xs text-gray-600 truncate max-w-[100px]"
-                    title={assigneeName}
-                  >
-                    {assigneeName}
-                  </span>
-                </div>
-              )}
+                    <span
+                      className="text-xs text-gray-600 truncate max-w-[100px]"
+                      title={assigneeName}
+                    >
+                      {assigneeName}
+                    </span>
+                  </div>
+                )}
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <MoreVertical className="w-3 h-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedTaskForEffort(task);
+                        setEffortLog({
+                          hours: 0,
+                          description: "",
+                          workDate: new Date().toISOString().split("T")[0],
+                          startTime: "",
+                          endTime: "",
+                        });
+                        setIsLogEffortDialogOpen(true);
+                      }}
+                    >
+                      <Clock className="w-4 h-4 mr-2" />
+                      Log Work
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleViewTaskDetails();
+                      }}
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      View Details
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
 
             {/* Task Name - Clickable */}
@@ -6383,64 +6991,6 @@ const ScrumPage: React.FC = () => {
               </TabsList>
             </div>
           </div>
-
-          {/* Sprint info */}
-
-          {currentSprint && activeView !== "backlog" && (
-            <Card className="bg-gradient-to-r from-green-50 to-cyan-50 border-green-200">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <div className="flex items-center space-x-2">
-                      <Badge className={getStatusColor(currentSprint.status)}>
-                        {currentSprint.status}
-                      </Badge>
-
-                      <span className="font-medium">{currentSprint.name}</span>
-                    </div>
-
-                    <p className="text-sm text-muted-foreground">
-                      {currentSprint.goal}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center space-x-4 text-sm">
-                    {(() => {
-                      const daysLeft = currentSprint.endDate
-                        ? Math.ceil(
-                            (new Date(currentSprint.endDate).getTime() -
-                              new Date().getTime()) /
-                              (1000 * 60 * 60 * 24),
-                          )
-                        : 0;
-
-                      return daysLeft > 0 ? (
-                        <div className="text-center">
-                          <div className="font-semibold text-green-600">
-                            {daysLeft}
-                          </div>
-
-                          <div className="text-xs text-muted-foreground">
-                            Days Left
-                          </div>
-                        </div>
-                      ) : null;
-                    })()}
-
-                    <div className="text-center">
-                      <div className="font-semibold text-blue-600">
-                        {currentSprint.velocityPoints || 0}
-                      </div>
-
-                      <div className="text-xs text-muted-foreground">
-                        Velocity Points
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
 
         <TabsContent value="backlog" className="mt-0 flex-1">
@@ -7036,6 +7586,20 @@ const ScrumPage: React.FC = () => {
           />
         </TabsContent>
 
+        {/* Add Story Button - Positioned above scrum board, below sprint section, on the right */}
+        {activeView === "scrum-board" && isManager && (
+          <div className="flex justify-end mb-4">
+            <Button
+              onClick={() => setIsAddStoryDialogOpen(true)}
+              className="bg-green-600 hover:bg-green-700 text-white"
+              size="default"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Story
+            </Button>
+          </div>
+        )}
+
         <TabsContent value="scrum-board" className="mt-0 flex-1">
           {/* Story-Row Aligned Grid Scrum Board */}
 
@@ -7096,8 +7660,9 @@ const ScrumPage: React.FC = () => {
                 className="sticky top-0 z-10 grid gap-0 bg-gray-100 border-b shadow-sm"
                 style={{
                   // Use same grid template for all boards (default and custom) to match default board styling
+                  // Actions column removed - last minmax(150px, 1fr) removed
 
-                  gridTemplateColumns: `minmax(200px, 1fr) repeat(${3 + lanesAfterInProgress.length + lanesAfterQA.length}, minmax(180px, 1fr)) minmax(180px, 1fr) minmax(150px, 1fr)`,
+                  gridTemplateColumns: `minmax(200px, 1fr) repeat(${3 + lanesAfterInProgress.length + lanesAfterQA.length}, minmax(180px, 1fr)) minmax(180px, 1fr)`,
                 }}
               >
                 <div className="p-3 bg-green-100/80 border-r border-gray-200">
@@ -7635,20 +8200,6 @@ const ScrumPage: React.FC = () => {
                     </Badge>
                   </div>
                 </div>
-
-                <div className="p-3 bg-gray-100/80 flex items-center justify-center">
-                  {canManageSprintsAndStories && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs border-dashed"
-                      onClick={() => setIsAddStoryDialogOpen(true)}
-                    >
-                      <Plus className="w-3 h-3 mr-1" />
-                      Add Story
-                    </Button>
-                  )}
-                </div>
               </div>
 
               {/* Story Rows Content */}
@@ -7789,15 +8340,79 @@ const ScrumPage: React.FC = () => {
                       bgClass: string;
                       style?: React.CSSProperties;
                     }> = ({ status, tasks, issues, bgClass, style }) => {
+                      // Disable drop for developers on Done column only
+                      // Developers can add tasks to all other lanes including manager-created lanes
+                      const isDoneColumn = status === "done";
+                      // Check if the status maps to DONE
+                      const mappedStatus = mapColumnToTaskStatus(status);
+                      const isDoneStatus = isDoneColumn || mappedStatus === "DONE";
+                      const canDropForDeveloper = !(isDeveloper && isDoneStatus);
+                      
+                      // Check if trying to drop from "In Progress" to "To Do" (only managers allowed)
+                      const isTodoColumn = status === "todo" || status === "TO_DO" || status === "TODO" || 
+                                          (status && status.toLowerCase() === "todo");
+                      
+                      // Check if trying to drop to "In Progress" column
+                      const isInProgressColumn = status === "inprogress" || status === "IN_PROGRESS" || status === "in_progress" ||
+                                                  (status && status.toLowerCase() === "inprogress");
+                      
+                      const canDropForManager = (item: { id: string; type: string } | null) => {
+                        if (!item || canManageSprintsAndStories) {
+                          return true; // Allow if user is manager
+                        }
+                        
+                        // Check if trying to drop from "In Progress" to "To Do" (only managers allowed)
+                        if (isTodoColumn) {
+                          if (item.type === ItemTypes.TASK) {
+                            const task = allTasks.find((t) => t.id === item.id);
+                            const taskStatus = task?.status?.toUpperCase() || "";
+                            if (taskStatus === "IN_PROGRESS" || taskStatus === "in_progress".toUpperCase()) {
+                              return false; // Prevent non-managers from dropping
+                            }
+                          } else if (item.type === ItemTypes.ISSUE) {
+                            const issue = allIssues.find((i) => i.id === item.id);
+                            const issueStatus = issue?.status?.toUpperCase() || "";
+                            if (issueStatus === "IN_PROGRESS" || issueStatus === "in_progress".toUpperCase()) {
+                              return false; // Prevent non-managers from dropping
+                            }
+                          }
+                        }
+                        
+                        // Check if trying to drop from "To Do" to "In Progress" (only managers allowed)
+                        if (isInProgressColumn) {
+                          if (item.type === ItemTypes.TASK) {
+                            const task = allTasks.find((t) => t.id === item.id);
+                            const taskStatus = task?.status?.toUpperCase() || "";
+                            if (taskStatus === "TO_DO" || taskStatus === "TODO" || taskStatus === "todo".toUpperCase() || taskStatus === "to_do".toUpperCase()) {
+                              return false; // Prevent non-managers from dropping
+                            }
+                          } else if (item.type === ItemTypes.ISSUE) {
+                            const issue = allIssues.find((i) => i.id === item.id);
+                            const issueStatus = issue?.status?.toUpperCase() || "";
+                            if (issueStatus === "TO_DO" || issueStatus === "TODO" || issueStatus === "todo".toUpperCase() || issueStatus === "to_do".toUpperCase()) {
+                              return false; // Prevent non-managers from dropping
+                            }
+                          }
+                        }
+                        
+                        return true;
+                      };
+
                       const [{ isOver }, drop] = useDrop(() => ({
                         accept: [ItemTypes.TASK, ItemTypes.ISSUE],
 
                         drop: (item: { id: string; type: string }) => {
-                          moveItem(item.id, status, item.type);
+                          if (canDropForDeveloper && canDropForManager(item)) {
+                            moveItem(item.id, status, item.type);
+                          }
+                        },
+
+                        canDrop: (item: { id: string; type: string }) => {
+                          return canDropForDeveloper && canDropForManager(item);
                         },
 
                         collect: (monitor) => ({
-                          isOver: monitor.isOver(),
+                          isOver: monitor.isOver() && canDropForDeveloper && canDropForManager(monitor.getItem()),
                         }),
                       }));
 
@@ -7806,6 +8421,15 @@ const ScrumPage: React.FC = () => {
                           ref={drop}
                           className={`p-3 border-r border-gray-200 ${bgClass} ${isOver ? "bg-blue-100 ring-2 ring-blue-400 ring-inset" : ""} transition-all`}
                           style={style}
+                          title={
+                            !canDropForDeveloper 
+                              ? "Developers cannot move items to Done column" 
+                              : isTodoColumn && !canManageSprintsAndStories 
+                                ? "Only managers can move items from In Progress back to To Do" 
+                                : isInProgressColumn && !canManageSprintsAndStories 
+                                  ? "Only managers can move items from To Do to In Progress" 
+                                  : undefined
+                          }
                         >
                           <div className="space-y-2 min-h-[80px]">
                             {tasks.map((task, taskIndex) => (
@@ -7880,8 +8504,9 @@ const ScrumPage: React.FC = () => {
                         className={`grid gap-0 border-b border-gray-200 ${storyIndex % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}
                         style={{
                           // Use same grid template for all boards (default and custom) to match default board styling
+                          // Actions column removed - last minmax(150px, 1fr) removed
 
-                          gridTemplateColumns: `minmax(200px, 1fr) repeat(${3 + lanesAfterInProgress.length + lanesAfterQA.length}, minmax(180px, 1fr)) minmax(180px, 1fr) minmax(150px, 1fr)`,
+                          gridTemplateColumns: `minmax(200px, 1fr) repeat(${3 + lanesAfterInProgress.length + lanesAfterQA.length}, minmax(180px, 1fr)) minmax(180px, 1fr)`,
                         }}
                       >
                         {/* Story Column */}
@@ -8023,8 +8648,8 @@ const ScrumPage: React.FC = () => {
                           style={{ minWidth: "180px" }}
                         />
 
-                        {/* Actions Column */}
-
+                        {/* Actions Column - Commented out */}
+                        {/* 
                         <div className="p-3 bg-gray-50/30 border-r-0">
                           <div className="sticky top-16 space-y-2">
                             <Button
@@ -8077,6 +8702,7 @@ const ScrumPage: React.FC = () => {
                             )}
                           </div>
                         </div>
+                        */}
                       </div>
                     );
                   })
@@ -8181,14 +8807,6 @@ const ScrumPage: React.FC = () => {
                             title="View sprint details"
                           >
                             <Eye className="w-4 h-4 text-blue-600" />
-                          </Button>
-
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setSelectedSprint(sprint.id)}
-                          >
-                            Select
                           </Button>
                         </div>
                       </div>
@@ -9933,6 +10551,10 @@ const ScrumPage: React.FC = () => {
                   <SelectContent>
                     <SelectItem value="NONE">None</SelectItem>
 
+                    <SelectItem value="Major">Major</SelectItem>
+
+                    <SelectItem value="Other">Other</SelectItem>
+
                     <SelectItem value="Development">Development</SelectItem>
 
                     <SelectItem value="Documentation">Documentation</SelectItem>
@@ -9994,7 +10616,333 @@ const ScrumPage: React.FC = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Log Effort Dialog (JIRA-style: on subtasks) */}
+        {/* Edit Subtask Dialog */}
+        <Dialog
+          open={isEditSubtaskDialogOpen}
+          onOpenChange={(open) => {
+            setIsEditSubtaskDialogOpen(open);
+            if (!open) {
+              setSelectedSubtaskForEdit(null);
+              setNewSubtask({
+                title: "",
+                description: "",
+                taskId: "",
+                assigneeId: "",
+                estimatedHours: 0,
+                category: "",
+                dueDate: "",
+              });
+            }
+          }}
+        >
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Edit Subtask</DialogTitle>
+              <DialogDescription>
+                Update subtask: {selectedSubtaskForEdit?.title}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-subtask-title">Subtask Title</Label>
+                <Input
+                  id="edit-subtask-title"
+                  value={newSubtask.title}
+                  onChange={(e) =>
+                    setNewSubtask((prev) => ({
+                      ...prev,
+                      title: e.target.value,
+                    }))
+                  }
+                  placeholder="e.g., Implement validation logic"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-subtask-description">Description</Label>
+                <Textarea
+                  id="edit-subtask-description"
+                  value={newSubtask.description}
+                  onChange={(e) =>
+                    setNewSubtask((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                  placeholder="Detailed description of the subtask..."
+                  rows={3}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-subtask-hours">Estimated Hours</Label>
+                <Input
+                  id="edit-subtask-hours"
+                  type="number"
+                  value={newSubtask.estimatedHours}
+                  onChange={(e) =>
+                    setNewSubtask((prev) => ({
+                      ...prev,
+                      estimatedHours: parseInt(e.target.value) || 0,
+                    }))
+                  }
+                  placeholder="2"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-subtask-assignee">Assignee</Label>
+                <Select
+                  value={newSubtask.assigneeId}
+                  onValueChange={(value) =>
+                    setNewSubtask((prev) => ({
+                      ...prev,
+                      assigneeId: value === "UNASSIGNED" ? "" : value,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select assignee" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="UNASSIGNED">Unassigned</SelectItem>
+                    {users.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        <div className="flex items-center space-x-2">
+                          <Avatar className="w-4 h-4">
+                            <AvatarFallback className="text-xs">
+                              {getInitials(user.name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span>{user.name}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-subtask-category">Category</Label>
+                <Select
+                  value={newSubtask.category}
+                  onValueChange={(value) =>
+                    setNewSubtask((prev) => ({
+                      ...prev,
+                      category: value === "NONE" ? "" : value,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="NONE">None</SelectItem>
+                    <SelectItem value="Major">Major</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                    <SelectItem value="Development">Development</SelectItem>
+                    <SelectItem value="Documentation">Documentation</SelectItem>
+                    <SelectItem value="Idle">Idle</SelectItem>
+                    <SelectItem value="Learning">Learning</SelectItem>
+                    <SelectItem value="Meeting">Meeting</SelectItem>
+                    <SelectItem value="Support">Support</SelectItem>
+                    <SelectItem value="Testing">Testing</SelectItem>
+                    <SelectItem value="Training">Training</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-subtask-due-date">Due Date</Label>
+                <Input
+                  id="edit-subtask-due-date"
+                  type="date"
+                  value={newSubtask.dueDate}
+                  onChange={(e) =>
+                    setNewSubtask((prev) => ({
+                      ...prev,
+                      dueDate: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="flex space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsEditSubtaskDialogOpen(false);
+                  setSelectedSubtaskForEdit(null);
+                  setNewSubtask({
+                    title: "",
+                    description: "",
+                    taskId: "",
+                    assigneeId: "",
+                    estimatedHours: 0,
+                    category: "",
+                    dueDate: "",
+                  });
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleEditSubtask}
+                disabled={isCreatingSubtask || !newSubtask.title.trim()}
+              >
+                {isCreatingSubtask ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  "Update Subtask"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Time Entry Dialog */}
+        <Dialog
+          open={isEditLogDialogOpen}
+          onOpenChange={(open) => {
+            setIsEditLogDialogOpen(open);
+            if (!open) {
+              setSelectedLogForEdit(null);
+              setEditLogData({
+                hoursWorked: 0,
+                description: "",
+                workDate: new Date().toISOString().split("T")[0],
+                startTime: "",
+                endTime: "",
+              });
+            }
+          }}
+        >
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Edit Time Entry</DialogTitle>
+              <DialogDescription>
+                Update time log entry
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-log-hours">Hours Worked</Label>
+                <Input
+                  id="edit-log-hours"
+                  type="number"
+                  step="0.25"
+                  min="0"
+                  value={editLogData.hoursWorked}
+                  onChange={(e) =>
+                    setEditLogData((prev) => ({
+                      ...prev,
+                      hoursWorked: parseFloat(e.target.value) || 0,
+                    }))
+                  }
+                  placeholder="2.5"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-log-description">Description</Label>
+                <Textarea
+                  id="edit-log-description"
+                  value={editLogData.description}
+                  onChange={(e) =>
+                    setEditLogData((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                  placeholder="What did you work on?"
+                  rows={3}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-log-date">Work Date</Label>
+                <Input
+                  id="edit-log-date"
+                  type="date"
+                  value={editLogData.workDate}
+                  onChange={(e) =>
+                    setEditLogData((prev) => ({
+                      ...prev,
+                      workDate: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-log-start-time">
+                    Start Time (Optional)
+                  </Label>
+                  <Input
+                    id="edit-log-start-time"
+                    type="time"
+                    value={editLogData.startTime}
+                    onChange={(e) =>
+                      setEditLogData((prev) => ({
+                        ...prev,
+                        startTime: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="edit-log-end-time">End Time (Optional)</Label>
+                  <Input
+                    id="edit-log-end-time"
+                    type="time"
+                    value={editLogData.endTime}
+                    onChange={(e) =>
+                      setEditLogData((prev) => ({
+                        ...prev,
+                        endTime: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="flex space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsEditLogDialogOpen(false);
+                  setSelectedLogForEdit(null);
+                  setEditLogData({
+                    hoursWorked: 0,
+                    description: "",
+                    workDate: new Date().toISOString().split("T")[0],
+                    startTime: "",
+                    endTime: "",
+                  });
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleEditTimeEntry}
+                disabled={!editLogData.hoursWorked || editLogData.hoursWorked <= 0}
+              >
+                Update Entry
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Log Effort Dialog (JIRA-style: on subtasks, tasks, and issues) */}
 
         <Dialog
           open={isLogEffortDialogOpen}
@@ -10005,7 +10953,9 @@ const ScrumPage: React.FC = () => {
               <DialogTitle>Log Work</DialogTitle>
 
               <DialogDescription>
-                Log time spent on subtask: {selectedSubtaskForEffort?.title}
+                {selectedSubtaskForEffort && `Log time spent on subtask: ${selectedSubtaskForEffort.title}`}
+                {selectedTaskForEffort && `Log time spent on task: ${selectedTaskForEffort.title}`}
+                {selectedIssueForEffort && `Log time spent on issue: ${selectedIssueForEffort.title}`}
               </DialogDescription>
             </DialogHeader>
 
@@ -10106,8 +11056,7 @@ const ScrumPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Current Time Stats (Subtask) */}
-
+              {/* Current Time Stats */}
               {selectedSubtaskForEffort && (
                 <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
                   <h4 className="font-medium text-sm mb-2 text-purple-900">
@@ -10150,6 +11099,70 @@ const ScrumPage: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {selectedTaskForEffort && (
+                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                  <h4 className="font-medium text-sm mb-2 text-blue-900">
+                    Task Time Stats
+                  </h4>
+
+                  <div className="grid grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <div className="text-gray-600">Estimated</div>
+
+                      <div className="font-semibold text-blue-700">
+                        {selectedTaskForEffort.estimatedHours || 0}h
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-gray-600">Logged</div>
+
+                      <div className="font-semibold text-green-700">
+                        {selectedTaskForEffort.actualHours || 0}h
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-gray-600">After Log</div>
+
+                      <div className="font-semibold text-orange-700">
+                        {(
+                          (selectedTaskForEffort.actualHours || 0) +
+                          effortLog.hours
+                        ).toFixed(1)}
+                        h
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedIssueForEffort && (
+                <div className="bg-red-50 p-3 rounded-lg border border-red-200">
+                  <h4 className="font-medium text-sm mb-2 text-red-900">
+                    Issue Time Stats
+                  </h4>
+
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <div className="text-gray-600">Logged</div>
+
+                      <div className="font-semibold text-green-700">
+                        {effortLog.hours}h
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-gray-600">After Log</div>
+
+                      <div className="font-semibold text-orange-700">
+                        {effortLog.hours.toFixed(1)}h
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <DialogFooter className="flex space-x-2">
@@ -10159,6 +11172,8 @@ const ScrumPage: React.FC = () => {
                   setIsLogEffortDialogOpen(false);
 
                   setSelectedSubtaskForEffort(null);
+                  setSelectedTaskForEffort(null);
+                  setSelectedIssueForEffort(null);
 
                   setEffortLog({
                     hours: 0,
@@ -10177,7 +11192,15 @@ const ScrumPage: React.FC = () => {
               </Button>
 
               <Button
-                onClick={handleLogEffort}
+                onClick={() => {
+                  if (selectedSubtaskForEffort) {
+                    handleLogEffort();
+                  } else if (selectedTaskForEffort) {
+                    handleLogTaskEffort();
+                  } else if (selectedIssueForEffort) {
+                    handleLogIssueEffort();
+                  }
+                }}
                 disabled={
                   !effortLog.hours ||
                   effortLog.hours <= 0 ||
@@ -10194,19 +11217,19 @@ const ScrumPage: React.FC = () => {
         {/* JIRA-Style Task Details Modal */}
 
         <Dialog open={isTaskDetailsOpen} onOpenChange={setIsTaskDetailsOpen}>
-          <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden p-0">
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden p-0 flex flex-col">
             <DialogTitle className="sr-only">
               Task Details: {selectedTaskForDetails?.title || "Task"}
             </DialogTitle>
 
             {selectedTaskForDetails && (
-              <div className="flex h-full">
+              <div className="flex flex-1 min-h-0 overflow-hidden">
                 {/* Main Content Area (Left Panel) */}
 
-                <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
                   {/* Header */}
 
-                  <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50">
+                  <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50 flex-shrink-0">
                     <div className="flex items-center space-x-4">
                       <div className="flex items-center space-x-2">
                         <Badge
@@ -10233,47 +11256,30 @@ const ScrumPage: React.FC = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0 hover:bg-purple-100"
+                        className="h-8 px-2 hover:bg-blue-100"
                         onClick={(e) => {
                           e.stopPropagation();
-
-                          setSelectedTaskForSubtask(selectedTaskForDetails);
-
-                          setNewSubtask((prev) => ({
-                            ...prev,
-                            taskId: selectedTaskForDetails.id,
-                            assigneeId: selectedTaskForDetails.assigneeId || "",
-                          }));
-
-                          setIsAddSubtaskDialogOpen(true);
+                          setSelectedTaskForEffort(selectedTaskForDetails);
+                          setEffortLog({
+                            hours: 0,
+                            description: "",
+                            workDate: new Date().toISOString().split("T")[0],
+                            startTime: "",
+                            endTime: "",
+                          });
+                          setIsLogEffortDialogOpen(true);
                         }}
-                        title="Add subtask"
+                        title="Log work on this task"
                       >
-                        <Layers3 className="w-4 h-4 text-purple-600" />
-                      </Button>
-
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                        <Eye className="w-4 h-4" />
-                      </Button>
-
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </Button>
-
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => setIsTaskDetailsOpen(false)}
-                      >
-                        <X className="w-4 h-4" />
+                        <Clock className="w-4 h-4 mr-1 text-blue-600" />
+                        Log
                       </Button>
                     </div>
                   </div>
 
                   {/* Task Title */}
 
-                  <div className="p-6 border-b border-gray-200">
+                  <div className="p-6 border-b border-gray-200 flex-shrink-0">
                     <h2 className="text-xl font-semibold text-gray-900 mb-2">
                       {selectedTaskForDetails.title}
                     </h2>
@@ -10307,13 +11313,13 @@ const ScrumPage: React.FC = () => {
 
                   {/* Content Tabs */}
 
-                  <div className="flex-1 overflow-hidden">
+                  <div className="flex-1 overflow-hidden flex flex-col min-h-0">
                     <Tabs
                       value={taskDetailsTab}
                       onValueChange={(value) => setTaskDetailsTab(value as any)}
-                      className="h-full flex flex-col"
+                      className="h-full flex flex-col min-h-0"
                     >
-                      <TabsList className="mx-6 mt-4">
+                      <TabsList className="mx-6 mt-4 flex-shrink-0">
                         <TabsTrigger value="details">Details</TabsTrigger>
 
                         <TabsTrigger value="activities">Activities</TabsTrigger>
@@ -10329,8 +11335,119 @@ const ScrumPage: React.FC = () => {
 
                       <TabsContent
                         value="details"
-                        className="flex-1 overflow-auto p-6 space-y-6"
+                        className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100"
+                        style={{ maxHeight: 'calc(90vh - 200px)' }}
                       >
+                        {/* Task Logs Section */}
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                            Time Logs
+                          </h3>
+                          {loadingTaskLogs ? (
+                            <div className="flex items-center justify-center py-8">
+                              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                              <span className="ml-2 text-sm text-gray-600">
+                                Loading logs...
+                              </span>
+                            </div>
+                          ) : taskLogs.length > 0 ? (
+                            <div className="space-y-2">
+                              {taskLogs.map((log) => (
+                                <div
+                                  key={log.id}
+                                  className="bg-gray-50 border border-gray-200 rounded-lg p-3 hover:bg-gray-100 transition-colors group"
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <div className="flex items-center space-x-2 mb-1">
+                                        <Clock className="w-4 h-4 text-blue-600" />
+                                        <span className="text-sm font-medium text-gray-900">
+                                          {log.hoursWorked}h logged
+                                        </span>
+                                        {log.workDate && (
+                                          <span className="text-xs text-gray-500">
+                                            on {new Date(log.workDate).toLocaleDateString("en-GB", {
+                                              day: "numeric",
+                                              month: "short",
+                                              year: "numeric",
+                                            })}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {log.description && (
+                                        <p className="text-sm text-gray-700 mt-1">
+                                          {log.description}
+                                        </p>
+                                      )}
+                                      <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500">
+                                        {log.userId && (
+                                          <div className="flex items-center space-x-1">
+                                            <User className="w-3 h-3" />
+                                            <span>{getUserName(log.userId)}</span>
+                                          </div>
+                                        )}
+                                        {log.startTime && log.endTime && (
+                                          <div className="flex items-center space-x-1">
+                                            <Timer className="w-3 h-3" />
+                                            <span>
+                                              {log.startTime} - {log.endTime}
+                                            </span>
+                                          </div>
+                                        )}
+                                        {log.entryType && (
+                                          <Badge variant="outline" className="text-xs">
+                                            {log.entryType}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {/* Edit Button */}
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 px-2 text-xs hover:bg-blue-100 opacity-0 group-hover:opacity-100 transition-opacity ml-2"
+                                      onClick={() => {
+                                        setSelectedLogForEdit(log);
+                                        // Format workDate properly (handle both date string and Date object)
+                                        let workDateStr = "";
+                                        if (log.workDate) {
+                                          if (typeof log.workDate === 'string') {
+                                            workDateStr = log.workDate.split('T')[0];
+                                          } else {
+                                            workDateStr = new Date(log.workDate).toISOString().split("T")[0];
+                                          }
+                                        } else {
+                                          workDateStr = new Date().toISOString().split("T")[0];
+                                        }
+                                        
+                                        setEditLogData({
+                                          hoursWorked: log.hoursWorked || 0,
+                                          description: log.description || "",
+                                          workDate: workDateStr,
+                                          startTime: log.startTime || "",
+                                          endTime: log.endTime || "",
+                                        });
+                                        setIsEditLogDialogOpen(true);
+                                      }}
+                                      title="Edit log entry"
+                                    >
+                                      <Edit3 className="w-3 h-3 mr-1 text-blue-600" />
+                                      Edit
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-center py-6 text-gray-500 border border-gray-200 rounded-lg bg-gray-50">
+                              <Clock className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                              <p className="text-sm">No time logs recorded yet</p>
+                              <p className="text-xs text-gray-400 mt-1">
+                                Log time spent on this task to track your work
+                              </p>
+                            </div>
+                          )}
+                        </div>
                         {/* Description */}
 
                         <div>
@@ -10764,6 +11881,30 @@ const ScrumPage: React.FC = () => {
                                   {/* Action Buttons */}
 
                                   <div className="flex items-center space-x-2 flex-shrink-0">
+                                    {/* Edit Button */}
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 px-2 text-xs hover:bg-blue-100 opacity-0 group-hover:opacity-100 transition-opacity"
+                                      onClick={() => {
+                                        setSelectedSubtaskForEdit(subtask);
+                                        setNewSubtask({
+                                          title: subtask.title || "",
+                                          description: subtask.description || "",
+                                          taskId: subtask.taskId || "",
+                                          assigneeId: subtask.assigneeId || "",
+                                          estimatedHours: subtask.estimatedHours || 0,
+                                          category: subtask.category || "",
+                                          dueDate: subtask.dueDate ? subtask.dueDate.split('T')[0] : "",
+                                        });
+                                        setIsEditSubtaskDialogOpen(true);
+                                      }}
+                                      title="Edit subtask"
+                                    >
+                                      <Edit3 className="w-3 h-3 mr-1 text-blue-600" />
+                                      Edit
+                                    </Button>
+
                                     {/* Log Work Button */}
 
                                     <Button
@@ -10936,12 +12077,12 @@ const ScrumPage: React.FC = () => {
 
                 <div className="w-80 border-l border-gray-200 bg-gray-50 overflow-auto">
                   <div className="p-6 space-y-6">
-                    {/* Subtask Details Section (Replacing Effort Details) */}
+                    {/* Task Details Section (Replacing Effort Details) */}
 
                     <div>
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-sm font-semibold text-gray-900">
-                          Subtask Details
+                          Task Details
                         </h3>
                       </div>
 
@@ -11192,19 +12333,19 @@ const ScrumPage: React.FC = () => {
       {/* JIRA-Style Issue Details Modal */}
 
       <Dialog open={isIssueDetailsOpen} onOpenChange={setIsIssueDetailsOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden p-0">
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden p-0 flex flex-col">
           <DialogTitle className="sr-only">
             Issue Details: {selectedIssueForDetails?.title || "Issue"}
           </DialogTitle>
 
           {selectedIssueForDetails && (
-            <div className="flex h-full">
+            <div className="flex flex-1 min-h-0 overflow-hidden">
               {/* Main Content Area (Left Panel) */}
 
-              <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex-1 flex flex-col overflow-hidden min-h-0">
                 {/* Header */}
 
-                <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-red-50">
+                <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-red-50 flex-shrink-0">
                   <div className="flex items-center space-x-4">
                     <div className="flex items-center space-x-2">
                       <Badge
@@ -11223,28 +12364,33 @@ const ScrumPage: React.FC = () => {
                   </div>
 
                   <div className="flex items-center space-x-2">
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                      <Eye className="w-4 h-4" />
-                    </Button>
-
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                      <MoreHorizontal className="w-4 h-4" />
-                    </Button>
-
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-8 w-8 p-0"
-                      onClick={() => setIsIssueDetailsOpen(false)}
+                      className="h-8 px-2 hover:bg-red-100"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedIssueForEffort(selectedIssueForDetails);
+                        setEffortLog({
+                          hours: 0,
+                          description: "",
+                          workDate: new Date().toISOString().split("T")[0],
+                          startTime: "",
+                          endTime: "",
+                        });
+                        setIsLogEffortDialogOpen(true);
+                      }}
+                      title="Log work on this issue"
                     >
-                      <X className="w-4 h-4" />
+                      <Clock className="w-4 h-4 mr-1 text-red-600" />
+                      Log
                     </Button>
                   </div>
                 </div>
 
                 {/* Issue Title */}
 
-                <div className="p-6 border-b border-gray-200">
+                <div className="p-6 border-b border-gray-200 flex-shrink-0">
                   <h2 className="text-xl font-semibold text-gray-900 mb-2">
                     {selectedIssueForDetails.title}
                   </h2>
@@ -11276,32 +12422,33 @@ const ScrumPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Content Tabs */}
+                  {/* Content Tabs */}
 
-                <div className="flex-1 overflow-hidden">
-                  <Tabs
-                    value={issueDetailsTab}
-                    onValueChange={(value) => setIssueDetailsTab(value as any)}
-                    className="h-full flex flex-col"
-                  >
-                    <TabsList className="mx-6 mt-4">
-                      <TabsTrigger value="details">Details</TabsTrigger>
-
-                      <TabsTrigger value="activities">Activities</TabsTrigger>
-
-                      <TabsTrigger value="subtasks">Subtasks</TabsTrigger>
-
-                      <TabsTrigger value="due-dates">Due Dates</TabsTrigger>
-
-                      <TabsTrigger value="linked-issues">
-                        Linked Issues
-                      </TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent
-                      value="details"
-                      className="flex-1 overflow-auto p-6 space-y-6"
+                  <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+                    <Tabs
+                      value={issueDetailsTab}
+                      onValueChange={(value) => setIssueDetailsTab(value as any)}
+                      className="h-full flex flex-col min-h-0"
                     >
+                      <TabsList className="mx-6 mt-4 flex-shrink-0">
+                        <TabsTrigger value="details">Details</TabsTrigger>
+
+                        <TabsTrigger value="activities">Activities</TabsTrigger>
+
+                        <TabsTrigger value="subtasks">Subtasks</TabsTrigger>
+
+                        <TabsTrigger value="due-dates">Due Dates</TabsTrigger>
+
+                        <TabsTrigger value="linked-issues">
+                          Linked Issues
+                        </TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent
+                        value="details"
+                        className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100"
+                        style={{ maxHeight: 'calc(90vh - 200px)' }}
+                      >
                       {/* Description */}
 
                       <div>
@@ -11924,7 +13071,7 @@ const ScrumPage: React.FC = () => {
 
               <div className="w-80 border-l border-gray-200 bg-gray-50 overflow-auto">
                 <div className="p-6 space-y-6">
-                  {/* Subtask Details Section */}
+                  {/* Task Details Section */}
 
                   <div>
                     <div className="flex items-center justify-between mb-4">
@@ -12361,6 +13508,311 @@ const ScrumPage: React.FC = () => {
                   Create Board
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Epic Template Dialog */}
+
+      <Dialog
+        open={isEpicTemplateDialogOpen}
+        onOpenChange={setIsEpicTemplateDialogOpen}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select Epic Template</DialogTitle>
+
+            <DialogDescription>
+              Choose a template to create an epic for this project.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            {[
+              {
+                id: "tpl-auth",
+                title: "User Authentication",
+                summary: "Implement secure login/registration",
+                priority: "HIGH",
+                status: "PLANNING",
+              },
+
+              {
+                id: "tpl-payments",
+                title: "Payment Gateway Integration",
+                summary: "Integrate multiple payment providers",
+                priority: "CRITICAL",
+                status: "PLANNING",
+              },
+
+              {
+                id: "tpl-dashboard",
+                title: "Analytics Dashboard",
+                summary: "Interactive charts and KPIs",
+                priority: "MEDIUM",
+                status: "PLANNING",
+              },
+            ].map((tpl) => (
+              <Card
+                key={tpl.id}
+                className="cursor-pointer hover:shadow"
+                onClick={async () => {
+                  if (!selectedProject) {
+                    toast.error("Select a project first");
+                    return;
+                  }
+
+                  try {
+                    const payload: any = {
+                      title: tpl.title,
+
+                      description: tpl.summary,
+
+                      summary: tpl.summary,
+
+                      projectId: selectedProject,
+
+                      status: tpl.status,
+
+                      priority: tpl.priority,
+
+                      owner: user?.id || "",
+
+                      isActive: true,
+                    };
+
+                    const { epicApiService } = await import(
+                      "../services/api/entities/epicApi"
+                    );
+
+                    await epicApiService.createEpic(payload);
+
+                    const list =
+                      await epicApiService.getEpicsByProject(
+                        selectedProject,
+                      );
+
+                    setProjectEpics(
+                      (list as any).data ??
+                        (Array.isArray(list) ? list : []),
+                    );
+
+                    setIsEpicTemplateDialogOpen(false);
+
+                    toast.success("Epic created from template");
+                  } catch (e: any) {
+                    console.error(e);
+
+                    toast.error(
+                      e?.message || "Failed to create epic",
+                    );
+                  }
+                }}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h4 className="font-medium">{tpl.title}</h4>
+
+                      <p className="text-sm text-muted-foreground">
+                        {tpl.summary}
+                      </p>
+                    </div>
+
+                    <Badge variant="outline" className="text-xs">
+                      {tpl.priority.toString().toLowerCase()}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Epic Dialog */}
+
+      <Dialog
+        open={isAddEpicDialogOpen}
+        onOpenChange={setIsAddEpicDialogOpen}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Epic</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div>
+              <Label>Title</Label>
+
+              <Input
+                value={newEpic.title}
+                onChange={(e) =>
+                  setNewEpic((prev) => ({
+                    ...prev,
+                    title: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div>
+              <Label>Description</Label>
+
+              <Textarea
+                value={newEpic.description}
+                onChange={(e) =>
+                  setNewEpic((prev) => ({
+                    ...prev,
+                    description: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Priority</Label>
+
+                <Select
+                  value={newEpic.priority}
+                  onValueChange={(v) =>
+                    setNewEpic((prev) => ({
+                      ...prev,
+                      priority: v as any,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    <SelectItem value="LOW">Low</SelectItem>
+
+                    <SelectItem value="MEDIUM">Medium</SelectItem>
+
+                    <SelectItem value="HIGH">High</SelectItem>
+
+                    <SelectItem value="CRITICAL">
+                      Critical
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>Status</Label>
+
+                <Select
+                  value={newEpic.status}
+                  onValueChange={(v) =>
+                    setNewEpic((prev) => ({
+                      ...prev,
+                      status: v as any,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    <SelectItem value="PLANNING">
+                      Planning
+                    </SelectItem>
+
+                    <SelectItem value="ACTIVE">Active</SelectItem>
+
+                    <SelectItem value="COMPLETED">
+                      Completed
+                    </SelectItem>
+
+                    <SelectItem value="CANCELLED">
+                      Cancelled
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsAddEpicDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              onClick={async () => {
+                if (!selectedProject) {
+                  toast.error("Select a project first");
+                  return;
+                }
+
+                if (!newEpic.title.trim()) {
+                  toast.error("Title is required");
+                  return;
+                }
+
+                try {
+                  const payload: any = {
+                    title: newEpic.title,
+
+                    description: newEpic.description,
+
+                    projectId: selectedProject,
+
+                    status: newEpic.status,
+
+                    priority: newEpic.priority,
+
+                    owner: user?.id || "",
+
+                    isActive: true,
+                  };
+
+                  const { epicApiService } = await import(
+                    "../services/api/entities/epicApi"
+                  );
+
+                  await epicApiService.createEpic(payload);
+
+                  const list =
+                    await epicApiService.getEpicsByProject(
+                      selectedProject,
+                    );
+
+                  setProjectEpics(
+                    (list as any).data ??
+                      (Array.isArray(list) ? list : []),
+                  );
+
+                  setIsAddEpicDialogOpen(false);
+
+                  setNewEpic({
+                    title: "",
+                    description: "",
+                    priority: "MEDIUM",
+                    status: "PLANNING",
+                    startDate: "",
+                    endDate: "",
+                  });
+
+                  toast.success("Epic created");
+                } catch (e: any) {
+                  console.error(e);
+
+                  toast.error(
+                    e?.message || "Failed to create epic",
+                  );
+                }
+              }}
+            >
+              Create
             </Button>
           </DialogFooter>
         </DialogContent>

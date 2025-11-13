@@ -277,6 +277,12 @@ const ScrumPageEnhanced: React.FC = () => {
     }
   }, []);
 
+  // Handle opening effort dialog
+  const handleOpenEffortDialog = useCallback((task: Task) => {
+    setSelectedTask(task);
+    setIsEffortDialogOpen(true);
+  }, []);
+
   // Helper functions
   const formatTime = (minutes: number) => {
     const hours = Math.floor(minutes / 60);

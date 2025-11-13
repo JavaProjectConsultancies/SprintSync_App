@@ -11,7 +11,7 @@ import { Card, CardContent } from './ui/card';
 import { Separator } from './ui/separator';
 import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { CalendarIcon, CheckSquare, User, Flag, Target, Clock, Plus, X, FileText, Database, Code, Palette, Bug, Search, Paperclip, Trash2, Loader2 } from 'lucide-react';
+import { CalendarIcon, CheckSquare, User, Flag, Target, Clock, Plus, X, FileText, Database, Code, Palette, Bug, Search, Paperclip, Trash2, Loader2, Link, Eye } from 'lucide-react';
 import { taskTemplates, TaskTemplate, getTemplatesByType } from '../data/taskTemplates';
 
 // Simple date formatter to replace date-fns
@@ -101,6 +101,9 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [attachments, setAttachments] = useState<File[]>([]);
+  const [attachmentUrls, setAttachmentUrls] = useState<Array<{ url: string; name: string }>>([]);
+  const [attachmentUrl, setAttachmentUrl] = useState<string>('');
+  const [attachmentUrlName, setAttachmentUrlName] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
 
   // Use API users if provided, otherwise fall back to mock data
@@ -164,7 +167,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
 
     const validSubtasks = formData.subtasks.filter(subtask => subtask.trim());
     
-    const newTask: Omit<Task, 'id'> & { attachments?: File[] } = {
+    const newTask: Omit<Task, 'id'> & { attachments?: File[]; attachmentUrls?: Array<{ url: string; name: string }> } = {
       title: formData.title.trim(),
       description: formData.description.trim(),
       storyId: formData.storyId === 'none' ? undefined : formData.storyId || undefined,
@@ -175,7 +178,8 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
       estimatedHours: formData.estimatedHours,
       subtasks: validSubtasks,
       progress: 0,
-      attachments: attachments.length > 0 ? attachments : undefined
+      attachments: attachments.length > 0 ? attachments : undefined,
+      attachmentUrls: attachmentUrls.length > 0 ? attachmentUrls : undefined
     };
 
     await onSubmit(newTask);
@@ -199,6 +203,9 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
     });
     setErrors({});
     setAttachments([]);
+    setAttachmentUrls([]);
+    setAttachmentUrl('');
+    setAttachmentUrlName('');
   };
 
   // File upload handler
@@ -210,6 +217,40 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
 
   const handleRemoveAttachment = (index: number) => {
     setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // URL handlers
+  const isValidUrl = (urlString: string): boolean => {
+    try {
+      const url = new URL(urlString);
+      return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
+
+  const handleAddUrl = () => {
+    if (!attachmentUrl.trim()) {
+      return;
+    }
+
+    if (!isValidUrl(attachmentUrl.trim())) {
+      setErrors(prev => ({ ...prev, attachmentUrl: 'Please enter a valid URL (must start with http:// or https://)' }));
+      return;
+    }
+
+    setAttachmentUrls(prev => [...prev, { url: attachmentUrl.trim(), name: attachmentUrlName.trim() || attachmentUrl.trim() }]);
+    setAttachmentUrl('');
+    setAttachmentUrlName('');
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors.attachmentUrl;
+      return newErrors;
+    });
+  };
+
+  const handleRemoveUrl = (index: number) => {
+    setAttachmentUrls(prev => prev.filter((_, i) => i !== index));
   };
 
   const formatFileSize = (bytes: number) => {
@@ -785,74 +826,120 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                   <h3 className="font-medium">Attachments (Optional)</h3>
                 </div>
 
-                {/* Upload Area */}
-                <div
-                  className="border-2 border-dashed border-gray-300 rounded-lg p-6 mb-4 hover:border-blue-400 transition-colors cursor-pointer bg-gray-50"
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  onDragLeave={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const files = e.dataTransfer.files;
-                    if (files.length > 0) {
-                      handleFileSelect(files);
-                    }
-                  }}
-                  onClick={() => {
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.multiple = true;
-                    input.onchange = (e) => {
-                      const target = e.target as HTMLInputElement;
-                      if (target.files && target.files.length > 0) {
-                        handleFileSelect(target.files);
+                {/* File Upload Section */}
+                <div className="space-y-2">
+                  <Label htmlFor="file-upload-task">Upload File</Label>
+                  <div
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-blue-400 transition-colors cursor-pointer bg-gray-50"
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const files = e.dataTransfer.files;
+                      if (files.length > 0) {
+                        handleFileSelect(files);
                       }
-                    };
-                    input.click();
-                  }}
-                >
-                  <div className="text-center">
-                    <Paperclip className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                    <p className="text-sm text-gray-600 mb-1">
-                      Drop attachments here or select from your computer
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      Click to browse files or drag and drop
-                    </p>
+                    }}
+                    onClick={() => {
+                      const input = document.createElement('input');
+                      input.type = 'file';
+                      input.multiple = true;
+                      input.onchange = (e) => {
+                        const target = e.target as HTMLInputElement;
+                        if (target.files && target.files.length > 0) {
+                          handleFileSelect(target.files);
+                        }
+                      };
+                      input.click();
+                    }}
+                  >
+                    <div className="text-center">
+                      <Paperclip className="w-6 h-6 mx-auto mb-2 text-gray-400" />
+                      <p className="text-sm text-gray-600">Drop files here or click to browse</p>
+                    </div>
                   </div>
                 </div>
 
-                {/* Attachments List */}
+                {/* Separator */}
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">Or</span>
+                  </div>
+                </div>
+
+                {/* URL Input Section */}
+                <div className="space-y-2">
+                  <Label htmlFor="url-input-task">Add URL/Link</Label>
+                  <div className="space-y-2">
+                    <Input
+                      id="url-input-task"
+                      type="url"
+                      placeholder="https://example.com/document.pdf"
+                      value={attachmentUrl}
+                      onChange={(e) => setAttachmentUrl(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddUrl();
+                        }
+                      }}
+                    />
+                    <Input
+                      id="url-name-input-task"
+                      type="text"
+                      placeholder="Link name (optional)"
+                      value={attachmentUrlName}
+                      onChange={(e) => setAttachmentUrlName(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddUrl();
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAddUrl}
+                      disabled={!attachmentUrl.trim()}
+                      className="w-full"
+                    >
+                      <Link className="w-4 h-4 mr-2" />
+                      Add URL
+                    </Button>
+                  </div>
+                  {errors.attachmentUrl && <p className="text-sm text-red-600">{errors.attachmentUrl}</p>}
+                </div>
+
+                {/* Files List */}
                 {attachments.length > 0 && (
                   <div className="space-y-2">
+                    <Label>Files</Label>
                     {attachments.map((file, index) => (
                       <div
                         key={index}
-                        className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                        className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
                       >
                         <div className="flex items-center space-x-3 flex-1 min-w-0">
                           <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center flex-shrink-0">
-                            <Paperclip className="w-4 h-4 text-blue-600" />
+                            <FileText className="w-4 h-4 text-blue-600" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">
-                              {file.name}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {formatFileSize(file.size)}
-                            </p>
+                            <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
+                            <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
                           </div>
                         </div>
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleRemoveAttachment(index);
@@ -860,6 +947,48 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* URLs List */}
+                {attachmentUrls.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Links</Label>
+                    {attachmentUrls.map((item, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 border border-green-200 rounded-lg hover:bg-green-50 bg-green-50"
+                      >
+                        <div className="flex items-center space-x-3 flex-1 min-w-0">
+                          <div className="w-8 h-8 bg-green-100 rounded flex items-center justify-center flex-shrink-0">
+                            <Link className="w-4 h-4 text-green-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
+                            <p className="text-xs text-gray-500 break-all line-clamp-1">{item.url}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => window.open(item.url, '_blank')}
+                            title="Open link"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleRemoveUrl(index)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>

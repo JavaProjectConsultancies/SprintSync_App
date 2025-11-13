@@ -17,8 +17,8 @@ import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import AddStoryDialog from '../components/AddStoryDialog';
 import AddTaskDialog from '../components/AddTaskDialog';
-import EffortLogDialog from '../components/EffortLogDialog';
-import EffortHistoryDialog from '../components/EffortHistoryDialog';
+// import EffortLogDialog from '../components/EffortLogDialog';
+// import EffortHistoryDialog from '../components/EffortHistoryDialog';
 import { 
   Search,
   Plus,
@@ -589,7 +589,7 @@ const ScrumPage: React.FC = () => {
                     <p className="text-sm text-muted-foreground">{currentSprint.goal}</p>
                   </div>
                   <div className="flex items-center space-x-4 text-sm">
-                    {currentSprint.daysLeft > 0 && (
+                    {currentSprint.daysLeft && currentSprint.daysLeft > 0 && (
                       <div className="text-center">
                         <div className="font-semibold text-green-600">{currentSprint.daysLeft}</div>
                         <div className="text-xs text-muted-foreground">Days Left</div>
@@ -932,7 +932,7 @@ const ScrumPage: React.FC = () => {
           onStatusChange={setSelectedTaskStatus}
         />
 
-        <EffortLogDialog 
+        {/* <EffortLogDialog 
           isOpen={isEffortLogDialogOpen}
           onClose={() => setIsEffortLogDialogOpen(false)}
           onLogEffort={handleLogEffort}
@@ -946,7 +946,7 @@ const ScrumPage: React.FC = () => {
           story={selectedStoryForHistory}
           historyFilter={historyFilter}
           onFilterChange={setHistoryFilter}
-        />
+        /> */}
       </div>
     </DndProvider>
   );

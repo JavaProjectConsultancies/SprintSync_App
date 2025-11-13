@@ -56,6 +56,9 @@ public class Attachment {
     @Column(name = "is_public")
     private Boolean isPublic = false;
 
+    @Column(name = "attachment_type", length = 20)
+    private String attachmentType = "file"; // 'file' or 'url'
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
