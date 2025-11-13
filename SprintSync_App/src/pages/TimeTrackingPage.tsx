@@ -1,9 +1,11 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '../components/ui/chart';
@@ -21,14 +23,13 @@ import {
   Target,
   Users, 
   TrendingUp,
-  Plus,
-  Filter,
-  Loader2,
   BarChart3,
-  CheckCircle2,
-  ChevronDown
+  CheckCircle2
 } from 'lucide-react';
+import { Calendar } from '../components/ui/calendar';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { DateRange } from 'react-day-picker';
+import { format, startOfDay, endOfDay } from 'date-fns';
 
 interface TimeEntry {
   id: string;
@@ -39,6 +40,7 @@ interface TimeEntry {
   project: string;
   projectId?: string;
   sprintId?: string;
+  sprintName?: string;
   user: string;
   userId: string;
   userRole: string;
@@ -51,28 +53,11 @@ interface TimeEntry {
   timeSpent: string;
   remaining: string;
   estimation?: string;
+  startTime?: string;
+  endTime?: string;
+  hoursWorked?: number;
+  notes?: string;
 }
-
-interface GroupedTaskBucket {
-  taskId?: string;
-  entries: TimeEntry[];
-}
-
-interface GroupedStoryBucket {
-  storyId?: string;
-  tasks: Record<string, GroupedTaskBucket>;
-}
-
-interface GroupedProjectBucket {
-  projectId?: string;
-  stories: Record<string, GroupedStoryBucket>;
-}
-
-interface GroupedUserProjects {
-  projects: Record<string, GroupedProjectBucket>;
-}
-
-type GroupedEntriesByUser = Record<string, GroupedUserProjects>;
 
 const formatDisplayName = (value: string) =>
   value
@@ -82,108 +67,6 @@ const formatDisplayName = (value: string) =>
     .filter(Boolean)
     .map(chunk => chunk[0].toUpperCase() + chunk.slice(1))
     .join(' ');
-
-const projectColorThemes: Array<{
-  border: string;
-  cardBg: string;
-  headerText: string;
-  avatarBg: string;
-  avatarBorder: string;
-  badge: string;
-  storyBg: string;
-  storyBorder: string;
-  storyAccent: string;
-}> = [
-  {
-    border: 'border-l-[6px] border-l-emerald-500',
-    cardBg: 'border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-white shadow-[0_12px_24px_-12px_rgba(16,185,129,0.45)]',
-    headerText: 'text-slate-900',
-    avatarBg: 'bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.3)]',
-    avatarBorder: 'border-emerald-300',
-    badge: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-    storyBg: 'bg-emerald-50',
-    storyBorder: 'border-emerald-200',
-    storyAccent: 'border-l-4 border-l-emerald-400',
-  },
-  {
-    border: 'border-l-[6px] border-l-sky-500',
-    cardBg: 'border border-sky-200 bg-gradient-to-r from-sky-50 via-white to-white shadow-[0_12px_24px_-12px_rgba(14,165,233,0.4)]',
-    headerText: 'text-slate-900',
-    avatarBg: 'bg-sky-500 shadow-[0_0_0_3px_rgba(14,165,233,0.3)]',
-    avatarBorder: 'border-sky-300',
-    badge: 'bg-sky-100 text-sky-800 border-sky-200',
-    storyBg: 'bg-sky-50',
-    storyBorder: 'border-sky-200',
-    storyAccent: 'border-l-4 border-l-sky-400',
-  },
-  {
-    border: 'border-l-[6px] border-l-violet-500',
-    cardBg: 'border border-violet-200 bg-gradient-to-r from-violet-50 via-white to-white shadow-[0_12px_24px_-12px_rgba(139,92,246,0.38)]',
-    headerText: 'text-slate-900',
-    avatarBg: 'bg-violet-500 shadow-[0_0_0_3px_rgba(139,92,246,0.3)]',
-    avatarBorder: 'border-violet-300',
-    badge: 'bg-violet-100 text-violet-800 border-violet-200',
-    storyBg: 'bg-violet-50',
-    storyBorder: 'border-violet-200',
-    storyAccent: 'border-l-4 border-l-violet-400',
-  },
-  {
-    border: 'border-l-[6px] border-l-amber-500',
-    cardBg: 'border border-amber-200 bg-gradient-to-r from-amber-50 via-white to-white shadow-[0_12px_24px_-12px_rgba(245,158,11,0.4)]',
-    headerText: 'text-slate-900',
-    avatarBg: 'bg-amber-500 shadow-[0_0_0_3px_rgba(245,158,11,0.3)]',
-    avatarBorder: 'border-amber-300',
-    badge: 'bg-amber-100 text-amber-800 border-amber-200',
-    storyBg: 'bg-amber-50',
-    storyBorder: 'border-amber-200',
-    storyAccent: 'border-l-4 border-l-amber-400',
-  },
-  {
-    border: 'border-l-[6px] border-l-rose-500',
-    cardBg: 'border border-rose-200 bg-gradient-to-r from-rose-50 via-white to-white shadow-[0_12px_24px_-12px_rgba(244,63,94,0.42)]',
-    headerText: 'text-slate-900',
-    avatarBg: 'bg-rose-500 shadow-[0_0_0_3px_rgba(244,63,94,0.3)]',
-    avatarBorder: 'border-rose-300',
-    badge: 'bg-rose-100 text-rose-800 border-rose-200',
-    storyBg: 'bg-rose-50',
-    storyBorder: 'border-rose-200',
-    storyAccent: 'border-l-4 border-l-rose-400',
-  },
-  {
-    border: 'border-l-[6px] border-l-teal-500',
-    cardBg: 'border border-teal-200 bg-gradient-to-r from-teal-50 via-white to-white shadow-[0_12px_24px_-12px_rgba(20,184,166,0.4)]',
-    headerText: 'text-slate-900',
-    avatarBg: 'bg-teal-500 shadow-[0_0_0_3px_rgba(20,184,166,0.3)]',
-    avatarBorder: 'border-teal-300',
-    badge: 'bg-teal-100 text-teal-800 border-teal-200',
-    storyBg: 'bg-teal-50',
-    storyBorder: 'border-teal-200',
-    storyAccent: 'border-l-4 border-l-teal-400',
-  },
-];
-
-const hashString = (value: string) => {
-  let hash = 0;
-  for (let i = 0; i < value.length; i += 1) {
-    hash = (hash * 31 + value.charCodeAt(i)) % 2147483647;
-  }
-  return hash;
-};
-
-const getProjectTheme = (key: string) => {
-  const index = Math.abs(hashString(key)) % projectColorThemes.length;
-  return projectColorThemes[index];
-};
-
-const collectEntriesFromStories = (stories: Record<string, GroupedStoryBucket>): TimeEntry[] => {
-  const entries: TimeEntry[] = [];
-  Object.values(stories).forEach(story => {
-    Object.values(story.tasks).forEach(task => {
-      entries.push(...task.entries);
-    });
-  });
-  return entries;
-};
 
 const normalizeId = (value?: string | number | null): string | undefined => {
   if (value === null || value === undefined) {
@@ -216,6 +99,37 @@ const mergeById = <T extends { id: any }>(existing: T[], incoming: T[]): T[] => 
   return Array.from(combined.values());
 };
 
+const parseEntryDateValue = (value?: string | Date | number): Date | null => {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value === 'number') {
+    const fromNumber = new Date(value);
+    return Number.isNaN(fromNumber.getTime()) ? null : fromNumber;
+  }
+
+  const dateFromDefault = new Date(value);
+  if (!Number.isNaN(dateFromDefault.getTime())) {
+    return dateFromDefault;
+  }
+
+  const dateOnlyMatch = value.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (dateOnlyMatch) {
+    const parsed = new Date(`${dateOnlyMatch[1]}T00:00:00`);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+
+  console.log('Unable to parse entry date:', value);
+  return null;
+};
+
 const extractTimeEntries = (payload: any): ApiTimeEntry[] => {
   if (Array.isArray(payload)) {
     return payload;
@@ -232,12 +146,203 @@ const extractTimeEntries = (payload: any): ApiTimeEntry[] => {
   return [];
 };
 
+const CATEGORY_OPTIONS = [
+  'development',
+  'documentation',
+  'idle',
+  'learning',
+  'meeting',
+  'support',
+  'testing',
+  'training',
+] as const;
+
+const CATEGORY_OPTIONS_SET = new Set<string>(CATEGORY_OPTIONS);
+const DEFAULT_CATEGORY = CATEGORY_OPTIONS[0];
+
+const CATEGORY_SYNONYMS: Record<string, (typeof CATEGORY_OPTIONS)[number]> = {
+  dev: 'development',
+  development: 'development',
+  'code review': 'development',
+  codereview: 'development',
+  review: 'development',
+  docs: 'documentation',
+  doc: 'documentation',
+  documentation: 'documentation',
+  analysis: 'documentation',
+  report: 'documentation',
+  idle: 'idle',
+  bench: 'idle',
+  buffer: 'idle',
+  waiting: 'idle',
+  learning: 'learning',
+  research: 'learning',
+  study: 'learning',
+  meeting: 'meeting',
+  meetings: 'meeting',
+  sync: 'meeting',
+  support: 'support',
+  'customer support': 'support',
+  maintenance: 'support',
+  testing: 'testing',
+  qa: 'testing',
+  'quality assurance': 'testing',
+  test: 'testing',
+  verification: 'testing',
+  training: 'training',
+  onboarding: 'training',
+  'knowledge transfer': 'training',
+};
+
+const normalizeCategory = (value?: string | null): (typeof CATEGORY_OPTIONS)[number] => {
+  if (!value) {
+    return DEFAULT_CATEGORY;
+  }
+
+  const normalized = value
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, ' ');
+
+  if (CATEGORY_SYNONYMS[normalized]) {
+    return CATEGORY_SYNONYMS[normalized];
+  }
+
+  if (CATEGORY_OPTIONS_SET.has(normalized)) {
+    return normalized as (typeof CATEGORY_OPTIONS)[number];
+  }
+
+  return DEFAULT_CATEGORY;
+};
+
+const resolveProjectInfoFromEntry = (entry: any) => {
+  const projectObj =
+    entry?.project ??
+    entry?.projectDetails ??
+    entry?.projectDto ??
+    entry?.projectInfo ??
+    entry?.projectResponse ??
+    entry?.projectData;
+
+  const candidateIds = [
+    entry?.projectId,
+    entry?.projectID,
+    entry?.project_id,
+    projectObj?.id,
+    projectObj?.projectId,
+    projectObj?.projectID,
+    projectObj?.project_id,
+  ];
+
+  const resolvedId = candidateIds
+    .map((value) => normalizeId(value))
+    .find((value): value is string => Boolean(value));
+
+  const candidateNames = [
+    entry?.projectName,
+    typeof entry?.project === 'string' ? entry?.project : undefined,
+    projectObj?.name,
+    projectObj?.projectName,
+    projectObj?.title,
+    projectObj?.code,
+    projectObj?.identifier,
+  ];
+
+  const resolvedName = candidateNames.find(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0
+  );
+
+  return { id: resolvedId, name: resolvedName };
+};
+
+const resolveSprintInfoFromEntry = (entry: any) => {
+  const sprintObj =
+    entry?.sprint ??
+    entry?.sprintDetails ??
+    entry?.sprintDto ??
+    entry?.sprintInfo ??
+    entry?.sprintResponse ??
+    entry?.sprintData;
+
+  const candidateIds = [
+    entry?.sprintId,
+    entry?.sprintID,
+    entry?.sprint_id,
+    sprintObj?.id,
+    sprintObj?.sprintId,
+    sprintObj?.sprintID,
+    sprintObj?.sprint_id,
+  ];
+
+  const resolvedId = candidateIds
+    .map((value) => normalizeId(value))
+    .find((value): value is string => Boolean(value));
+
+  const candidateNames = [
+    entry?.sprintName,
+    typeof entry?.sprint === 'string' ? entry?.sprint : undefined,
+    sprintObj?.name,
+    sprintObj?.sprintName,
+    sprintObj?.title,
+    sprintObj?.code,
+    sprintObj?.identifier,
+  ];
+
+  const resolvedName = candidateNames.find(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0
+  );
+
+  return { id: resolvedId, name: resolvedName };
+};
+
+const buildTimeEntryKey = (entry: ApiTimeEntry, index: number): string => {
+  const normalizedId = normalizeId(entry.id);
+  if (normalizedId) {
+    return normalizedId;
+  }
+
+  const userId = normalizeId(entry.userId) || 'unknown-user';
+  const taskId = normalizeId(entry.taskId) || 'unknown-task';
+  const projectId =
+    normalizeId((entry as any).projectId ?? (entry as any).projectID) || 'unknown-project';
+  const storyId = normalizeId(entry.storyId) || 'unknown-story';
+  const workDate =
+    (entry as any).workDate ||
+    (entry as any).date ||
+    `no-date-${index}`;
+  const startTime = entry.startTime || '';
+  const endTime = entry.endTime || '';
+  const hoursWorked = entry.hoursWorked !== undefined ? String(entry.hoursWorked) : '';
+  const category = (entry as any).entryType || (entry as any).category || '';
+  const description = entry.description ? entry.description.trim().slice(0, 50) : '';
+
+  return [
+    userId,
+    taskId,
+    projectId,
+    storyId,
+    workDate,
+    startTime,
+    endTime,
+    hoursWorked,
+    category,
+    description,
+  ].join('|');
+};
+
 const TimeTrackingPage: React.FC = () => {
   const { user: currentUser } = useAuth();
   const [timeFilter, setTimeFilter] = useState('all-time');
   const [userFilter, setUserFilter] = useState('all');
   const [projectFilter, setProjectFilter] = useState('all');
+  const [sprintFilter, setSprintFilter] = useState('all');
+  const [workTypeFilter, setWorkTypeFilter] = useState('all');
+  const [billableFilter, setBillableFilter] = useState<'all' | 'billable' | 'non-billable'>('all');
+  const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>(undefined);
+  const [customRangeOpen, setCustomRangeOpen] = useState(false);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
+  const [additionalSprints, setAdditionalSprints] = useState<Sprint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
@@ -246,6 +351,167 @@ const TimeTrackingPage: React.FC = () => {
   const fetchedTaskIdsRef = useRef<Set<string>>(new Set());
   const fetchedStoryIdsRef = useRef<Set<string>>(new Set());
   const fetchedProjectIdsRef = useRef<Set<string>>(new Set());
+  const fetchedSprintIdsRef = useRef<Set<string>>(new Set());
+  const baselineFetchUserRef = useRef<string | null>(null);
+  const userTasksFetchKeyRef = useRef<string | null>(null);
+  const timeEntriesFetchKeyRef = useRef<string | null>(null);
+  const ensuredEntitiesKeyRef = useRef<string | null>(null);
+  const [pageSize, setPageSize] = useState<15 | 30>(15);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const ENABLE_TASK_PREFETCH = false;
+
+  useEffect(() => {
+    if (!currentUser) {
+      baselineFetchUserRef.current = null;
+      userTasksFetchKeyRef.current = null;
+      timeEntriesFetchKeyRef.current = null;
+    }
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    const userId = normalizeId(currentUser?.id);
+    if (!userId) {
+      return;
+    }
+
+    if (baselineFetchUserRef.current === userId) {
+      return;
+    }
+    baselineFetchUserRef.current = userId;
+
+    let isMounted = true;
+
+    const fetchBaselineData = async () => {
+      try {
+        const { projectApiService } = await import('../services/api/entities/projectApi');
+        const { sprintApiService } = await import('../services/api/entities/sprintApi');
+
+        // Fetch comprehensive project list so time entries have complete context
+        try {
+          let projectData: Project[] = [];
+          try {
+            const response = await projectApiService.getAllProjects();
+            if (Array.isArray(response.data)) {
+              projectData = response.data;
+            }
+          } catch (allProjectsError) {
+            console.warn('Failed to fetch /projects/all, falling back to paginated projects.', allProjectsError);
+            try {
+              const response = await projectApiService.getProjects({ page: 0, size: 1000 });
+              if (Array.isArray(response.data)) {
+                projectData = response.data;
+              }
+            } catch (paginatedError) {
+              console.warn('Failed to fetch paginated projects.', paginatedError);
+            }
+          }
+
+          const isManagerOrAdmin = currentUser && (
+            currentUser.role === 'admin' || 
+            currentUser.role === 'manager' || 
+            currentUser.role === 'MANAGER' ||
+            currentUser.role === 'ADMIN' ||
+            currentUser.role?.toLowerCase() === 'manager' ||
+            currentUser.role?.toLowerCase() === 'admin'
+          );
+
+          if (!isManagerOrAdmin) {
+            try {
+              const accessibleResponse = await projectApiService.getAccessibleProjects();
+              if (Array.isArray(accessibleResponse.data) && accessibleResponse.data.length > 0) {
+                projectData = mergeById(projectData, accessibleResponse.data);
+              }
+            } catch (accessibleError) {
+              console.warn('Failed to fetch accessible projects.', accessibleError);
+            }
+          }
+
+          if (isMounted && projectData.length > 0) {
+            setAdditionalProjects(prev => mergeById(prev, projectData));
+          }
+        } catch (projectErr) {
+          console.warn('Error fetching baseline projects:', projectErr);
+        }
+
+        // Fetch comprehensive sprint list for time entry context
+        try {
+          let sprintData: Sprint[] = [];
+          try {
+            const response = await sprintApiService.getSprints({ page: 0, size: 1000 });
+            if (Array.isArray(response.data)) {
+              sprintData = response.data;
+            } else if (response.data && Array.isArray((response as any).content)) {
+              sprintData = (response as any).content as Sprint[];
+            }
+          } catch (paginatedError) {
+            console.warn('Failed to fetch paginated sprints.', paginatedError);
+          }
+
+          if (sprintData.length === 0) {
+            try {
+              const response = await sprintApiService.getActiveSprints({ page: 0, size: 1000 });
+              if (Array.isArray(response.data)) {
+                sprintData = response.data;
+              }
+            } catch (activeError) {
+              console.warn('Failed to fetch active sprints.', activeError);
+            }
+          }
+
+          if (isMounted && sprintData.length > 0) {
+            setAdditionalSprints(prev => mergeById(prev, sprintData));
+          }
+        } catch (sprintErr) {
+          console.warn('Error fetching baseline sprints:', sprintErr);
+        }
+      } catch (err) {
+        console.warn('Unexpected error fetching baseline time-tracking data:', err);
+      }
+    };
+
+    fetchBaselineData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser]);
+
+  const resetFilters = useCallback(() => {
+    setTimeFilter('all-time');
+    setUserFilter('all');
+    setProjectFilter('all');
+    setSprintFilter('all');
+    setWorkTypeFilter('all');
+    setBillableFilter('all');
+    setCustomDateRange(undefined);
+    setCustomRangeOpen(false);
+  }, []);
+
+  const customRangeLabel = useMemo(() => {
+    if (customDateRange?.from && customDateRange?.to) {
+      return `${format(customDateRange.from, 'MMM d, yyyy')} – ${format(customDateRange.to, 'MMM d, yyyy')}`;
+    }
+    if (customDateRange?.from) {
+      return `${format(customDateRange.from, 'MMM d, yyyy')} – …`;
+    }
+    return 'Select dates';
+  }, [customDateRange]);
+
+  const handleTimeFilterChange = useCallback((value: string) => {
+    setTimeFilter(value);
+    if (value === 'custom') {
+      setCustomRangeOpen(true);
+    } else {
+      setCustomRangeOpen(false);
+    }
+  }, []);
+
+  const handleCustomRangeSelect = useCallback((range: DateRange | undefined) => {
+    setCustomDateRange(range);
+    if (range?.from && range?.to) {
+      setTimeFilter('custom');
+    }
+  }, []);
 
   // Fetch related entities
   const usersResult = useUsers({ page: 0, size: 1000 });
@@ -254,10 +520,8 @@ const TimeTrackingPage: React.FC = () => {
   
   // Extract data - ensure all are arrays (moved before useEffect that uses it)
   // Filter to show only current user if not manager/admin, otherwise show all users
+  const usersData = Array.isArray(usersResult.data) ? usersResult.data : [];
   const users = useMemo(() => {
-    const data = usersResult.data;
-    const allUsers = Array.isArray(data) ? data : [];
-    
     // Check if current user is manager or admin
     const isManagerOrAdmin = currentUser && (
       currentUser.role === 'admin' || 
@@ -271,11 +535,11 @@ const TimeTrackingPage: React.FC = () => {
     // If current user is manager/admin, show all users; otherwise show only current user
     if (currentUser && currentUser.id && !isManagerOrAdmin) {
       const currentUserId = normalizeId(currentUser.id);
-      return allUsers.filter(user => normalizeId(user.id) === currentUserId);
+      return usersData.filter(user => normalizeId(user.id) === currentUserId);
     }
     
-    return allUsers;
-  }, [usersResult.data, currentUser]);
+    return usersData;
+  }, [usersData, currentUser]);
   
   // Fetch all stories and tasks using getAll methods
   const [allStories, setAllStories] = useState<Story[]>([]);
@@ -337,39 +601,50 @@ const TimeTrackingPage: React.FC = () => {
     fetchStoriesAndTasks();
   }, []);
 
-  // Fetch tasks - all users' tasks for managers/admins, only current user's tasks for others
+  // Fetch tasks - disabled prefetch (ensureRelatedEntities will load needed tasks by id)
   useEffect(() => {
+    if (!ENABLE_TASK_PREFETCH) {
+      return;
+    }
+    const userId = normalizeId(currentUser?.id);
+    if (!userId) {
+      return;
+    }
+
+    const isManagerOrAdmin = currentUser && (
+      currentUser.role === 'admin' || 
+      currentUser.role === 'manager' || 
+      currentUser.role === 'MANAGER' ||
+      currentUser.role === 'ADMIN' ||
+      currentUser.role?.toLowerCase() === 'manager' ||
+      currentUser.role?.toLowerCase() === 'admin'
+    );
+
+    if (isManagerOrAdmin && usersData.length === 0) {
+      return;
+    }
+
+    const fetchKey = isManagerOrAdmin ? `${userId}-manager` : userId;
+    if (userTasksFetchKeyRef.current === fetchKey) {
+      return;
+    }
+
+    let cancelled = false;
+
     const fetchUserTasks = async () => {
-      if (!currentUser || !currentUser.id) {
-        return;
-      }
-
-      // Check if current user is manager or admin
-      const isManagerOrAdmin = currentUser && (
-        currentUser.role === 'admin' || 
-        currentUser.role === 'manager' || 
-        currentUser.role === 'MANAGER' ||
-        currentUser.role === 'ADMIN' ||
-        currentUser.role?.toLowerCase() === 'manager' ||
-        currentUser.role?.toLowerCase() === 'admin'
-      );
-
       try {
         const { taskApiService } = await import('../services/api/entities/taskApi');
         const newUserTasksMap = new Map<string, Task[]>();
 
         if (isManagerOrAdmin) {
-          // For managers/admins: fetch tasks for all users
-          if (users.length === 0) {
-            return;
-          }
-
-          const userTaskPromises = users.map(async (user) => {
-            const userId = normalizeId(user.id);
-            if (!userId) return;
+          const userTaskPromises = usersData.map(async (user) => {
+            const assigneeId = normalizeId(user.id);
+            if (!assigneeId) {
+              return;
+            }
 
             try {
-              const response = await taskApiService.getTasksByAssignee(userId, { page: 0, size: 1000 });
+              const response = await taskApiService.getTasksByAssignee(assigneeId, { page: 0, size: 1000 });
               let userTasks: Task[] = [];
               
               if (Array.isArray(response.data)) {
@@ -381,10 +656,9 @@ const TimeTrackingPage: React.FC = () => {
               }
 
               if (userTasks.length > 0) {
-                newUserTasksMap.set(userId, userTasks);
+                newUserTasksMap.set(assigneeId, userTasks);
                 setAllTasks(prev => mergeById(prev, userTasks));
                 
-                // Fetch related stories and projects
                 const storyIds = new Set<string>();
                 userTasks.forEach(task => {
                   const storyId = normalizeId(task.storyId);
@@ -392,19 +666,16 @@ const TimeTrackingPage: React.FC = () => {
                 });
 
                 const { storyApiService } = await import('../services/api/entities/storyApi');
-                const storyPromises = Array.from(storyIds).map(async (storyId) => {
-                  try {
-                    const storyResponse = await storyApiService.getStoryById(storyId);
-                    if (storyResponse.data) {
-                      setAllStories(prev => mergeById(prev, [storyResponse.data as Story]));
-                      
-                      const story = storyResponse.data as Story;
-                      const projectId = normalizeId(story.projectId);
-                      if (projectId) {
-                        const currentProjects = projectsResult.data ? (Array.isArray(projectsResult.data) ? projectsResult.data : []) : [];
-                        const projectExists = currentProjects.some((p: Project) => normalizeId(p.id) === projectId) ||
-                                            additionalProjects.some(p => normalizeId(p.id) === projectId);
-                        if (!projectExists) {
+                await Promise.all(
+                  Array.from(storyIds).map(async (storyId) => {
+                    try {
+                      const storyResponse = await storyApiService.getStoryById(storyId);
+                      if (storyResponse.data) {
+                        setAllStories(prev => mergeById(prev, [storyResponse.data as Story]));
+                        
+                        const story = storyResponse.data as Story;
+                        const projectId = normalizeId(story.projectId);
+                        if (projectId) {
                           try {
                             const { projectApiService } = await import('../services/api/entities/projectApi');
                             const projectResponse = await projectApiService.getProjectById(projectId);
@@ -416,28 +687,21 @@ const TimeTrackingPage: React.FC = () => {
                           }
                         }
                       }
+                    } catch (err) {
+                      console.warn(`Failed to fetch story ${storyId}:`, err);
                     }
-                  } catch (err) {
-                    console.warn(`Failed to fetch story ${storyId}:`, err);
-                  }
-                });
-                await Promise.all(storyPromises);
+                  })
+                );
               }
             } catch (err) {
-              console.warn(`Failed to fetch tasks for user ${userId}:`, err);
+              console.warn(`Failed to fetch tasks for user ${assigneeId}:`, err);
             }
           });
 
           await Promise.all(userTaskPromises);
         } else {
-          // For non-managers: fetch only current user's tasks
-          const currentUserId = normalizeId(currentUser.id);
-          if (!currentUserId) {
-            return;
-          }
-
           try {
-            const response = await taskApiService.getTasksByAssignee(currentUserId, { page: 0, size: 1000 });
+            const response = await taskApiService.getTasksByAssignee(userId, { page: 0, size: 1000 });
             let userTasks: Task[] = [];
             
             if (Array.isArray(response.data)) {
@@ -449,10 +713,9 @@ const TimeTrackingPage: React.FC = () => {
             }
 
             if (userTasks.length > 0) {
-              newUserTasksMap.set(currentUserId, userTasks);
+              newUserTasksMap.set(userId, userTasks);
               setAllTasks(prev => mergeById(prev, userTasks));
               
-              // Fetch related stories and projects
               const storyIds = new Set<string>();
               userTasks.forEach(task => {
                 const storyId = normalizeId(task.storyId);
@@ -460,19 +723,16 @@ const TimeTrackingPage: React.FC = () => {
               });
 
               const { storyApiService } = await import('../services/api/entities/storyApi');
-              const storyPromises = Array.from(storyIds).map(async (storyId) => {
-                try {
-                  const storyResponse = await storyApiService.getStoryById(storyId);
-                  if (storyResponse.data) {
-                    setAllStories(prev => mergeById(prev, [storyResponse.data as Story]));
-                    
-                    const story = storyResponse.data as Story;
-                    const projectId = normalizeId(story.projectId);
-                    if (projectId) {
-                      const currentProjects = projectsResult.data ? (Array.isArray(projectsResult.data) ? projectsResult.data : []) : [];
-                      const projectExists = currentProjects.some((p: Project) => normalizeId(p.id) === projectId) ||
-                                          additionalProjects.some(p => normalizeId(p.id) === projectId);
-                      if (!projectExists) {
+              await Promise.all(
+                Array.from(storyIds).map(async (storyId) => {
+                  try {
+                    const storyResponse = await storyApiService.getStoryById(storyId);
+                    if (storyResponse.data) {
+                      setAllStories(prev => mergeById(prev, [storyResponse.data as Story]));
+                      
+                      const story = storyResponse.data as Story;
+                      const projectId = normalizeId(story.projectId);
+                      if (projectId) {
                         try {
                           const { projectApiService } = await import('../services/api/entities/projectApi');
                           const projectResponse = await projectApiService.getProjectById(projectId);
@@ -484,32 +744,43 @@ const TimeTrackingPage: React.FC = () => {
                         }
                       }
                     }
+                  } catch (err) {
+                    console.warn(`Failed to fetch story ${storyId}:`, err);
                   }
-                } catch (err) {
-                  console.warn(`Failed to fetch story ${storyId}:`, err);
-                }
-              });
-              await Promise.all(storyPromises);
+                })
+              );
             }
           } catch (err) {
-            console.warn(`Failed to fetch tasks for user ${currentUserId}:`, err);
+            console.warn(`Failed to fetch tasks for user ${userId}:`, err);
           }
         }
 
         setUserTasksMap(newUserTasksMap);
-        
-        console.log('Fetched user tasks:', {
-          isManagerOrAdmin,
-          usersProcessed: isManagerOrAdmin ? users.length : 1,
-          totalTasks: Array.from(newUserTasksMap.values()).reduce((sum, tasks) => sum + tasks.length, 0)
-        });
+
       } catch (err) {
         console.error('Error fetching user tasks:', err);
+        throw err;
       }
     };
 
-    fetchUserTasks();
-  }, [currentUser, users, projectsResult.data, additionalProjects]);
+    userTasksFetchKeyRef.current = fetchKey;
+
+        fetchUserTasks()
+      .then(() => {
+        if (!cancelled) {
+          userTasksFetchKeyRef.current = fetchKey;
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          userTasksFetchKeyRef.current = null;
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.id]);
   
   const storiesResult = { data: allStories, loading: false, error: null };
   const tasksResult = { data: allTasks, loading: false, error: null };
@@ -527,37 +798,95 @@ const TimeTrackingPage: React.FC = () => {
   const projects = useMemo(() => {
     const data = projectsResult.data;
     const baseProjects = Array.isArray(data) ? data : [];
-    return mergeById(baseProjects, additionalProjects);
-  }, [projectsResult.data, additionalProjects]);
+    const merged = mergeById(baseProjects, additionalProjects);
+
+    // Check if current user is manager or admin
+    const isManagerOrAdmin = currentUser && (
+      currentUser.role === 'admin' || 
+      currentUser.role === 'manager' || 
+      currentUser.role === 'MANAGER' ||
+      currentUser.role === 'ADMIN' ||
+      currentUser.role?.toLowerCase() === 'manager' ||
+      currentUser.role?.toLowerCase() === 'admin'
+    );
+
+    const normalizedCurrentUserId = currentUser?.id ? normalizeId(currentUser.id) : undefined;
+
+    const projectsFromEntries = new Set<string>();
+
+    if (normalizedCurrentUserId) {
+      timeEntries.forEach(entry => {
+        const entryProjectId = normalizeId(entry.projectId);
+        if (entryProjectId) {
+          projectsFromEntries.add(entryProjectId);
+        }
+      });
+    }
+
+    if (!isManagerOrAdmin && normalizedCurrentUserId) {
+      return merged.filter(project => {
+        if (!project) return false;
+
+        const projectIdNormalized = normalizeId(project.id);
+
+        const teamList: any[] =
+          Array.isArray((project as any).teamMembers) ? (project as any).teamMembers :
+          Array.isArray((project as any).members) ? (project as any).members :
+          Array.isArray((project as any).team) ? (project as any).team :
+          [];
+
+        const managerId = normalizeId((project as any).managerId);
+        const createdById = normalizeId((project as any).createdBy);
+
+        if (managerId && managerId === normalizedCurrentUserId) {
+          return true;
+        }
+
+        if (createdById && createdById === normalizedCurrentUserId) {
+          return true;
+        }
+
+        if (teamList.length > 0) {
+          return teamList.some(member => {
+            const memberId = normalizeId(
+              member?.userId ??
+              member?.id ??
+              member?.memberId ??
+              member?.assigneeId ??
+              member?.user?.id
+            );
+            return memberId ? memberId === normalizedCurrentUserId : false;
+          });
+        }
+
+        if (projectIdNormalized && projectsFromEntries.has(projectIdNormalized)) {
+          return true;
+        }
+
+        return false;
+      });
+    }
+
+    return merged;
+  }, [projectsResult.data, additionalProjects, currentUser, timeEntries]);
 
   const stories = useMemo(() => {
     const data = storiesResult.data;
-    const storiesArray = Array.isArray(data) ? data : [];
-    console.log('Stories data:', {
-      rawData: data,
-      isArray: Array.isArray(data),
-      count: storiesArray.length,
-      sample: storiesArray[0]
-    });
-    return storiesArray;
+    return Array.isArray(data) ? data : [];
   }, [storiesResult.data]);
 
   const tasks = useMemo(() => {
     const data = tasksResult.data;
-    const tasksArray = Array.isArray(data) ? data : [];
-    console.log('Tasks data:', {
-      rawData: data,
-      isArray: Array.isArray(data),
-      count: tasksArray.length,
-      sample: tasksArray[0]
-    });
-    return tasksArray;
+    return Array.isArray(data) ? data : [];
   }, [tasksResult.data]);
 
   const sprints = useMemo(() => {
     const data = sprintsResult.data;
-    return Array.isArray(data) ? data : [];
-  }, [sprintsResult.data]);
+    const baseSprints = Array.isArray(data) ? data : [];
+    return mergeById(baseSprints, additionalSprints);
+  }, [sprintsResult.data, additionalSprints]);
+
+  const workTypeOptions = useMemo(() => [...CATEGORY_OPTIONS], []);
 
   // Create lookup maps
   const usersMap = useMemo(() => {
@@ -604,7 +933,6 @@ const TimeTrackingPage: React.FC = () => {
         }
       });
     }
-    console.log('Stories map:', { size: map.size, stories: Array.from(map.keys()) });
     return map;
   }, [stories, allStories]);
 
@@ -626,7 +954,6 @@ const TimeTrackingPage: React.FC = () => {
         }
       });
     }
-    console.log('Tasks map:', { size: map.size, tasks: Array.from(map.keys()) });
     return map;
   }, [tasks, allTasks]);
 
@@ -661,12 +988,82 @@ const TimeTrackingPage: React.FC = () => {
     return map;
   }, [sprints]);
 
+  const getUserName = useCallback((userId: string) => {
+    const user = usersMap.get(userId);
+    return user?.name || 'Unknown User';
+  }, [usersMap]);
+
+  const getUserRole = useCallback((userId: string) => {
+    const user = usersMap.get(userId);
+    return user?.role || 'DEVELOPER';
+  }, [usersMap]);
+
   // Store raw API entries
   const [rawTimeEntries, setRawTimeEntries] = useState<ApiTimeEntry[]>([]);
 
   // Fetch time entries - all users for managers/admins, only current user for others
   useEffect(() => {
+    const userId = normalizeId(currentUser?.id);
+    if (!userId) {
+      return;
+    }
+
+    const isManagerOrAdmin = currentUser && (
+      currentUser.role === 'admin' || 
+      currentUser.role === 'manager' || 
+      currentUser.role === 'MANAGER' ||
+      currentUser.role === 'ADMIN' ||
+      currentUser.role?.toLowerCase() === 'manager' ||
+      currentUser.role?.toLowerCase() === 'admin'
+    );
+
+    const fetchKey = isManagerOrAdmin ? `${userId}-all` : userId;
+
+    if (timeEntriesFetchKeyRef.current === fetchKey) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchAllEntriesWithPagination = async (): Promise<ApiTimeEntry[]> => {
+      const pageSize = 500;
+      let page = 0;
+      let hasMore = true;
+      const pagedEntries: ApiTimeEntry[] = [];
+
+      while (hasMore) {
+        try {
+          const response = await timeEntryApiService.getTimeEntries({ page, size: pageSize });
+          const payload: any = response.data;
+          const pageEntries = extractTimeEntries(payload);
+          pagedEntries.push(...pageEntries);
+
+          if (payload?.last !== undefined) {
+            hasMore = !payload.last;
+          } else if (payload?.totalPages !== undefined) {
+            hasMore = page + 1 < payload.totalPages;
+          } else if (payload?.totalElements !== undefined) {
+            hasMore = pagedEntries.length < payload.totalElements;
+          } else {
+            hasMore = pageEntries.length === pageSize;
+          }
+        } catch (err) {
+          console.warn(`Failed to fetch time entries page ${page}:`, err);
+          break;
+        }
+
+        page += 1;
+
+        if (!hasMore) {
+          break;
+        }
+      }
+
+      return pagedEntries;
+    };
+
     const fetchTimeEntries = async () => {
+
       setLoading(true);
       setError(null);
 
@@ -683,61 +1080,31 @@ const TimeTrackingPage: React.FC = () => {
           currentUser.role?.toLowerCase() === 'admin'
         );
 
-        // If manager/admin, fetch all entries; otherwise fetch only current user's entries
-        if (isManagerOrAdmin) {
-          // Managers/admins see all entries
-          try {
-            const response = await timeEntryApiService.getAllTimeEntries();
-            aggregatedEntries = extractTimeEntries(response.data);
-            console.log('Fetched all time entries for manager/admin:', {
-              total: aggregatedEntries.length,
-              uniqueUsers: [...new Set(aggregatedEntries.map(e => e.userId))],
-            });
-          } catch (getAllError) {
-            console.warn('Failed to fetch all time entries, falling back to per-user requests.', getAllError);
-            // Fallback: fetch entries for all users
-            if (users.length > 0) {
-              const userEntryBatches = await Promise.all(
-                users.map(async user => {
-                  try {
-                    const response = await timeEntryApiService.getTimeEntriesByUser(user.id);
-                    return extractTimeEntries(response.data);
-                  } catch (err) {
-                    console.warn(`Failed to fetch time entries for user ${user.id}:`, err);
-                    return [];
-                  }
-                })
-              );
-              aggregatedEntries = userEntryBatches.flat();
-            }
+        // Always try getAllTimeEntries; fallback to pagination
+        try {
+          const response = await timeEntryApiService.getAllTimeEntries();
+          aggregatedEntries = extractTimeEntries(response.data);
+          if (aggregatedEntries.length === 0) {
+            aggregatedEntries = await fetchAllEntriesWithPagination();
           }
-        } else if (currentUser && currentUser.id) {
-          // Non-managers see only their own entries
-          try {
-            const response = await timeEntryApiService.getTimeEntriesByUser(currentUser.id);
-            aggregatedEntries = extractTimeEntries(response.data);
-            console.log('Fetched time entries for current user:', {
-              userId: currentUser.id,
-              total: aggregatedEntries.length,
-            });
-          } catch (err) {
-            console.warn(`Failed to fetch time entries for user ${currentUser.id}:`, err);
-          }
-        } else {
-          // Fallback: fetch all entries if no user logged in
-          try {
-            const response = await timeEntryApiService.getAllTimeEntries();
-            aggregatedEntries = extractTimeEntries(response.data);
-            console.log('Fetched all time entries:', {
-              total: aggregatedEntries.length,
-              uniqueUsers: [...new Set(aggregatedEntries.map(e => e.userId))],
-            });
-          } catch (getAllError) {
-            console.warn('Failed to fetch all time entries.', getAllError);
-          }
+        } catch (getAllError) {
+          console.warn('Failed to fetch all time entries, using paginated fallback.', getAllError);
+          aggregatedEntries = await fetchAllEntriesWithPagination();
         }
 
-        setRawTimeEntries(aggregatedEntries);
+        const seenKeys = new Set<string>();
+        const uniqueEntries: ApiTimeEntry[] = [];
+
+        aggregatedEntries.forEach((entry, index) => {
+          const key = buildTimeEntryKey(entry, index);
+
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+            uniqueEntries.push(entry);
+          }
+        });
+
+        setRawTimeEntries(uniqueEntries);
       } catch (err: any) {
         console.error('Error fetching time entries:', err);
         setRawTimeEntries([]);
@@ -747,30 +1114,61 @@ const TimeTrackingPage: React.FC = () => {
       }
     };
 
-    fetchTimeEntries();
-  }, [currentUser, users]);
+    timeEntriesFetchKeyRef.current = fetchKey;
+
+    fetchTimeEntries()
+      .then(() => {
+        if (!cancelled) {
+          timeEntriesFetchKeyRef.current = fetchKey;
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          timeEntriesFetchKeyRef.current = null;
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.id, usersData.length]);
 
   // Ensure related tasks, stories, and projects referenced by time entries are loaded
   useEffect(() => {
     if (rawTimeEntries.length === 0) {
       setTimeEntries([]);
+      ensuredEntitiesKeyRef.current = null;
       return;
     }
+
+    const entriesKey = rawTimeEntries
+      .map((entry, index) => buildTimeEntryKey(entry, index))
+      .sort()
+      .join('||');
+
+    if (ensuredEntitiesKeyRef.current === entriesKey) {
+      return;
+    }
+
+    ensuredEntitiesKeyRef.current = entriesKey;
 
     const ensureRelatedEntities = async () => {
       try {
         const requiredTaskIds = new Set<string>();
         const requiredStoryIds = new Set<string>();
         const requiredProjectIds = new Set<string>();
+        const requiredSprintIds = new Set<string>();
 
         rawTimeEntries.forEach(entry => {
           const taskId = normalizeId(entry.taskId);
           const storyId = normalizeId(entry.storyId);
-          const projectId = normalizeId(entry.projectId);
+          const { id: projectId } = resolveProjectInfoFromEntry(entry);
+          const { id: sprintId } = resolveSprintInfoFromEntry(entry);
 
           if (taskId) requiredTaskIds.add(taskId);
           if (storyId) requiredStoryIds.add(storyId);
           if (projectId) requiredProjectIds.add(projectId);
+          if (sprintId) requiredSprintIds.add(sprintId);
         });
 
         allTasks.forEach(task => {
@@ -783,8 +1181,10 @@ const TimeTrackingPage: React.FC = () => {
         allStories.forEach(story => {
           const storyId = normalizeId(story.id);
           const projectId = normalizeId(story.projectId);
+          const sprintId = normalizeId(story.sprintId);
           if (storyId) requiredStoryIds.add(storyId);
           if (projectId) requiredProjectIds.add(projectId);
+          if (sprintId) requiredSprintIds.add(sprintId);
         });
 
         const knownTaskIds = new Set(
@@ -864,8 +1264,12 @@ const TimeTrackingPage: React.FC = () => {
 
         fetchedStories.forEach(story => {
           const projectId = normalizeId(story.projectId);
+          const sprintId = normalizeId(story.sprintId);
           if (projectId) {
             requiredProjectIds.add(projectId);
+          }
+          if (sprintId) {
+            requiredSprintIds.add(sprintId);
           }
         });
 
@@ -902,27 +1306,53 @@ const TimeTrackingPage: React.FC = () => {
             setAdditionalProjects(prev => mergeById(prev, fetchedProjects));
           }
         }
+
+        const baseSprintData = Array.isArray(sprintsResult.data) ? sprintsResult.data : [];
+        const knownSprints = mergeById(baseSprintData, additionalSprints);
+        const knownSprintIds = new Set(
+          knownSprints
+            .map(sprint => normalizeId(sprint.id))
+            .filter((id): id is string => Boolean(id))
+        );
+
+        const missingSprintIds = [...requiredSprintIds].filter(
+          id => !knownSprintIds.has(id) && !fetchedSprintIdsRef.current.has(id)
+        );
+
+        if (missingSprintIds.length > 0) {
+          const { sprintApiService } = await import('../services/api/entities/sprintApi');
+          const sprintResults = await Promise.all(
+            missingSprintIds.map(async id => {
+              fetchedSprintIdsRef.current.add(id);
+              try {
+                const response = await sprintApiService.getSprintById(id);
+                return response.data as Sprint;
+              } catch (err) {
+                console.warn(`Failed to fetch sprint ${id}:`, err);
+                return null;
+              }
+            })
+          );
+
+          const fetchedSprints = sprintResults.filter((sprint): sprint is Sprint => Boolean(sprint));
+
+          if (fetchedSprints.length > 0) {
+            setAdditionalSprints(prev => mergeById(prev, fetchedSprints));
+          }
+        }
       } catch (err) {
         console.error('Failed to ensure related time entry entities:', err);
       }
     };
 
     ensureRelatedEntities();
-  }, [rawTimeEntries, allTasks, allStories, additionalProjects, projectsResult.data]);
+  }, [rawTimeEntries, allTasks, allStories, additionalProjects, projectsResult.data, additionalSprints, sprintsResult.data]);
 
   // Map API entries to UI format
   useEffect(() => {
     if (rawTimeEntries.length === 0) {
       return;
     }
-
-    console.log('Mapping time entries:', {
-      rawEntriesCount: rawTimeEntries.length,
-      usersMapSize: usersMap.size,
-      projectsMapSize: projectsMap.size,
-      storiesMapSize: storiesMap.size,
-      tasksMapSize: tasksMap.size
-    });
 
     // Filter entries: managers/admins see all entries, others see only their own
     const isManagerOrAdmin = currentUser && (
@@ -944,6 +1374,8 @@ const TimeTrackingPage: React.FC = () => {
         const user = normalizedUserId ? usersMap.get(normalizedUserId) : undefined;
         const entryTaskId = normalizeId(entry.taskId);
         const task = entryTaskId ? tasksMap.get(entryTaskId) : null;
+        const assigneeId = task?.assigneeId ? normalizeId(task.assigneeId) : undefined;
+        const assigneeUser = assigneeId ? usersMap.get(assigneeId) : undefined;
         // Get story from entry.storyId or from task.storyId
         const explicitStoryId = normalizeId(entry.storyId);
         const derivedStoryId = explicitStoryId || (task?.storyId ? normalizeId(task.storyId) : undefined);
@@ -951,14 +1383,42 @@ const TimeTrackingPage: React.FC = () => {
         
         // Get projectId from entry, story, or task's story (in that order)
         // Note: Task doesn't have projectId directly, but Story does
-        const entryProjectId = normalizeId(entry.projectId);
-        const derivedProjectId = entryProjectId || (story?.projectId ? normalizeId(story.projectId) : undefined);
-        const project = derivedProjectId ? projectsMap.get(derivedProjectId) : null;
+        const { id: entryResolvedProjectId, name: entryResolvedProjectName } = resolveProjectInfoFromEntry(entry);
+        const derivedProjectId =
+          entryResolvedProjectId ||
+          (story?.projectId ? normalizeId(story.projectId) : undefined);
+        const resolvedProjectId = derivedProjectId;
+        const project = resolvedProjectId ? projectsMap.get(resolvedProjectId) : null;
+        const rawProjectName =
+          (typeof (entry as any).projectName === 'string' && (entry as any).projectName) ||
+          (typeof (entry as any).project === 'string' && (entry as any).project) ||
+          entryResolvedProjectName ||
+          (story?.projectId && projectsMap.get(normalizeId(story.projectId)!)?.name);
+        const resolvedProjectName = project?.name || rawProjectName || 'Unassigned Project';
         
-        // Get sprint from story or project
-        const sprintId = story?.sprintId ? normalizeId(story.sprintId) : undefined;
+        // Get sprint from entry, story or project
+        const { id: entrySprintId, name: entrySprintName } = resolveSprintInfoFromEntry(entry);
+        const sprintId = entrySprintId || (story?.sprintId ? normalizeId(story.sprintId) : undefined);
         const sprint = sprintId ? sprintsMap.get(sprintId) : 
                       (derivedProjectId ? projectToSprintMap.get(derivedProjectId) : null);
+        const rawSprintName =
+          (typeof (entry as any).sprintName === 'string' && (entry as any).sprintName) ||
+          entrySprintName ||
+          (story && story.sprintId ? sprintsMap.get(normalizeId(story.sprintId) || '')?.name : undefined);
+        const resolvedSprintName = sprint?.name || rawSprintName;
+        const fallbackSprintLabel = resolvedSprintName || (sprintId ? formatDisplayName(String(sprintId)) : undefined);
+
+        const rawCategory =
+          (entry as any).category ??
+          (entry as any).entryType ??
+          (entry as any).workType ??
+          (entry as any).type ??
+          (task as any)?.category ??
+          (task as any)?.workType ??
+          (story as any)?.category ??
+          (story as any)?.workType ??
+          undefined;
+        const normalizedCategory = normalizeCategory(rawCategory);
 
         const hoursWorked = entry.hoursWorked || 0;
         const hours = Math.floor(hoursWorked);
@@ -980,61 +1440,38 @@ const TimeTrackingPage: React.FC = () => {
         const isActive = taskStatus === 'IN_PROGRESS';
         const isCompleted = taskStatus === 'DONE';
 
+        const displayUserName = assigneeUser?.name || (assigneeId || user?.name || 'Unknown User');
+        const displayUserRole = assigneeUser?.role || user?.role || 'DEVELOPER';
+
         return {
           id: normalizedEntryId,
           task: task?.title || 'Unassigned Task',
           taskId: entryTaskId,
           story: story?.title || 'Unassigned Story',
           storyId: derivedStoryId,
-          project: project?.name || 'Unassigned Project',
-          projectId: derivedProjectId,
+          project: resolvedProjectName,
+          projectId: resolvedProjectId || derivedProjectId,
           sprintId: sprint?.id ? normalizeId(sprint.id) : sprintId,
-          user: user?.name || 'Unknown User',
-          userId: normalizedUserId || '',
-          userRole: user?.role || 'DEVELOPER',
+          sprintName: fallbackSprintLabel,
+          user: displayUserName,
+          userId: assigneeId || normalizedUserId || '',
+          userRole: displayUserRole,
           duration: timeSpent,
           date: entry.workDate || entry.createdAt,
           status: isActive ? 'active' : (isCompleted ? 'completed' : 'completed'),
           billable: entry.isBillable !== false,
-          category: entry.entryType || 'development',
+          category: normalizedCategory,
           description: entry.description,
           timeSpent,
           remaining,
-          estimation
+          estimation,
+          startTime: entry.startTime || undefined,
+          endTime: entry.endTime || undefined,
+          hoursWorked: entry.hoursWorked,
+          notes: entry.description
         };
       });
-    
-    console.log('Mapped entries:', {
-      totalMapped: mappedEntries.length,
-      uniqueUsers: [...new Set(mappedEntries.map(e => e.userId))],
-      uniqueProjects: [...new Set(mappedEntries.map(e => e.project))],
-      uniqueProjectIds: [...new Set(mappedEntries.map(e => e.projectId).filter(Boolean))],
-      entriesByUser: mappedEntries.reduce((acc, e) => {
-        acc[e.userId] = (acc[e.userId] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>),
-      entriesByProject: mappedEntries.reduce((acc, e) => {
-        const key = e.projectId || 'no-project';
-        acc[key] = (acc[key] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>),
-      sampleEntry: mappedEntries[0] ? {
-        id: mappedEntries[0].id,
-        projectId: mappedEntries[0].projectId,
-        project: mappedEntries[0].project,
-        userId: mappedEntries[0].userId,
-        user: mappedEntries[0].user,
-        date: mappedEntries[0].date,
-        story: mappedEntries[0].story,
-        task: mappedEntries[0].task
-      } : null,
-      dateRange: mappedEntries.length > 0 ? {
-        minDate: Math.min(...mappedEntries.map(e => new Date(e.date).getTime()).filter(d => !isNaN(d))),
-        maxDate: Math.max(...mappedEntries.map(e => new Date(e.date).getTime()).filter(d => !isNaN(d))),
-        dates: mappedEntries.slice(0, 5).map(e => e.date)
-      } : null
-    });
-    
+
     setTimeEntries(mappedEntries);
   }, [rawTimeEntries, usersMap, projectsMap, storiesMap, tasksMap]);
 
@@ -1079,77 +1516,80 @@ const TimeTrackingPage: React.FC = () => {
 
   // Filter time entries
   const filteredTimeEntries = useMemo(() => {
-    console.log('Filtering entries:', {
-      totalEntries: timeEntries.length,
-      userFilter,
-      projectFilter,
-      timeFilter
-    });
-    
     let filtered = [...timeEntries];
 
     if (userFilter !== 'all') {
       filtered = filtered.filter(entry => entry.userId === userFilter);
-      console.log('After user filter:', filtered.length);
     }
 
     if (projectFilter !== 'all') {
       filtered = filtered.filter(entry => entry.projectId === projectFilter);
-      console.log('After project filter:', filtered.length);
     }
 
+    if (sprintFilter !== 'all') {
+      filtered = filtered.filter(entry => entry.sprintId === sprintFilter);
+    }
+
+    if (workTypeFilter !== 'all') {
+      const normalizedWorkType = normalizeCategory(workTypeFilter);
+      filtered = filtered.filter(entry => entry.category === normalizedWorkType);
+    }
+
+    if (billableFilter === 'billable') {
+      filtered = filtered.filter(entry => entry.billable);
+    } else if (billableFilter === 'non-billable') {
+      filtered = filtered.filter(entry => !entry.billable);
+    }
+
+    const isWithinRange = (entry: TimeEntry, start: Date, end?: Date) => {
+      const parsedDate = parseEntryDateValue(entry.date);
+      if (!parsedDate) {
+        return false;
+      }
+
+      const rangeStart = startOfDay(start);
+      const rangeEnd = end ? endOfDay(end) : endOfDay(new Date());
+
+      return (
+        parsedDate.getTime() >= rangeStart.getTime() &&
+        parsedDate.getTime() <= rangeEnd.getTime()
+      );
+    };
+
+    const now = new Date();
+
     if (timeFilter === 'this-week') {
-      const now = new Date();
-      const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - now.getDay());
-      startOfWeek.setHours(0, 0, 0, 0);
-      const beforeFilter = filtered.length;
-      filtered = filtered.filter(entry => {
-        try {
-          const entryDate = new Date(entry.date);
-          const isValid = !isNaN(entryDate.getTime()) && entryDate >= startOfWeek;
-          if (!isValid && beforeFilter > 0) {
-            console.log('Entry filtered out by this-week:', {
-              entryDate: entry.date,
-              parsedDate: entryDate,
-              startOfWeek: startOfWeek.toISOString(),
-              isValid: !isNaN(entryDate.getTime()),
-              isAfterStart: entryDate >= startOfWeek
-            });
-          }
-          return isValid;
-        } catch (e) {
-          console.log('Error parsing date:', entry.date, e);
-          return false;
-        }
-      });
-      console.log('After this-week filter:', filtered.length, 'out of', beforeFilter);
+      const start = startOfDay(now);
+      start.setDate(now.getDate() - now.getDay());
+      filtered = filtered.filter(entry => isWithinRange(entry, start));
+    } else if (timeFilter === 'last-week') {
+      const startOfThisWeek = startOfDay(now);
+      startOfThisWeek.setDate(now.getDate() - now.getDay());
+      const start = new Date(startOfThisWeek);
+      start.setDate(start.getDate() - 7);
+      const end = new Date(startOfThisWeek.getTime() - 1);
+      filtered = filtered.filter(entry => isWithinRange(entry, start, end));
     } else if (timeFilter === 'this-month') {
-      const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const beforeFilter = filtered.length;
-      filtered = filtered.filter(entry => {
-        try {
-          const entryDate = new Date(entry.date);
-          const isValid = !isNaN(entryDate.getTime()) && entryDate >= startOfMonth;
-          if (!isValid && beforeFilter > 0) {
-            console.log('Entry filtered out by this-month:', {
-              entryDate: entry.date,
-              parsedDate: entryDate,
-              startOfMonth: startOfMonth.toISOString()
-            });
-          }
-          return isValid;
-        } catch (e) {
-          console.log('Error parsing date:', entry.date, e);
-          return false;
-        }
-      });
-      console.log('After this-month filter:', filtered.length, 'out of', beforeFilter);
+      const start = startOfDay(new Date(now.getFullYear(), now.getMonth(), 1));
+      filtered = filtered.filter(entry => isWithinRange(entry, start));
+    } else if (timeFilter === 'last-month') {
+      const startOfThisMonth = startOfDay(new Date(now.getFullYear(), now.getMonth(), 1));
+      const start = new Date(startOfThisMonth);
+      start.setMonth(start.getMonth() - 1);
+      const end = new Date(startOfThisMonth.getTime() - 1);
+      filtered = filtered.filter(entry => isWithinRange(entry, start, end));
+    } else if (timeFilter === 'custom') {
+      if (customDateRange?.from && customDateRange?.to) {
+        filtered = filtered.filter(entry =>
+          isWithinRange(entry, customDateRange.from, customDateRange.to)
+        );
+      } else {
+        filtered = [];
+      }
     }
 
     return filtered;
-  }, [timeEntries, userFilter, projectFilter, timeFilter]);
+  }, [timeEntries, userFilter, projectFilter, sprintFilter, workTypeFilter, billableFilter, timeFilter, customDateRange]);
 
   // Calculate summary statistics - show all users' data for managers/admins, only current user for others
   const summaryStats = useMemo(() => {
@@ -1228,6 +1668,27 @@ const TimeTrackingPage: React.FC = () => {
       }, 0);
     
     const uniqueUsers = new Set(filteredTimeEntries.map(e => e.userId)).size;
+    const uniqueProjectsFiltered = new Set(
+      filteredTimeEntries
+        .map(e => e.projectId || e.project)
+        .filter(Boolean)
+    ).size;
+    const totalUniqueProjects = new Set(
+      timeEntries
+        .map(e => e.projectId || e.project)
+        .filter(Boolean)
+    ).size;
+    const uniqueDates = new Set(
+      filteredTimeEntries
+        .map(e => {
+          const parsed = new Date(e.date);
+          return Number.isNaN(parsed.getTime())
+            ? null
+            : parsed.toISOString().split('T')[0];
+        })
+        .filter((value): value is string => Boolean(value))
+    ).size;
+    const averageDailyMinutes = uniqueDates > 0 ? Math.round(totalMinutes / uniqueDates) : 0;
     const billablePercentage = totalMinutes > 0 ? Math.round((billableMinutes / totalMinutes) * 100) : 0;
 
     const resolvedActiveMemberCount = activeUserCount > 0 ? activeUserCount : uniqueUsers;
@@ -1244,222 +1705,268 @@ const TimeTrackingPage: React.FC = () => {
       allottedHours: formatTime(totalAllottedMinutes),
       activeMembers: resolvedActiveMemberCount,
       timeEntries: filteredTimeEntries.length,
-      billablePercentage
+      billablePercentage,
+      totalMinutes,
+      billableMinutes,
+      uniqueProjects: uniqueProjectsFiltered,
+      totalUniqueProjects,
+      uniqueUsers,
+      uniqueDates,
+      averageDailyMinutes
     };
-  }, [filteredTimeEntries, activeUserCount, currentUser, userTasksMap, allTasks]);
+  }, [filteredTimeEntries, activeUserCount, currentUser, userTasksMap, allTasks, timeEntries]);
 
-  // Group entries by User → Project → Story → Task
-  // Also include all users and their assigned tasks even if they have no time entries
-  const groupedEntries = useMemo(() => {
-    const grouped: GroupedEntriesByUser = {};
-
-    const ensureTaskBucket = (
-      userId: string,
-      projectName: string,
-      projectId: string | undefined,
-      storyName: string,
-      storyId: string | undefined,
-      taskName: string,
-      taskId: string | undefined
-    ): GroupedTaskBucket => {
-      if (!grouped[userId]) {
-        grouped[userId] = { projects: {} };
+  const dailyTrendData = useMemo(() => {
+    const map = new Map<string, number>();
+    filteredTimeEntries.forEach(entry => {
+      const parsedDate = new Date(entry.date);
+      if (Number.isNaN(parsedDate.getTime())) {
+        return;
       }
+      const key = parsedDate.toISOString().split('T')[0];
+      const minutes = parseTime(entry.timeSpent);
+      map.set(key, (map.get(key) || 0) + minutes);
+    });
 
-      const userProjects = grouped[userId].projects;
+    return Array.from(map.entries())
+      .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+      .map(([dateKey, minutes]) => {
+        const label = new Date(dateKey).toLocaleDateString(undefined, { weekday: 'short' });
+        return {
+          dateKey,
+          label,
+          hours: Math.round((minutes / 60) * 10) / 10,
+          minutes,
+        };
+      });
+  }, [filteredTimeEntries]);
 
-      if (!userProjects[projectName]) {
-        userProjects[projectName] = { projectId, stories: {} };
+  const sprintBreakdownData = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        sprintId: string;
+        sprintName: string;
+        minutes: number;
       }
-
-      const projectBucket = userProjects[projectName];
-
-      if (projectId && !projectBucket.projectId) {
-        projectBucket.projectId = projectId;
-      }
-
-      if (!projectBucket.stories[storyName]) {
-        projectBucket.stories[storyName] = { storyId, tasks: {} };
-      }
-
-      const storyBucket = projectBucket.stories[storyName];
-
-      if (storyId && !storyBucket.storyId) {
-        storyBucket.storyId = storyId;
-      }
-
-      if (!storyBucket.tasks[taskName]) {
-        storyBucket.tasks[taskName] = { taskId, entries: [] };
-      }
-
-      const taskBucket = storyBucket.tasks[taskName];
-
-      if (taskId && !taskBucket.taskId) {
-        taskBucket.taskId = taskId;
-      }
-
-      return taskBucket;
-    };
+    >();
 
     filteredTimeEntries.forEach(entry => {
-      const normalizedUserId = entry.userId && entry.userId.trim() ? entry.userId : 'unknown';
-      const normalizedProjectId = entry.projectId ? normalizeId(entry.projectId) : undefined;
-      const normalizedStoryId = entry.storyId ? normalizeId(entry.storyId) : undefined;
-      const normalizedTaskId = entry.taskId ? normalizeId(entry.taskId) : undefined;
+      const sprintId = entry.sprintId ?? entry.sprintName ?? 'unassigned';
+      const sprintName =
+        entry.sprintName ||
+        (entry.sprintId ? sprintsMap.get(entry.sprintId)?.name : undefined) ||
+        (typeof sprintId === 'string' && sprintId !== 'unassigned' ? sprintId : 'Unassigned');
+      const minutes = parseTime(entry.timeSpent);
 
-      const projectName =
-        entry.project ||
-        (normalizedProjectId ? projectsMap.get(normalizedProjectId)?.name : undefined) ||
-        'Unassigned Project';
-      const storyName = entry.story || 'Unassigned Stories';
-      const taskName = entry.task || 'Unassigned Tasks';
-
-      const taskBucket = ensureTaskBucket(
-        normalizedUserId,
-        projectName,
-        normalizedProjectId,
-        storyName,
-        normalizedStoryId,
-        taskName,
-        normalizedTaskId
-      );
-
-      taskBucket.entries.push(entry);
-    });
-
-    const usersToProcess = userFilter !== 'all'
-      ? users.filter(u => normalizeId(u.id) === userFilter)
-      : users;
-
-    usersToProcess.forEach(user => {
-      const userId = normalizeId(user.id);
-      if (!userId) {
-        return;
-      }
-
-      // Use userTasksMap first (tasks fetched via getTasksByAssignee), then fallback to allTasks
-      const fetchedUserTasks = userTasksMap.get(userId) || [];
-      const allUserTasks = allTasks.filter(task => normalizeId(task.assigneeId) === userId);
-      
-      // Combine both sources, prioritizing fetched tasks
-      const combinedTasks = new Map<string, Task>();
-      fetchedUserTasks.forEach(task => {
-        const taskId = normalizeId(task.id);
-        if (taskId) combinedTasks.set(taskId, task);
-      });
-      allUserTasks.forEach(task => {
-        const taskId = normalizeId(task.id);
-        if (taskId && !combinedTasks.has(taskId)) {
-          combinedTasks.set(taskId, task);
-        }
-      });
-      
-      let userTasks = Array.from(combinedTasks.values());
-
-      if (projectFilter !== 'all') {
-        userTasks = userTasks.filter(task => {
-          const storyId = normalizeId(task.storyId);
-          const story = storyId ? storiesMap.get(storyId) : undefined;
-          const projectId = story?.projectId ? normalizeId(story.projectId) : undefined;
-          return projectId === projectFilter;
+      const existing = map.get(sprintId);
+      if (existing) {
+        existing.minutes += minutes;
+        existing.sprintName = sprintName;
+      } else {
+        map.set(sprintId, {
+          sprintId: entry.sprintId ?? 'unassigned',
+          sprintName,
+          minutes,
         });
       }
-
-      userTasks.forEach(task => {
-        const storyId = normalizeId(task.storyId);
-        const story = storyId ? storiesMap.get(storyId) : undefined;
-        const projectId = story?.projectId ? normalizeId(story.projectId) : undefined;
-        const project = projectId ? projectsMap.get(projectId) : undefined;
-        const projectName = project?.name || 'Unassigned Project';
-        const storyName = story?.title || 'Unassigned Stories';
-        const taskName = task.title || 'Unassigned Tasks';
-        const taskId = normalizeId(task.id);
-
-        ensureTaskBucket(userId, projectName, projectId, storyName, storyId, taskName, taskId);
-      });
     });
 
-    users.forEach(user => {
-      const userId = normalizeId(user.id);
-      if (!userId) {
-        return;
-      }
+    return Array.from(map.values())
+      .map(item => ({
+        sprintId: item.sprintId,
+        sprintName: item.sprintName,
+        hours: Math.round((item.minutes / 60) * 10) / 10,
+        minutes: item.minutes,
+      }))
+      .sort((a, b) => b.minutes - a.minutes);
+  }, [filteredTimeEntries, sprintsMap]);
 
-      if (!grouped[userId]) {
-        grouped[userId] = { projects: {} };
-      }
-
-      if (Object.keys(grouped[userId].projects).length === 0) {
-        grouped[userId].projects['Unassigned Project'] = { projectId: undefined, stories: {} };
-      }
+  const workTypeBreakdownData = useMemo(() => {
+    const map = new Map<string, number>();
+    filteredTimeEntries.forEach(entry => {
+      const category = (entry.category || 'other').toLowerCase();
+      const minutes = parseTime(entry.timeSpent);
+      map.set(category, (map.get(category) || 0) + minutes);
     });
-    
-    return grouped;
-  }, [filteredTimeEntries, users, allTasks, allStories, projectsMap, storiesMap, userFilter, projectFilter, userTasksMap]);
 
-  // Calculate user totals
-  const getUserTotalHours = (userId: string) => {
-    const userEntries = filteredTimeEntries.filter(e => e.userId === userId);
-    const totalMinutes = userEntries.reduce((sum, entry) => {
-      return sum + parseTime(entry.timeSpent);
-    }, 0);
-    const hours = Math.floor(totalMinutes / 60);
-    const mins = totalMinutes % 60;
-    return `${hours}h ${mins}m`;
-  };
+    return Array.from(map.entries())
+      .map(([category, minutes]) => ({
+        category,
+        hours: Math.round((minutes / 60) * 10) / 10,
+        minutes,
+      }))
+      .sort((a, b) => b.minutes - a.minutes);
+  }, [filteredTimeEntries]);
 
-  // Calculate project effort
-  const getProjectEffort = (project: string, entries: TimeEntry[]) => {
-    const totalEstimation = entries.reduce((sum, entry) => {
-      if (entry.estimation) {
-        return sum + parseTime(entry.estimation);
+  const teamBreakdownData = useMemo(() => {
+    const map = new Map<string, { name: string; billableMinutes: number; nonBillableMinutes: number }>();
+
+    filteredTimeEntries.forEach(entry => {
+      const userId = entry.userId || 'unknown';
+      const userName = entry.user || getUserName(userId);
+      const current = map.get(userId) || { name: userName, billableMinutes: 0, nonBillableMinutes: 0 };
+      const minutes = parseTime(entry.timeSpent);
+      if (entry.billable) {
+        current.billableMinutes += minutes;
+      } else {
+        current.nonBillableMinutes += minutes;
       }
-      return sum + parseTime(entry.timeSpent) + parseTime(entry.remaining);
-    }, 0);
-    
-    const totalSpent = entries.reduce((sum, entry) => {
-      return sum + parseTime(entry.timeSpent);
-    }, 0);
-    
-    const totalRemaining = entries.reduce((sum, entry) => {
-      return sum + parseTime(entry.remaining);
-    }, 0);
-    
-    const estimationMinutes = totalEstimation || (totalSpent + totalRemaining);
-    const spentPercent = estimationMinutes > 0 ? Math.round((totalSpent / estimationMinutes) * 100) : 0;
-    const remainingPercent = estimationMinutes > 0 ? Math.round((totalRemaining / estimationMinutes) * 100) : 0;
-    
-    return {
-      estimation: formatTimeHHMM(estimationMinutes),
-      timeSpent: formatTimeHHMM(totalSpent),
-      remaining: formatTimeHHMM(totalRemaining),
-      spentPercent,
-      remainingPercent
-    };
-  };
+      map.set(userId, current);
+    });
+
+    return Array.from(map.entries())
+      .map(([userId, { name, billableMinutes, nonBillableMinutes }]) => {
+        const totalMinutes = billableMinutes + nonBillableMinutes;
+        return {
+          userId,
+          userName: name,
+          billableHours: Math.round((billableMinutes / 60) * 10) / 10,
+          nonBillableHours: Math.round((nonBillableMinutes / 60) * 10) / 10,
+          totalHours: Math.round((totalMinutes / 60) * 10) / 10,
+          billableMinutes,
+          nonBillableMinutes,
+        };
+      })
+      .sort((a, b) => b.totalHours - a.totalHours);
+  }, [filteredTimeEntries, getUserName]);
+
+  const sortedTimeEntries = useMemo(() => {
+    return [...filteredTimeEntries].sort((a, b) => {
+      const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (dateDiff !== 0) {
+        return dateDiff;
+      }
+      const startA = a.startTime ? a.startTime.localeCompare(b.startTime || '') : 0;
+      return startA;
+    });
+  }, [filteredTimeEntries]);
+
+  useEffect(() => {
+    // Reset to first page when filters or data change
+    setCurrentPage(1);
+  }, [filteredTimeEntries.length, pageSize, userFilter, projectFilter, sprintFilter, workTypeFilter, billableFilter, timeFilter, customDateRange]);
+
+  useEffect(() => {
+    // Clamp current page if total pages decreased
+    const total = sortedTimeEntries.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [sortedTimeEntries, pageSize, currentPage]);
+
+  const paginated = useMemo(() => {
+    const total = sortedTimeEntries.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const safePage = Math.min(Math.max(1, currentPage), totalPages);
+    const start = (safePage - 1) * pageSize;
+    const end = Math.min(start + pageSize, total);
+    const rows = sortedTimeEntries.slice(start, end);
+    return { rows, start, end, total, totalPages, page: safePage };
+  }, [sortedTimeEntries, pageSize, currentPage]);
+
+  const workTypeColorPalette = useMemo(
+    () => [
+      '#4f46e5',
+      '#6366f1',
+      '#8b5cf6',
+      '#a855f7',
+      '#c084fc',
+      '#f472b6',
+      '#22d3ee',
+      '#34d399',
+    ],
+    []
+  );
+
+  const stackedBarColors = useMemo(
+    () => ({
+      billable: '#22c55e',
+      nonBillable: '#818cf8',
+    }),
+    []
+  );
+
+  const entryStatusStyles = useMemo(
+    () => ({
+      active: {
+        label: 'Active',
+        className: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+      },
+      completed: {
+        label: 'Completed',
+        className: 'bg-slate-100 text-slate-700 border-slate-200',
+      },
+    }),
+    []
+  );
+
+  const totalHoursDecimal = summaryStats.totalMinutes
+    ? Math.round((summaryStats.totalMinutes / 60) * 10) / 10
+    : 0;
+  const billableHoursDecimal = summaryStats.billableMinutes
+    ? Math.round((summaryStats.billableMinutes / 60) * 10) / 10
+    : 0;
+  const averageDailyHoursDecimal = summaryStats.averageDailyMinutes
+    ? Math.round((summaryStats.averageDailyMinutes / 60) * 10) / 10
+    : 0;
+  const activeProjectsTotal = useMemo(() => {
+    if (!Array.isArray(projects) || projects.length === 0) {
+      return summaryStats.totalUniqueProjects || summaryStats.uniqueProjects || 0;
+    }
+
+    const normalizeStatus = (status?: string | null) =>
+      status ? status.toString().trim().toUpperCase() : undefined;
+
+    return projects.filter(project => {
+      const status = normalizeStatus((project as any).status);
+      const isActiveFlag =
+        typeof (project as any).isActive === 'boolean' ? (project as any).isActive : true;
+
+      if (!isActiveFlag) {
+        return false;
+      }
+
+      if (!status) {
+        return true;
+      }
+
+      return !['COMPLETED', 'CANCELLED', 'ON_HOLD'].includes(status);
+    }).length;
+  }, [projects, summaryStats.totalUniqueProjects, summaryStats.uniqueProjects]);
+
+  const activeProjectsWithinRange = summaryStats.uniqueProjects || 0;
+  const activeMemberCount = summaryStats.activeMembers || 0;
+  const timeEntryCount = summaryStats.timeEntries || 0;
+  const billablePercentage = summaryStats.billablePercentage || 0;
 
   const getCategoryColor = (category: string) => {
-    const normalized = category.toLowerCase().replace(/_/g, ' ');
-    switch (normalized) {
+    switch (normalizeCategory(category)) {
       case 'development':
-      case 'code review':
-      case 'review':
         return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'design':
-        return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'documentation':
+        return 'bg-slate-100 text-slate-700 border-slate-200';
+      case 'idle':
+        return 'bg-amber-100 text-amber-800 border-amber-200';
+      case 'learning':
+        return 'bg-sky-100 text-sky-800 border-sky-200';
       case 'meeting':
         return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'support':
+        return 'bg-cyan-100 text-cyan-800 border-cyan-200';
       case 'testing':
-      case 'bug fix':
-      case 'bug_fix':
         return 'bg-green-100 text-green-800 border-green-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'training':
+        return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
   const formatCategoryName = (category: string) => {
-    return category
-      .split('_')
+    return normalizeCategory(category)
+      .split(' ')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(' ');
   };
@@ -1483,14 +1990,17 @@ const TimeTrackingPage: React.FC = () => {
       .join('');
   };
 
-  const getUserName = (userId: string) => {
-    const user = usersMap.get(userId);
-    return user?.name || 'Unknown User';
-  };
+const formatEntryDateDisplay = (value?: string | Date | number) => {
+  const parsed = parseEntryDateValue(value);
+  if (!parsed) {
+    return '—';
+  }
 
-  const getUserRole = (userId: string) => {
-    const user = usersMap.get(userId);
-    return user?.role || 'DEVELOPER';
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(parsed);
   };
 
   // Determine if we're still loading initial data
@@ -1515,765 +2025,637 @@ const TimeTrackingPage: React.FC = () => {
     );
   }
 
-  const userSections = (Object.entries(groupedEntries) as [string, GroupedUserProjects][])
-    .filter(([userId]) => userFilter === 'all' || userId === userFilter)
-    .map(([userId, userData]) => {
-      const user = usersMap.get(userId);
-      const projectsForUser = (Object.entries(userData.projects) as [string, GroupedProjectBucket][]) 
-        .filter(([, projectData]) => {
-          if (projectFilter === 'all') {
-              return true;
-          }
-          return projectData.projectId === projectFilter;
-        });
-
-      if (projectsForUser.length === 0) {
-        return null;
-      }
-
-                  const allUserEntries: TimeEntry[] = [];
-      let totalStories = 0;
-      let totalTasks = 0;
-
-      projectsForUser.forEach(([, projectData]) => {
-        const stories = Object.values(projectData.stories) as GroupedStoryBucket[];
-        totalStories += stories.length;
-        stories.forEach(story => {
-          const tasks = Object.values(story.tasks) as GroupedTaskBucket[];
-          totalTasks += tasks.length;
-          tasks.forEach(task => {
-            allUserEntries.push(...task.entries);
-          });
-                    });
-                  });
-                  
-      const userRoleValue = user?.role || 'DEVELOPER';
-      const userName = user?.name || (userId === 'unknown' ? 'Unknown User' : 'Unnamed User');
-      const entryCount = allUserEntries.length;
-
-      // Calculate total assigned hours from all tasks assigned to this user
-      const fetchedUserTasks = userTasksMap.get(userId) || [];
-      const allUserTasks = allTasks.filter(task => normalizeId(task.assigneeId) === userId);
-      const combinedUserTasks = new Map<string, Task>();
-      fetchedUserTasks.forEach(task => {
-        const taskId = normalizeId(task.id);
-        if (taskId) combinedUserTasks.set(taskId, task);
-      });
-      allUserTasks.forEach(task => {
-        const taskId = normalizeId(task.id);
-        if (taskId && !combinedUserTasks.has(taskId)) {
-          combinedUserTasks.set(taskId, task);
-        }
-      });
-      
-      // Calculate total estimated hours from all assigned tasks
-      const totalAssignedHours = Array.from(combinedUserTasks.values()).reduce((sum, task) => {
-        const estimatedHours = task.estimatedHours || 0;
-        return sum + estimatedHours;
-      }, 0);
-      const assignedHoursDisplay = Math.floor(totalAssignedHours);
-      const assignedMinsDisplay = Math.round((totalAssignedHours - assignedHoursDisplay) * 60);
-
-      const totalMinutes = allUserEntries.reduce((sum, entry) => sum + parseTime(entry.timeSpent), 0);
-      const totalHours = Math.floor(totalMinutes / 60);
-      const totalMins = totalMinutes % 60;
-
-      const isExpanded = expandedUsers[userId] ?? false;
-      const handleToggleUser = () => {
-        setExpandedUsers(prev => {
-          const currentlyExpanded = prev[userId] ?? false;
-          return { ...prev, [userId]: !currentlyExpanded };
-        });
-      };
-
-      const totalEstimated = allUserEntries.reduce((sum, entry) => {
-        if (entry.estimation) return sum + parseTime(entry.estimation);
-        return sum + parseTime(entry.timeSpent) + parseTime(entry.remaining);
-      }, 0);
-      const totalActual = allUserEntries.reduce((sum, entry) => sum + parseTime(entry.timeSpent), 0);
-      const accuracy = totalEstimated > 0 ? Math.round((totalActual / totalEstimated) * 100) : 0;
-
-      const userEffort = entryCount > 0
-        ? getProjectEffort('User Total', allUserEntries)
-        : {
-                    estimation: '00:00',
-                    timeSpent: '00:00',
-                    remaining: '00:00',
-                    spentPercent: 0,
-            remainingPercent: 0,
-          };
-      
-      // Calculate remaining time correctly: Estimated - Actual
-      const estimatedMinutes = parseTime(userEffort.estimation);
-      const actualMinutes = parseTime(userEffort.timeSpent);
-      const remainingMinutes = Math.max(0, estimatedMinutes - actualMinutes);
                   
                   return (
-        <div key={userId} className="space-y-4">
-          <Card className="border border-purple-200 border-l-[6px] border-l-purple-500 shadow-[0_14px_28px_-12px_rgba(126,34,206,0.35)] bg-gradient-to-r from-purple-50 via-purple-100 to-white">
-                        <CardContent className="p-4">
-              <div className="flex items-center justify-between gap-4">
-                            <button
-                              type="button"
-                              onClick={handleToggleUser}
-                              aria-expanded={isExpanded}
-                              className="flex items-center gap-3 flex-1 text-left rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 transition cursor-pointer"
-                            >
-                              <div className="flex items-center gap-3 flex-1">
-                                <Avatar className="h-10 w-10 border-0 shadow-[0_8px_18px_-6px_rgba(109,40,217,0.45)]">
-                                  <AvatarFallback className="text-white font-semibold bg-[linear-gradient(135deg,#6a0dad,#ff69b4)]">
-                        {getInitials(userName)}
-                        </AvatarFallback>
-                      </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-foreground truncate cursor-pointer">{userName}</h3>
-                      <p className="text-sm text-muted-foreground truncate">
-                        {userRoleValue} • {entryCount} entr{entryCount === 1 ? 'y' : 'ies'} • {projectsForUser.length} project{projectsForUser.length === 1 ? '' : 's'}
-                                  </p>
-                                </div>
-                              </div>
-                              <ChevronDown
-                                className={`w-4 h-4 text-purple-600 transition-transform ${isExpanded ? 'rotate-0' : '-rotate-90'}`}
-                                aria-hidden="true"
-                              />
-                            </button>
-                <div className="flex items-center gap-3">
-                  <div className="text-right space-y-1">
+    <div className="p-6 space-y-6">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                      <p className="text-xs font-medium text-muted-foreground">Assigned Hours</p>
-                      <p className="text-lg font-bold text-blue-600">
-                        {assignedHoursDisplay}h {assignedMinsDisplay}m
+          <h1 className="text-2xl font-semibold text-foreground">Time Tracking Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            Monitor logged effort, billability, and sprint focus in real time.
                       </p>
                     </div>
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground">Logged Hours</p>
-                      <p className="text-sm font-semibold text-slate-700">
-                        {totalHours}h {totalMins}m
-                      </p>
                     </div>
-                  </div>
-                  {user && (
+
+      <Card className="border border-slate-200 shadow-sm">
+        <CardContent className="p-4">
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-nowrap items-start gap-6 overflow-x-auto pb-1">
+              <div className="space-y-1 flex min-w-[140px] flex-1 flex-col">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Date Range</p>
+                <Select value={timeFilter} onValueChange={handleTimeFilterChange}>
+                  <SelectTrigger className="h-10 w-full">
+                    <SelectValue placeholder="Select range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="this-week">This Week</SelectItem>
+                    <SelectItem value="last-week">Last Week</SelectItem>
+                    <SelectItem value="this-month">This Month</SelectItem>
+                    <SelectItem value="last-month">Last Month</SelectItem>
+                    <SelectItem value="all-time">All Time</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+                {timeFilter === 'custom' && (
+                  <Popover open={customRangeOpen} onOpenChange={setCustomRangeOpen}>
+                    <PopoverTrigger asChild>
                             <Button 
+                        type="button"
                               variant="outline" 
-                              className="border-purple-200 text-purple-700 hover:bg-purple-100"
+                        className={`h-10 w-full justify-start text-left font-normal ${customDateRange?.from ? '' : 'text-muted-foreground'}`}
+                      >
+                        {customRangeLabel}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="range"
+                        selected={customDateRange}
+                        onSelect={handleCustomRangeSelect}
+                        numberOfMonths={2}
+                        defaultMonth={customDateRange?.from}
+                      />
+                      <div className="flex items-center justify-between gap-2 border-t border-border/60 bg-muted/40 p-3">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
                               onClick={() => {
-                                setSelectedUserId(userId);
-                                setAnalyticsOpen(true);
+                            setCustomDateRange(undefined);
                               }}
                             >
-                              <BarChart3 className="w-4 h-4 mr-2" />
-                              View Analytics
+                          Clear
                             </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => setCustomRangeOpen(false)}
+                          disabled={!(customDateRange?.from && customDateRange?.to)}
+                        >
+                          Apply
+                        </Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                   )}
                 </div>
+
+              <div className="space-y-1 flex min-w-[140px] flex-1 flex-col">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Project</p>
+                <Select value={projectFilter} onValueChange={setProjectFilter}>
+                  <SelectTrigger className="h-10 w-full">
+                    <SelectValue placeholder="All Projects" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Projects</SelectItem>
+                    {projects.map(project => {
+                      const projectId = normalizeId(project.id);
+                      if (!projectId) {
+                        return null;
+                      }
+                      return (
+                        <SelectItem key={projectId} value={projectId}>
+                          {project.name}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
                       </div>
                       
-                          <div className="mt-4 grid grid-cols-7 gap-3 text-xs text-muted-foreground">
-                        <div>
-                              <p>Assigned</p>
-                              <p className="mt-0.5 text-sm font-semibold text-blue-600">{assignedHoursDisplay}h {assignedMinsDisplay}m</p>
+              <div className="space-y-1 flex min-w-[140px] flex-1 flex-col">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Sprint</p>
+                <Select value={sprintFilter} onValueChange={setSprintFilter}>
+                  <SelectTrigger className="h-10 w-full">
+                    <SelectValue placeholder="All Sprints" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Sprints</SelectItem>
+                    {sprints.map(sprint => {
+                      const sprintId = normalizeId(sprint.id);
+                      if (!sprintId) {
+                        return null;
+                      }
+                      return (
+                        <SelectItem key={sprintId} value={sprintId}>
+                          {sprint.name}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
                         </div>
-                        <div>
-                              <p>Estimated</p>
-                              <p className="mt-0.5 text-sm font-semibold text-emerald-600">{formatTimeHHMM(parseTime(userEffort.estimation))}</p>
+
+              <div className="space-y-1 flex min-w-[140px] flex-1 flex-col">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Team Member</p>
+                <Select value={userFilter} onValueChange={setUserFilter}>
+                  <SelectTrigger className="h-10 w-full">
+                    <SelectValue placeholder="All Members" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Members</SelectItem>
+                    {users.map(user => {
+                      const userId = normalizeId(user.id);
+                      if (!userId) {
+                        return null;
+                      }
+                      return (
+                        <SelectItem key={userId} value={userId}>
+                          {user.name}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
                         </div>
-                        <div>
-                              <p>Actual</p>
-                              <p className="mt-0.5 text-sm font-semibold text-green-600">{formatTimeHHMM(parseTime(userEffort.timeSpent))}</p>
+
+              <div className="space-y-1 flex min-w-[140px] flex-1 flex-col">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Work Type</p>
+                <Select value={workTypeFilter} onValueChange={setWorkTypeFilter}>
+                  <SelectTrigger className="h-10 w-full">
+                    <SelectValue placeholder="All Types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    {workTypeOptions.map(type => (
+                      <SelectItem key={type} value={type}>
+                        {formatCategoryName(type)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                         </div>
-                            <div>
-                              <p>Remaining</p>
-                              <p className="mt-0.5 text-sm font-semibold text-orange-600">
-                                {formatTimeHHMM(remainingMinutes)}
-                              </p>
+
+              <div className="space-y-1 flex min-w-[140px] flex-1 flex-col">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Billable Status</p>
+                <Select value={billableFilter} onValueChange={setBillableFilter}>
+                  <SelectTrigger className="h-10 w-full">
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="billable">Billable</SelectItem>
+                    <SelectItem value="non-billable">Non-billable</SelectItem>
+                  </SelectContent>
+                </Select>
                       </div>
-                            <div>
-                  <p className="text-[10px] text-muted-foreground mb-1">Projects</p>
-                  <p className="font-semibold text-purple-600">{projectsForUser.length}</p>
+
+              <div className="flex min-w-[100px] basis-[120px] flex-none flex-col justify-end">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground opacity-0">
+                  Reset
+                </span>
+                <Button
+                  variant="outline"
+                  onClick={resetFilters}
+                  className="h-10 w-full"
+                >
+                  Reset
+                </Button>
                 </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground mb-1">Tasks</p>
-                  <p className="font-semibold text-purple-600">{Array.from(combinedUserTasks.values()).length}</p>
-                        </div>
-                            <div>
-                              <p className="text-[10px] text-muted-foreground mb-1">Accuracy</p>
-                              <p className="font-semibold text-purple-600">{accuracy}%</p>
                           </div>
               </div>
             </CardContent>
           </Card>
 
-          {isExpanded && projectsForUser.map(([projectName, projectData]) => {
-            const theme = getProjectTheme(projectData.projectId || projectName);
-            const projectEntries = collectEntriesFromStories(projectData.stories);
-            const projectMinutes = projectEntries.reduce((sum, entry) => sum + parseTime(entry.timeSpent), 0);
-            const projectHours = Math.floor(projectMinutes / 60);
-            const projectMins = projectMinutes % 60;
-            const projectStoryCount = Object.keys(projectData.stories).length;
-            const projectTaskCount = (Object.values(projectData.stories) as GroupedStoryBucket[]).reduce(
-              (sum, story) => sum + Object.keys(story.tasks).length,
-              0
-            );
-
-            // Calculate total allotted time for this project (sum of estimatedHours from all tasks)
-            let projectAllottedHours = 0;
-            (Object.values(projectData.stories) as GroupedStoryBucket[]).forEach(story => {
-              (Object.values(story.tasks) as GroupedTaskBucket[]).forEach(taskBucket => {
-                const task = taskBucket.taskId ? tasksMap.get(taskBucket.taskId) : undefined;
-                if (task && task.estimatedHours) {
-                  projectAllottedHours += task.estimatedHours;
-                }
-              });
-            });
-            const projectAllottedHoursDisplay = Math.floor(projectAllottedHours);
-            const projectAllottedMinsDisplay = Math.round((projectAllottedHours - projectAllottedHoursDisplay) * 60);
-
-            // Calculate remaining time (Allotted - Logged)
-            const projectAllottedMinutes = Math.round(projectAllottedHours * 60);
-            const remainingMinutes = Math.max(0, projectAllottedMinutes - projectMinutes);
-            const remainingHours = Math.floor(remainingMinutes / 60);
-            const remainingMins = remainingMinutes % 60;
-
-            return (
-              <div key={projectName} className="ml-6 space-y-3">
-                <Card className={`shadow-sm ${theme.border} ${theme.cardBg}`}>
+      <div className="grid gap-6 md:grid-cols-6">
+        <Card className="shadow-sm">
                   <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-10 w-10 border-0 shadow-[0_8px_18px_-6px_rgba(16,185,129,0.45)]">
-                          <AvatarFallback className="text-white font-semibold bg-[linear-gradient(135deg,#10b981,#34d399)]">
-                            {getProjectInitials(projectName)}
-                          </AvatarFallback>
-                        </Avatar>
+            <div className="flex items-start justify-between gap-4">
                         <div>
-                          <h4 className="inline-flex items-center gap-2 rounded-md bg-[linear-gradient(135deg,#10b981,#34d399)] px-3 py-1 text-sm font-semibold text-black shadow-[0_6px_18px_-8px_rgba(16,185,129,0.45)]">
-                            {formatDisplayName(projectName)}
-                          </h4>
-                          <p className="text-sm text-muted-foreground">
-                            {projectStoryCount} stor{projectStoryCount === 1 ? 'y' : 'ies'} • {projectTaskCount} task{projectTaskCount === 1 ? '' : 's'}
-                          </p>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Total Hours Logged
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{totalHoursDecimal.toFixed(1)}</p>
+                <p className="text-xs text-muted-foreground">hours this period</p>
                         </div>
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+                <Clock className="h-5 w-5" />
+              </span>
                       </div>
-                      <div className="text-right space-y-1">
+            </CardContent>
+          </Card>
+
+        <Card className="shadow-sm">
+                  <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-4">
                         <div>
-                          <p className="text-xs font-medium text-muted-foreground">Allotted Time</p>
-                          <p className={`text-lg font-bold text-blue-600`}>
-                            {projectAllottedHoursDisplay}h {projectAllottedMinsDisplay}m
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Billable Hours
+                          </p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{billableHoursDecimal.toFixed(1)}</p>
+                <p className="text-xs text-muted-foreground">{billablePercentage}% of total</p>
+                        </div>
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                <Target className="h-5 w-5" />
+              </span>
+                        </div>
+        </CardContent>
+      </Card>
+
+        <Card className="shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-4">
+                        <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Team Members
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{activeMemberCount}</p>
+                <p className="text-xs text-muted-foreground">
+                  {activeMemberCount === 1 ? 'member' : 'members'} actively logging time
                           </p>
                         </div>
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground">Logged Time</p>
-                          <p className={`text-sm font-semibold ${theme.headerText}`}>
-                            {projectHours}h {projectMins}m
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground">Remaining Time</p>
-                          <p className={`text-sm font-semibold text-orange-600`}>
-                            {remainingHours}h {remainingMins}m
-                          </p>
-                        </div>
-                    </div>
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-purple-50 text-purple-600">
+                <Users className="h-5 w-5" />
+              </span>
                   </div>
                 </CardContent>
               </Card>
 
-                {(Object.entries(projectData.stories) as [string, GroupedStoryBucket][]).map(([storyName, storyData]) => {
-                  const displayStoryName = formatDisplayName(storyName);
-                  const storyTaskBuckets = Object.values(storyData.tasks) as GroupedTaskBucket[];
-                  const storyEntries = storyTaskBuckets.flatMap(task => task.entries);
-                  const storyMinutes = storyEntries.reduce((sum, entry) => sum + parseTime(entry.timeSpent), 0);
-                  const storyHours = Math.floor(storyMinutes / 60);
-                  const storyMins = storyMinutes % 60;
-                  const storyTaskCount = storyTaskBuckets.length;
-                  const storyEntity = storyData.storyId ? storiesMap.get(storyData.storyId) : undefined;
-                  const projectEntity = projectData.projectId ? projectsMap.get(projectData.projectId) : undefined;
-
-                  return (
-                    <div key={storyName} className="ml-6 space-y-2">
-                      {/* Story Card with Light Green and White Theme */}
-                      <div className="bg-gradient-to-r from-green-50/80 via-white to-green-50/50 border-l-4 border-green-400 rounded-lg p-4 shadow-sm hover:shadow-md transition-all duration-200 border border-green-100">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 flex-1">
-                            {/* Story Icon */}
-                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-400 to-green-500 flex items-center justify-center shadow-sm">
-                              <span className="text-white text-xs font-bold">S</span>
-                            </div>
-                            <div className="flex-1">
-                              <h5 className="font-semibold text-gray-800 text-sm mb-1.5">{displayStoryName}</h5>
-                              <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-green-100 text-green-700 border-green-300 font-medium">
-                                {storyTaskCount} task{storyTaskCount === 1 ? '' : 's'}
-                              </Badge>
-                            </div>
-                          </div>
-                          {/* Story Hours Display */}
-                          <div className="text-right bg-white/70 rounded-md px-3 py-2 border border-green-100 min-w-[80px]">
-                            <p className="text-[9px] font-semibold text-green-600 uppercase tracking-wide mb-0.5">Hours</p>
-                            <p className="text-sm font-bold text-green-600">
-                              {storyHours}h {storyMins}m
+        <Card className="shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-4">
+                        <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Active Projects
+                          </p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{activeProjectsTotal}</p>
+                <p className="text-xs text-muted-foreground">
+                  {activeProjectsWithinRange > 0
+                    ? `with logged time${timeFilter !== 'all-time' ? ` (${activeProjectsWithinRange} in current range)` : ''}`
+                    : 'No time logged in selected range'}
                             </p>
                           </div>
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-sky-50 text-sky-600">
+                <BarChart3 className="h-5 w-5" />
+              </span>
                         </div>
-                      </div>
+                </CardContent>
+              </Card>
 
-                      {(Object.entries(storyData.tasks) as [string, GroupedTaskBucket][]).map(([taskName, taskBucket]) => {
-                        const taskEntries = taskBucket.entries;
-                        const task = taskBucket.taskId ? tasksMap.get(taskBucket.taskId) : undefined;
-                        const displayTaskName = formatDisplayName(taskName);
-
-                        const fallbackEntry: TimeEntry | null = taskEntries[0] || (task ? {
-                          id: task.id,
-                          task: task.title,
-                          taskId: taskBucket.taskId,
-                          story: storyName,
-                          storyId: storyData.storyId,
-                          project: projectEntity?.name || projectName,
-                          projectId: projectEntity?.id,
-                          sprintId: storyEntity?.sprintId,
-                          user: userName,
-                          userId,
-                          userRole: userRoleValue,
-                          duration: '0h 0m',
-                          date: new Date().toISOString().split('T')[0],
-                          status: 'completed' as const,
-                          billable: false,
-                          category: 'development',
-                          description: task.description || '',
-                          timeSpent: '0h 0m',
-                          remaining: '0h 0m',
-                          estimation: task.estimatedHours
-                            ? `${Math.floor(task.estimatedHours)}h ${Math.round((task.estimatedHours - Math.floor(task.estimatedHours)) * 60)}m`
-                            : undefined,
-                        } : null);
-
-                        if (!fallbackEntry) {
-                          return null;
-                        }
-
-                        const hasActive = taskEntries.some(entry => entry.status === 'active') || task?.status === 'IN_PROGRESS';
-                        const allBillable = taskEntries.length > 0 ? taskEntries.every(entry => entry.billable) : false;
-
-                        // Calculate allotted time for this task
-                        const taskAllottedHours = task?.estimatedHours || 0;
-                        const taskAllottedHoursDisplay = Math.floor(taskAllottedHours);
-                        const taskAllottedMinsDisplay = Math.round((taskAllottedHours - taskAllottedHoursDisplay) * 60);
-
-                        const totalTaskMinutes = taskEntries.reduce((sum, entry) => sum + parseTime(entry.timeSpent), 0);
-                        const totalTaskHours = Math.floor(totalTaskMinutes / 60);
-                        const totalTaskMins = totalTaskMinutes % 60;
-                        const totalTaskTimeSpent = taskEntries.length > 0 ? `${totalTaskHours}h ${totalTaskMins}m` : '0h 0m';
-                        
-                        const taskEffort = taskEntries.length > 0 
-                          ? getProjectEffort(taskName, taskEntries)
-                          : task?.estimatedHours
-                            ? {
-                                estimation: formatTimeHHMM(Math.round(task.estimatedHours * 60)),
-                                timeSpent: '00:00',
-                                remaining: formatTimeHHMM(Math.round(task.estimatedHours * 60)),
-                                spentPercent: 0,
-                                remainingPercent: 100,
-                              }
-                            : {
-                                estimation: '00:00',
-                              timeSpent: '00:00',
-                                remaining: '00:00',
-                              spentPercent: 0,
-                                remainingPercent: 0,
-                              };
-
-                        const baseEstimatedMinutes = taskEntries.length === 0 && task?.estimatedHours
-                          ? Math.round(task.estimatedHours * 60)
-                          : 0;
-                        const totalEstimated = taskEntries.reduce((sum, entry) => {
-                          if (entry.estimation) return sum + parseTime(entry.estimation);
-                          return sum + parseTime(entry.timeSpent) + parseTime(entry.remaining);
-                        }, baseEstimatedMinutes);
-                        const totalRemaining = taskEntries.length > 0
-                          ? taskEntries.reduce((sum, entry) => sum + parseTime(entry.remaining), 0)
-                          : baseEstimatedMinutes;
-                        const totalSpent = taskEntries.reduce((sum, entry) => sum + parseTime(entry.timeSpent), 0);
-                        const spentPercent = totalEstimated > 0 ? Math.round((totalSpent / totalEstimated) * 100) : 0;
-                        const remainingPercent = totalEstimated > 0 ? Math.round((totalRemaining / totalEstimated) * 100) : (baseEstimatedMinutes > 0 ? 100 : 0);
-                        const taskAccuracy = totalEstimated > 0 ? Math.round((totalSpent / totalEstimated) * 100) : 0;
-                        
-                        // Calculate remaining time for task (Allotted - Spent)
-                        const taskAllottedMinutes = taskAllottedHours > 0 ? Math.round(taskAllottedHours * 60) : 0;
-                        const taskRemainingMinutes = Math.max(0, taskAllottedMinutes - totalSpent);
-                        const taskRemainingHoursDisplay = Math.floor(taskRemainingMinutes / 60);
-                        const taskRemainingMinsDisplay = taskRemainingMinutes % 60;
-                        
-                        // Calculate estimated hours difference (spent vs estimated)
-                        const estimatedMinutes = taskAllottedHours > 0 ? Math.round(taskAllottedHours * 60) : totalEstimated;
-                        const hoursDifference = estimatedMinutes > 0 ? totalSpent - estimatedMinutes : 0;
-                        const hoursDifferenceDisplay = Math.abs(hoursDifference);
-                        const hoursDiffHours = Math.floor(hoursDifferenceDisplay / 60);
-                        const hoursDiffMins = hoursDifferenceDisplay % 60;
-                        const isOverEstimated = hoursDifference > 0;
-                        const isUnderEstimated = hoursDifference < 0;
-                        
-                        // Calculate due date difference
-                        let dueDateDifference: { days: number; isOverdue: boolean; display: string } | null = null;
-                        if (task?.dueDate) {
-                          try {
-                            const dueDate = new Date(task.dueDate);
-                            const today = new Date();
-                            today.setHours(0, 0, 0, 0);
-                            dueDate.setHours(0, 0, 0, 0);
-                            const diffTime = dueDate.getTime() - today.getTime();
-                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                            const isOverdue = diffDays < 0;
-                            dueDateDifference = {
-                              days: Math.abs(diffDays),
-                              isOverdue,
-                              display: isOverdue 
-                                ? `${Math.abs(diffDays)} day${Math.abs(diffDays) === 1 ? '' : 's'} overdue`
-                                : diffDays === 0
-                                  ? 'Due today'
-                                  : `${diffDays} day${diffDays === 1 ? '' : 's'} remaining`
-                            };
-                          } catch (e) {
-                            console.warn('Error parsing due date:', task.dueDate, e);
-                          }
-                        }
-                        
-                        // Format task status
-                        const getTaskStatusBadge = (status: string) => {
-                          const statusLower = status?.toLowerCase() || '';
-                          switch (statusLower) {
-                            case 'to_do':
-                            case 'todo':
-                              return { label: 'To Do', className: 'bg-gray-100 text-gray-800 border-gray-200' };
-                            case 'in_progress':
-                              return { label: 'In Progress', className: 'bg-blue-100 text-blue-800 border-blue-200' };
-                            case 'qa_review':
-                              return { label: 'QA Review', className: 'bg-yellow-100 text-yellow-800 border-yellow-200' };
-                            case 'done':
-                              return { label: 'Done', className: 'bg-green-100 text-green-800 border-green-200' };
-                            case 'blocked':
-                              return { label: 'Blocked', className: 'bg-red-100 text-red-800 border-red-200' };
-                            case 'cancelled':
-                              return { label: 'Cancelled', className: 'bg-gray-100 text-gray-600 border-gray-200' };
-                            default:
-                              return { label: status || 'Unknown', className: 'bg-gray-100 text-gray-800 border-gray-200' };
-                          }
-                        };
-                        
-                        const taskStatus = task?.status || 'TO_DO';
-                        const statusBadge = getTaskStatusBadge(taskStatus);
-                        
-                        return (
-                          <div key={taskName} className="ml-6">
-                            <Card className="border-l-2 border-l-indigo-500 shadow-sm">
-                              <CardContent className="p-3">
+        <Card className="shadow-sm">
+          <CardContent className="p-4">
                                 <div className="flex items-start justify-between gap-4">
-                                  <div className="flex-1 space-y-2">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <h6 className="font-semibold text-foreground text-sm">{displayTaskName}</h6>
-                                      {/* Task Status Badge */}
-                                      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${statusBadge.className}`}>
-                                        {statusBadge.label}
-                                      </Badge>
-                                      {taskAllottedHours > 0 && (
-                                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-blue-100 text-blue-800 border-blue-200">
-                                          Allotted: {taskAllottedHoursDisplay}h {taskAllottedMinsDisplay}m
-                                        </Badge>
-                                      )}
-                                      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${getCategoryColor(fallbackEntry.category)}`}>
-                                        {formatCategoryName(fallbackEntry.category)}
-                                      </Badge>
-                                      {hasActive && (
-                                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-green-100 text-green-800 border-green-200">
-                                          <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5 inline-block" />
-                                          Active
-                                        </Badge>
-                                      )}
-                                      {allBillable && (
-                                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-blue-100 text-blue-800 border-blue-200">
-                                          Billable
-                                        </Badge>
-                                      )}
-                    </div>
-                                    
-                                    <div className="grid grid-cols-4 gap-3 text-[11px]">
                   <div>
-                                        <p className="text-[10px] text-muted-foreground mb-1">Estimated</p>
-                                        <p className="font-semibold">{taskEffort.estimation}</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Daily Average
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{averageDailyHoursDecimal.toFixed(1)}</p>
+                <p className="text-xs text-muted-foreground">hours per day</p>
                   </div>
-                                      <div>
-                                        <p className="text-[10px] text-muted-foreground mb-1">Spent</p>
-                                        <p className="font-semibold text-green-600">{taskEffort.timeSpent}</p>
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-orange-50 text-orange-600">
+                <TrendingUp className="h-5 w-5" />
+              </span>
                 </div>
-                  <div>
-                                        <p className="text-[10px] text-muted-foreground mb-1">Remaining</p>
-                                        <p className="font-semibold text-gray-600">{taskEffort.remaining}</p>
-                                      </div>
-                                      <div>
-                                        <p className="text-[10px] text-muted-foreground mb-1">Accuracy</p>
-                                        <p className="font-semibold text-purple-600">{taskAccuracy}%</p>
-                                      </div>
-                                      </div>
-                                      
-                                      {/* Estimated Hours Difference */}
-                                      {estimatedMinutes > 0 && hoursDifferenceDisplay > 0 && (
-                                        <div className="flex items-center gap-2 text-[10px]">
-                                          <span className="text-muted-foreground">Est. Difference:</span>
-                                          <Badge 
-                                            variant="outline" 
-                                            className={`px-1.5 py-0 text-[10px] ${
-                                              isOverEstimated 
-                                                ? 'bg-orange-100 text-orange-800 border-orange-200' 
-                                                : isUnderEstimated
-                                                  ? 'bg-blue-100 text-blue-800 border-blue-200'
-                                                  : 'bg-gray-100 text-gray-800 border-gray-200'
-                                            }`}
-                                          >
-                                            {isOverEstimated ? '+' : isUnderEstimated ? '-' : ''}
-                                            {hoursDiffHours > 0 ? `${hoursDiffHours}h ` : ''}
-                                            {hoursDiffMins > 0 ? `${hoursDiffMins}m` : hoursDiffHours === 0 ? '0m' : ''}
-                                            {isOverEstimated ? ' over' : isUnderEstimated ? ' under' : ''}
-                                          </Badge>
-                                        </div>
-                                      )}
-                                      
-                                      {/* Due Date Difference */}
-                                      {dueDateDifference && (
-                                        <div className="flex items-center gap-2 text-[10px]">
-                                          <span className="text-muted-foreground">Due Date:</span>
-                                          <Badge 
-                                            variant="outline" 
-                                            className={`px-1.5 py-0 text-[10px] ${
-                                              dueDateDifference.isOverdue
-                                                ? 'bg-red-100 text-red-800 border-red-200'
-                                                : dueDateDifference.days === 0
-                                                  ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
-                                                  : 'bg-green-100 text-green-800 border-green-200'
-                                            }`}
-                                          >
-                                            {dueDateDifference.display}
-                                          </Badge>
-                                        </div>
-                                      )}
+          </CardContent>
+        </Card>
 
-                                    <div className="rounded-md bg-muted/40 border border-muted/50 p-2">
-                                      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                                        <span>Total Time</span>
-                                        <span className="font-semibold text-foreground">{totalTaskTimeSpent}</span>
-                                        </div>
-                                      <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
-                                        <div
-                                          className="h-full bg-indigo-500"
-                                          style={{ width: `${Math.min(100, spentPercent)}%` }}
-                                        />
+        <Card className="shadow-sm">
+          <CardContent className="p-4">
+                                <div className="flex items-start justify-between gap-4">
+                  <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Time Entries
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{timeEntryCount}</p>
+                <p className="text-xs text-muted-foreground">total entries</p>
                                       </div>
-                                      <div className="mt-2 flex items-center justify-between text-[10px]">
-                                        <span className="text-green-600">Spent {spentPercent}%</span>
-                                        <span className="text-gray-600">Remain {remainingPercent}%</span>
-                                      </div>
-                  </div>
-                </div>
-                
-                                  <div className="min-w-[11rem] space-y-2 text-[11px]">
-                                    <div className="flex items-center justify-between gap-2">
-                                      <span className="text-muted-foreground">Status</span>
-                                      <span className={`font-semibold text-right whitespace-nowrap ${statusBadge.className.split(' ')[1]}`}>
-                                        {statusBadge.label}
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+                <CheckCircle2 className="h-5 w-5" />
                                       </span>
-                                    </div>
-                                    {taskAllottedHours > 0 && (
-                                      <div className="flex items-center justify-between gap-2">
-                                        <span className="text-muted-foreground">Allotted</span>
-                                        <span className="font-semibold text-blue-600 text-right whitespace-nowrap">
-                                          {taskAllottedHoursDisplay}h {taskAllottedMinsDisplay}m
-                                        </span>
-                                      </div>
-                                    )}
-                                    {taskAllottedHours > 0 && (
-                                      <div className="flex items-center justify-between gap-2">
-                                        <span className="text-muted-foreground">Remaining</span>
-                                        <span className="font-semibold text-orange-600 text-right whitespace-nowrap">
-                                          {taskRemainingHoursDisplay}h {taskRemainingMinsDisplay}m
-                                        </span>
-                                      </div>
-                                    )}
-                                    {estimatedMinutes > 0 && hoursDifferenceDisplay > 0 && (
-                                      <div className="flex items-center justify-between gap-2">
-                                        <span className="text-muted-foreground">Est. Diff</span>
-                                        <span className={`font-semibold text-right whitespace-nowrap ${
-                                          isOverEstimated ? 'text-orange-600' : isUnderEstimated ? 'text-blue-600' : 'text-gray-600'
-                                        }`}>
-                                          {isOverEstimated ? '+' : isUnderEstimated ? '-' : ''}
-                                          {hoursDiffHours > 0 ? `${hoursDiffHours}h ` : ''}
-                                          {hoursDiffMins > 0 ? `${hoursDiffMins}m` : hoursDiffHours === 0 ? '0m' : ''}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {dueDateDifference && (
-                                      <div className="flex items-center justify-between gap-2">
-                                        <span className="text-muted-foreground">Due Date</span>
-                                        <span className={`font-semibold text-right whitespace-nowrap ${
-                                          dueDateDifference.isOverdue ? 'text-red-600' : dueDateDifference.days === 0 ? 'text-yellow-600' : 'text-green-600'
-                                        }`}>
-                                          {dueDateDifference.display}
-                                        </span>
-                                      </div>
-                                    )}
-                                    <div className="flex items-center justify-between gap-2">
-                                      <span className="text-muted-foreground">Date</span>
-                                      <span className="font-semibold text-foreground text-right whitespace-nowrap">
-                                        {taskEntries[0]?.date ? new Date(taskEntries[0].date).toLocaleDateString() : '—'}
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center justify-between gap-2">
-                                      <span className="text-muted-foreground">Category</span>
-                                      <span className="font-semibold text-foreground text-right whitespace-nowrap">{formatCategoryName(fallbackEntry.category)}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between gap-2">
-                                      <span className="text-muted-foreground">Billable</span>
-                                      <span className={`font-semibold text-right whitespace-nowrap ${allBillable ? 'text-blue-600' : 'text-muted-foreground'}`}>
-                                        {allBillable ? 'Yes' : 'No'}
-                                      </span>
-                                    </div>
-                  </div>
                 </div>
               </CardContent>
             </Card>
           </div>
-                        );
-                      })}
+
+      <Card className="shadow-sm">
+        <CardContent className="p-0">
+          <div className="border-b border-slate-200 px-6 py-4">
+            <h2 className="text-lg font-semibold text-foreground">Time Entries</h2>
+            <p className="text-sm text-muted-foreground">
+              Showing {paginated.total === 0 ? 0 : paginated.start + 1}–{paginated.end} of {filteredTimeEntries.length} entries
+            </p>
                     </div>
-                  );
-                })}
-                  </div>
-                );
-              })}
-              </div>
-            );
-    })
-    .filter((section): section is React.ReactElement => section !== null);
+          {paginated.rows.length > 0 ? (
+            <Table className="[&_th]:text-xs [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-muted-foreground [&_td]:text-sm">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User</TableHead>
+                  <TableHead>Task Title</TableHead>
+                  <TableHead>Project</TableHead>
+                  <TableHead>Sprint</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Estimated Hours</TableHead>
+                  <TableHead>Actual Hours</TableHead>
+                  <TableHead>Work Type</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Billable</TableHead>
+                  <TableHead>Notes</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginated.rows.map(entry => {
+                  const sprintName = entry.sprintName
+                    || (entry.sprintId ? sprintsMap.get(entry.sprintId)?.name : undefined)
+                    || '—';
+                  const entryHours =
+                    entry.hoursWorked !== undefined && entry.hoursWorked !== null
+                      ? entry.hoursWorked
+                      : Math.round((parseTime(entry.timeSpent) / 60) * 10) / 10;
+                  const estimatedMinutesRaw = entry.estimation
+                    ? parseTime(entry.estimation)
+                    : entry.remaining
+                        ? parseTime(entry.timeSpent) + parseTime(entry.remaining)
+                        : undefined;
+                  const estimatedHours =
+                    estimatedMinutesRaw !== undefined
+                      ? Math.round((estimatedMinutesRaw / 60) * 10) / 10
+                      : undefined;
+                  const statusStyle = entryStatusStyles[entry.status];
+                  const billableBadgeClass = entry.billable
+                    ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                    : 'bg-slate-100 text-slate-600 border-slate-200';
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+                    <TableRow key={entry.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback className="bg-indigo-100 text-indigo-700 text-xs font-semibold">
+                              {getInitials(entry.user)}
+                            </AvatarFallback>
+                          </Avatar>
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Team Time Tracking</h1>
-          <p className="text-sm text-muted-foreground mt-1">Monitor team performance and work hours across scrums</p>
+                            <p className="text-sm font-medium text-foreground">{entry.user}</p>
+                            <p className="text-xs text-muted-foreground">{formatDisplayName(entry.userRole)}</p>
         </div>
       </div>
-
-      {/* Summary Cards - Show Total Hours (Allotted) and Billable Hours (Logged) */}
-      <div className="flex gap-2">
-        <Card className="flex-1 border-l-2 border-l-green-500 min-w-0">
-          <CardContent className="p-2">
-            <div className="flex items-center justify-between gap-1.5">
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-muted-foreground truncate leading-tight">Total Hours</p>
-                <p className="text-sm font-semibold text-green-600 truncate leading-tight mt-0.5">{summaryStats.allottedHours || summaryStats.totalHours}</p>
+                      </TableCell>
+                      <TableCell className="max-w-[220px]">
+                        <p className="truncate font-medium text-foreground">{entry.task}</p>
+                        <p className="truncate text-xs text-muted-foreground">{entry.story}</p>
+                      </TableCell>
+                      <TableCell className="max-w-[160px] truncate">{entry.project}</TableCell>
+                      <TableCell>{sprintName}</TableCell>
+                      <TableCell>{formatEntryDateDisplay(entry.date)}</TableCell>
+                      <TableCell>{estimatedHours !== undefined ? estimatedHours.toFixed(1) : '—'}</TableCell>
+                      <TableCell>{entryHours.toFixed(1)}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`text-xs ${getCategoryColor(entry.category)}`}>
+                          {formatCategoryName(entry.category)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`text-xs ${statusStyle.className}`}>
+                          {statusStyle.label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`text-xs ${billableBadgeClass}`}>
+                          {entry.billable ? 'Billable' : 'Non-billable'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="max-w-[220px] truncate">
+                        {entry.notes ? entry.notes : '—'}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+              No time entries match the selected filters.
               </div>
-              <div className="p-1 bg-green-100 rounded flex-shrink-0">
-                <Clock className="w-3.5 h-3.5 text-green-600" />
+          )}
+          <div className="flex items-center justify-between border-t border-slate-200 px-6 py-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Rows per page</span>
+              <Select value={String(pageSize)} onValueChange={(v) => setPageSize((Number(v) as 15 | 30))}>
+                <SelectTrigger className="h-8 w-[88px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="15">15</SelectItem>
+                  <SelectItem value="30">30</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-              </div>
-        </CardContent>
-      </Card>
-
-        <Card className="flex-1 border-l-2 border-l-blue-500 min-w-0">
-          <CardContent className="p-2">
-            <div className="flex items-center justify-between gap-1.5">
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-muted-foreground truncate leading-tight">Billable Hours</p>
-                <p className="text-sm font-semibold text-blue-600 truncate leading-tight mt-0.5">{summaryStats.billableHours}</p>
-              </div>
-              <div className="p-1 bg-blue-100 rounded flex-shrink-0">
-                <Target className="w-3.5 h-3.5 text-blue-600" />
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground">
+                {paginated.total === 0 ? 0 : paginated.start + 1}–{paginated.end} of {paginated.total}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={paginated.page <= 1}
+              >
+                Prev
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(paginated.totalPages, p + 1))}
+                disabled={paginated.page >= paginated.totalPages}
+              >
+                Next
+              </Button>
             </div>
           </div>
         </CardContent>
       </Card>
 
-        <Card className="flex-1 border-l-2 border-l-purple-500 min-w-0">
-          <CardContent className="p-2">
-            <div className="flex items-center justify-between gap-1.5">
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-muted-foreground truncate leading-tight">Active Members</p>
-                <p className="text-sm font-semibold text-purple-600 leading-tight mt-0.5">{summaryStats.activeMembers}</p>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card className="shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between">
+                                      <div>
+                <h2 className="text-lg font-semibold text-foreground">Daily Time Trend</h2>
+                <p className="text-sm text-muted-foreground">Hours logged each day</p>
               </div>
-              <div className="p-1 bg-purple-100 rounded flex-shrink-0">
-                <Users className="w-3.5 h-3.5 text-purple-600" />
-              </div>
+            </div>
+            <div className="mt-6 h-72">
+              {dailyTrendData.length > 0 ? (
+                <ChartContainer
+                  config={{
+                    hours: {
+                      label: 'Hours',
+                      color: '#6366f1',
+                    },
+                  }}
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={dailyTrendData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                      <XAxis
+                        dataKey="label"
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                      />
+                      <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        allowDecimals
+                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                      />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Line type="monotone" dataKey="hours" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </ChartContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  No daily activity for the selected filters.
+          </div>
+                                      )}
             </div>
           </CardContent>
         </Card>
         
-        <Card className="flex-1 border-l-2 border-l-orange-500 min-w-0">
-          <CardContent className="p-2">
-            <div className="flex items-center justify-between gap-1.5">
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-muted-foreground truncate leading-tight">Billable %</p>
-                <p className="text-sm font-semibold text-orange-600 leading-tight mt-0.5">{summaryStats.billablePercentage}%</p>
+        <Card className="shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Time by Sprint</h2>
+                <p className="text-sm text-muted-foreground">Compare logged hours across sprints</p>
               </div>
-              <div className="p-1 bg-orange-100 rounded flex-shrink-0">
-                <TrendingUp className="w-3.5 h-3.5 text-orange-600" />
               </div>
+            <div className="mt-6 h-72">
+              {sprintBreakdownData.length > 0 ? (
+                <ChartContainer
+                  config={sprintBreakdownData.reduce(
+                    (acc, sprint, index) => ({
+                      ...acc,
+                      [sprint.sprintId || `sprint-${index}`]: {
+                        label: sprint.sprintName,
+                        color: '#a855f7',
+                      },
+                    }),
+                    {}
+                  )}
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={sprintBreakdownData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                      <XAxis
+                        dataKey="sprintName"
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                      />
+                      <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                      />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="hours" radius={6} fill="#a855f7" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </ChartContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  No sprint data available.
+                                      </div>
+                                    )}
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Time Entries by Scrum Section */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between">
               <div>
-            <h2 className="text-xl font-semibold text-foreground">Time Entries by Project</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">View team performance across projects and users</p>
+                <h2 className="text-lg font-semibold text-foreground">Time by Work Type</h2>
+                <p className="text-sm text-muted-foreground">Distribution of logged hours</p>
               </div>
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-muted-foreground" />
-            <Select value={timeFilter} onValueChange={setTimeFilter}>
-              <SelectTrigger className="w-[120px] h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="this-week">This Week</SelectItem>
-                <SelectItem value="this-month">This Month</SelectItem>
-                <SelectItem value="all-time">All Time</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={userFilter} onValueChange={setUserFilter}>
-              <SelectTrigger className="w-[120px] h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Users</SelectItem>
-                {users.map(user => (
-                  <SelectItem key={user.id} value={user.id}>{user.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={projectFilter} onValueChange={setProjectFilter}>
-              <SelectTrigger className="w-[140px] h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Projects</SelectItem>
-                {projects.map(project => (
-                  <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            </div>
       </div>
-
-        {/* Grouped Time Entries - User → Project → Tasks */}
-        <div className="space-y-5">
-          {userSections.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>No time entries found. Please check your filters or add time entries.</p>
+            <div className="mt-6 h-72">
+              {workTypeBreakdownData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Pie
+                      data={workTypeBreakdownData}
+                      dataKey="hours"
+                      nameKey="category"
+                      innerRadius={60}
+                      outerRadius={90}
+                      paddingAngle={3}
+                    >
+                      {workTypeBreakdownData.map((item, index) => (
+                        <Cell
+                          key={item.category}
+                          fill={workTypeColorPalette[index % workTypeColorPalette.length]}
+                        />
+                      ))}
+                    </Pie>
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  No work type data available.
             </div>
-          ) : (
-            userSections
+              )}
+      </div>
+        </CardContent>
+      </Card>
+
+        <Card className="shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Time by Team Member</h2>
+                <p className="text-sm text-muted-foreground">Billable vs non-billable split</p>
+            </div>
+            </div>
+            <div className="mt-6 h-72">
+              {teamBreakdownData.length > 0 ? (
+                <ChartContainer
+                  config={{
+                    billableHours: {
+                      label: 'Billable',
+                      color: stackedBarColors.billable,
+                    },
+                    nonBillableHours: {
+                      label: 'Non-billable',
+                      color: stackedBarColors.nonBillable,
+                    },
+                  }}
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={teamBreakdownData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                      <XAxis
+                        dataKey="userName"
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                      />
+                      <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                      />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Legend />
+                      <Bar dataKey="billableHours" stackId="hours" radius={[6, 6, 0, 0]} fill={stackedBarColors.billable} />
+                      <Bar dataKey="nonBillableHours" stackId="hours" radius={0} fill={stackedBarColors.nonBillable} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </ChartContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  No team activity for the selected filters.
+          </div>
           )}
         </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Analytics Dialog */}

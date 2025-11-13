@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContextEnhanced';
 import LoginForm from './components/LoginForm';
 import { NavigationProvider, useNavigation } from './contexts/NavigationContext';
@@ -52,12 +52,16 @@ const ProtectedRoute: React.FC<{
   }
   
   // Check if user's role is in allowed roles
-  if (user && allowedRoles.includes(user.role)) {
-    return <>{children}</>;
+  if (user) {
+    const normalizedUserRole = (user.role || '').toLowerCase();
+    const normalizedAllowed = allowedRoles.map(r => (r || '').toLowerCase());
+    if (normalizedAllowed.includes(normalizedUserRole)) {
+      return <>{children}</>;
+    }
   }
   
   // If user doesn't have access, redirect to dashboard
-  return <Dashboard />;
+  return <Navigate to="/" replace state={{ from: location }} />;
 };
 
 const AppContent: React.FC = () => {
@@ -386,7 +390,7 @@ const AppContent: React.FC = () => {
 
           {/* Route Content - Uses remaining space */}
           <div className="flex-1 min-h-0 px-6 pb-6">
-                <PageTransition>
+            <PageTransition>
                   <Routes>
                     {/* Dashboard - accessible by all roles */}
                     <Route path="/" element={<Dashboard />} />
@@ -446,19 +450,10 @@ const AppContent: React.FC = () => {
                       </ProtectedRoute>
                     } />
                     
-                    {/* API Demo - accessible by all roles */}
-                    {/* <Route path="/api-demo" element={<ApiIntegrationDemo />} /> */}
-                    
-                    {/* API Status - accessible by all roles */}
-                    {/* <Route path="/api-status" element={<ApiStatusChecker />} /> */}
-                    
-                    {/* API Test - accessible by all roles */}
-                    {/* <Route path="/api-test" element={<ApiTestComponent />} /> */}
-                    
                     {/* Catch-all route for preview and other unmatched paths */}
                     <Route path="*" element={<Dashboard />} />
                   </Routes>
-                </PageTransition>
+            </PageTransition>
           </div>
         </main>
       </SidebarInset>
