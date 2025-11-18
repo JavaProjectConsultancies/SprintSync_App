@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
  * @author Mayuresh G
  */
 @Service
+@SuppressWarnings("null")
 public class ReportsService {
 
     @Autowired
@@ -606,3 +607,9 @@ public class ReportsService {
         return new HashMap<>();
     }
 }
+
+
+
+
+
+

@@ -24,6 +24,7 @@ import java.io.IOException;
  * @author Mayuresh G
  */
 @Component
+@SuppressWarnings("null")
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     
     private static final Logger logger = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
@@ -110,3 +111,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return null;
     }
 }
+
+
+
+

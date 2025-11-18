@@ -24,6 +24,8 @@ import java.util.Optional;
  */
 @Service
 @Transactional
+
+@SuppressWarnings("null")
 public class EpicService {
 
     private final EpicRepository epicRepository;
@@ -463,3 +465,9 @@ public class EpicService {
         return epicRepository.saveAll(epics);
     }
 }
+
+
+
+
+
+

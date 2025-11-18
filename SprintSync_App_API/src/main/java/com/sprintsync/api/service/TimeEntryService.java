@@ -24,6 +24,8 @@ import java.util.Optional;
  */
 @Service
 @Transactional
+
+@SuppressWarnings("null")
 public class TimeEntryService {
 
     private final TimeEntryRepository timeEntryRepository;
@@ -401,3 +403,9 @@ public class TimeEntryService {
                            totalEntries, totalHours, billableHours);
     }
 }
+
+
+
+
+
+

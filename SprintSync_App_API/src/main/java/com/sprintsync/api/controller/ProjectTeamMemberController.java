@@ -27,6 +27,8 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/project-team-members")
 @CrossOrigin(origins = "*")
+
+@SuppressWarnings("null")
 public class ProjectTeamMemberController {
 
     @Autowired
@@ -526,3 +528,7 @@ public class ProjectTeamMemberController {
         }
     }
 }
+
+
+
+

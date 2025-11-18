@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
  * @author Mayuresh G
  */
 @Service
+@SuppressWarnings("null")
 public class TaskService {
 
     @Autowired
@@ -514,3 +515,9 @@ public class TaskService {
         }
     }
 }
+
+
+
+
+
+

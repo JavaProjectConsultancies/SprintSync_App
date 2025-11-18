@@ -122,30 +122,68 @@ const Dashboard: React.FC = () => {
   const [selectedProjectForSprint, setSelectedProjectForSprint] = useState<string>('all');
   const [selectedProjectForTasks, setSelectedProjectForTasks] = useState<string>('all');
 
+  // Helper function to normalize paginated API responses
+  const normalizeApiData = (data: any): any[] => {
+    if (Array.isArray(data)) {
+      return data;
+    }
+    // Handle Spring Boot paginated response format
+    if (data?.content && Array.isArray(data.content)) {
+      return data.content;
+    }
+    // Handle nested data property
+    if (data?.data) {
+      return normalizeApiData(data.data);
+    }
+    return [];
+  };
+
   // Filter projects based on user permissions - optimized for performance
   const accessibleProjects = useMemo(() => {
     if (!user) return [];
-    const projectData = Array.isArray(apiProjects) ? apiProjects : [];
+    const projectData = normalizeApiData(apiProjects);
     
-    // Early return for managers/admins (they can access all projects)
-    const isManagerOrAdmin = user.role === 'admin' || user.role === 'manager' || user.role === 'qa';
-    if (isManagerOrAdmin) {
-      return projectData; // Return all projects immediately
+    // Admins can access all projects
+    if (user.role === 'admin') {
+      return projectData;
     }
     
-    // Filter only for non-managers
+    // Managers can only access projects they manage
+    if (user.role === 'manager') {
+      return projectData.filter(project => {
+        // Try multiple possible field names for managerId
+        const managerId = (project as any).managerId || (project as any).manager?.id || (project as any).manager_id;
+        // Compare as strings to handle any type mismatches
+        const managerIdStr = managerId ? String(managerId) : null;
+        const userIdStr = user.id ? String(user.id) : null;
+        return managerIdStr === userIdStr;
+      });
+    }
+    
+    // QA and regular users filter by canAccessProject
     return projectData.filter(project => canAccessProject(project.id));
   }, [user, canAccessProject, apiProjects]);
 
   // Filter projects for Recent Projects section - show only user's assigned projects
   const userAssignedProjects = useMemo(() => {
     if (!user) return [];
-    const projectData = Array.isArray(apiProjects) ? apiProjects : [];
+    const projectData = normalizeApiData(apiProjects);
     
-    // Managers/admins see all projects
-    const isManagerOrAdmin = user.role === 'admin' || user.role === 'manager' || user.role === 'qa';
-    if (isManagerOrAdmin) {
+    // Admins see all projects
+    if (user.role === 'admin') {
       return projectData;
+    }
+    
+    // Managers see only projects they manage
+    if (user.role === 'manager') {
+      return projectData.filter(project => {
+        // Try multiple possible field names for managerId
+        const managerId = (project as any).managerId || (project as any).manager?.id || (project as any).manager_id;
+        // Compare as strings to handle any type mismatches
+        const managerIdStr = managerId ? String(managerId) : null;
+        const userIdStr = user.id ? String(user.id) : null;
+        return managerIdStr === userIdStr;
+      });
     }
     
     // For regular users, filter projects where they are team members
@@ -169,11 +207,11 @@ const Dashboard: React.FC = () => {
     if (!user) return null;
     
     // Use cached projects immediately - don't wait for loading
-    const projects = Array.isArray(apiProjects) ? apiProjects : [];
-    const users = Array.isArray(apiUsers) ? apiUsers : [];
-    const allTasks = Array.isArray(apiTasks) ? apiTasks : [];
-    const allSprints = Array.isArray(apiSprints) ? apiSprints : [];
-    const allStories = Array.isArray(apiStories) ? apiStories : [];
+    const projects = normalizeApiData(apiProjects);
+    const users = normalizeApiData(apiUsers);
+    const allTasks = normalizeApiData(apiTasks);
+    const allSprints = normalizeApiData(apiSprints);
+    const allStories = normalizeApiData(apiStories);
     
     // Early validation - ensure we have tasks data
     if (allTasks.length === 0 && !tasksLoading) {
@@ -184,8 +222,39 @@ const Dashboard: React.FC = () => {
     const isManagerOrAdmin = user.role === 'admin' || user.role === 'manager' || user.role === 'qa';
     
     // Get user's project IDs first (needed for both sprint filtering and fallback)
-    const userProjectIdsForFiltering = isManagerOrAdmin 
-      ? new Set(projects.map(p => p.id))
+    // For managers: only projects where they are the manager
+    // For admins: all projects
+    // For regular users: projects where they are team members
+    const userProjectIdsForFiltering = user.role === 'admin'
+      ? new Set(projects.map(p => p.id))  // Admins see all projects
+      : user.role === 'manager'
+      ? new Set(
+          projects
+            .filter(project => {
+              // Managers only see projects where they are the manager
+              // Try multiple possible field names for managerId
+              const managerId = (project as any).managerId || (project as any).manager?.id || (project as any).manager_id || (project as any).managerId;
+              // Compare with user.id as string
+              const managerIdStr = managerId ? String(managerId) : null;
+              const userIdStr = user.id ? String(user.id) : null;
+              const matches = managerIdStr === userIdStr;
+              
+              if (!matches && user.role === 'manager') {
+                // Debug logging for manager project filtering
+                console.log('[Dashboard] Project manager mismatch:', {
+                  projectId: project.id,
+                  projectName: (project as any).name,
+                  managerId: managerId,
+                  managerIdStr,
+                  userIdStr,
+                  userId: user.id
+                });
+              }
+              
+              return matches;
+            })
+            .map(project => project.id)
+        )
       : new Set(
           projects
             .filter(project => {
@@ -201,15 +270,36 @@ const Dashboard: React.FC = () => {
             .map(project => project.id)
         );
     
+    // Debug logging for manager project filtering
+    if (user.role === 'manager') {
+      console.log('[Dashboard] Manager project filtering:', {
+        userId: user.id,
+        userRole: user.role,
+        totalProjects: projects.length,
+        managerProjects: userProjectIdsForFiltering.size,
+        managerProjectIds: Array.from(userProjectIdsForFiltering).slice(0, 5)
+      });
+    }
+    
     // Filter sprints based on user role - get sprints from user's accessible projects
+    // For managers: filter sprints from their projects
+    // For admins: show all sprints
+    // For regular users: only show sprints from projects they're assigned to
     let userSprints = allSprints;
-    if (!isManagerOrAdmin) {
+    if (user.role === 'manager') {
+      // For managers, only show sprints from projects they manage
+      userSprints = allSprints.filter(sprint => {
+        const sprintProjectId = (sprint as any).projectId || (sprint as any).project?.id;
+        return sprintProjectId && userProjectIdsForFiltering.has(sprintProjectId);
+      });
+    } else if (!isManagerOrAdmin) {
       // For regular users, only show sprints from projects they're assigned to
       userSprints = allSprints.filter(sprint => {
         const sprintProjectId = (sprint as any).projectId || (sprint as any).project?.id;
         return sprintProjectId && userProjectIdsForFiltering.has(sprintProjectId);
       });
     }
+    // For admins, keep all sprints (userSprints = allSprints)
     
     // Get sprint IDs from user's accessible sprints
     const userSprintIds = new Set(userSprints.map(sprint => sprint.id));
@@ -234,10 +324,35 @@ const Dashboard: React.FC = () => {
     // This is more reliable than filtering through sprints/stories
     let sprintTasks: any[] = [];
     
-    if (isManagerOrAdmin) {
-      // Managers/admins see all tasks
+    if (user.role === 'admin') {
+      // Admins: Show all tasks
       sprintTasks = allTasks.filter(task => {
         return task && task.id && typeof task.id === 'string';
+      });
+    } else if (user.role === 'manager') {
+      // Managers: Filter tasks by projects they manage
+      // Get tasks through stories from manager's projects
+      const beforeCount = allTasks.length;
+      sprintTasks = allTasks.filter(task => {
+        if (!task || !task.id) return false;
+        const taskStoryId = (task as any).storyId || (task as any).story?.id;
+        if (!taskStoryId) {
+          // If task doesn't have a storyId, we can't filter it - skip it for managers
+          return false;
+        }
+        // Check if the task's story belongs to a project the manager manages
+        const belongsToManagerProject = projectStoryIds.has(taskStoryId);
+        return belongsToManagerProject;
+      });
+      
+      console.log('[Dashboard] Manager task filtering result:', {
+        userId: user.id,
+        userRole: user.role,
+        beforeCount,
+        afterCount: sprintTasks.length,
+        projectStoryIdsCount: projectStoryIds.size,
+        filteredOut: beforeCount - sprintTasks.length,
+        managerProjectIds: Array.from(userProjectIdsForFiltering).slice(0, 5)
       });
     } else {
       // Regular users: Get tasks directly assigned to them
@@ -436,8 +551,9 @@ const Dashboard: React.FC = () => {
   }, [apiSprints, apiTasks]);
 
   const projectStatusData = useMemo(() => {
-    if (!Array.isArray(apiProjects)) return [];
-    return apiProjects.map(project => ({
+    const projects = normalizeApiData(apiProjects);
+    if (projects.length === 0) return [];
+    return projects.map(project => ({
       name: project.name,
       value: getProjectProgress(project)
     }));
@@ -773,12 +889,12 @@ const Dashboard: React.FC = () => {
           title={hasPermission('view_team') ? "View team allocation" : "Team members"}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Team Members</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
             <Users className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-purple-900">{metrics.teamMembers}</div>
-            <p className="text-xs text-purple-700">Active users</p>
+            <p className="text-xs text-purple-700">Total users</p>
             <Progress value={100} className="mt-2 h-1.5" />
           </CardContent>
         </Card>
@@ -1257,7 +1373,7 @@ const Dashboard: React.FC = () => {
               <span className="text-sm font-medium">Projects API</span>
               {projectsLoading && <span className="text-xs text-gray-500">Loading...</span>}
               {projectsError && <span className="text-xs text-red-500" title={projectsError.message}>Error: {(projectsError as any)?.status || 'Unknown'}</span>}
-              {apiProjects && <span className="text-xs text-green-600">{apiProjects.length} projects</span>}
+              {apiProjects && <span className="text-xs text-green-600">{normalizeApiData(apiProjects).length} projects</span>}
             </div>
           </CardContent>
         </Card>
@@ -1269,7 +1385,7 @@ const Dashboard: React.FC = () => {
               <span className="text-sm font-medium">Users API</span>
               {usersLoading && <span className="text-xs text-gray-500">Loading...</span>}
               {usersError && <span className="text-xs text-red-500" title={usersError.message}>Error: {(usersError as any)?.status || 'Unknown'}</span>}
-              {apiUsers && <span className="text-xs text-green-600">{apiUsers.length} users</span>}
+              {apiUsers && <span className="text-xs text-green-600">{normalizeApiData(apiUsers).length} users</span>}
             </div>
           </CardContent>
         </Card>
@@ -1281,7 +1397,7 @@ const Dashboard: React.FC = () => {
               <span className="text-sm font-medium">Departments API</span>
               {departmentsLoading && <span className="text-xs text-gray-500">Loading...</span>}
               {departmentsError && <span className="text-xs text-red-500" title={departmentsError.message}>Error: {(departmentsError as any)?.status || 'Unknown'}</span>}
-              {apiDepartments && <span className="text-xs text-green-600">{apiDepartments.length} departments</span>}
+              {apiDepartments && <span className="text-xs text-green-600">{normalizeApiData(apiDepartments).length} departments</span>}
             </div>
           </CardContent>
         </Card>
@@ -1293,7 +1409,7 @@ const Dashboard: React.FC = () => {
               <span className="text-sm font-medium">Domains API</span>
               {domainsLoading && <span className="text-xs text-gray-500">Loading...</span>}
               {domainsError && <span className="text-xs text-red-500" title={domainsError.message}>Error: {(domainsError as any)?.status || 'Unknown'}</span>}
-              {apiDomains && <span className="text-xs text-green-600">{apiDomains.length} domains</span>}
+              {apiDomains && <span className="text-xs text-green-600">{normalizeApiData(apiDomains).length} domains</span>}
             </div>
           </CardContent>
         </Card>
@@ -1305,7 +1421,7 @@ const Dashboard: React.FC = () => {
               <span className="text-sm font-medium">Epics API</span>
               {epicsLoading && <span className="text-xs text-gray-500">Loading...</span>}
               {epicsError && <span className="text-xs text-red-500" title={epicsError.message}>Error: {epicsError.status}</span>}
-              {apiEpics && <span className="text-xs text-green-600">{apiEpics.length} epics</span>}
+              {apiEpics && <span className="text-xs text-green-600">{normalizeApiData(apiEpics).length} epics</span>}
             </div>
           </CardContent>
         </Card>
@@ -1317,7 +1433,7 @@ const Dashboard: React.FC = () => {
               <span className="text-sm font-medium">Releases API</span>
               {releasesLoading && <span className="text-xs text-gray-500">Loading...</span>}
               {releasesError && <span className="text-xs text-red-500" title={releasesError.message}>Error: {releasesError.status}</span>}
-              {apiReleases && <span className="text-xs text-green-600">{apiReleases.length} releases</span>}
+              {apiReleases && <span className="text-xs text-green-600">{normalizeApiData(apiReleases).length} releases</span>}
             </div>
           </CardContent>
         </Card>
@@ -1329,7 +1445,7 @@ const Dashboard: React.FC = () => {
               <span className="text-sm font-medium">Sprints API</span>
               {sprintsLoading && <span className="text-xs text-gray-500">Loading...</span>}
               {sprintsError && <span className="text-xs text-red-500" title={sprintsError.message}>Error: {sprintsError.status}</span>}
-              {apiSprints && <span className="text-xs text-green-600">{apiSprints.length} sprints</span>}
+              {apiSprints && <span className="text-xs text-green-600">{normalizeApiData(apiSprints).length} sprints</span>}
             </div>
           </CardContent>
         </Card>
@@ -1341,7 +1457,7 @@ const Dashboard: React.FC = () => {
               <span className="text-sm font-medium">Stories API</span>
               {storiesLoading && <span className="text-xs text-gray-500">Loading...</span>}
               {storiesError && <span className="text-xs text-red-500" title={storiesError.message}>Error: {storiesError.status}</span>}
-              {apiStories && <span className="text-xs text-green-600">{apiStories.length} stories</span>}
+              {apiStories && <span className="text-xs text-green-600">{normalizeApiData(apiStories).length} stories</span>}
             </div>
           </CardContent>
         </Card>
@@ -1353,7 +1469,7 @@ const Dashboard: React.FC = () => {
               <span className="text-sm font-medium">Tasks API</span>
               {tasksLoading && <span className="text-xs text-gray-500">Loading...</span>}
               {tasksError && <span className="text-xs text-red-500" title={tasksError.message}>Error: {tasksError.status}</span>}
-              {apiTasks && <span className="text-xs text-green-600">{apiTasks.length} tasks</span>}
+              {apiTasks && <span className="text-xs text-green-600">{normalizeApiData(apiTasks).length} tasks</span>}
             </div>
           </CardContent>
         </Card>
@@ -1363,7 +1479,7 @@ const Dashboard: React.FC = () => {
             <div className="flex items-center space-x-2">
               <div className={`w-3 h-3 rounded-full ${(projectsLoading || usersLoading || departmentsLoading || domainsLoading || epicsLoading || releasesLoading || sprintsLoading || storiesLoading || tasksLoading) ? 'bg-yellow-500 animate-pulse' : (projectsError || usersError || departmentsError || domainsError || epicsError || releasesError || sprintsError || storiesError || tasksError) ? 'bg-red-500' : 'bg-green-500'}`}></div>
               <span className="text-sm font-medium">Data Source</span>
-              {apiProjects && apiProjects.length > 0 ? (
+              {apiProjects && normalizeApiData(apiProjects).length > 0 ? (
                 <span className="text-xs text-green-600">Live API Data</span>
               ) : (
                 <span className="text-xs text-gray-500">Mock Data</span>

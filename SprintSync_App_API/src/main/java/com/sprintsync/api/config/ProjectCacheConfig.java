@@ -18,6 +18,7 @@ import java.time.Duration;
  */
 @Configuration
 @EnableCaching
+@SuppressWarnings("null")
 public class ProjectCacheConfig {
 
     @Bean
@@ -49,4 +50,8 @@ public class ProjectCacheConfig {
         return cacheManager;
     }
 }
+
+
+
+
 

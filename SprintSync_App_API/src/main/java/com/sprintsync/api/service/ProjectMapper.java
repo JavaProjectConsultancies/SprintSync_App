@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
  * Service for mapping between Project entity and ProjectDto
  */
 @Service
+@SuppressWarnings("null")
 public class ProjectMapper {
 
     private static final Logger logger = LoggerFactory.getLogger(ProjectMapper.class);
@@ -718,3 +719,9 @@ public class ProjectMapper {
     }
 
 }
+
+
+
+
+
+

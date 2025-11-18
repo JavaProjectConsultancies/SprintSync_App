@@ -32,6 +32,7 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/auth")
 @CrossOrigin(origins = "*", allowedHeaders = "*")
+
 public class AuthController {
     
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
@@ -423,3 +424,7 @@ public class AuthController {
         return null;
     }
 }
+
+
+
+

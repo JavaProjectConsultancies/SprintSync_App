@@ -22,6 +22,8 @@ import java.util.Optional;
  */
 @Service
 @Transactional
+
+@SuppressWarnings("null")
 public class QualityGateService {
 
     private final QualityGateRepository qualityGateRepository;
@@ -391,3 +393,9 @@ public class QualityGateService {
         return stats;
     }
 }
+
+
+
+
+
+

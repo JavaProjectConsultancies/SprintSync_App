@@ -42,6 +42,8 @@ import java.util.Optional;
  */
 @Service
 @Transactional
+
+@SuppressWarnings("null")
 public class ProjectService {
 
     private final ProjectRepository projectRepository;
@@ -539,3 +541,8 @@ public class ProjectService {
         return projectRepository.findProjectsEndingBetween(startDate, endDate);
     }
 }
+
+
+
+
+

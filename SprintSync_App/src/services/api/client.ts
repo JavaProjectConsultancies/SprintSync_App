@@ -387,11 +387,11 @@ class ApiClient {
     return this.request<T>(endpoint, { method: 'GET' }, params);
   }
 
-  async post<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
+  async post<T>(endpoint: string, data?: any, params?: Record<string, any>): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
-    });
+    }, params);
   }
 
   async put<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
@@ -401,11 +401,11 @@ class ApiClient {
     });
   }
 
-  async patch<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
+  async patch<T>(endpoint: string, data?: any, params?: Record<string, any>): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'PATCH',
       body: data ? JSON.stringify(data) : undefined,
-    });
+    }, params);
   }
 
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {

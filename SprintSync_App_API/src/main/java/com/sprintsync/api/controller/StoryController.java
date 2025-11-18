@@ -364,4 +364,30 @@ public class StoryController {
         String stats = storyService.getSprintStatistics(sprintId);
         return ResponseEntity.ok(stats);
     }
+
+    /**
+     * Create a new story from a previous sprint story with new ID and copy only overdue, in-progress, and incomplete tasks.
+     * 
+     * @param sourceStoryId the source story ID to duplicate (from previous sprint)
+     * @param targetSprintId the target sprint ID to assign the new story to
+     * @param userId the user ID performing the action (for activity logging)
+     * @return ResponseEntity containing the newly created story
+     */
+    @PostMapping("/from-sprint")
+    public ResponseEntity<Story> createStoryFromPreviousSprint(
+            @RequestParam String sourceStoryId,
+            @RequestParam String targetSprintId,
+            @RequestParam String userId) {
+        try {
+            Story createdStory = storyService.createStoryFromPreviousSprint(sourceStoryId, targetSprintId, userId);
+            return ResponseEntity.status(HttpStatus.CREATED).body(createdStory);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
 }
+
+
+

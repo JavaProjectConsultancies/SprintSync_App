@@ -23,6 +23,7 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/domains")
 @CrossOrigin(origins = "*")
+
 public class DomainController {
 
     private final DomainService domainService;
@@ -188,3 +189,7 @@ public class DomainController {
         return ResponseEntity.ok(stats);
     }
 }
+
+
+
+

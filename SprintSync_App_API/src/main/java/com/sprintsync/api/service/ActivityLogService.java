@@ -19,6 +19,7 @@ import java.util.Map;
  * @author SprintSync Team
  */
 @Service
+@SuppressWarnings("null")
 public class ActivityLogService {
 
     @Autowired
@@ -209,4 +210,8 @@ public class ActivityLogService {
         activityLogRepository.deleteOldLogs(before);
     }
 }
+
+
+
+
 

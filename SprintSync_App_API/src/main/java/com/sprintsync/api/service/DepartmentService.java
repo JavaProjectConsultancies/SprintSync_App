@@ -18,6 +18,7 @@ import java.util.Optional;
  * @author Mayuresh G
  */
 @Service
+@SuppressWarnings("null")
 public class DepartmentService {
 
     private final DepartmentRepository departmentRepository;
@@ -215,3 +216,9 @@ public class DepartmentService {
     //     return departmentRepository.countByIsActive(isActive);
     // }
 }
+
+
+
+
+
+

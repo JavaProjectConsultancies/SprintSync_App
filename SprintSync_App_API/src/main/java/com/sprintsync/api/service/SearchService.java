@@ -875,3 +875,6 @@ public class SearchService {
         searchHistory.put(userId, new ArrayList<>());
     }
 }
+
+
+

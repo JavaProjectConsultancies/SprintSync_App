@@ -29,6 +29,9 @@ public class Story extends BaseEntity {
     @Column(name = "sprint_id")
     private String sprintId;
 
+    @Column(name = "parent_id")
+    private String parentId;
+
     @Column(name = "epic_id")
     private String epicId;
 
@@ -78,6 +81,15 @@ public class Story extends BaseEntity {
     @Column(name = "actual_hours", precision = 5, scale = 2)
     private BigDecimal actualHours = BigDecimal.ZERO;
 
+    // Transient field to hold parent story details for API response
+    @Transient
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private Story parentStory;
+
+    // Transient field to hold parent story title for API response
+    @Transient
+    private String parentStoryTitle;
+
     // Constructors
     public Story() {}
 
@@ -104,6 +116,14 @@ public class Story extends BaseEntity {
 
     public void setSprintId(String sprintId) {
         this.sprintId = sprintId;
+    }
+
+    public String getParentId() {
+        return parentId;
+    }
+
+    public void setParentId(String parentId) {
+        this.parentId = parentId;
     }
 
     public String getEpicId() {
@@ -216,5 +236,24 @@ public class Story extends BaseEntity {
 
     public void setActualHours(BigDecimal actualHours) {
         this.actualHours = actualHours;
+    }
+
+    public Story getParentStory() {
+        return parentStory;
+    }
+
+    public void setParentStory(Story parentStory) {
+        this.parentStory = parentStory;
+        if (parentStory != null) {
+            this.parentStoryTitle = parentStory.getTitle();
+        }
+    }
+
+    public String getParentStoryTitle() {
+        return parentStoryTitle;
+    }
+
+    public void setParentStoryTitle(String parentStoryTitle) {
+        this.parentStoryTitle = parentStoryTitle;
     }
 }

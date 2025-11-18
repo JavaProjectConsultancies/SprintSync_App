@@ -22,6 +22,7 @@ import java.util.UUID;
  * @author SprintSync Team
  */
 @Service
+@SuppressWarnings("null")
 public class BoardService {
 
     private static final Logger logger = LoggerFactory.getLogger(BoardService.class);
@@ -221,4 +222,10 @@ public class BoardService {
         return boardRepository.findAll();
     }
 }
+
+
+
+
+
+
 

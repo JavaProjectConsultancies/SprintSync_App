@@ -137,6 +137,7 @@ CREATE TABLE stories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
     sprint_id UUID REFERENCES sprints(id) ON DELETE SET NULL,
+    parent_id UUID REFERENCES stories(id) ON DELETE SET NULL,
     title VARCHAR(255) NOT NULL,
     description TEXT,
     acceptance_criteria JSONB DEFAULT '[]',
@@ -525,6 +526,7 @@ CREATE INDEX idx_sprints_active ON sprints(is_active);
 -- Story indexes
 CREATE INDEX idx_stories_project ON stories(project_id);
 CREATE INDEX idx_stories_sprint ON stories(sprint_id);
+CREATE INDEX idx_stories_parent ON stories(parent_id);
 CREATE INDEX idx_stories_status ON stories(status);
 CREATE INDEX idx_stories_assignee ON stories(assignee_id);
 

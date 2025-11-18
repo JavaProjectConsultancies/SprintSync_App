@@ -123,6 +123,8 @@ export interface Story extends BaseEntity {
   projectId: string;
   epicId?: string;
   sprintId?: string;
+  parentId?: string;
+  parentStoryTitle?: string; // Parent story title populated by backend
   releaseId?: string;
   assigneeId?: string;
   reporterId?: string;
@@ -153,6 +155,7 @@ export interface Task extends BaseEntity {
   taskNumber?: number;
   dueDate?: string;
   labels?: string[];
+  isPulledFromBacklog?: boolean;
 }
 
 export type TaskStatus = 'TO_DO' | 'IN_PROGRESS' | 'QA_REVIEW' | 'DONE' | 'BLOCKED' | 'CANCELLED';

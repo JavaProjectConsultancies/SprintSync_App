@@ -17,6 +17,7 @@ const sanitizeStoryData = (story: any) => {
     epicId: story.epicId || null,
     releaseId: story.releaseId || null,
     sprintId: story.sprintId || null,
+    parentId: story.parentId || null,
     assigneeId: story.assigneeId || null,
     reporterId: story.reporterId || null,
     labels: (story.labels && story.labels.length > 0) ? story.labels : null,
@@ -107,5 +108,13 @@ export const storyApiService = {
 
   // Sprint assignment
   moveStoryToSprint: (id: string, sprintId: string) => 
-    apiClient.patch<Story>(`${BASE_URL}/${id}/sprint`, { sprintId }),
+    apiClient.patch<Story>(`${BASE_URL}/${id}/move-to-sprint`, null, { sprintId }),
+
+  // Create story from previous sprint (duplicates with new ID and copies tasks)
+  createStoryFromPreviousSprint: (sourceStoryId: string, targetSprintId: string, userId: string) =>
+    apiClient.post<Story>(`${BASE_URL}/from-sprint`, null, {
+      sourceStoryId,
+      targetSprintId,
+      userId
+    }),
 };
