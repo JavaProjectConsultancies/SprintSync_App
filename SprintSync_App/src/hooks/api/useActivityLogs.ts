@@ -19,9 +19,35 @@ export const useActivityLogsByEntity = (entityType: string, entityId: string) =>
     try {
       setLoading(true);
       setError(null);
+      
+      console.log(`Fetching activity logs: entityType="${entityType}", entityId="${entityId}"`);
       const response = await activityLogApiService.getActivityLogsByEntity(entityType, entityId);
-      setActivityLogs(response.data || []);
+      console.log('Activity logs API response:', response);
+      
+      // Handle response - API client returns { data, status, success, message }
+      let logs: ActivityLog[] = [];
+      
+      if (response && response.data !== undefined) {
+        if (Array.isArray(response.data)) {
+          logs = response.data;
+        } else if (response.data && typeof response.data === 'object') {
+          // Check for nested structures
+          if (Array.isArray(response.data.data)) {
+            logs = response.data.data;
+          } else if (Array.isArray(response.data.content)) {
+            logs = response.data.content;
+          } else if (Array.isArray(response.data.items)) {
+            logs = response.data.items;
+          }
+        }
+      } else if (Array.isArray(response)) {
+        logs = response;
+      }
+      
+      console.log(`Parsed ${logs.length} activity logs`);
+      setActivityLogs(Array.isArray(logs) ? logs : []);
     } catch (err: any) {
+      console.error('Error fetching activity logs:', err);
       setError(err);
       setActivityLogs([]);
     } finally {
@@ -80,6 +106,7 @@ export const useRecentActivityByEntity = (entityType: string, entityId: string, 
 
   const fetchRecentActivity = useCallback(async () => {
     if (!entityType || !entityId) {
+      console.log('useRecentActivityByEntity: Missing entityType or entityId', { entityType, entityId });
       setActivityLogs([]);
       return;
     }
@@ -87,9 +114,34 @@ export const useRecentActivityByEntity = (entityType: string, entityId: string, 
     try {
       setLoading(true);
       setError(null);
+      console.log(`useRecentActivityByEntity: Fetching recent activity for entityType="${entityType}", entityId="${entityId}", days=${days}`);
       const response = await activityLogApiService.getRecentActivityByEntity(entityType, entityId, days);
-      setActivityLogs(response.data || []);
+      console.log('useRecentActivityByEntity: API response:', response);
+      
+      // Handle response - API client returns { data, status, success, message }
+      let logs: ActivityLog[] = [];
+      
+      if (response && response.data !== undefined) {
+        if (Array.isArray(response.data)) {
+          logs = response.data;
+        } else if (response.data && typeof response.data === 'object') {
+          // Check for nested structures
+          if (Array.isArray(response.data.data)) {
+            logs = response.data.data;
+          } else if (Array.isArray(response.data.content)) {
+            logs = response.data.content;
+          } else if (Array.isArray(response.data.items)) {
+            logs = response.data.items;
+          }
+        }
+      } else if (Array.isArray(response)) {
+        logs = response;
+      }
+      
+      console.log(`useRecentActivityByEntity: Parsed ${logs.length} activity logs`);
+      setActivityLogs(logs);
     } catch (err: any) {
+      console.error('useRecentActivityByEntity: Error fetching recent activity:', err);
       setError(err);
       setActivityLogs([]);
     } finally {

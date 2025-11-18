@@ -282,13 +282,14 @@ class ApiClient {
         ...requestOptions.headers,
       };
 
-      // Debug logging for API calls
-      console.log('API Request:', {
-        url,
-        method,
-        headers,
-        authorizationHeader: headers['Authorization'] || headers['authorization'],
-      });
+      // Debug logging for API calls (only in development)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('API Request:', {
+          url,
+          method,
+          authorizationHeader: headers['Authorization'] || headers['authorization'],
+        });
+      }
 
       // Create request with timeout
       const controller = new AbortController();

@@ -15,6 +15,7 @@ import { useProjects } from '../hooks/api/useProjects';
 import { useStories } from '../hooks/api/useStories';
 import { useTasks } from '../hooks/api/useTasks';
 import { useSprints } from '../hooks/api/useSprints';
+import { useTeamMembers } from '../hooks/api/useTeamMembers';
 import { TimeEntry as ApiTimeEntry, User, Project, Story, Task, Sprint } from '../types/api';
 import { useAuth } from '../contexts/AuthContextEnhanced';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -345,6 +346,15 @@ const TimeTrackingPage: React.FC = () => {
   const [additionalSprints, setAdditionalSprints] = useState<Sprint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Fetch team members for selected project
+  const projectTeamMembersResult = useTeamMembers(projectFilter !== 'all' ? projectFilter : undefined);
+  const projectTeamMembers = useMemo(() => {
+    if (projectFilter === 'all') {
+      return []; // No project selected, return empty array
+    }
+    return Array.isArray(projectTeamMembersResult.teamMembers) ? projectTeamMembersResult.teamMembers : [];
+  }, [projectFilter, projectTeamMembersResult.teamMembers]);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [expandedUsers, setExpandedUsers] = useState<Record<string, boolean>>({});
@@ -544,6 +554,7 @@ const TimeTrackingPage: React.FC = () => {
   // Fetch all stories and tasks using getAll methods
   const [allStories, setAllStories] = useState<Story[]>([]);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
+  const [allSubtasks, setAllSubtasks] = useState<any[]>([]);
   const [additionalProjects, setAdditionalProjects] = useState<Project[]>([]);
   const [userTasksMap, setUserTasksMap] = useState<Map<string, Task[]>>(new Map());
   
@@ -552,6 +563,7 @@ const TimeTrackingPage: React.FC = () => {
       try {
         const { storyApiService } = await import('../services/api/entities/storyApi');
         const { taskApiService } = await import('../services/api/entities/taskApi');
+        const { subtaskApiService } = await import('../services/api/entities/subtaskApi');
         
         // Fetch all stories
         const storiesResponse = await storyApiService.getAllStories();
@@ -587,15 +599,42 @@ const TimeTrackingPage: React.FC = () => {
         
         setAllTasks(prev => mergeById(prev, tasksData));
         
+        // Fetch all subtasks to create subtaskId -> taskId mapping
+        let subtasksData: any[] = [];
+        try {
+          const subtasksResponse = await subtaskApiService.getAllSubtasks();
+          subtasksData = Array.isArray(subtasksResponse.data) ? subtasksResponse.data : [];
+        } catch (err: any) {
+          // If /all fails, try regular endpoint
+          if (err?.status === 404 || err?.code === 'HTTP_404') {
+            try {
+              const subtasksResponse = await subtaskApiService.getSubtasks({ page: 0, size: 1000 });
+              const data = subtasksResponse.data as any;
+              if (Array.isArray(data)) {
+                subtasksData = data;
+              } else if (data?.content && Array.isArray(data.content)) {
+                subtasksData = data.content;
+              } else if (data?.data && Array.isArray(data.data)) {
+                subtasksData = data.data;
+              }
+            } catch (err2) {
+              console.error('Error fetching subtasks from regular endpoint:', err2);
+            }
+          }
+        }
+        
+        setAllSubtasks(prev => mergeById(prev, subtasksData));
+        
         console.log('Fetched all stories:', storiesData.length);
         console.log('Fetched all tasks:', tasksData.length);
+        console.log('Fetched all subtasks:', subtasksData.length);
         console.log('Tasks by assignee:', tasksData.reduce((acc, task) => {
           const assigneeId = task.assigneeId || 'unassigned';
           acc[assigneeId] = (acc[assigneeId] || 0) + 1;
           return acc;
         }, {} as Record<string, number>));
       } catch (err) {
-        console.error('Error fetching stories/tasks:', err);
+        console.error('Error fetching stories/tasks/subtasks:', err);
       }
     };
     fetchStoriesAndTasks();
@@ -812,17 +851,6 @@ const TimeTrackingPage: React.FC = () => {
 
     const normalizedCurrentUserId = currentUser?.id ? normalizeId(currentUser.id) : undefined;
 
-    const projectsFromEntries = new Set<string>();
-
-    if (normalizedCurrentUserId) {
-      timeEntries.forEach(entry => {
-        const entryProjectId = normalizeId(entry.projectId);
-        if (entryProjectId) {
-          projectsFromEntries.add(entryProjectId);
-        }
-      });
-    }
-
     if (!isManagerOrAdmin && normalizedCurrentUserId) {
       return merged.filter(project => {
         if (!project) return false;
@@ -859,16 +887,12 @@ const TimeTrackingPage: React.FC = () => {
           });
         }
 
-        if (projectIdNormalized && projectsFromEntries.has(projectIdNormalized)) {
-          return true;
-        }
-
         return false;
       });
     }
 
     return merged;
-  }, [projectsResult.data, additionalProjects, currentUser, timeEntries]);
+  }, [projectsResult.data, additionalProjects, currentUser]);
 
   const stories = useMemo(() => {
     const data = storiesResult.data;
@@ -956,6 +980,21 @@ const TimeTrackingPage: React.FC = () => {
     }
     return map;
   }, [tasks, allTasks]);
+
+  // Create subtaskId -> taskId mapping
+  const subtaskToTaskMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (Array.isArray(allSubtasks)) {
+      allSubtasks.forEach(subtask => {
+        const subtaskId = normalizeId(subtask.id);
+        const taskId = normalizeId(subtask.taskId);
+        if (subtaskId && taskId) {
+          map.set(subtaskId, taskId);
+        }
+      });
+    }
+    return map;
+  }, [allSubtasks]);
 
   const sprintsMap = useMemo(() => {
     const map = new Map<string, Sprint>();
@@ -1348,9 +1387,10 @@ const TimeTrackingPage: React.FC = () => {
     ensureRelatedEntities();
   }, [rawTimeEntries, allTasks, allStories, additionalProjects, projectsResult.data, additionalSprints, sprintsResult.data]);
 
-  // Map API entries to UI format
+  // Map API entries to UI format and aggregate subtask time into parent tasks
   useEffect(() => {
     if (rawTimeEntries.length === 0) {
+      setTimeEntries([]);
       return;
     }
 
@@ -1368,11 +1408,22 @@ const TimeTrackingPage: React.FC = () => {
       ? rawTimeEntries.filter(entry => normalizeId(entry.userId) === normalizeId(currentUser.id))
       : rawTimeEntries;
     
-    const mappedEntries: TimeEntry[] = entriesToMap.map((entry) => {
+    // First, map all entries and resolve subtask entries to their parent tasks
+    const processedEntries = entriesToMap.map((entry) => {
         const normalizedEntryId = normalizeId(entry.id) || String(entry.id);
         const normalizedUserId = normalizeId(entry.userId);
         const user = normalizedUserId ? usersMap.get(normalizedUserId) : undefined;
-        const entryTaskId = normalizeId(entry.taskId);
+        
+        // Check if entry is for a subtask and resolve to parent task
+        const entrySubtaskId = normalizeId((entry as any).subtaskId);
+        let resolvedTaskId = normalizeId(entry.taskId);
+        
+        // If entry has subtaskId, find the parent taskId
+        if (entrySubtaskId && !resolvedTaskId) {
+          resolvedTaskId = subtaskToTaskMap.get(entrySubtaskId);
+        }
+        
+        const entryTaskId = resolvedTaskId;
         const task = entryTaskId ? tasksMap.get(entryTaskId) : null;
         const assigneeId = task?.assigneeId ? normalizeId(task.assigneeId) : undefined;
         const assigneeUser = assigneeId ? usersMap.get(assigneeId) : undefined;
@@ -1472,8 +1523,53 @@ const TimeTrackingPage: React.FC = () => {
         };
       });
 
-    setTimeEntries(mappedEntries);
-  }, [rawTimeEntries, usersMap, projectsMap, storiesMap, tasksMap]);
+    // Filter out entries without valid taskId (orphaned subtask entries that couldn't be resolved)
+    const validEntries = processedEntries.filter(entry => entry.taskId);
+    
+    // Group entries by taskId and aggregate hours
+    const taskEntryMap = new Map<string, TimeEntry[]>();
+    validEntries.forEach(entry => {
+      const taskId = entry.taskId!;
+      if (!taskEntryMap.has(taskId)) {
+        taskEntryMap.set(taskId, []);
+      }
+      taskEntryMap.get(taskId)!.push(entry);
+    });
+
+    // Aggregate entries by task
+    const aggregatedEntries: TimeEntry[] = Array.from(taskEntryMap.entries()).map(([taskId, entries]) => {
+      // Use the first entry as the base
+      const baseEntry = entries[0];
+      
+      // Aggregate hours from all entries (task + subtasks)
+      const totalHours = entries.reduce((sum, entry) => sum + (entry.hoursWorked || 0), 0);
+      const totalHoursRounded = Math.round(totalHours * 100) / 100;
+      const hours = Math.floor(totalHoursRounded);
+      const minutes = Math.round((totalHoursRounded - hours) * 60);
+      const aggregatedTimeSpent = `${hours}h ${minutes}m`;
+      
+      // Combine descriptions (if multiple entries)
+      const descriptions = entries
+        .map(e => e.description || e.notes)
+        .filter(Boolean)
+        .filter((v, i, a) => a.indexOf(v) === i); // Remove duplicates
+      const combinedDescription = descriptions.length > 0 
+        ? (descriptions.length === 1 ? descriptions[0] : descriptions.join('; '))
+        : baseEntry.description;
+
+      return {
+        ...baseEntry,
+        id: `${taskId}-aggregated`,
+        hoursWorked: totalHoursRounded,
+        timeSpent: aggregatedTimeSpent,
+        duration: aggregatedTimeSpent,
+        description: combinedDescription,
+        notes: combinedDescription
+      };
+    });
+
+    setTimeEntries(aggregatedEntries);
+  }, [rawTimeEntries, usersMap, projectsMap, storiesMap, tasksMap, sprintsMap, projectToSprintMap, subtaskToTaskMap, currentUser]);
 
   // Parse time string to minutes
   const parseTime = (timeStr: string): number => {
@@ -1691,7 +1787,19 @@ const TimeTrackingPage: React.FC = () => {
     const averageDailyMinutes = uniqueDates > 0 ? Math.round(totalMinutes / uniqueDates) : 0;
     const billablePercentage = totalMinutes > 0 ? Math.round((billableMinutes / totalMinutes) * 100) : 0;
 
-    const resolvedActiveMemberCount = activeUserCount > 0 ? activeUserCount : uniqueUsers;
+    // Calculate team members count based on project filter
+    // If a project is selected, use project team members count; otherwise use active users or unique users
+    let resolvedActiveMemberCount: number;
+    if (projectFilter !== 'all' && projectTeamMembers.length > 0) {
+      // Use project-specific team members count
+      resolvedActiveMemberCount = projectTeamMembers.length;
+    } else if (projectFilter !== 'all') {
+      // Project selected but team members not loaded yet, use unique users from filtered entries
+      resolvedActiveMemberCount = uniqueUsers;
+    } else {
+      // No project filter, use active users count or unique users
+      resolvedActiveMemberCount = activeUserCount > 0 ? activeUserCount : uniqueUsers;
+    }
     
     const formatTime = (minutes: number) => {
       const hours = Math.floor(minutes / 60);
@@ -1714,7 +1822,7 @@ const TimeTrackingPage: React.FC = () => {
       uniqueDates,
       averageDailyMinutes
     };
-  }, [filteredTimeEntries, activeUserCount, currentUser, userTasksMap, allTasks, timeEntries]);
+  }, [filteredTimeEntries, activeUserCount, currentUser, userTasksMap, allTasks, timeEntries, projectFilter, projectTeamMembers]);
 
   const dailyTrendData = useMemo(() => {
     const map = new Map<string, number>();
