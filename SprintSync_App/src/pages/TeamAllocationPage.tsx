@@ -1261,10 +1261,10 @@ const TeamAllocationPage: React.FC = () => {
 
       {/* Team Allocation Tabs */}
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="overview">Team Overview</TabsTrigger>
           <TabsTrigger value="projects">Project Allocation</TabsTrigger>
-          <TabsTrigger value="capacity">Capacity Utilisation</TabsTrigger>
+          {/* Capacity Utilisation tab hidden for everyone */}
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4 mt-6">
@@ -1543,104 +1543,107 @@ const TeamAllocationPage: React.FC = () => {
           </div>
         </TabsContent>
 
-        <TabsContent value="capacity" className="space-y-4 mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Capacity Utilisation - Next 2 Weeks</CardTitle>
-              <CardDescription>Plan team allocation for upcoming sprints across all departments</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {filteredMembers.map((member) => (
-                  <div key={member.id} className="space-y-3 p-4 border rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={member.avatar} alt={member.name} />
-                          <AvatarFallback className="bg-gradient-to-br from-green-100 to-cyan-100 text-green-800">
-                            {getInitials(member.name)}
-                          </AvatarFallback>
-                        </Avatar>
+        {/* Capacity Utilisation section hidden for everyone */}
+        {false && (
+          <TabsContent value="capacity" className="space-y-4 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Capacity Utilisation - Next 2 Weeks</CardTitle>
+                <CardDescription>Plan team allocation for upcoming sprints across all departments</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {filteredMembers.map((member) => (
+                    <div key={member.id} className="space-y-3 p-4 border rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={member.avatar} alt={member.name} />
+                            <AvatarFallback className="bg-gradient-to-br from-green-100 to-cyan-100 text-green-800">
+                              {getInitials(member.name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">{member.name}</p>
+                            <p className="text-sm text-muted-foreground">{member.domain} • {member.department}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Badge variant="outline" className={getStatusColor(member.status)}>
+                            {member.status}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {member.role as string}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="text-center">
+                          <p className="text-sm text-muted-foreground">This Week</p>
+                          <div className="space-y-1">
+                            <p className="font-medium">{member.availability.thisWeek}h</p>
+                            <Progress value={(member.availability.thisWeek / member.capacity) * 100} className="h-2" />
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm text-muted-foreground">Next Week</p>
+                          <div className="space-y-1">
+                            <p className="font-medium">{member.availability.nextWeek}h</p>
+                            <Progress value={(member.availability.nextWeek / member.capacity) * 100} className="h-2" />
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm text-muted-foreground">Week +2</p>
+                          <div className="space-y-1">
+                            <p className="font-medium">{member.availability.nextTwoWeeks}h</p>
+                            <Progress value={(member.availability.nextTwoWeeks / member.capacity) * 100} className="h-2" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* CTC, Hourly Rate and Skills Info */}
+                      <div className="grid grid-cols-2 gap-4 pt-3 border-t">
                         <div>
-                          <p className="font-medium">{member.name}</p>
-                          <p className="text-sm text-muted-foreground">{member.domain} • {member.department}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant="outline" className={getStatusColor(member.status)}>
-                          {member.status}
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          {member.role as string}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="text-center">
-                        <p className="text-sm text-muted-foreground">This Week</p>
-                        <div className="space-y-1">
-                          <p className="font-medium">{member.availability.thisWeek}h</p>
-                          <Progress value={(member.availability.thisWeek / member.capacity) * 100} className="h-2" />
-                        </div>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm text-muted-foreground">Next Week</p>
-                        <div className="space-y-1">
-                          <p className="font-medium">{member.availability.nextWeek}h</p>
-                          <Progress value={(member.availability.nextWeek / member.capacity) * 100} className="h-2" />
-                        </div>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm text-muted-foreground">Week +2</p>
-                        <div className="space-y-1">
-                          <p className="font-medium">{member.availability.nextTwoWeeks}h</p>
-                          <Progress value={(member.availability.nextTwoWeeks / member.capacity) * 100} className="h-2" />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* CTC, Hourly Rate and Skills Info */}
-                    <div className="grid grid-cols-2 gap-4 pt-3 border-t">
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground mb-2">CTC & Hourly Rate</p>
-                        <div className="space-y-1">
-                          <div className="flex justify-between">
-                            <span className="text-sm">CTC:</span>
-                            <span className="text-sm font-medium text-green-600">
-                              {member.ctc ? `₹${member.ctc.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'Not Set'}
-                            </span>
+                          <p className="text-sm font-medium text-muted-foreground mb-2">CTC & Hourly Rate</p>
+                          <div className="space-y-1">
+                            <div className="flex justify-between">
+                              <span className="text-sm">CTC:</span>
+                              <span className="text-sm font-medium text-green-600">
+                                {member.ctc ? `₹${member.ctc.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'Not Set'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm">Hourly Rate:</span>
+                              <span className="text-sm font-medium text-blue-600">
+                                {member.hourlyRate ? `₹${member.hourlyRate.toFixed(2)}` : 'Not Set'}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm">Hourly Rate:</span>
-                            <span className="text-sm font-medium text-blue-600">
-                              {member.hourlyRate ? `₹${member.hourlyRate.toFixed(2)}` : 'Not Set'}
-                            </span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground mb-2">Skills</p>
+                          <div className="flex flex-wrap gap-1">
+                            {member.skills.slice(0, 4).map((skill) => (
+                              <Badge key={skill} variant="secondary" className="text-xs">
+                                {skill}
+                              </Badge>
+                            ))}
+                            {member.skills.length > 4 && (
+                              <Badge variant="secondary" className="text-xs">
+                                +{member.skills.length - 4}
+                              </Badge>
+                            )}
                           </div>
                         </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground mb-2">Skills</p>
-                        <div className="flex flex-wrap gap-1">
-                          {member.skills.slice(0, 4).map((skill) => (
-                            <Badge key={skill} variant="secondary" className="text-xs">
-                              {skill}
-                            </Badge>
-                          ))}
-                          {member.skills.length > 4 && (
-                            <Badge variant="secondary" className="text-xs">
-                              +{member.skills.length - 4}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Add Team Member Dialog */}

@@ -2281,16 +2281,12 @@ const ScrumPage: React.FC = () => {
       return;
     }
 
-    // Separate backlog stories from previous sprint stories
+    // Get selected backlog stories (dialog now only shows backlog stories)
     const selectedBacklogStories = projectBacklogStories.filter((story) =>
       pendingBacklogStoryIds.includes(story.id),
     );
 
-    const selectedPreviousSprintStories = previousSprintStories.filter((story) =>
-      pendingBacklogStoryIds.includes(story.id),
-    );
-
-    if (selectedBacklogStories.length === 0 && selectedPreviousSprintStories.length === 0) {
+    if (selectedBacklogStories.length === 0) {
       toast.info("No stories selected.");
       setIsPullStoriesDialogOpen(false);
       return;
@@ -2298,12 +2294,11 @@ const ScrumPage: React.FC = () => {
 
     try {
       const movedStories: Story[] = [];
-      const createdStories: Story[] = [];
       
       // Handle backlog stories: move them to sprint (they already exist with tasks)
       for (const story of selectedBacklogStories) {
         try {
-          console.log(`Moving backlog story "${story.title}" (${story.id}) from sprint ${story.sprintId || 'null'} to sprint ${selectedSprint}`);
+          console.log(`Moving backlog story "${story.title}" (${story.id}) to sprint ${selectedSprint}`);
           
           const response = await storyApiService.moveStoryToSprint(
             story.id,
@@ -2349,41 +2344,13 @@ const ScrumPage: React.FC = () => {
         }
       }
 
-      // Handle previous sprint stories: create new stories with new IDs and copy tasks
-      for (const story of selectedPreviousSprintStories) {
-        try {
-          const response = await storyApiService.createStoryFromPreviousSprint(
-            story.id,
-            selectedSprint,
-            user.id
-          );
-          if (response.data) {
-            createdStories.push(response.data);
-            console.log(`Created new story from previous sprint "${story.title}" (${story.id}) in sprint ${selectedSprint}`);
-          }
-        } catch (error) {
-          console.error(`Error creating story from previous sprint ${story.id}:`, error);
-          toast.error(`Failed to pull story "${story.title}". Please try again.`);
-        }
-      }
-
-      const totalStories = movedStories.length + createdStories.length;
-      
-      if (totalStories > 0) {
-        const messages: string[] = [];
-        if (movedStories.length > 0) {
-          messages.push(`${movedStories.length} stor${movedStories.length === 1 ? "y" : "ies"} from backlog`);
-        }
-        if (createdStories.length > 0) {
-          messages.push(`${createdStories.length} stor${createdStories.length === 1 ? "y" : "ies"} from previous sprint`);
-        }
-        
+      if (movedStories.length > 0) {
         toast.success(
-          `Successfully pulled ${messages.join(" and ")} to current sprint.`,
+          `Successfully pulled ${movedStories.length} stor${movedStories.length === 1 ? "y" : "ies"} from backlog to current sprint.`,
         );
         
         // Refetch backlog stories first to update the backlog list
-        if (refetchBacklogStories && movedStories.length > 0) {
+        if (refetchBacklogStories) {
           await refetchBacklogStories();
         }
         
@@ -2391,28 +2358,26 @@ const ScrumPage: React.FC = () => {
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Verify stories were moved correctly by fetching them directly from the API
-        if (movedStories.length > 0) {
-          console.log(`Verifying ${movedStories.length} moved stories have correct sprintId in database...`);
-          for (const movedStory of movedStories) {
-            try {
-              const verifyResponse = await storyApiService.getStoryById(movedStory.id);
-              if (verifyResponse.data) {
-                const verifiedStory = verifyResponse.data;
-                if (verifiedStory.sprintId !== selectedSprint) {
-                  console.error(`VERIFICATION FAILED: Story ${movedStory.id} still has wrong sprintId. Expected: ${selectedSprint}, Got: ${verifiedStory.sprintId}`);
-                  // Try to fix it one more time
-                  await storyApiService.updateStory(movedStory.id, {
-                    ...verifiedStory,
-                    sprintId: selectedSprint
-                  });
-                  console.log(`Attempted to fix sprintId for story ${movedStory.id}`);
-                } else {
-                  console.log(`Verified: Story ${movedStory.id} has correct sprintId: ${verifiedStory.sprintId}`);
-                }
+        console.log(`Verifying ${movedStories.length} moved stories have correct sprintId in database...`);
+        for (const movedStory of movedStories) {
+          try {
+            const verifyResponse = await storyApiService.getStoryById(movedStory.id);
+            if (verifyResponse.data) {
+              const verifiedStory = verifyResponse.data;
+              if (verifiedStory.sprintId !== selectedSprint) {
+                console.error(`VERIFICATION FAILED: Story ${movedStory.id} still has wrong sprintId. Expected: ${selectedSprint}, Got: ${verifiedStory.sprintId}`);
+                // Try to fix it one more time
+                await storyApiService.updateStory(movedStory.id, {
+                  ...verifiedStory,
+                  sprintId: selectedSprint
+                });
+                console.log(`Attempted to fix sprintId for story ${movedStory.id}`);
+              } else {
+                console.log(`Verified: Story ${movedStory.id} has correct sprintId: ${verifiedStory.sprintId}`);
               }
-            } catch (verifyError) {
-              console.error(`Error verifying story ${movedStory.id}:`, verifyError);
             }
+          } catch (verifyError) {
+            console.error(`Error verifying story ${movedStory.id}:`, verifyError);
           }
         }
         
@@ -2424,15 +2389,12 @@ const ScrumPage: React.FC = () => {
         // Wait a moment for the refetch to complete and state to update
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        // Fetch tasks for all moved/created stories immediately
+        // Fetch tasks for all moved stories immediately
         // Ensure moved stories have the correct sprintId set
-        const allStoriesToFetch = [
-          ...movedStories.map(s => ({ ...s, sprintId: selectedSprint })),
-          ...createdStories
-        ];
+        const allStoriesToFetch = movedStories.map(s => ({ ...s, sprintId: selectedSprint }));
         
         if (allStoriesToFetch.length > 0) {
-          console.log(`Fetching tasks for ${allStoriesToFetch.length} stories (${movedStories.length} moved from backlog, ${createdStories.length} created from previous sprint)`);
+          console.log(`Fetching tasks for ${allStoriesToFetch.length} stories moved from backlog`);
           await fetchAllTasks(allStoriesToFetch, false);
         }
         
@@ -2449,11 +2411,8 @@ const ScrumPage: React.FC = () => {
           
           // Get the latest sprint stories from the hook data
           // We need to fetch tasks for all stories in the sprint, not just the moved ones
-          // The useEffect will handle this, but we'll also trigger it explicitly
           if (selectedSprint && selectedProject) {
             console.log(`Refetching all tasks for sprint ${selectedSprint}`);
-            // Trigger a refetch by calling fetchAllTasks with empty array to let useEffect handle it
-            // Or we can fetch directly from the API
             try {
               const sprintStoriesResponse = await storyApiService.getStoriesBySprint(selectedSprint);
               let latestSprintStories: Story[] = [];
@@ -2491,7 +2450,7 @@ const ScrumPage: React.FC = () => {
       toast.error("Failed to pull stories. Please try again.");
       setIsPullStoriesDialogOpen(false);
     }
-  }, [pendingBacklogStoryIds, previousSprintStories, projectBacklogStories, selectedSprint, selectedProject, user, refetchSprintStories, refetchBacklogStories, fetchAllTasks, sprintStories]);
+  }, [pendingBacklogStoryIds, projectBacklogStories, selectedSprint, selectedProject, user, refetchSprintStories, refetchBacklogStories, fetchAllTasks]);
 
   const handlePullStoriesDialogChange = useCallback(
     (open: boolean) => {
@@ -7991,20 +7950,24 @@ const ScrumPage: React.FC = () => {
 
                           <DropdownMenuSeparator />
 
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setPendingBacklogStoryIds(
-                                selectedBacklogStoryIds,
-                              );
+                          {/* Pull from Backlog - Only for Managers */}
+                          {canManageSprintsAndStories && (
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setPendingBacklogStoryIds(
+                                  selectedBacklogStoryIds,
+                                );
 
-                              setIsPullStoriesDialogOpen(true);
+                                setIsPullStoriesDialogOpen(true);
 
-                              refetchSprintStories();
-                            }}
-                          >
-                            <GitBranch className="w-4 h-4 mr-2" />
-                            Pull from Previous Sprint...
-                          </DropdownMenuItem>
+                                refetchSprintStories();
+                                refetchBacklogStories();
+                              }}
+                            >
+                              <GitBranch className="w-4 h-4 mr-2" />
+                              Pull from Backlog...
+                            </DropdownMenuItem>
+                          )}
 
                           <DropdownMenuSeparator />
 
@@ -9241,152 +9204,150 @@ const ScrumPage: React.FC = () => {
           )}
         </TabsContent>
 
-        {/* Pull Stories from Previous Sprint Dialog */}
+        {/* Pull Stories from Backlog Dialog - Only for Managers */}
+        {canManageSprintsAndStories && (
+          <Dialog
+            open={isPullStoriesDialogOpen}
+            onOpenChange={handlePullStoriesDialogChange}
+          >
+            <DialogContent className="max-w-xl">
+              <DialogHeader>
+                <DialogTitle>Pull Stories from Backlog</DialogTitle>
+                <DialogDescription>
+                  Select stories from the project backlog to pull into the current sprint.
+                  Selected stories will be moved to the current sprint with all their tasks.
+                </DialogDescription>
+              </DialogHeader>
 
-        <Dialog
-          open={isPullStoriesDialogOpen}
-          onOpenChange={handlePullStoriesDialogChange}
-        >
-          <DialogContent className="max-w-xl">
-            <DialogHeader>
-              <DialogTitle>Pull Stories from Previous Sprint</DialogTitle>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <span>
+                    {projectBacklogStories.length} stor
+                    {projectBacklogStories.length === 1 ? "y" : "ies"} available in backlog
+                  </span>
 
-              <DialogDescription>
-                Select stories from previous sprints to pull into the current sprint.
-                Only overdue, in-progress, and incomplete tasks will be copied.
-              </DialogDescription>
-            </DialogHeader>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                    onClick={() => {
+                      if (
+                        pendingBacklogStoryIds.length ===
+                        projectBacklogStories.length
+                      ) {
+                        setPendingBacklogStoryIds([]);
+                      } else {
+                        setPendingBacklogStoryIds(
+                          projectBacklogStories.map((story) => story.id),
+                        );
+                      }
+                    }}
+                    disabled={projectBacklogStories.length === 0}
+                  >
+                    {pendingBacklogStoryIds.length ===
+                      projectBacklogStories.length &&
+                    projectBacklogStories.length > 0
+                      ? "Clear all"
+                      : "Select all"}
+                  </Button>
+                </div>
 
-            <div className="space-y-4">
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>
-                  {previousSprintStories.length} stor
-                  {previousSprintStories.length === 1 ? "y" : "ies"} available from previous sprints
-                </span>
+                <div className="max-h-80 overflow-y-auto rounded-md border">
+                  {projectBacklogStories.length === 0 ? (
+                    <div className="py-10 px-4 text-center text-sm text-muted-foreground">
+                      No stories available in the backlog for this project.
+                    </div>
+                  ) : (
+                    <div className="divide-y">
+                      {projectBacklogStories.map((story) => {
+                        const checked = pendingBacklogStoryIds.includes(story.id);
+
+                        return (
+                          <label
+                            key={story.id}
+                            className="flex items-start gap-3 px-4 py-3 hover:bg-muted/60 cursor-pointer"
+                          >
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={() =>
+                                handleTogglePendingBacklogStory(story.id)
+                              }
+                              className="mt-1"
+                            />
+
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium text-sm text-foreground line-clamp-1">
+                                  {story.title || story.name}
+                                </span>
+
+                                {typeof story.storyPoints === "number" && (
+                                  <Badge
+                                    variant="secondary"
+                                    className="ml-2 text-xs flex-shrink-0"
+                                  >
+                                    {story.storyPoints} pts
+                                  </Badge>
+                                )}
+                              </div>
+
+                              <div className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                                {story.description
+                                  ? story.description
+                                  : "No description provided."}
+                              </div>
+
+                              <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                                <span className="uppercase tracking-wide">
+                                  Status: {story.status || "BACKLOG"}
+                                </span>
+
+                                {story.priority && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px]"
+                                  >
+                                    {story.priority}
+                                  </Badge>
+                                )}
+
+                                {story.assigneeName && (
+                                  <span>Assignee: {story.assigneeName}</span>
+                                )}
+
+                                {story.epicName && (
+                                  <span>Epic: {story.epicName}</span>
+                                )}
+                              </div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <DialogFooter className="mt-6">
+                <Button
+                  variant="outline"
+                  onClick={() => handlePullStoriesDialogChange(false)}
+                >
+                  Cancel
+                </Button>
 
                 <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2"
-                  onClick={() => {
-                    if (
-                      pendingBacklogStoryIds.length ===
-                      previousSprintStories.length
-                    ) {
-                      setPendingBacklogStoryIds([]);
-                    } else {
-                      setPendingBacklogStoryIds(
-                        previousSprintStories.map((story) => story.id),
-                      );
-                    }
-                  }}
-                  disabled={previousSprintStories.length === 0}
+                  onClick={handleConfirmPullSelectedStories}
+                  disabled={projectBacklogStories.length === 0 || pendingBacklogStoryIds.length === 0}
                 >
-                  {pendingBacklogStoryIds.length ===
-                    previousSprintStories.length &&
-                  previousSprintStories.length > 0
-                    ? "Clear all"
-                    : "Select all"}
+                  {pendingBacklogStoryIds.length > 0
+                    ? `Pull ${pendingBacklogStoryIds.length} stor${pendingBacklogStoryIds.length === 1 ? "y" : "ies"}`
+                    : "Select stories"}
                 </Button>
-              </div>
-
-              <div className="max-h-80 overflow-y-auto rounded-md border">
-                {previousSprintStories.length === 0 ? (
-                  <div className="py-10 px-4 text-center text-sm text-muted-foreground">
-                    No stories available from previous sprints for this project.
-                  </div>
-                ) : (
-                  <div className="divide-y">
-                    {previousSprintStories.map((story) => {
-                      const checked = pendingBacklogStoryIds.includes(story.id);
-                      const sourceSprint = sprints.find(s => s.id === story.sprintId);
-
-                      return (
-                        <label
-                          key={story.id}
-                          className="flex items-start gap-3 px-4 py-3 hover:bg-muted/60 cursor-pointer"
-                        >
-                          <Checkbox
-                            checked={checked}
-                            onCheckedChange={() =>
-                              handleTogglePendingBacklogStory(story.id)
-                            }
-                            className="mt-1"
-                          />
-
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium text-sm text-foreground line-clamp-1">
-                                {story.title || story.name}
-                              </span>
-
-                              {typeof story.storyPoints === "number" && (
-                                <Badge
-                                  variant="secondary"
-                                  className="ml-2 text-xs flex-shrink-0"
-                                >
-                                  {story.storyPoints} pts
-                                </Badge>
-                              )}
-                            </div>
-
-                            <div className="mt-1 text-xs text-muted-foreground line-clamp-2">
-                              {story.description
-                                ? story.description
-                                : "No description provided."}
-                            </div>
-
-                            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                              {sourceSprint && (
-                                <span className="uppercase tracking-wide">
-                                  From: {sourceSprint.name}
-                                </span>
-                              )}
-                              <span className="uppercase tracking-wide">
-                                Status: {story.status || "TODO"}
-                              </span>
-
-                              {story.priority && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-[10px]"
-                                >
-                                  {story.priority}
-                                </Badge>
-                              )}
-
-                              {story.assigneeName && (
-                                <span>Assignee: {story.assigneeName}</span>
-                              )}
-                            </div>
-                          </div>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <DialogFooter className="mt-6">
-              <Button
-                variant="outline"
-                onClick={() => handlePullStoriesDialogChange(false)}
-              >
-                Cancel
-              </Button>
-
-              <Button
-                onClick={handleConfirmPullSelectedStories}
-                disabled={previousSprintStories.length === 0}
-              >
-                {pendingBacklogStoryIds.length > 0
-                  ? `Pull ${pendingBacklogStoryIds.length} stor${pendingBacklogStoryIds.length === 1 ? "y" : "ies"}`
-                  : "Clear selections"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
 
         {/* Create Sprint Dialog */}
 

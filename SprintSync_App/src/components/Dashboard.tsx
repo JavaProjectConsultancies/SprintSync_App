@@ -920,14 +920,16 @@ const Dashboard: React.FC = () => {
         </Card>
       </div>
 
-      {/* User Tasks & Pending Work */}
-      <div className="animate-fadeInUp" style={{ animationDelay: '0.3s' }}>
-        <UserTasks 
-          userId={user.id} 
-          userRole={user.role} 
-          userName={user.name} 
-        />
-      </div>
+      {/* User Tasks & Pending Work - Hidden for admin users */}
+      {user.role !== 'admin' && (
+        <div className="animate-fadeInUp" style={{ animationDelay: '0.3s' }}>
+          <UserTasks 
+            userId={user.id} 
+            userRole={user.role} 
+            userName={user.name} 
+          />
+        </div>
+      )}
 
       {/* AI Insights Panel */}
       <Card className="bg-gradient-to-br from-green-50 to-cyan-50 border-green-200 hover:shadow-xl transition-all duration-300 animate-fadeInUp" style={{ animationDelay: '0.4s' }}>

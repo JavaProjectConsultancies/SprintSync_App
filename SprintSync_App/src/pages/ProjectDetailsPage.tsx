@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useProjectById } from '../hooks/api/useProjectById';
 import { useRequirements } from '../hooks/api/useRequirements';
 import { useTeamMembers } from '../hooks/api/useTeamMembers';
+import { useProjectActivities } from '../hooks/api/useActivityLogs';
 import EpicManager from '../components/EpicManager';
 import TeamManager from '../components/TeamManager';
 import { useAuth } from '../contexts/AuthContextEnhanced';
@@ -89,6 +90,14 @@ const ProjectDetailsPage = () => {
     removeTeamMemberFromProject, 
     refreshTeamMembers 
   } = useTeamMembers(id || '');
+  
+  // Fetch all project-related activity logs (includes project creation and all activities)
+  const { 
+    activityLogs, 
+    loading: activityLogsLoading, 
+    error: activityLogsError,
+    refetch: refetchActivities
+  } = useProjectActivities(id || '', 30); // Last 30 days
   
   // Local state for epics to handle real-time updates
   const [localEpics, setLocalEpics] = useState<any[]>([]);
@@ -320,6 +329,143 @@ const ProjectDetailsPage = () => {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
+
+  // Format time ago
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) return 'just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
+    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 604800)} weeks ago`;
+    return date.toLocaleDateString();
+  };
+
+  // Format activity message with detailed information
+  const formatActivityMessage = (activityLog: any) => {
+    const action = (activityLog.action || '').toLowerCase();
+    const description = activityLog.description || '';
+    const entityType = activityLog.entityType || '';
+    
+    // If description exists, use it
+    if (description) {
+      return description;
+    }
+    
+    // Format action to readable text
+    const formattedAction = action
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (l: string) => l.toUpperCase());
+    
+    // Parse JSON values
+    let newVals: any = null;
+    let oldVals: any = null;
+    try {
+      if (activityLog.newValues) {
+        newVals = typeof activityLog.newValues === 'string' 
+          ? JSON.parse(activityLog.newValues) 
+          : activityLog.newValues;
+      }
+      if (activityLog.oldValues) {
+        oldVals = typeof activityLog.oldValues === 'string' 
+          ? JSON.parse(activityLog.oldValues) 
+          : activityLog.oldValues;
+      }
+    } catch (e) {
+      // Ignore parsing errors
+    }
+    
+    // Project creation
+    if (entityType === 'project' && action === 'created') {
+      const projectName = newVals?.name || newVals?.title || 'the project';
+      return `created project "${projectName}"`;
+    }
+    
+    // Story creation
+    if (entityType === 'story' && action === 'created') {
+      const storyTitle = newVals?.title || newVals?.name || 'a story';
+      return `created story "${storyTitle}"`;
+    }
+    
+    // Task creation
+    if (entityType === 'task' && action === 'created') {
+      const taskTitle = newVals?.title || newVals?.name || 'a task';
+      return `created task "${taskTitle}"`;
+    }
+    
+    // Epic creation
+    if (entityType === 'epic' && action === 'created') {
+      const epicTitle = newVals?.title || newVals?.name || 'an epic';
+      return `created epic "${epicTitle}"`;
+    }
+    
+    // Assignment changes
+    if (action.includes('assign') || action === 'assigned') {
+      const oldAssignee = oldVals?.assigneeId || oldVals?.assignedTo || oldVals?.assignee;
+      const newAssignee = newVals?.assigneeId || newVals?.assignedTo || newVals?.assignee;
+      const entityName = newVals?.title || newVals?.name || oldVals?.title || oldVals?.name || entityType;
+      
+      if (newAssignee && !oldAssignee) {
+        return `assigned "${entityName}" to user ${newAssignee}`;
+      } else if (newAssignee && oldAssignee && newAssignee !== oldAssignee) {
+        return `reassigned "${entityName}" from user ${oldAssignee} to user ${newAssignee}`;
+      } else if (oldAssignee && !newAssignee) {
+        return `unassigned "${entityName}" from user ${oldAssignee}`;
+      }
+    }
+    
+    // Team member addition
+    if (entityType === 'project_team_member' && (action === 'created' || action === 'added')) {
+      const userName = newVals?.userName || newVals?.name || newVals?.userId || 'a team member';
+      const role = newVals?.role || '';
+      if (role) {
+        return `added ${userName} as ${role} to the project`;
+      }
+      return `added ${userName} to the project team`;
+    }
+    
+    // Status changes
+    if (action.includes('status') || (oldVals?.status && newVals?.status && oldVals.status !== newVals.status)) {
+      const entityName = newVals?.title || newVals?.name || oldVals?.title || oldVals?.name || entityType;
+      const oldStatus = oldVals?.status || '';
+      const newStatus = newVals?.status || '';
+      if (oldStatus && newStatus) {
+        return `changed status of "${entityName}" from ${oldStatus} to ${newStatus}`;
+      } else if (newStatus) {
+        return `set status of "${entityName}" to ${newStatus}`;
+      }
+    }
+    
+    // Priority changes
+    if (action.includes('priority') || (oldVals?.priority && newVals?.priority && oldVals.priority !== newVals.priority)) {
+      const entityName = newVals?.title || newVals?.name || oldVals?.title || oldVals?.name || entityType;
+      const oldPriority = oldVals?.priority || '';
+      const newPriority = newVals?.priority || '';
+      if (oldPriority && newPriority) {
+        return `changed priority of "${entityName}" from ${oldPriority} to ${newPriority}`;
+      }
+    }
+    
+    // General updates
+    if (action === 'updated' || action === 'update') {
+      const entityName = newVals?.title || newVals?.name || oldVals?.title || oldVals?.name || entityType;
+      return `updated ${entityType} "${entityName}"`;
+    }
+    
+    // Try to extract entity name
+    const entityName = newVals?.title || newVals?.name || oldVals?.title || oldVals?.name || '';
+    
+    if (entityName) {
+      return `${formattedAction} "${entityName}"`;
+    } else if (entityType && entityType !== 'project') {
+      return `${formattedAction} ${entityType}`;
+    }
+    
+    return formattedAction;
   };
 
   // Loading state
@@ -828,29 +974,47 @@ const ProjectDetailsPage = () => {
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-64">
-                <div className="space-y-4">
-                  {[
-                    { user: 'Priya Mehta', action: 'completed', target: 'User Authentication API', time: '2 hours ago' },
-                    { user: 'Sneha Patel', action: 'updated', target: 'Product Listing Design', time: '4 hours ago' },
-                    { user: 'Aman Singh', action: 'reported bug in', target: 'Shopping Cart Component', time: '6 hours ago' },
-                    { user: 'Rohit Kumar', action: 'started working on', target: 'Database Optimization', time: '1 day ago' },
-                    { user: 'Ritu Sharma', action: 'deployed', target: 'Staging Environment', time: '1 day ago' }
-                  ].map((activity, index) => (
-                    <div key={index} className="flex items-start space-x-3">
-                      <Avatar className="w-6 h-6">
-                        <AvatarFallback className="text-xs bg-gradient-to-br from-green-100 to-cyan-100">
-                          {activity.user.split(' ').map(n => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 text-sm">
-                        <span className="font-medium">{activity.user}</span>
-                        <span className="mx-1">{activity.action}</span>
-                        <span className="text-blue-600">{activity.target}</span>
-                        <div className="text-xs text-muted-foreground mt-1">{activity.time}</div>
-                      </div>
+                {activityLogsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                  </div>
+                ) : activityLogsError ? (
+                  <div className="flex items-center justify-center py-8 text-red-500 text-sm">
+                    <p>Failed to load activity logs</p>
+                  </div>
+                ) : !activityLogs || activityLogs.length === 0 ? (
+                  <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
+                    <div className="text-center">
+                      <p>No recent activity</p>
+                      <p className="text-xs mt-1">Activity logs will appear here when actions are performed on this project</p>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {activityLogs.map((activityLog) => {
+                      const userName = activityLog.userId || 'Unknown User';
+                      const userInitials = userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
+                      const activityMessage = formatActivityMessage(activityLog);
+                      
+                      return (
+                        <div key={activityLog.id} className="flex items-start space-x-3">
+                          <Avatar className="w-6 h-6">
+                            <AvatarFallback className="text-xs bg-gradient-to-br from-green-100 to-cyan-100">
+                              {userInitials}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 text-sm">
+                            <span className="font-medium">{userName}</span>
+                            <span className="mx-1 text-muted-foreground">{activityMessage}</span>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {formatTimeAgo(activityLog.createdAt)}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </ScrollArea>
             </CardContent>
           </Card>
@@ -879,22 +1043,31 @@ const ProjectDetailsPage = () => {
               console.log('Adding epic:', epic);
               // Add the new epic to local state immediately for real-time update
               setLocalEpics(prev => [...prev, epic]);
-              // Optionally refresh the full project data from API
-              setTimeout(() => refetch(), 1000);
+              // Refresh activities to show the new epic creation
+              setTimeout(() => {
+                refetch();
+                refetchActivities();
+              }, 1000);
             }}
             onUpdateEpic={(epic) => {
               console.log('Updating epic:', epic);
               // Update the epic in local state
               setLocalEpics(prev => prev.map(e => e.id === epic.id ? epic : e));
-              // Optionally refresh the full project data from API
-              setTimeout(() => refetch(), 1000);
+              // Refresh activities to show the epic update
+              setTimeout(() => {
+                refetch();
+                refetchActivities();
+              }, 1000);
             }}
             onDeleteEpic={(epicId) => {
               console.log('Deleting epic:', epicId);
               // Remove the epic from local state
               setLocalEpics(prev => prev.filter(e => e.id !== epicId));
-              // Optionally refresh the full project data from API
-              setTimeout(() => refetch(), 1000);
+              // Refresh activities to show the epic deletion
+              setTimeout(() => {
+                refetch();
+                refetchActivities();
+              }, 1000);
             }}
           />
         </TabsContent>
