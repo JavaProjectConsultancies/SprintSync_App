@@ -275,7 +275,7 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+      <DialogContent className="w-[75%] max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="flex-shrink-0 p-6 pb-4">
           <DialogTitle className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
@@ -294,10 +294,10 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
             className="h-full overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar scroll-smooth"
             style={{ maxHeight: 'calc(90vh - 160px)' }}
           >
-            <div className="space-y-6 py-2 pb-6">
+            <div className="space-y-8 py-4 pb-6">
             {/* Template Selection */}
             <Card>
-              <CardContent className="p-4 space-y-4">
+              <CardContent className="p-6 space-y-6">
                 <div className="flex items-center space-x-2 mb-3">
                   <FileText className="w-4 h-4 text-indigo-600" />
                   <h3 className="font-medium">Story Template</h3>
@@ -364,7 +364,7 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
 
             {/* Basic Information */}
             <Card>
-              <CardContent className="p-4 space-y-4">
+              <CardContent className="p-6 space-y-6">
                 <div className="flex items-center space-x-2 mb-3">
                   <BookOpen className="w-4 h-4 text-green-600" />
                   <h3 className="font-medium">Story Details</h3>
@@ -403,7 +403,7 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
                 </div>
 
                 {/* Priority and Points */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="priority">Priority</Label>
                     <Select 
@@ -470,7 +470,7 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
 
             {/* Assignment */}
             <Card>
-              <CardContent className="p-4 space-y-4">
+              <CardContent className="p-6 space-y-6">
                 <div className="flex items-center space-x-2 mb-3">
                   <User className="w-4 h-4 text-blue-600" />
                   <h3 className="font-medium">Assignment</h3>
@@ -514,7 +514,7 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
 
             {/* Acceptance Criteria */}
             <Card>
-              <CardContent className="p-4 space-y-4">
+              <CardContent className="p-6 space-y-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <CheckCircle2 className="w-4 h-4 text-purple-600" />
@@ -565,7 +565,7 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
             {/* Epic Association */}
             {availableEpics.length > 0 && (
               <Card>
-                <CardContent className="p-4 space-y-4">
+                <CardContent className="p-6 space-y-6">
                   <div className="flex items-center space-x-2 mb-3">
                     <Flag className="w-4 h-4 text-purple-600" />
                     <h3 className="font-medium">Epic Association</h3>
@@ -629,7 +629,7 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
             {/* Labels */}
             {formData.labels.length > 0 && (
               <Card>
-                <CardContent className="p-4 space-y-4">
+                <CardContent className="p-6 space-y-6">
                   <div className="flex items-center space-x-2 mb-3">
                     <Flag className="w-4 h-4 text-purple-600" />
                     <h3 className="font-medium">Labels</h3>
@@ -648,7 +648,7 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
 
             {/* Attachments */}
             <Card>
-              <CardContent className="p-4 space-y-4">
+              <CardContent className="p-6 space-y-6">
                 <div className="flex items-center space-x-2 mb-3">
                   <Paperclip className="w-4 h-4 text-blue-600" />
                   <h3 className="font-medium">Attachments (Optional)</h3>

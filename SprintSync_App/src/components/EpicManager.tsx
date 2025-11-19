@@ -12,7 +12,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { useCreateEpic } from '../hooks/api/useEpics';
+import { useCreateEpic, useDeleteEpic, useUpdateEpic } from '../hooks/api/useEpics';
 import { useUsers } from '../hooks/api/useUsers';
 import { Epic as ApiEpic } from '../types/api';
 import { 
@@ -37,8 +37,10 @@ import {
   Rocket,
   Search as SearchIcon,
   TrendingUp,
-  Users
+  Users,
+  Trash2
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Epic, EpicStatus } from '../types';
 import { epicTemplates, EpicTemplate, createEpicFromTemplate } from '../data/epicTemplates';
 
@@ -61,6 +63,12 @@ const EpicManager = ({
 }: EpicManagerProps) => {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showViewDialog, setShowViewDialog] = useState(false);
+  const [epicToDelete, setEpicToDelete] = useState<Epic | null>(null);
+  const [epicToEdit, setEpicToEdit] = useState<Epic | null>(null);
+  const [epicToView, setEpicToView] = useState<Epic | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'planned' | 'in-progress' | 'completed'>('all');
   const [priorityFilter, setPriorityFilter] = useState<'all' | 'low' | 'medium' | 'high' | 'critical'>('all');
@@ -68,6 +76,8 @@ const EpicManager = ({
   
   // API integration
   const { createEpic: createEpicApi, loading: createLoading, error: createError } = useCreateEpic();
+  const { updateEpic: updateEpicApi, loading: updateLoading, error: updateError } = useUpdateEpic();
+  const { deleteEpic: deleteEpicApi, loading: deleteLoading, error: deleteError } = useDeleteEpic();
   const { data: apiUsers, loading: usersLoading, error: usersError } = useUsers();
 
   // Form state for creating new epic (matching project creation structure)
@@ -353,6 +363,108 @@ const EpicManager = ({
     }));
   };
 
+  // Handle delete epic
+  const handleDeleteClick = (epic: Epic) => {
+    setEpicToDelete(epic);
+    setShowDeleteDialog(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!epicToDelete) return;
+
+    try {
+      await deleteEpicApi(epicToDelete.id);
+      toast.success('Epic deleted successfully');
+      onDeleteEpic(epicToDelete.id);
+      setShowDeleteDialog(false);
+      setEpicToDelete(null);
+    } catch (error: any) {
+      console.error('Failed to delete epic:', error);
+      const errorMessage = error?.message || deleteError || 'Failed to delete epic';
+      toast.error(errorMessage);
+    }
+  };
+
+  // Handle edit epic
+  const handleEditClick = (epic: Epic) => {
+    setEpicToEdit(epic);
+    // Populate form with epic data
+    setNewEpic({
+      name: epic.title,
+      description: epic.description || '',
+      summary: epic.summary || '',
+      theme: epic.theme || '',
+      businessValue: epic.businessValue || '',
+      priority: epic.priority,
+      status: epic.status,
+      startDate: epic.startDate ? new Date(epic.startDate).toISOString().split('T')[0] : '',
+      endDate: epic.endDate ? new Date(epic.endDate).toISOString().split('T')[0] : '',
+      assigneeId: epic.assigneeId || 'unassigned',
+      storyPoints: epic.storyPoints || 0
+    });
+    setShowEditDialog(true);
+  };
+
+  const handleUpdateEpic = async () => {
+    if (!epicToEdit || !newEpic.name.trim()) return;
+
+    try {
+      // Map form data to API structure
+      const apiEpicData: Partial<ApiEpic> = {
+        title: newEpic.name.trim(),
+        description: newEpic.description.trim(),
+        summary: newEpic.summary.trim(),
+        theme: newEpic.theme.trim(),
+        businessValue: newEpic.businessValue.trim(),
+        status: mapStatusToApi(newEpic.status),
+        priority: mapPriorityToApi(newEpic.priority),
+        assigneeId: newEpic.assigneeId === 'unassigned' ? undefined : newEpic.assigneeId,
+        startDate: newEpic.startDate || undefined,
+        endDate: newEpic.endDate || undefined,
+        storyPoints: newEpic.storyPoints || 0
+      };
+
+      const updatedEpicResponse = await updateEpicApi(epicToEdit.id, apiEpicData);
+      console.log('Epic updated successfully:', updatedEpicResponse);
+      
+      // Convert API epic to local format for display
+      const localEpic = convertApiEpicToLocal(updatedEpicResponse.data);
+      
+      // Call the parent callback to refresh the epic list
+      onUpdateEpic(localEpic);
+      
+      setShowEditDialog(false);
+      setEpicToEdit(null);
+      
+      // Reset form
+      setNewEpic({
+        name: '',
+        description: '',
+        summary: '',
+        theme: '',
+        businessValue: '',
+        priority: 'medium',
+        status: 'draft',
+        startDate: '',
+        endDate: '',
+        assigneeId: 'unassigned',
+        storyPoints: 0
+      });
+      
+      toast.success('Epic updated successfully');
+    } catch (error: any) {
+      console.error('Failed to update epic:', error);
+      const errorMessage = error?.message || updateError || 'Failed to update epic';
+      toast.error(errorMessage);
+    }
+  };
+
+  // Handle view epic details
+  const handleViewClick = (epic: Epic) => {
+    setEpicToView(epic);
+    setShowViewDialog(true);
+  };
+
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
@@ -471,8 +583,16 @@ const EpicManager = ({
 
       {/* Epic Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredEpics.map((epic, index) => (
-          <Card key={epic.id || (epic as any)._id || `${epic.title || 'epic'}-${index}`} className="hover:shadow-lg transition-shadow">
+        {filteredEpics.map((epic, index) => {
+          // Create a unique key - use ID with index to ensure uniqueness even if IDs are duplicated
+          // The index ensures each rendered item has a unique key
+          const uniqueKey = epic.id 
+            ? `${epic.id}-${index}` 
+            : (epic as any)._id 
+              ? `${(epic as any)._id}-${index}` 
+              : `epic-${index}-${epic.title || 'unknown'}`;
+          return (
+          <Card key={uniqueKey} className="hover:shadow-lg transition-shadow">
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -493,11 +613,38 @@ const EpicManager = ({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem>Edit Epic</DropdownMenuItem>
-                    <DropdownMenuItem>View Details</DropdownMenuItem>
-                    <DropdownMenuItem>Link Stories</DropdownMenuItem>
+                    <DropdownMenuItem 
+                      className="cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditClick(epic);
+                      }}
+                    >
+                      Edit Epic
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      className="cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleViewClick(epic);
+                      }}
+                    >
+                      View Details
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="cursor-pointer">
+                      Link Stories
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem className="text-red-600">Delete</DropdownMenuItem>
+                    <DropdownMenuItem 
+                      className="text-red-600 cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteClick(epic);
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -580,7 +727,8 @@ const EpicManager = ({
               )}
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
       </div>
 
       {/* Empty State */}
@@ -831,6 +979,320 @@ const EpicManager = ({
             </Button>
             <Button onClick={handleCreateEpic} disabled={!newEpic.name.trim() || createLoading}>
               {createLoading ? 'Creating...' : 'Add Epic'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Epic Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-4">
+            <DialogTitle>Edit Epic</DialogTitle>
+            <DialogDescription>
+              Update the epic details below.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto space-y-4 px-6 max-h-[60vh]">
+            {updateError && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                <p className="text-sm text-red-600">{updateError}</p>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="edit-epic-name">Epic Name *</Label>
+              <Input
+                id="edit-epic-name"
+                placeholder="Enter epic name"
+                value={newEpic.name}
+                onChange={(e) => handleInputChange('name', e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-epic-description">Description</Label>
+              <Textarea
+                id="edit-epic-description"
+                placeholder="Describe the epic"
+                value={newEpic.description}
+                onChange={(e) => handleInputChange('description', e.target.value)}
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-epic-summary">Summary</Label>
+              <Input
+                id="edit-epic-summary"
+                placeholder="Brief summary of the epic"
+                value={newEpic.summary}
+                onChange={(e) => handleInputChange('summary', e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-epic-theme">Theme</Label>
+              <Input
+                id="edit-epic-theme"
+                placeholder="Epic theme or category"
+                value={newEpic.theme}
+                onChange={(e) => handleInputChange('theme', e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-epic-business-value">Business Value</Label>
+              <Textarea
+                id="edit-epic-business-value"
+                placeholder="Describe the business value"
+                value={newEpic.businessValue}
+                onChange={(e) => handleInputChange('businessValue', e.target.value)}
+                rows={2}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-epic-priority">Priority</Label>
+                <Select value={newEpic.priority} onValueChange={(value) => handleInputChange('priority', value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="critical">Critical</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-epic-status">Status</Label>
+                <Select value={newEpic.status} onValueChange={(value) => handleInputChange('status', value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="planned">Planned</SelectItem>
+                    <SelectItem value="in-progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-epic-assignee">Assignee</Label>
+                <Select
+                  value={newEpic.assigneeId}
+                  onValueChange={(value) => handleInputChange('assigneeId', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select assignee" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {apiUsers && apiUsers.length > 0 ? (
+                      apiUsers.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="no-users" disabled>
+                        {usersLoading ? 'Loading users...' : 'No users available'}
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-epic-story-points">Story Points</Label>
+                <Input
+                  id="edit-epic-story-points"
+                  type="number"
+                  placeholder="Estimated story points"
+                  value={newEpic.storyPoints}
+                  onChange={(e) => handleInputChange('storyPoints', parseInt(e.target.value) || 0)}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-epic-start-date">Start Date</Label>
+                <Input
+                  id="edit-epic-start-date"
+                  type="date"
+                  value={newEpic.startDate}
+                  onChange={(e) => handleInputChange('startDate', e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-epic-end-date">End Date</Label>
+                <Input
+                  id="edit-epic-end-date"
+                  type="date"
+                  value={newEpic.endDate}
+                  onChange={(e) => handleInputChange('endDate', e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="flex-shrink-0 px-6 pb-6 pt-4 border-t bg-white">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowEditDialog(false);
+                setEpicToEdit(null);
+                setNewEpic({
+                  name: '',
+                  description: '',
+                  summary: '',
+                  theme: '',
+                  businessValue: '',
+                  priority: 'medium',
+                  status: 'draft',
+                  startDate: '',
+                  endDate: '',
+                  assigneeId: 'unassigned',
+                  storyPoints: 0
+                });
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateEpic} disabled={!newEpic.name.trim() || updateLoading}>
+              {updateLoading ? 'Updating...' : 'Update Epic'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Epic Details Dialog */}
+      <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>{epicToView?.title}</DialogTitle>
+            <DialogDescription>
+              View epic details and information
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto space-y-4">
+            {epicToView && (
+              <>
+                <div className="space-y-2">
+                  <Label>Description</Label>
+                  <p className="text-sm text-gray-700">{epicToView.description || 'No description provided'}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Summary</Label>
+                  <p className="text-sm text-gray-700">{epicToView.summary || 'No summary provided'}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Badge variant="outline" className={`text-xs ${getStatusColor(epicToView.status)}`}>
+                      {epicToView.status.replace('-', ' ')}
+                    </Badge>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Priority</Label>
+                    <Badge variant="outline" className={`text-xs ${getPriorityColor(epicToView.priority)}`}>
+                      {epicToView.priority}
+                    </Badge>
+                  </div>
+                </div>
+                {epicToView.theme && (
+                  <div className="space-y-2">
+                    <Label>Theme</Label>
+                    <p className="text-sm text-gray-700">{epicToView.theme}</p>
+                  </div>
+                )}
+                {epicToView.businessValue && (
+                  <div className="space-y-2">
+                    <Label>Business Value</Label>
+                    <p className="text-sm text-gray-700">{epicToView.businessValue}</p>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Story Points</Label>
+                    <p className="text-sm text-gray-700">{epicToView.storyPoints || 0}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Progress</Label>
+                    <p className="text-sm text-gray-700">{epicToView.progress || 0}%</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Start Date</Label>
+                    <p className="text-sm text-gray-700">
+                      {epicToView.startDate ? new Date(epicToView.startDate).toLocaleDateString() : 'Not set'}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>End Date</Label>
+                    <p className="text-sm text-gray-700">
+                      {epicToView.endDate ? new Date(epicToView.endDate).toLocaleDateString() : 'Not set'}
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Owner</Label>
+                  <p className="text-sm text-gray-700">
+                    {apiUsers?.find(u => u.id === epicToView.owner)?.name || 'Unknown'}
+                  </p>
+                </div>
+                {epicToView.assigneeId && (
+                  <div className="space-y-2">
+                    <Label>Assignee</Label>
+                    <p className="text-sm text-gray-700">
+                      {apiUsers?.find(u => u.id === epicToView.assigneeId)?.name || 'Unassigned'}
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowViewDialog(false);
+              setEpicToView(null);
+            }}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Epic</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{epicToDelete?.title}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-3">
+              <p className="text-sm text-red-600">{deleteError}</p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowDeleteDialog(false);
+                setEpicToDelete(null);
+              }}
+              disabled={deleteLoading}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleConfirmDelete}
+              disabled={deleteLoading}
+            >
+              {deleteLoading ? 'Deleting...' : 'Delete'}
             </Button>
           </DialogFooter>
         </DialogContent>

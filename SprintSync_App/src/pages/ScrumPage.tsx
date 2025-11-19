@@ -120,6 +120,7 @@ import {
   MoreVertical,
   SortAsc,
   SortDesc,
+  Calculator,
 } from "lucide-react";
 
 import { Checkbox } from "../components/ui/checkbox";
@@ -201,6 +202,10 @@ import LaneConfigurationModal from "../components/LaneConfigurationModal";
 
 import EffortManager from "../components/EffortManager";
 
+import CreateSprintDialog from "../components/CreateSprintDialog";
+
+import TeamCapacityCalculator from "../components/TeamCapacityCalculator";
+
 import {
   useWorkflowLanesByProject,
   useCreateWorkflowLane,
@@ -242,6 +247,10 @@ const ScrumPage: React.FC = () => {
   const [activeView, setActiveView] = useState("scrum-board");
 
   const [isSprintDialogOpen, setIsSprintDialogOpen] = useState(false);
+
+  const [isCreateSprintDialogOpen, setIsCreateSprintDialogOpen] = useState(false);
+
+  const [isCapacityCalculatorOpen, setIsCapacityCalculatorOpen] = useState(false);
 
   const [isAddStoryDialogOpen, setIsAddStoryDialogOpen] = useState(false);
 
@@ -1432,11 +1441,18 @@ const ScrumPage: React.FC = () => {
   // Memoize arrays to prevent infinite loops from new references on every render
 
   const sprints = useMemo(() => {
-    return selectedProject
+    const sprintsArray = selectedProject
       ? Array.isArray(sprintsData)
         ? sprintsData
         : sprintsData?.data || []
       : [];
+    
+    // Sort sprints by startDate in descending order (newest first)
+    return sprintsArray.sort((a: any, b: any) => {
+      const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
+      const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
+      return dateB - dateA; // Descending order (newest first)
+    });
   }, [selectedProject, sprintsData]);
 
   const currentSprint = useMemo(() => {
@@ -6373,6 +6389,19 @@ const ScrumPage: React.FC = () => {
 
     const storyIssues = getIssuesForStory(story.id);
 
+    // Get assignee name
+    const assigneeName = story.assigneeId ? getUserName(story.assigneeId) : null;
+
+    // Get initials helper function
+    const getInitials = (name: string) => {
+      return name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
+    };
+
     return (
       <div className="mb-4">
         {/* Story Card - Each story in its own separate row */}
@@ -6494,6 +6523,16 @@ const ScrumPage: React.FC = () => {
                       {storyIssues.length} issue
                       {storyIssues.length !== 1 ? "s" : ""}
                     </Badge>
+                  )}
+
+                  {assigneeName && (
+                    <div className="flex items-center space-x-1">
+                      <Avatar className="h-5 w-5">
+                        <AvatarFallback className="text-xs bg-green-200 text-green-800">
+                          {getInitials(assigneeName)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </div>
                   )}
                 </div>
 
@@ -9361,8 +9400,8 @@ const ScrumPage: React.FC = () => {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4">
-              <div>
+            <div className="space-y-6 py-4">
+              <div className="space-y-2">
                 <Label htmlFor="sprint-name">Sprint Name</Label>
 
                 <Input
@@ -9375,7 +9414,7 @@ const ScrumPage: React.FC = () => {
                 />
               </div>
 
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="sprint-goal">Sprint Goal</Label>
 
                 <Textarea
@@ -9390,7 +9429,7 @@ const ScrumPage: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="start-date">Start Date</Label>
 
                   <Input
@@ -9406,7 +9445,7 @@ const ScrumPage: React.FC = () => {
                   />
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="end-date">End Date</Label>
 
                   <Input
@@ -9423,21 +9462,35 @@ const ScrumPage: React.FC = () => {
                 </div>
               </div>
 
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="capacity">Team Capacity (hours)</Label>
 
-                <Input
-                  id="capacity"
-                  type="number"
-                  value={newSprint.capacityHours}
-                  onChange={(e) =>
-                    setNewSprint((prev) => ({
-                      ...prev,
-                      capacityHours: e.target.value,
-                    }))
-                  }
-                  placeholder="160"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="capacity"
+                    type="number"
+                    value={newSprint.capacityHours}
+                    onChange={(e) =>
+                      setNewSprint((prev) => ({
+                        ...prev,
+                        capacityHours: e.target.value,
+                      }))
+                    }
+                    placeholder="160"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsCapacityCalculatorOpen(true)}
+                    className="whitespace-nowrap"
+                  >
+                    <Calculator className="w-4 h-4 mr-2" />
+                    Calculate
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Use the calculator to automatically calculate team capacity based on team size, allocation, and availability.
+                </p>
               </div>
             </div>
 
@@ -9472,7 +9525,7 @@ const ScrumPage: React.FC = () => {
           open={isAddStoryDialogOpen}
           onOpenChange={setIsAddStoryDialogOpen}
         >
-          <DialogContent className="max-w-lg">
+          <DialogContent className="w-[75%] max-w-4xl">
             <DialogHeader>
               <DialogTitle>Add User Story</DialogTitle>
 
@@ -9481,8 +9534,8 @@ const ScrumPage: React.FC = () => {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4">
-              <div>
+            <div className="space-y-6 py-4">
+              <div className="space-y-2">
                 <Label htmlFor="story-title">Title</Label>
 
                 <Input
@@ -9495,7 +9548,7 @@ const ScrumPage: React.FC = () => {
                 />
               </div>
 
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="story-description">Description</Label>
 
                 <Textarea
@@ -9512,7 +9565,7 @@ const ScrumPage: React.FC = () => {
                 />
               </div>
 
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="story-acceptance">Acceptance Criteria</Label>
 
                 <Textarea
@@ -9529,8 +9582,8 @@ const ScrumPage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
                   <Label htmlFor="story-points">Story Points</Label>
 
                   <Input
@@ -9547,7 +9600,7 @@ const ScrumPage: React.FC = () => {
                   />
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="story-priority">Priority</Label>
 
                   <Select
@@ -9803,7 +9856,7 @@ const ScrumPage: React.FC = () => {
           open={isAddStoryDialogOpen}
           onOpenChange={setIsAddStoryDialogOpen}
         >
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-[75%] max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create New Story</DialogTitle>
 
@@ -9812,10 +9865,10 @@ const ScrumPage: React.FC = () => {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4">
+            <div className="space-y-6 py-4">
               {/* Title */}
 
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="story-title">Title *</Label>
 
                 <Input
@@ -9830,7 +9883,7 @@ const ScrumPage: React.FC = () => {
 
               {/* Description */}
 
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="story-description">Description</Label>
 
                 <Textarea
@@ -9849,7 +9902,7 @@ const ScrumPage: React.FC = () => {
 
               {/* Acceptance Criteria */}
 
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="acceptance-criteria">Acceptance Criteria</Label>
 
                 <Textarea
@@ -9872,8 +9925,8 @@ const ScrumPage: React.FC = () => {
 
               {/* Row 1: Priority, Story Points, Status */}
 
-              <div className="grid grid-cols-3 gap-4">
-                <div>
+              <div className="grid grid-cols-3 gap-6">
+                <div className="space-y-2">
                   <Label htmlFor="story-priority">Priority *</Label>
 
                   <Select
@@ -9898,7 +9951,7 @@ const ScrumPage: React.FC = () => {
                   </Select>
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="story-points">Story Points</Label>
 
                   <Input
@@ -9915,7 +9968,7 @@ const ScrumPage: React.FC = () => {
                   />
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="estimated-hours">Estimated Hours</Label>
 
                   <Input
@@ -9935,8 +9988,8 @@ const ScrumPage: React.FC = () => {
 
               {/* Row 2: Sprint, Epic, Release */}
 
-              <div className="grid grid-cols-3 gap-4">
-                <div>
+              <div className="grid grid-cols-3 gap-6">
+                <div className="space-y-2">
                   <Label htmlFor="story-sprint">Sprint *</Label>
 
                   <Select
@@ -9966,7 +10019,7 @@ const ScrumPage: React.FC = () => {
                   </Select>
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="story-epic">Epic</Label>
 
                   <Select
@@ -9994,7 +10047,7 @@ const ScrumPage: React.FC = () => {
                   </Select>
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="story-release">Release</Label>
 
                   <Select
@@ -10025,8 +10078,8 @@ const ScrumPage: React.FC = () => {
 
               {/* Row 3: Assignee, Reporter */}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
                   <Label htmlFor="story-assignee">Assignee</Label>
 
                   <Select
@@ -10054,7 +10107,7 @@ const ScrumPage: React.FC = () => {
                   </Select>
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="story-reporter">Reporter</Label>
 
                   <Select
@@ -10085,7 +10138,7 @@ const ScrumPage: React.FC = () => {
 
               {/* Labels */}
 
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="story-labels">Labels</Label>
 
                 <Input
@@ -14078,6 +14131,38 @@ const ScrumPage: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Create Sprint Dialog */}
+      <CreateSprintDialog
+        open={isCreateSprintDialogOpen}
+        onOpenChange={setIsCreateSprintDialogOpen}
+        onSubmit={async (sprint) => {
+          try {
+            await createSprintMutate(sprint);
+            toast.success("Sprint created successfully");
+            if (refetchSprints) {
+              await refetchSprints();
+            }
+          } catch (error: any) {
+            console.error("Error creating sprint:", error);
+            toast.error(error?.message || "Failed to create sprint");
+          }
+        }}
+        projectId={selectedProject}
+      />
+
+      {/* Team Capacity Calculator */}
+      <TeamCapacityCalculator
+        open={isCapacityCalculatorOpen}
+        onOpenChange={setIsCapacityCalculatorOpen}
+        onCalculate={(capacity) => {
+          setNewSprint((prev) => ({
+            ...prev,
+            capacityHours: capacity.toFixed(0),
+          }));
+        }}
+        initialCapacity={newSprint.capacityHours ? parseInt(newSprint.capacityHours) : undefined}
+      />
     </DndProvider>
   );
 };

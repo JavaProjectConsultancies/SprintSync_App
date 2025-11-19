@@ -72,8 +72,9 @@ const AdminPanelPage: React.FC = () => {
   const [userDetailsModalOpen, setUserDetailsModalOpen] = useState(false);
   const [viewingUser, setViewingUser] = useState<User | null>(null);
   
-  // Fetch users and projects from API - fetch all users with large page size
-  const { data: usersData, loading: usersLoading, error: usersError, refetch: refetchUsers } = useUsers({ page: 0, size: 1000 });
+  // Fetch users and projects from API - fetch ALL users without any filters
+  // Using very large page size to ensure all users are fetched
+  const { data: usersData, loading: usersLoading, error: usersError, refetch: refetchUsers } = useUsers({ page: 0, size: 10000 });
   const { data: projectsData, loading: projectsLoading, error: projectsError } = useProjects();
   const { data: userStats, loading: statsLoading } = useUserStatistics();
   const { experienceLevels, loading: experienceLevelsLoading, error: experienceLevelsError } = useExperienceLevels();

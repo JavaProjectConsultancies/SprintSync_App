@@ -19,6 +19,7 @@ import { teamMemberApi } from '../services/api/entities/teamMemberApi';
 import { userApiService } from '../services/api/entities/userApi';
 import { projectApiService } from '../services/api/entities/projectApi';
 import { useTeamMembers as useProjectTeamMembers } from '../hooks/api/useTeamMembers';
+import { useAuth } from '../contexts/AuthContextEnhanced';
 import { toast } from 'sonner';
 import { 
   Users, 
@@ -91,11 +92,13 @@ const ItemTypes = {
 };
 
 const TeamAllocationPage: React.FC = () => {
+  const { user: currentUser } = useAuth();
   const [selectedMember, setSelectedMember] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [domainFilter, setDomainFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
+  const [projectFilter, setProjectFilter] = useState<string>('all');
   const [isAddMemberDialogOpen, setIsAddMemberDialogOpen] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
@@ -130,10 +133,12 @@ const TeamAllocationPage: React.FC = () => {
     setDepartmentFilter('all');
     setDomainFilter('all');
     setRoleFilter('all');
+    setProjectFilter('all');
   };
 
   // Get all users from API and generate realistic team allocation data
-  const { data: users, loading: usersListLoading, refetch: refetchUsersList } = useUsers({ page: 0, size: 1000 });
+  // For admin: fetch all users without any filters
+  const { data: users, loading: usersListLoading, refetch: refetchUsersList } = useUsers({ page: 0, size: 10000 });
   const allUsers = users || [];
   const { data: projects, loading: projectsLoading } = useProjects();
   const { data: activeUsers, loading: usersLoading, error: usersError, refetch: refetchActiveUsers } = useActiveUsers({ page: 0, size: 1000 });
@@ -327,9 +332,9 @@ const TeamAllocationPage: React.FC = () => {
       if (!selectedProjectId && projects && projects.length > 0) {
         setSelectedProjectId(projects[0].id);
       }
-      // load users for picker from active users and exclude already assigned to selected project
+      // load users for picker - use all users (not just active) for admin
       setLoadingUsers(true);
-      const rawList = (activeUsers || []).map((u: any) => ({
+      const rawList = (users || []).map((u: any) => ({
         id: u.id,
         name: u.name,
         email: u.email,
@@ -351,7 +356,7 @@ const TeamAllocationPage: React.FC = () => {
         setSelectedUserId(filtered[0].id);
       }
     }
-  }, [isAddMemberDialogOpen, projects, activeUsers, projectTeamMembers, selectedProjectId, normalizeExperience]);
+  }, [isAddMemberDialogOpen, projects, users, projectTeamMembers, selectedProjectId, normalizeExperience]);
 
   const departmentIdToName = useMemo(() => {
     const map: Record<string, string> = {};
@@ -633,8 +638,16 @@ const TeamAllocationPage: React.FC = () => {
   }, [allUsers, departmentIdToName, domainIdToName]);
 
   // Filter team members based on search and filters
+  // By default, only show members that are assigned to at least one project
   const filteredMembers = useMemo(() => {
     return teamMembers.filter(member => {
+      // First check if member is in any project (only show team members in projects)
+      const isInAnyProject = Object.values(projectIdToMembers).some((members: any) => 
+        (members || []).some((m: any) => (m.userId || m.id) === member.id)
+      );
+      
+      if (!isInAnyProject) return false;
+      
       const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            member.domain.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            (member.role as string).toLowerCase().includes(searchTerm.toLowerCase());
@@ -643,20 +656,33 @@ const TeamAllocationPage: React.FC = () => {
       const matchesDomain = domainFilter === 'all' || member.domain === domainFilter;
       const matchesRole = roleFilter === 'all' || (member.role as string) === roleFilter;
       
-      return matchesSearch && matchesDepartment && matchesDomain && matchesRole;
+      // Filter by project: only show members that are in the selected project
+      const matchesProject = projectFilter === 'all' || (() => {
+        if (projectFilter === 'all') return true;
+        // Check if member is assigned to the selected project
+        const projectMembers = projectIdToMembers[projectFilter] || [];
+        return projectMembers.some((m: any) => (m.userId || m.id) === member.id);
+      })();
+      
+      return matchesSearch && matchesDepartment && matchesDomain && matchesRole && matchesProject;
     });
-  }, [teamMembers, searchTerm, departmentFilter, domainFilter, roleFilter]);
+  }, [teamMembers, searchTerm, departmentFilter, domainFilter, roleFilter, projectFilter, projectIdToMembers]);
 
   // Calculate statistics
+  // For admin: show total count of all team members, not just filtered
+  // For others: show filtered count
   const stats = useMemo(() => {
-    const totalMembers = filteredMembers.length;
-    const totalUtilization = filteredMembers.reduce((sum, member) => sum + member.utilization, 0);
-    const avgUtilization = totalMembers > 0 ? Math.round(totalUtilization / totalMembers) : 0;
-    const availableHours = filteredMembers.reduce((sum, member) => sum + (member.capacity - member.allocated), 0);
-    const overloadedCount = filteredMembers.filter(member => member.utilization > 100).length;
+    const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'ADMIN';
+    // For admin, use total teamMembers count; for others, use filtered count
+    const totalMembers = isAdmin ? teamMembers.length : filteredMembers.length;
+    const membersForStats = isAdmin ? teamMembers : filteredMembers;
+    const totalUtilization = membersForStats.reduce((sum, member) => sum + member.utilization, 0);
+    const avgUtilization = membersForStats.length > 0 ? Math.round(totalUtilization / membersForStats.length) : 0;
+    const availableHours = membersForStats.reduce((sum, member) => sum + (member.capacity - member.allocated), 0);
+    const overloadedCount = membersForStats.filter(member => member.utilization > 100).length;
     
     return { totalMembers, avgUtilization, availableHours, overloadedCount };
-  }, [filteredMembers]);
+  }, [filteredMembers, teamMembers, currentUser]);
 
   // Get unique values for filters (prefer API, fallback to team data)
   const departments = useMemo(() => {
@@ -1131,8 +1157,8 @@ const TeamAllocationPage: React.FC = () => {
       {/* Search and Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-2">
+          <div className="flex flex-wrap items-end gap-6">
+            <div className="flex-1 min-w-[200px] space-y-2">
               <Label htmlFor="search">Search Team Members</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -1146,7 +1172,24 @@ const TeamAllocationPage: React.FC = () => {
               </div>
             </div>
             
-            <div className="space-y-2">
+            <div className="flex-1 min-w-[180px] space-y-2">
+              <Label>Project</Label>
+              <Select value={projectFilter} onValueChange={setProjectFilter}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Projects</SelectItem>
+                  {projects?.map((project: any) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex-1 min-w-[160px] space-y-2">
               <Label>Department</Label>
               <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
                 <SelectTrigger>
@@ -1161,7 +1204,7 @@ const TeamAllocationPage: React.FC = () => {
               </Select>
             </div>
             
-            <div className="space-y-2">
+            <div className="flex-1 min-w-[160px] space-y-2">
               <Label>Domain</Label>
               <Select value={domainFilter} onValueChange={setDomainFilter}>
                 <SelectTrigger>
@@ -1176,31 +1219,33 @@ const TeamAllocationPage: React.FC = () => {
               </Select>
             </div>
             
-            <div className="space-y-2">
+            <div className="flex-1 min-w-[140px] space-y-2">
               <Label>Role</Label>
-              <div className="flex items-center gap-2">
-                <Select value={roleFilter} onValueChange={setRoleFilter}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Roles</SelectItem>
-                    {roles.map((role: string) => (
-                      <SelectItem key={role} value={role}>
-                        {role.charAt(0).toUpperCase() + role.slice(1)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="whitespace-nowrap text-red-600 border-red-300 hover:bg-red-50"
-                  onClick={clearAllFilters}
-                >
-                  Clear
-                </Button>
-              </div>
+              <Select value={roleFilter} onValueChange={setRoleFilter}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Roles</SelectItem>
+                  {roles.map((role: string) => (
+                    <SelectItem key={role} value={role}>
+                      {role.charAt(0).toUpperCase() + role.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label className="opacity-0">Clear</Label>
+              <Button
+                variant="outline"
+                size="default"
+                className="whitespace-nowrap text-red-600 border-red-300 hover:bg-red-50 h-10"
+                onClick={clearAllFilters}
+              >
+                Clear
+              </Button>
             </div>
           </div>
         </CardContent>

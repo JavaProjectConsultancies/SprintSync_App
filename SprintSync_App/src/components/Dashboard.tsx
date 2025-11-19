@@ -414,7 +414,105 @@ const Dashboard: React.FC = () => {
     
     // Fast calculations with early optimizations
     const totalProjects = isManagerOrAdmin ? projects.length : userAssignedProjects.length;
-    const totalUsers = users.length;
+    
+    // Calculate total users
+    // For admin: show all users from the system
+    // For others: show users from projects where the user is listed
+    const normalizeId = (value?: string | number | null): string | undefined => {
+      if (value === null || value === undefined) {
+        return undefined;
+      }
+      return String(value);
+    };
+    
+    let totalUsers: number;
+    
+    if (user.role === 'admin') {
+      // Admin sees all users in the system
+      totalUsers = users.length;
+    } else {
+      // For non-admin users, show only users from projects where they are listed
+      const normalizedCurrentUserId = user?.id ? normalizeId(user.id) : undefined;
+      
+      // Get all projects where the user is listed (manager, creator, or team member)
+      const userAccessibleProjects = projects.filter(project => {
+        if (!project || !normalizedCurrentUserId) return false;
+        
+        const projectIdNormalized = normalizeId(project.id);
+        const teamList: any[] =
+          Array.isArray((project as any).teamMembers) ? (project as any).teamMembers :
+          Array.isArray((project as any).members) ? (project as any).members :
+          Array.isArray((project as any).team) ? (project as any).team :
+          [];
+        
+        const managerId = normalizeId((project as any).managerId);
+        const createdById = normalizeId((project as any).createdBy);
+        
+        // Check if user is the manager
+        if (managerId && managerId === normalizedCurrentUserId) {
+          return true;
+        }
+        
+        // Check if user is the creator
+        if (createdById && createdById === normalizedCurrentUserId) {
+          return true;
+        }
+        
+        // Check if user is a team member
+        if (teamList.length > 0) {
+          return teamList.some(member => {
+            const memberId = normalizeId(
+              member?.userId ??
+              member?.id ??
+              member?.memberId ??
+              member?.assigneeId ??
+              member?.user?.id ??
+              member?.user?.userId
+            );
+            return memberId ? memberId === normalizedCurrentUserId : false;
+          });
+        }
+        
+        return false;
+      });
+      
+      // Collect all unique team member IDs from accessible projects
+      const allProjectTeamMemberIds = new Set<string>();
+      userAccessibleProjects.forEach(project => {
+        const teamList: any[] =
+          Array.isArray((project as any).teamMembers) ? (project as any).teamMembers :
+          Array.isArray((project as any).members) ? (project as any).members :
+          Array.isArray((project as any).team) ? (project as any).team :
+          [];
+        
+        teamList.forEach(member => {
+          const memberId = normalizeId(
+            member?.userId ??
+            member?.id ??
+            member?.memberId ??
+            member?.assigneeId ??
+            member?.user?.id ??
+            member?.user?.userId
+          );
+          if (memberId) {
+            allProjectTeamMemberIds.add(memberId);
+          }
+        });
+        
+        // Also include manager and creator if they exist
+        const managerId = normalizeId((project as any).managerId);
+        const createdById = normalizeId((project as any).createdBy);
+        if (managerId) {
+          allProjectTeamMemberIds.add(managerId);
+        }
+        if (createdById) {
+          allProjectTeamMemberIds.add(createdById);
+        }
+      });
+      
+      // Count unique users from projects where the user is listed
+      totalUsers = allProjectTeamMemberIds.size;
+    }
     const totalTasks = sprintTasks.length;
     
     // Use single pass for task filtering (more efficient)

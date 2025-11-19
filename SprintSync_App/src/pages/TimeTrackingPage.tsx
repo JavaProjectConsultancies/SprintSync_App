@@ -344,17 +344,37 @@ const TimeTrackingPage: React.FC = () => {
   const [customRangeOpen, setCustomRangeOpen] = useState(false);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [additionalSprints, setAdditionalSprints] = useState<Sprint[]>([]);
+  const [projectSprints, setProjectSprints] = useState<Sprint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Fetch team members for selected project
+  // Fetch team members for selected project (will be defined after projects)
   const projectTeamMembersResult = useTeamMembers(projectFilter !== 'all' ? projectFilter : undefined);
-  const projectTeamMembers = useMemo(() => {
-    if (projectFilter === 'all') {
-      return []; // No project selected, return empty array
-    }
-    return Array.isArray(projectTeamMembersResult.teamMembers) ? projectTeamMembersResult.teamMembers : [];
-  }, [projectFilter, projectTeamMembersResult.teamMembers]);
+  
+  // Fetch sprints for selected project
+  useEffect(() => {
+    const fetchProjectSprints = async () => {
+      if (projectFilter === 'all') {
+        setProjectSprints([]);
+        return;
+      }
+      
+      try {
+        const { sprintApiService } = await import('../services/api/entities/sprintApi');
+        const response = await sprintApiService.getSprintsByProject(projectFilter);
+        if (response.success && Array.isArray(response.data)) {
+          setProjectSprints(response.data);
+        } else {
+          setProjectSprints([]);
+        }
+      } catch (err) {
+        console.error('Error fetching sprints for project:', err);
+        setProjectSprints([]);
+      }
+    };
+    
+    fetchProjectSprints();
+  }, [projectFilter]);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [expandedUsers, setExpandedUsers] = useState<Record<string, boolean>>({});
@@ -839,60 +859,77 @@ const TimeTrackingPage: React.FC = () => {
     const baseProjects = Array.isArray(data) ? data : [];
     const merged = mergeById(baseProjects, additionalProjects);
 
-    // Check if current user is manager or admin
-    const isManagerOrAdmin = currentUser && (
-      currentUser.role === 'admin' || 
-      currentUser.role === 'manager' || 
-      currentUser.role === 'MANAGER' ||
-      currentUser.role === 'ADMIN' ||
-      currentUser.role?.toLowerCase() === 'manager' ||
-      currentUser.role?.toLowerCase() === 'admin'
-    );
-
     const normalizedCurrentUserId = currentUser?.id ? normalizeId(currentUser.id) : undefined;
 
-    if (!isManagerOrAdmin && normalizedCurrentUserId) {
-      return merged.filter(project => {
-        if (!project) return false;
-
-        const projectIdNormalized = normalizeId(project.id);
-
-        const teamList: any[] =
-          Array.isArray((project as any).teamMembers) ? (project as any).teamMembers :
-          Array.isArray((project as any).members) ? (project as any).members :
-          Array.isArray((project as any).team) ? (project as any).team :
-          [];
-
-        const managerId = normalizeId((project as any).managerId);
-        const createdById = normalizeId((project as any).createdBy);
-
-        if (managerId && managerId === normalizedCurrentUserId) {
-          return true;
-        }
-
-        if (createdById && createdById === normalizedCurrentUserId) {
-          return true;
-        }
-
-        if (teamList.length > 0) {
-          return teamList.some(member => {
-            const memberId = normalizeId(
-              member?.userId ??
-              member?.id ??
-              member?.memberId ??
-              member?.assigneeId ??
-              member?.user?.id
-            );
-            return memberId ? memberId === normalizedCurrentUserId : false;
-          });
-        }
-
-        return false;
-      });
+    // Filter to only show projects where the user is listed (manager, creator, or team member)
+    // This applies to ALL users, including managers/admins
+    if (!normalizedCurrentUserId) {
+      return [];
     }
 
-    return merged;
+    return merged.filter(project => {
+      if (!project) return false;
+
+      const projectIdNormalized = normalizeId(project.id);
+
+      const teamList: any[] =
+        Array.isArray((project as any).teamMembers) ? (project as any).teamMembers :
+        Array.isArray((project as any).members) ? (project as any).members :
+        Array.isArray((project as any).team) ? (project as any).team :
+        [];
+
+      const managerId = normalizeId((project as any).managerId);
+      const createdById = normalizeId((project as any).createdBy);
+
+      // Check if user is the manager
+      if (managerId && managerId === normalizedCurrentUserId) {
+        return true;
+      }
+
+      // Check if user is the creator
+      if (createdById && createdById === normalizedCurrentUserId) {
+        return true;
+      }
+
+      // Check if user is a team member
+      if (teamList.length > 0) {
+        return teamList.some(member => {
+          const memberId = normalizeId(
+            member?.userId ??
+            member?.id ??
+            member?.memberId ??
+            member?.assigneeId ??
+            member?.user?.id
+          );
+          return memberId ? memberId === normalizedCurrentUserId : false;
+        });
+      }
+
+      // User is not listed in this project
+      return false;
+    });
   }, [projectsResult.data, additionalProjects, currentUser]);
+
+  // Define projectTeamMembers after projects is defined
+  const projectTeamMembers = useMemo(() => {
+    if (projectFilter === 'all') {
+      return []; // No project selected, return empty array
+    }
+    
+    const members = Array.isArray(projectTeamMembersResult.teamMembers) ? projectTeamMembersResult.teamMembers : [];
+    
+    // Filter to only show team members from projects where the user is listed
+    // The projects array already contains only projects where the user is listed
+    const accessibleProjectIds = new Set(
+      projects.map(p => normalizeId(p.id)).filter((id): id is string => Boolean(id))
+    );
+
+    // Filter members to only show those from accessible projects
+    return members.filter(member => {
+      const memberProjectId = normalizeId((member as any).projectId);
+      return memberProjectId ? accessibleProjectIds.has(memberProjectId) : false; // Exclude if no projectId
+    });
+  }, [projectFilter, projectTeamMembersResult.teamMembers, projects, currentUser]);
 
   const stories = useMemo(() => {
     const data = storiesResult.data;
@@ -907,8 +944,60 @@ const TimeTrackingPage: React.FC = () => {
   const sprints = useMemo(() => {
     const data = sprintsResult.data;
     const baseSprints = Array.isArray(data) ? data : [];
-    return mergeById(baseSprints, additionalSprints);
-  }, [sprintsResult.data, additionalSprints]);
+    // Merge all sprints: base sprints, additional sprints, and project-specific sprints
+    const merged = mergeById(mergeById(baseSprints, additionalSprints), projectSprints);
+
+    // Filter to only show sprints from projects where the user is listed
+    // The projects array already contains only projects where the user is listed
+    const accessibleProjectIds = new Set(
+      projects.map(p => normalizeId(p.id)).filter((id): id is string => Boolean(id))
+    );
+
+    return merged.filter(sprint => {
+      const sprintProjectId = normalizeId(sprint.projectId);
+      return sprintProjectId ? accessibleProjectIds.has(sprintProjectId) : false;
+    });
+  }, [sprintsResult.data, additionalSprints, projectSprints, projects, currentUser]);
+
+  // Reset sprint and user filters when project changes (must be after sprints and projectTeamMembers are defined)
+  useEffect(() => {
+    if (projectFilter === 'all') {
+      // If project is reset to 'all', keep current filters
+      return;
+    }
+    
+    // Check if current sprint filter is valid for the selected project
+    if (sprintFilter !== 'all') {
+      const selectedSprint = sprints.find(s => normalizeId(s.id) === sprintFilter);
+      const sprintProjectId = selectedSprint ? normalizeId(selectedSprint.projectId) : null;
+      if (sprintProjectId !== projectFilter) {
+        // Sprint doesn't belong to selected project, reset it
+        setSprintFilter('all');
+      }
+    }
+    
+    // Check if current user filter is valid for the selected project
+    if (userFilter !== 'all' && projectFilter !== 'all') {
+      const projectTeamMemberIds = new Set(
+        projectTeamMembers
+          .map(member => {
+            const memberId = normalizeId(
+              (member as any).userId ||
+              (member as any).id ||
+              (member as any).memberId ||
+              (member as any).user?.id
+            );
+            return memberId;
+          })
+          .filter((id): id is string => Boolean(id))
+      );
+      
+      if (!projectTeamMemberIds.has(userFilter)) {
+        // User is not a team member of the selected project, reset it
+        setUserFilter('all');
+      }
+    }
+  }, [projectFilter, sprintFilter, userFilter, sprints, projectTeamMembers]);
 
   const workTypeOptions = useMemo(() => [...CATEGORY_OPTIONS], []);
 
@@ -1394,7 +1483,7 @@ const TimeTrackingPage: React.FC = () => {
       return;
     }
 
-    // Filter entries: managers/admins see all entries, others see only their own
+    // Filter entries: managers/admins see entries from their accessible projects, others see only their own
     const isManagerOrAdmin = currentUser && (
       currentUser.role === 'admin' || 
       currentUser.role === 'manager' || 
@@ -1404,9 +1493,53 @@ const TimeTrackingPage: React.FC = () => {
       currentUser.role?.toLowerCase() === 'admin'
     );
     
-    const entriesToMap = (currentUser && currentUser.id && !isManagerOrAdmin)
-      ? rawTimeEntries.filter(entry => normalizeId(entry.userId) === normalizeId(currentUser.id))
-      : rawTimeEntries;
+    let entriesToMap = rawTimeEntries;
+    
+    if (!isManagerOrAdmin && currentUser && currentUser.id) {
+      // Non-managers/admins: only see their own entries
+      entriesToMap = rawTimeEntries.filter(entry => normalizeId(entry.userId) === normalizeId(currentUser.id));
+    } else if (isManagerOrAdmin) {
+      // Managers/admins: filter by accessible projects
+      const accessibleProjectIds = new Set(
+        projects.map(p => normalizeId(p.id)).filter((id): id is string => Boolean(id))
+      );
+      
+      entriesToMap = rawTimeEntries.filter(entry => {
+        // Get projectId from entry
+        const entryProjectId = normalizeId((entry as any).projectId);
+        if (entryProjectId && accessibleProjectIds.has(entryProjectId)) {
+          return true;
+        }
+        
+        // Also check via story -> project mapping
+        const entryStoryId = normalizeId(entry.storyId);
+        if (entryStoryId) {
+          const story = storiesMap.get(entryStoryId);
+          if (story) {
+            const storyProjectId = normalizeId(story.projectId);
+            return storyProjectId ? accessibleProjectIds.has(storyProjectId) : false;
+          }
+        }
+        
+        // Also check via task -> story -> project mapping
+        const entryTaskId = normalizeId(entry.taskId);
+        if (entryTaskId) {
+          const task = tasksMap.get(entryTaskId);
+          if (task) {
+            const taskStoryId = normalizeId(task.storyId);
+            if (taskStoryId) {
+              const story = storiesMap.get(taskStoryId);
+              if (story) {
+                const storyProjectId = normalizeId(story.projectId);
+                return storyProjectId ? accessibleProjectIds.has(storyProjectId) : false;
+              }
+            }
+          }
+        }
+        
+        return false;
+      });
+    }
     
     // First, map all entries and resolve subtask entries to their parent tasks
     const processedEntries = entriesToMap.map((entry) => {
@@ -1569,7 +1702,7 @@ const TimeTrackingPage: React.FC = () => {
     });
 
     setTimeEntries(aggregatedEntries);
-  }, [rawTimeEntries, usersMap, projectsMap, storiesMap, tasksMap, sprintsMap, projectToSprintMap, subtaskToTaskMap, currentUser]);
+  }, [rawTimeEntries, usersMap, projectsMap, storiesMap, tasksMap, sprintsMap, projectToSprintMap, subtaskToTaskMap, currentUser, projects]);
 
   // Parse time string to minutes
   const parseTime = (timeStr: string): number => {
@@ -2020,6 +2153,10 @@ const TimeTrackingPage: React.FC = () => {
     ? Math.round((summaryStats.averageDailyMinutes / 60) * 10) / 10
     : 0;
   const activeProjectsTotal = useMemo(() => {
+    // Only count projects where the user is listed (already filtered by projects useMemo)
+    // The projects array is already filtered to only include projects where:
+    // - User is manager/admin (sees all accessible projects)
+    // - User is manager, creator, or team member of the project
     if (!Array.isArray(projects) || projects.length === 0) {
       return summaryStats.totalUniqueProjects || summaryStats.uniqueProjects || 0;
     }
@@ -2027,7 +2164,56 @@ const TimeTrackingPage: React.FC = () => {
     const normalizeStatus = (status?: string | null) =>
       status ? status.toString().trim().toUpperCase() : undefined;
 
+    const normalizedCurrentUserId = currentUser?.id ? normalizeId(currentUser.id) : undefined;
+
     return projects.filter(project => {
+      // Check if user is listed in this project
+      if (normalizedCurrentUserId) {
+        const managerId = normalizeId((project as any).managerId);
+        const createdById = normalizeId((project as any).createdBy);
+        
+        // Check if user is manager or creator
+        if (managerId === normalizedCurrentUserId || createdById === normalizedCurrentUserId) {
+          // User is manager or creator, check status
+          const status = normalizeStatus((project as any).status);
+          const isActiveFlag =
+            typeof (project as any).isActive === 'boolean' ? (project as any).isActive : true;
+
+          if (!isActiveFlag) {
+            return false;
+          }
+
+          if (!status) {
+            return true;
+          }
+
+          return !['COMPLETED', 'CANCELLED', 'ON_HOLD'].includes(status);
+        }
+
+        // Check if user is a team member
+        const teamList: any[] =
+          Array.isArray((project as any).teamMembers) ? (project as any).teamMembers :
+          Array.isArray((project as any).members) ? (project as any).members :
+          Array.isArray((project as any).team) ? (project as any).team :
+          [];
+
+        const isTeamMember = teamList.some(member => {
+          const memberId = normalizeId(
+            member?.userId ??
+            member?.id ??
+            member?.memberId ??
+            member?.assigneeId ??
+            member?.user?.id
+          );
+          return memberId === normalizedCurrentUserId;
+        });
+
+        if (!isTeamMember) {
+          return false; // User is not listed in this project
+        }
+      }
+
+      // User is listed, check status
       const status = normalizeStatus((project as any).status);
       const isActiveFlag =
         typeof (project as any).isActive === 'boolean' ? (project as any).isActive : true;
@@ -2042,10 +2228,91 @@ const TimeTrackingPage: React.FC = () => {
 
       return !['COMPLETED', 'CANCELLED', 'ON_HOLD'].includes(status);
     }).length;
-  }, [projects, summaryStats.totalUniqueProjects, summaryStats.uniqueProjects]);
+  }, [projects, summaryStats.totalUniqueProjects, summaryStats.uniqueProjects, currentUser]);
 
   const activeProjectsWithinRange = summaryStats.uniqueProjects || 0;
-  const activeMemberCount = summaryStats.activeMembers || 0;
+  
+  // Calculate team members count based on the same filtering logic as the picker
+  const activeMemberCount = useMemo(() => {
+    // Get all team members from projects where the user is listed
+    const allProjectTeamMemberIds = new Set<string>();
+    
+    // Collect team members from all accessible projects
+    projects.forEach(project => {
+      const teamList: any[] =
+        Array.isArray((project as any).teamMembers) ? (project as any).teamMembers :
+        Array.isArray((project as any).members) ? (project as any).members :
+        Array.isArray((project as any).team) ? (project as any).team :
+        [];
+      
+      teamList.forEach(member => {
+        const memberId = normalizeId(
+          member?.userId ??
+          member?.id ??
+          member?.memberId ??
+          member?.assigneeId ??
+          member?.user?.id ??
+          member?.user?.userId
+        );
+        if (memberId) {
+          allProjectTeamMemberIds.add(memberId);
+        }
+      });
+    });
+    
+    // If a specific project is selected, filter to only that project's team members
+    if (projectFilter !== 'all') {
+      const normalizedProjectFilter = normalizeId(projectFilter);
+      
+      // Get team members from the selected project (from API)
+      const projectTeamMemberIds = new Set(
+        projectTeamMembers
+          .map(member => {
+            const memberId = normalizeId(
+              (member as any).userId ||
+              (member as any).id ||
+              (member as any).memberId ||
+              (member as any).user?.id ||
+              (member as any).user?.userId
+            );
+            return memberId;
+          })
+          .filter((id): id is string => Boolean(id))
+      );
+      
+      // Fallback: If no team members from API, try to get from project data
+      if (projectTeamMemberIds.size === 0) {
+        const selectedProject = projects.find(p => normalizeId(p.id) === normalizedProjectFilter);
+        if (selectedProject) {
+          const projectTeamList: any[] =
+            Array.isArray((selectedProject as any).teamMembers) ? (selectedProject as any).teamMembers :
+            Array.isArray((selectedProject as any).members) ? (selectedProject as any).members :
+            Array.isArray((selectedProject as any).team) ? (selectedProject as any).team :
+            [];
+          
+          projectTeamList.forEach(member => {
+            const memberId = normalizeId(
+              member?.userId ??
+              member?.id ??
+              member?.memberId ??
+              member?.assigneeId ??
+              member?.user?.id ??
+              member?.user?.userId
+            );
+            if (memberId) {
+              projectTeamMemberIds.add(memberId);
+            }
+          });
+        }
+      }
+      
+      return projectTeamMemberIds.size;
+    } else {
+      // No project selected, return count of all team members from projects where user is listed
+      return allProjectTeamMemberIds.size;
+    }
+  }, [projects, projectFilter, projectTeamMembers]);
+  
   const timeEntryCount = summaryStats.timeEntries || 0;
   const billablePercentage = summaryStats.billablePercentage || 0;
 
@@ -2239,17 +2506,44 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Sprints</SelectItem>
-                    {sprints.map(sprint => {
-                      const sprintId = normalizeId(sprint.id);
-                      if (!sprintId) {
-                        return null;
+                    {(() => {
+                      // Filter sprints by selected project if a project is selected
+                      let filteredSprints = sprints;
+                      if (projectFilter !== 'all') {
+                        const normalizedProjectFilter = normalizeId(projectFilter);
+                        filteredSprints = sprints.filter(sprint => {
+                          const sprintProjectId = normalizeId(sprint.projectId);
+                          return sprintProjectId === normalizedProjectFilter;
+                        });
+                        
+                        // Fallback: If no sprints found, try to get sprints from the project data itself
+                        if (filteredSprints.length === 0) {
+                          const selectedProject = projects.find(p => normalizeId(p.id) === normalizedProjectFilter);
+                          if (selectedProject && (selectedProject as any).sprints) {
+                            const projectSprints = Array.isArray((selectedProject as any).sprints) 
+                              ? (selectedProject as any).sprints 
+                              : [];
+                            filteredSprints = projectSprints.map((s: any) => ({
+                              id: s.id || s.sprintId,
+                              name: s.name || s.sprintName,
+                              projectId: normalizedProjectFilter,
+                              ...s
+                            }));
+                          }
+                        }
                       }
-                      return (
-                        <SelectItem key={sprintId} value={sprintId}>
-                          {sprint.name}
-                        </SelectItem>
-                      );
-                    })}
+                      return filteredSprints.map(sprint => {
+                        const sprintId = normalizeId(sprint.id);
+                        if (!sprintId) {
+                          return null;
+                        }
+                        return (
+                          <SelectItem key={sprintId} value={sprintId}>
+                            {sprint.name}
+                          </SelectItem>
+                        );
+                      });
+                    })()}
                   </SelectContent>
                 </Select>
                         </div>
@@ -2262,17 +2556,104 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Members</SelectItem>
-                    {users.map(user => {
-                      const userId = normalizeId(user.id);
-                      if (!userId) {
-                        return null;
+                    {(() => {
+                      // Get all team members from projects where the user is listed
+                      const allProjectTeamMemberIds = new Set<string>();
+                      
+                      // Collect team members from all accessible projects
+                      projects.forEach(project => {
+                        const teamList: any[] =
+                          Array.isArray((project as any).teamMembers) ? (project as any).teamMembers :
+                          Array.isArray((project as any).members) ? (project as any).members :
+                          Array.isArray((project as any).team) ? (project as any).team :
+                          [];
+                        
+                        teamList.forEach(member => {
+                          const memberId = normalizeId(
+                            member?.userId ??
+                            member?.id ??
+                            member?.memberId ??
+                            member?.assigneeId ??
+                            member?.user?.id
+                          );
+                          if (memberId) {
+                            allProjectTeamMemberIds.add(memberId);
+                          }
+                        });
+                      });
+                      
+                      // If a specific project is selected, filter to only that project's team members
+                      let filteredUsers = users;
+                      if (projectFilter !== 'all') {
+                        const normalizedProjectFilter = normalizeId(projectFilter);
+                        
+                        // Get team members from the selected project (from API)
+                        const projectTeamMemberIds = new Set(
+                          projectTeamMembers
+                            .map(member => {
+                              const memberId = normalizeId(
+                                (member as any).userId ||
+                                (member as any).id ||
+                                (member as any).memberId ||
+                                (member as any).user?.id ||
+                                (member as any).user?.userId
+                              );
+                              return memberId;
+                            })
+                            .filter((id): id is string => Boolean(id))
+                        );
+                        
+                        // Fallback: If no team members from API, try to get from project data
+                        if (projectTeamMemberIds.size === 0) {
+                          const selectedProject = projects.find(p => normalizeId(p.id) === normalizedProjectFilter);
+                          if (selectedProject) {
+                            const projectTeamList: any[] =
+                              Array.isArray((selectedProject as any).teamMembers) ? (selectedProject as any).teamMembers :
+                              Array.isArray((selectedProject as any).members) ? (selectedProject as any).members :
+                              Array.isArray((selectedProject as any).team) ? (selectedProject as any).team :
+                              [];
+                            
+                            projectTeamList.forEach(member => {
+                              const memberId = normalizeId(
+                                member?.userId ??
+                                member?.id ??
+                                member?.memberId ??
+                                member?.assigneeId ??
+                                member?.user?.id ??
+                                member?.user?.userId
+                              );
+                              if (memberId) {
+                                projectTeamMemberIds.add(memberId);
+                              }
+                            });
+                          }
+                        }
+                        
+                        // Filter users to only show team members from the selected project
+                        filteredUsers = users.filter(user => {
+                          const userId = normalizeId(user.id);
+                          return userId ? projectTeamMemberIds.has(userId) : false;
+                        });
+                      } else {
+                        // No project selected, show all team members from projects where user is listed
+                        filteredUsers = users.filter(user => {
+                          const userId = normalizeId(user.id);
+                          return userId ? allProjectTeamMemberIds.has(userId) : false;
+                        });
                       }
-                      return (
-                        <SelectItem key={userId} value={userId}>
-                          {user.name}
-                        </SelectItem>
-                      );
-                    })}
+                      
+                      return filteredUsers.map(user => {
+                        const userId = normalizeId(user.id);
+                        if (!userId) {
+                          return null;
+                        }
+                        return (
+                          <SelectItem key={userId} value={userId}>
+                            {user.name}
+                          </SelectItem>
+                        );
+                      });
+                    })()}
                   </SelectContent>
                 </Select>
                         </div>

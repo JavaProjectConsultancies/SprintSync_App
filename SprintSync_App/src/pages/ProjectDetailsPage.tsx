@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -21,7 +21,10 @@ import EpicManager from '../components/EpicManager';
 import TeamManager from '../components/TeamManager';
 import { useAuth } from '../contexts/AuthContextEnhanced';
 import { attachmentApiService } from '../services/api';
+import { epicApiService } from '../services/api/entities/epicApi';
 import { toast } from 'sonner';
+import { Epic as ApiEpic } from '../types/api';
+import { Epic, EpicStatus } from '../types';
 import { 
   ArrowLeft,
   Calendar,
@@ -69,6 +72,58 @@ interface Risk {
   status: 'identified' | 'mitigating' | 'resolved';
   owner: string;
 }
+
+// Helper function to convert API Epic to local Epic format
+const convertApiEpicToLocal = (apiEpic: ApiEpic): Epic => {
+  const mapApiStatusToLocal = (status: string): EpicStatus => {
+    switch (status) {
+      case 'PLANNING': return 'planning';
+      case 'ACTIVE': return 'in-progress';
+      case 'COMPLETED': return 'completed';
+      case 'CANCELLED': return 'cancelled';
+      default: return 'planning';
+    }
+  };
+
+  const mapApiPriorityToLocal = (priority: string): 'low' | 'medium' | 'high' | 'critical' => {
+    switch (priority) {
+      case 'LOW': return 'low';
+      case 'MEDIUM': return 'medium';
+      case 'HIGH': return 'high';
+      case 'CRITICAL': return 'critical';
+      default: return 'medium';
+    }
+  };
+
+  return {
+    id: apiEpic.id,
+    projectId: apiEpic.projectId,
+    title: apiEpic.title,
+    description: apiEpic.description || '',
+    summary: apiEpic.summary || '',
+    priority: mapApiPriorityToLocal(apiEpic.priority),
+    status: mapApiStatusToLocal(apiEpic.status),
+    assigneeId: apiEpic.assigneeId,
+    owner: apiEpic.owner,
+    startDate: apiEpic.startDate || new Date().toISOString(),
+    endDate: apiEpic.endDate || new Date().toISOString(),
+    progress: apiEpic.progress || 0,
+    storyPoints: apiEpic.storyPoints || 0,
+    completedStoryPoints: 0,
+    linkedMilestones: [],
+    linkedStories: [],
+    labels: [],
+    components: [],
+    theme: apiEpic.theme || '',
+    businessValue: apiEpic.businessValue || '',
+    acceptanceCriteria: [],
+    risks: [],
+    dependencies: [],
+    createdAt: apiEpic.createdAt,
+    updatedAt: apiEpic.updatedAt,
+    completedAt: undefined
+  };
+};
 
 const ProjectDetailsPage = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -125,12 +180,51 @@ const ProjectDetailsPage = () => {
     acceptanceCriteria: ''
   });
   
-  // Update local epics when project data changes
-  useEffect(() => {
-    if (project?.epics) {
-      setLocalEpics(project.epics);
+  // Function to fetch epics from API
+  const fetchEpicsFromApi = useCallback(async () => {
+    if (!id) return;
+    try {
+      const response = await epicApiService.getEpicsByProject(id);
+      // Handle different response structures
+      let epicsData: ApiEpic[] = [];
+      if (response.data) {
+        if (Array.isArray(response.data)) {
+          epicsData = response.data;
+        } else if (Array.isArray((response.data as any).content)) {
+          epicsData = (response.data as any).content;
+        } else if (Array.isArray((response.data as any).data)) {
+          epicsData = (response.data as any).data;
+        }
+      }
+      
+      if (epicsData.length > 0) {
+        const convertedEpics = epicsData.map(convertApiEpicToLocal);
+        // Deduplicate epics by ID to prevent duplicates
+        const uniqueEpics = convertedEpics.reduce((acc, epic) => {
+          if (!acc.find(e => e.id === epic.id)) {
+            acc.push(epic);
+          }
+          return acc;
+        }, [] as Epic[]);
+        setLocalEpics(uniqueEpics);
+      } else {
+        // If no epics returned, only clear if we don't have any local epics
+        // This prevents clearing newly added epics before API is updated
+        setLocalEpics(prev => prev.length === 0 ? [] : prev);
+      }
+    } catch (error) {
+      console.error('Error fetching epics:', error);
+      // Don't show error toast on every refresh, just log it
+      // toast.error('Failed to refresh epics');
     }
-  }, [project?.epics]);
+  }, [id]);
+
+  // Fetch epics on mount and when project ID changes
+  useEffect(() => {
+    if (id) {
+      fetchEpicsFromApi();
+    }
+  }, [id, fetchEpicsFromApi]); // Fetch epics directly from API, not from project.epics to avoid duplicates
 
   // Update local requirements when API data changes
   useEffect(() => {
@@ -1029,7 +1123,7 @@ const ProjectDetailsPage = () => {
               </div>
               <div className="text-right">
                 <div className="text-2xl font-bold text-orange-600">
-                  {project.epics?.length || 0}
+                  {localEpics.length || 0}
                 </div>
                 <div className="text-sm text-orange-500">Total Epics</div>
               </div>
@@ -1039,17 +1133,25 @@ const ProjectDetailsPage = () => {
             epics={localEpics}
             projectId={id || ''}
             currentUserId={user?.id || ''}
-            onAddEpic={(epic) => {
+            onAddEpic={async (epic) => {
               console.log('Adding epic:', epic);
               // Add the new epic to local state immediately for real-time update
-              setLocalEpics(prev => [...prev, epic]);
+              setLocalEpics(prev => {
+                // Check if epic already exists to avoid duplicates
+                const exists = prev.some(e => e.id === epic.id);
+                if (exists) {
+                  return prev; // Don't add duplicate
+                }
+                return [...prev, epic];
+              });
               // Refresh activities to show the new epic creation
               setTimeout(() => {
                 refetch();
                 refetchActivities();
-              }, 1000);
+                fetchEpicsFromApi();
+              }, 500);
             }}
-            onUpdateEpic={(epic) => {
+            onUpdateEpic={async (epic) => {
               console.log('Updating epic:', epic);
               // Update the epic in local state
               setLocalEpics(prev => prev.map(e => e.id === epic.id ? epic : e));
@@ -1057,17 +1159,19 @@ const ProjectDetailsPage = () => {
               setTimeout(() => {
                 refetch();
                 refetchActivities();
-              }, 1000);
+                fetchEpicsFromApi();
+              }, 500);
             }}
-            onDeleteEpic={(epicId) => {
+            onDeleteEpic={async (epicId) => {
               console.log('Deleting epic:', epicId);
-              // Remove the epic from local state
+              // Remove the epic from local state immediately for real-time update
               setLocalEpics(prev => prev.filter(e => e.id !== epicId));
               // Refresh activities to show the epic deletion
               setTimeout(() => {
                 refetch();
                 refetchActivities();
-              }, 1000);
+                fetchEpicsFromApi();
+              }, 500);
             }}
           />
         </TabsContent>
