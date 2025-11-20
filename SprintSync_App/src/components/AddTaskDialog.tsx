@@ -868,7 +868,6 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                           mode="single"
                           selected={formData.dueDate}
                           onSelect={(date) => {
-<<<<<<< HEAD
                             // Validate date against story's due date before setting
                             if (date && formData.storyId && formData.storyId !== 'none') {
                               const selectedStory = stories.find(s => s.id === formData.storyId);
