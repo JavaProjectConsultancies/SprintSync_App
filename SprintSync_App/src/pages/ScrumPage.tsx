@@ -202,9 +202,9 @@ import LaneConfigurationModal from "../components/LaneConfigurationModal";
 
 import EffortManager from "../components/EffortManager";
 
-import CreateSprintDialog from "../components/CreateSprintDialog";
+// import CreateSprintDialog from "../components/CreateSprintDialog";
 
-import TeamCapacityCalculator from "../components/TeamCapacityCalculator";
+// import TeamCapacityCalculator from "../components/TeamCapacityCalculator";
 
 import {
   useWorkflowLanesByProject,
@@ -248,9 +248,9 @@ const ScrumPage: React.FC = () => {
 
   const [isSprintDialogOpen, setIsSprintDialogOpen] = useState(false);
 
-  const [isCreateSprintDialogOpen, setIsCreateSprintDialogOpen] = useState(false);
+  // const [isCreateSprintDialogOpen, setIsCreateSprintDialogOpen] = useState(false);
 
-  const [isCapacityCalculatorOpen, setIsCapacityCalculatorOpen] = useState(false);
+  // const [isCapacityCalculatorOpen, setIsCapacityCalculatorOpen] = useState(false);
 
   const [isAddStoryDialogOpen, setIsAddStoryDialogOpen] = useState(false);
 
@@ -486,6 +486,8 @@ const ScrumPage: React.FC = () => {
     reporterId: "",
 
     estimatedHours: undefined as number | undefined,
+
+    dueDate: undefined as string | undefined,
 
     labels: [] as string[],
   });
@@ -3647,6 +3649,8 @@ const ScrumPage: React.FC = () => {
 
       estimatedHours: newStory.estimatedHours || null,
 
+      dueDate: newStory.dueDate || null,
+
       labels: newStory.labels.length > 0 ? newStory.labels : null,
 
       status: newStory.sprintId ? "TODO" : "BACKLOG",
@@ -3706,6 +3710,8 @@ const ScrumPage: React.FC = () => {
       reporterId: "",
 
       estimatedHours: undefined,
+
+      dueDate: undefined,
 
       labels: [],
     });
@@ -9749,6 +9755,20 @@ const ScrumPage: React.FC = () => {
                           : "Unassigned"}
                       </p>
                     </div>
+
+                    {selectedStoryForDetails.dueDate && (
+                      <div>
+                        <h4 className="font-medium mb-2">Due Date</h4>
+
+                        <p className="text-sm bg-gray-50 p-2 rounded">
+                          {new Date(selectedStoryForDetails.dueDate).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Attachments Section */}
@@ -9969,19 +9989,18 @@ const ScrumPage: React.FC = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="estimated-hours">Estimated Hours</Label>
+                  <Label htmlFor="due-date">Due Date</Label>
 
                   <Input
-                    id="estimated-hours"
-                    type="number"
-                    value={newStory.estimatedHours || ""}
+                    id="due-date"
+                    type="date"
+                    value={newStory.dueDate || ""}
                     onChange={(e) =>
                       setNewStory((prev) => ({
                         ...prev,
-                        estimatedHours: parseFloat(e.target.value) || undefined,
+                        dueDate: e.target.value || undefined,
                       }))
                     }
-                    placeholder="0"
                   />
                 </div>
               </div>
@@ -13736,6 +13755,7 @@ const ScrumPage: React.FC = () => {
                         | "done"),
 
           assignee: undefined,
+          dueDate: story.dueDate || undefined,
         }))}
         defaultStatus={newTask.storyId ? "todo" : "todo"}
         defaultStoryId={newTask.storyId || undefined}
@@ -14133,7 +14153,7 @@ const ScrumPage: React.FC = () => {
       </Dialog>
 
       {/* Create Sprint Dialog */}
-      <CreateSprintDialog
+      {/* <CreateSprintDialog
         open={isCreateSprintDialogOpen}
         onOpenChange={setIsCreateSprintDialogOpen}
         onSubmit={async (sprint) => {
@@ -14149,10 +14169,10 @@ const ScrumPage: React.FC = () => {
           }
         }}
         projectId={selectedProject}
-      />
+      /> */}
 
       {/* Team Capacity Calculator */}
-      <TeamCapacityCalculator
+      {/* <TeamCapacityCalculator
         open={isCapacityCalculatorOpen}
         onOpenChange={setIsCapacityCalculatorOpen}
         onCalculate={(capacity) => {
@@ -14162,7 +14182,7 @@ const ScrumPage: React.FC = () => {
           }));
         }}
         initialCapacity={newSprint.capacityHours ? parseInt(newSprint.capacityHours) : undefined}
-      />
+      /> */}
     </DndProvider>
   );
 };

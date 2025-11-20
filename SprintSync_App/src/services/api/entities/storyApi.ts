@@ -20,6 +20,7 @@ const sanitizeStoryData = (story: any) => {
     parentId: story.parentId || null,
     assigneeId: story.assigneeId || null,
     reporterId: story.reporterId || null,
+    dueDate: story.dueDate || null,
     labels: (story.labels && story.labels.length > 0) ? story.labels : null,
   };
 };

@@ -81,6 +81,9 @@ public class Story extends BaseEntity {
     @Column(name = "actual_hours", precision = 5, scale = 2)
     private BigDecimal actualHours = BigDecimal.ZERO;
 
+    @Column(name = "due_date")
+    private java.time.LocalDate dueDate;
+
     // Transient field to hold parent story details for API response
     @Transient
     @com.fasterxml.jackson.annotation.JsonIgnore
@@ -255,5 +258,13 @@ public class Story extends BaseEntity {
 
     public void setParentStoryTitle(String parentStoryTitle) {
         this.parentStoryTitle = parentStoryTitle;
+    }
+
+    public java.time.LocalDate getDueDate() {
+        return dueDate;
+    }
+
+    public void setDueDate(java.time.LocalDate dueDate) {
+        this.dueDate = dueDate;
     }
 }

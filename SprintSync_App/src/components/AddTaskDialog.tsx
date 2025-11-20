@@ -40,6 +40,7 @@ interface Story {
   points: number;
   status: 'stories' | 'todo' | 'inprogress' | 'qa' | 'done';
   assignee?: string;
+  dueDate?: string;
 }
 
 interface Task {
@@ -152,6 +153,20 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
 
     if (!formData.dueDate) {
       newErrors.dueDate = 'Due date is required';
+    } else if (formData.storyId && formData.storyId !== 'none') {
+      // Validate that task due date is within story's due date
+      const selectedStory = stories.find(s => s.id === formData.storyId);
+      if (selectedStory && selectedStory.dueDate) {
+        const storyDueDate = new Date(selectedStory.dueDate);
+        const taskDueDate = formData.dueDate;
+        
+        // Task due date cannot be after story's due date
+        if (taskDueDate > storyDueDate) {
+          newErrors.dueDate = `Task due date cannot be after story's due date (${storyDueDate.toLocaleDateString()})`;
+        }
+        // Task due date cannot be before story's due date (optional - you can remove this if tasks can be before)
+        // For now, we'll allow tasks to be before the story due date, but not after
+      }
     }
 
     if (formData.estimatedHours < 0.5 || formData.estimatedHours > 40) {
@@ -740,7 +755,40 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                         <Calendar
                           mode="single"
                           selected={formData.dueDate}
-                          onSelect={(date) => setFormData(prev => ({ ...prev, dueDate: date }))}
+                          onSelect={(date) => {
+                            // Validate date against story's due date before setting
+                            if (date && formData.storyId && formData.storyId !== 'none') {
+                              const selectedStory = stories.find(s => s.id === formData.storyId);
+                              if (selectedStory && selectedStory.dueDate) {
+                                const storyDueDate = new Date(selectedStory.dueDate);
+                                if (date > storyDueDate) {
+                                  setErrors(prev => ({ ...prev, dueDate: `Task due date cannot be after story's due date (${storyDueDate.toLocaleDateString()})` }));
+                                  return;
+                                }
+                              }
+                            }
+                            setFormData(prev => ({ ...prev, dueDate: date }));
+                            // Clear error if date is valid
+                            if (date) {
+                              setErrors(prev => {
+                                const newErrors = { ...prev };
+                                delete newErrors.dueDate;
+                                return newErrors;
+                              });
+                            }
+                          }}
+                          disabled={(date) => {
+                            // Disable dates after story's due date
+                            if (formData.storyId && formData.storyId !== 'none') {
+                              const selectedStory = stories.find(s => s.id === formData.storyId);
+                              if (selectedStory && selectedStory.dueDate) {
+                                const storyDueDate = new Date(selectedStory.dueDate);
+                                storyDueDate.setHours(23, 59, 59, 999); // End of day
+                                return date > storyDueDate;
+                              }
+                            }
+                            return false;
+                          }}
                           initialFocus
                         />
                       </PopoverContent>
