@@ -280,7 +280,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
       priority: formData.priority,
       assignee: formData.assignee,
       status: formData.status,
-      dueDate: formData.dueDate ? format(formData.dueDate, 'dd/MM/yy') : '',
+      dueDate: formData.dueDate ? formData.dueDate.toISOString().split('T')[0] : '',
       estimatedHours: formData.estimatedHours,
       subtasks: validSubtasks,
       progress: 0,

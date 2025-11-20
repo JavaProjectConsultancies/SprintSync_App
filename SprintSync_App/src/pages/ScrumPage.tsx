@@ -489,8 +489,6 @@ const ScrumPage: React.FC = () => {
 
     reporterId: "",
 
-    dueDate: undefined as Date | undefined,
-
     dueDate: undefined as string | undefined,
 
     labels: [] as string[],
@@ -3697,10 +3695,6 @@ const ScrumPage: React.FC = () => {
       assigneeId: newStory.assigneeId || null,
 
       reporterId: newStory.reporterId || null,
-
-      dueDate: newStory.dueDate
-        ? newStory.dueDate.toISOString().split("T")[0]
-        : null,
 
       dueDate: newStory.dueDate || null,
 
@@ -14282,14 +14276,36 @@ const ScrumPage: React.FC = () => {
               return;
             }
 
+            // Map frontend status to backend enum format
+            const mapTaskStatus = (status: string): string => {
+              const statusUpper = status.toUpperCase();
+              switch (statusUpper) {
+                case 'TODO':
+                  return 'TO_DO';
+                case 'INPROGRESS':
+                  return 'IN_PROGRESS';
+                case 'QA':
+                case 'QA_REVIEW':
+                  return 'QA_REVIEW';
+                case 'DONE':
+                  return 'DONE';
+                case 'BLOCKED':
+                  return 'BLOCKED';
+                case 'CANCELLED':
+                  return 'CANCELLED';
+                default:
+                  return 'TO_DO'; // Default fallback
+              }
+            };
+
             const taskPayload: any = {
               title: taskData.title,
               description: taskData.description,
               storyId: storyId,
               priority: taskData.priority.toUpperCase(),
               assigneeId: taskData.assignee,
-              status: taskData.status.toUpperCase(),
-              dueDate: taskData.dueDate ? taskData.dueDate.toISOString().split('T')[0] : undefined,
+              status: mapTaskStatus(taskData.status),
+              dueDate: taskData.dueDate || undefined,
               estimatedHours: taskData.estimatedHours,
             };
 
