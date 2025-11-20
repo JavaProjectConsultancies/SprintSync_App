@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -41,6 +41,7 @@ interface Story {
   status: 'stories' | 'todo' | 'inprogress' | 'qa' | 'done';
   assignee?: string;
   dueDate?: string;
+  projectId?: string;
 }
 
 interface Task {
@@ -75,6 +76,7 @@ interface AddTaskDialogProps {
   defaultStatus?: string;
   defaultStoryId?: string;
   users?: User[];
+  projectId?: string; // REQUIRED for filtering assignees by project
 }
 
 const AddTaskDialog: React.FC<AddTaskDialogProps> = ({ 
@@ -84,8 +86,12 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
   stories = [],
   defaultStatus = 'todo',
   defaultStoryId,
-  users = []
+  users = [],
+  projectId
 }) => {
+  // Try to derive projectId from selected story if not provided
+  const effectiveProjectId = projectId || (defaultStoryId && stories.find(s => s.id === defaultStoryId)?.projectId);
+  
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -100,16 +106,93 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
     labels: [] as string[]
   });
 
+  // State to control due date popover
+  const [isDueDatePopoverOpen, setIsDueDatePopoverOpen] = useState(false);
+  
+  // Log for debugging
+  useEffect(() => {
+    if (isOpen) {
+      console.log('[AddTaskDialog] Dialog opened', {
+        projectId,
+        effectiveProjectId,
+        defaultStoryId,
+        hasStories: stories.length > 0,
+        usersPropLength: users.length
+      });
+    }
+  }, [isOpen, projectId, effectiveProjectId, defaultStoryId, stories.length, users.length]);
+
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [attachments, setAttachments] = useState<File[]>([]);
   const [attachmentUrls, setAttachmentUrls] = useState<Array<{ url: string; name: string }>>([]);
   const [attachmentUrl, setAttachmentUrl] = useState<string>('');
   const [attachmentUrlName, setAttachmentUrlName] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
+  const [projectTeamMembers, setProjectTeamMembers] = useState<any[]>([]);
+  const [loadingTeamMembers, setLoadingTeamMembers] = useState(false);
 
-  // Use API users if provided, otherwise fall back to mock data
-  const teamMembers = users.length > 0 
-    ? users.map(user => {
+  // Fetch team members by project when projectId is provided
+  useEffect(() => {
+    const fetchProjectTeamMembers = async () => {
+      if (!effectiveProjectId) {
+        setProjectTeamMembers([]);
+        return;
+      }
+
+      setLoadingTeamMembers(true);
+      try {
+        const { teamMemberApi } = await import('../services/api/entities/teamMemberApi');
+        const members = await teamMemberApi.getTeamMembersByProject(effectiveProjectId);
+        console.log(`[AddTaskDialog] Fetched ${members?.length || 0} team members for project ${effectiveProjectId}`, members);
+        setProjectTeamMembers(members || []);
+      } catch (error) {
+        console.error('Error fetching project team members:', error);
+        setProjectTeamMembers([]);
+      } finally {
+        setLoadingTeamMembers(false);
+      }
+    };
+
+    fetchProjectTeamMembers();
+  }, [effectiveProjectId]);
+
+  // Use project team members if projectId is provided, otherwise use provided users or fall back to mock data
+  const teamMembers = useMemo(() => {
+    // If effectiveProjectId is provided, use project team members
+    if (effectiveProjectId) {
+      console.log(`[AddTaskDialog] effectiveProjectId provided: ${effectiveProjectId}, loadingTeamMembers: ${loadingTeamMembers}, projectTeamMembers.length: ${projectTeamMembers.length}`);
+      
+      // If still loading, return empty array to prevent showing all users
+      if (loadingTeamMembers) {
+        console.log('[AddTaskDialog] Still loading team members, returning empty array');
+        return [];
+      }
+      
+      // Return project team members (even if empty array - this is correct behavior for filtering)
+      const mappedMembers = projectTeamMembers.map(member => {
+        const displayName = member.name || 
+                           (member.firstName && member.lastName ? `${member.firstName} ${member.lastName}` : '') ||
+                           member.email?.split('@')[0].replace(/\./g, ' ') ||
+                           'Unknown User';
+        
+        return {
+          id: member.userId || member.id,
+          name: displayName,
+          avatar: member.avatar || member.avatarUrl || '',
+          role: member.role || 'Team Member'
+        };
+      });
+      
+      console.log(`[AddTaskDialog] Returning ${mappedMembers.length} filtered team members for project ${effectiveProjectId}`);
+      return mappedMembers;
+    }
+    
+    // No projectId provided - use users from props
+    console.log(`[AddTaskDialog] No effectiveProjectId provided, using ${users.length} users from props or fallback`);
+    
+    // Use provided users
+    if (users.length > 0) {
+      const mappedUsers = users.map(user => {
         // Handle different user name formats (name, firstName+lastName, or email)
         const displayName = user.name || 
                            (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : '') ||
@@ -122,15 +205,23 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
           avatar: '',
           role: user.role || 'Team Member'
         };
-      })
-    : [
-        { id: '1', name: 'Arjun Patel', avatar: '', role: 'Senior Developer' },
-        { id: '2', name: 'Priya Sharma', avatar: '', role: 'UI/UX Designer' },
-        { id: '3', name: 'Sneha Reddy', avatar: '', role: 'QA Engineer' },
-        { id: '4', name: 'Rahul Kumar', avatar: '', role: 'DevOps Engineer' },
-        { id: '5', name: 'Vikram Singh', avatar: '', role: 'Full Stack Developer' },
-        { id: '6', name: 'Ananya Gupta', avatar: '', role: 'Product Manager' }
-      ];
+      });
+      
+      console.log(`[AddTaskDialog] Returning ${mappedUsers.length} users from props`);
+      return mappedUsers;
+    }
+    
+    // Fall back to mock data only if no users provided
+    console.log('[AddTaskDialog] No users provided, using mock data');
+    return [
+      { id: '1', name: 'Arjun Patel', avatar: '', role: 'Senior Developer' },
+      { id: '2', name: 'Priya Sharma', avatar: '', role: 'UI/UX Designer' },
+      { id: '3', name: 'Sneha Reddy', avatar: '', role: 'QA Engineer' },
+      { id: '4', name: 'Rahul Kumar', avatar: '', role: 'DevOps Engineer' },
+      { id: '5', name: 'Vikram Singh', avatar: '', role: 'Full Stack Developer' },
+      { id: '6', name: 'Ananya Gupta', avatar: '', role: 'Product Manager' }
+    ];
+  }, [effectiveProjectId, projectTeamMembers, users, loadingTeamMembers]);
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
@@ -221,6 +312,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
     setAttachmentUrls([]);
     setAttachmentUrl('');
     setAttachmentUrlName('');
+    setIsDueDatePopoverOpen(false);
   };
 
   // File upload handler
@@ -414,7 +506,12 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
           background: #94a3b8;
         }
       `}</style>
-      <Dialog open={isOpen} onOpenChange={onClose}>
+      <Dialog open={isOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsDueDatePopoverOpen(false);
+        }
+        onClose();
+      }}>
         <DialogContent className="max-w-2xl max-h-[95vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center space-x-2">
@@ -712,22 +809,37 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        {teamMembers.map(member => (
-                          <SelectItem key={member.id} value={member.id}>
-                            <div className="flex items-center space-x-3">
-                              <Avatar className="h-6 w-6">
-                                <AvatarImage src={member.avatar} alt={member.name} />
-                                <AvatarFallback className="text-xs bg-gradient-to-br from-green-100 to-cyan-100">
-                                  {getInitials(member.name)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="flex flex-col">
-                                <span className="font-medium">{member.name}</span>
-                                <span className="text-xs text-muted-foreground">{member.role}</span>
+                        {loadingTeamMembers && effectiveProjectId ? (
+                          <div className="flex items-center justify-center p-4">
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                            <span className="text-sm text-muted-foreground">Loading team members...</span>
+                          </div>
+                        ) : teamMembers.length === 0 ? (
+                          <div className="p-4 text-center">
+                            <p className="text-sm text-muted-foreground">
+                              {effectiveProjectId 
+                                ? "No team members found for this project" 
+                                : "No users available"}
+                            </p>
+                          </div>
+                        ) : (
+                          teamMembers.map(member => (
+                            <SelectItem key={member.id} value={member.id}>
+                              <div className="flex items-center space-x-3">
+                                <Avatar className="h-6 w-6">
+                                  <AvatarImage src={member.avatar} alt={member.name} />
+                                  <AvatarFallback className="text-xs bg-gradient-to-br from-green-100 to-cyan-100">
+                                    {getInitials(member.name)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{member.name}</span>
+                                  <span className="text-xs text-muted-foreground">{member.role}</span>
+                                </div>
                               </div>
-                            </div>
-                          </SelectItem>
-                        ))}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                     {errors.assignee && <p className="text-sm text-red-600">{errors.assignee}</p>}
@@ -739,7 +851,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                       <span>Due Date</span>
                       <span className="text-red-500">*</span>
                     </Label>
-                    <Popover>
+                    <Popover open={isDueDatePopoverOpen} onOpenChange={setIsDueDatePopoverOpen} modal={false}>
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
@@ -751,11 +863,12 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                           {formData.dueDate ? format(formData.dueDate, "PPP") : "Pick a date"}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
+                      <PopoverContent className="w-auto p-0 !z-[9999]" align="start" side="bottom" sideOffset={5} style={{ zIndex: 9999 }}>
                         <Calendar
                           mode="single"
                           selected={formData.dueDate}
                           onSelect={(date) => {
+<<<<<<< HEAD
                             // Validate date against story's due date before setting
                             if (date && formData.storyId && formData.storyId !== 'none') {
                               const selectedStory = stories.find(s => s.id === formData.storyId);

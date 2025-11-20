@@ -437,7 +437,7 @@ const EffortManager: React.FC<EffortManagerProps> = ({
                                     {format(formData.date, "PPP")}
                                   </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0">
+                                <PopoverContent className="w-auto p-0 z-[100]">
                                   <Calendar
                                     mode="single"
                                     selected={formData.date}

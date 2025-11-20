@@ -76,7 +76,6 @@ import { toast } from "sonner";
 import {
   Search,
   Plus,
-  Calendar,
   Clock,
   Target,
   AlertTriangle,
@@ -121,9 +120,14 @@ import {
   SortAsc,
   SortDesc,
   Calculator,
+  CalendarIcon,
 } from "lucide-react";
 
 import { Checkbox } from "../components/ui/checkbox";
+
+import { Calendar } from "../components/ui/calendar";
+
+import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 
 // Import API hooks
 
@@ -485,7 +489,7 @@ const ScrumPage: React.FC = () => {
 
     reporterId: "",
 
-    estimatedHours: undefined as number | undefined,
+    dueDate: undefined as Date | undefined,
 
     dueDate: undefined as string | undefined,
 
@@ -495,6 +499,9 @@ const ScrumPage: React.FC = () => {
   // Attachment state for new story
 
   const [storyAttachments, setStoryAttachments] = useState<File[]>([]);
+
+  // State to control due date popover
+  const [isDueDatePopoverOpen, setIsDueDatePopoverOpen] = useState(false);
 
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
 
@@ -1104,6 +1111,10 @@ const ScrumPage: React.FC = () => {
 
   const [usersLoading, setUsersLoading] = useState(false);
 
+  // Project team members for filtering assignees
+  const [projectTeamMembers, setProjectTeamMembers] = useState<any[]>([]);
+  const [projectTeamMembersLoading, setProjectTeamMembersLoading] = useState(false);
+
   // Function to fetch all tasks for all stories in the sprint
 
   // Use ref to track if we're currently fetching to prevent duplicate calls
@@ -1435,6 +1446,46 @@ const ScrumPage: React.FC = () => {
       fetchUsers();
     }
   }, [users.length, usersLoading, fetchUsers]);
+
+  // Function to fetch project team members
+  const fetchProjectTeamMembers = useCallback(async () => {
+    if (!selectedProject) {
+      setProjectTeamMembers([]);
+      return;
+    }
+
+    setProjectTeamMembersLoading(true);
+    try {
+      const { teamMemberApi } = await import("../services/api/entities/teamMemberApi");
+      const members = await teamMemberApi.getTeamMembersByProject(selectedProject);
+      setProjectTeamMembers(members || []);
+    } catch (error) {
+      console.error("Error fetching project team members:", error);
+      setProjectTeamMembers([]);
+    } finally {
+      setProjectTeamMembersLoading(false);
+    }
+  }, [selectedProject]);
+
+  // Fetch project team members when project changes
+  useEffect(() => {
+    fetchProjectTeamMembers();
+  }, [fetchProjectTeamMembers]);
+
+  // Filter users to only show project team members for assignee/reporter selects
+  const availableUsersForAssignment = useMemo(() => {
+    if (!selectedProject || projectTeamMembers.length === 0) {
+      return users; // Fall back to all users if no project selected or no team members
+    }
+
+    // Map team members to user IDs
+    const teamMemberUserIds = new Set(
+      projectTeamMembers.map(member => member.userId || member.id)
+    );
+
+    // Filter users to only include those in the project team
+    return users.filter(user => teamMemberUserIds.has(user.id));
+  }, [selectedProject, projectTeamMembers, users]);
 
   // Extract data from API responses (only use data if valid project/sprint selected)
 
@@ -3438,7 +3489,7 @@ const ScrumPage: React.FC = () => {
                                   </Badge>
                                   {task.dueDate && (
                                     <div className="flex items-center space-x-1">
-                                      <Calendar className="w-3 h-3" />
+                                      <CalendarIcon className="w-3 h-3" />
                                       <span
                                         className={
                                           isOverdue
@@ -3647,7 +3698,9 @@ const ScrumPage: React.FC = () => {
 
       reporterId: newStory.reporterId || null,
 
-      estimatedHours: newStory.estimatedHours || null,
+      dueDate: newStory.dueDate
+        ? newStory.dueDate.toISOString().split("T")[0]
+        : null,
 
       dueDate: newStory.dueDate || null,
 
@@ -3709,7 +3762,7 @@ const ScrumPage: React.FC = () => {
 
       reporterId: "",
 
-      estimatedHours: undefined,
+      dueDate: undefined,
 
       dueDate: undefined,
 
@@ -3717,6 +3770,9 @@ const ScrumPage: React.FC = () => {
     });
 
     setStoryAttachments([]);
+
+    // Reset popover state
+    setIsDueDatePopoverOpen(false);
 
     // Close dialog
 
@@ -7637,7 +7693,7 @@ const ScrumPage: React.FC = () => {
 
                                   {storySprint && (
                                     <div className="flex items-center space-x-1 text-muted-foreground">
-                                      <Calendar className="w-4 h-4" />
+                                      <CalendarIcon className="w-4 h-4" />
 
                                       <span>Sprint: {storySprint.name}</span>
                                     </div>
@@ -7746,7 +7802,7 @@ const ScrumPage: React.FC = () => {
 
                                                     {task.dueDate && (
                                                       <div className="flex items-center space-x-1">
-                                                        <Calendar className="w-3 h-3" />
+                                                        <CalendarIcon className="w-3 h-3" />
 
                                                         <span
                                                           className={
@@ -9874,7 +9930,13 @@ const ScrumPage: React.FC = () => {
 
         <Dialog
           open={isAddStoryDialogOpen}
-          onOpenChange={setIsAddStoryDialogOpen}
+          onOpenChange={(open) => {
+            setIsAddStoryDialogOpen(open);
+            if (!open) {
+              // Reset popover state when dialog closes
+              setIsDueDatePopoverOpen(false);
+            }
+          }}
         >
           <DialogContent className="w-[75%] max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -9984,6 +10046,7 @@ const ScrumPage: React.FC = () => {
                         storyPoints: parseInt(e.target.value) || 0,
                       }))
                     }
+                    onFocus={(e) => e.target.select()}
                     placeholder="0"
                   />
                 </div>
@@ -9991,17 +10054,42 @@ const ScrumPage: React.FC = () => {
                 <div className="space-y-2">
                   <Label htmlFor="due-date">Due Date</Label>
 
-                  <Input
-                    id="due-date"
-                    type="date"
-                    value={newStory.dueDate || ""}
-                    onChange={(e) =>
-                      setNewStory((prev) => ({
-                        ...prev,
-                        dueDate: e.target.value || undefined,
-                      }))
-                    }
-                  />
+                  <Popover open={isDueDatePopoverOpen} onOpenChange={setIsDueDatePopoverOpen} modal={false}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        id="due-date"
+                        variant="outline"
+                        className={`w-full justify-start text-left font-normal ${
+                          !newStory.dueDate ? "text-muted-foreground" : ""
+                        }`}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {newStory.dueDate ? (
+                          typeof newStory.dueDate === 'string' 
+                            ? new Date(newStory.dueDate).toLocaleDateString()
+                            : newStory.dueDate.toLocaleDateString()
+                        ) : (
+                          <span>Pick a date</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 !z-[9999]" align="start" side="bottom" sideOffset={5} style={{ zIndex: 9999 }}>
+                      <Calendar
+                        mode="single"
+                        selected={typeof newStory.dueDate === 'string' ? new Date(newStory.dueDate) : newStory.dueDate}
+                        onSelect={(date) => {
+                          if (date) {
+                            setNewStory((prev) => ({
+                              ...prev,
+                              dueDate: date.toISOString().split('T')[0],
+                            }));
+                            setIsDueDatePopoverOpen(false);
+                          }
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
 
@@ -10117,7 +10205,7 @@ const ScrumPage: React.FC = () => {
                     <SelectContent>
                       <SelectItem value="UNASSIGNED">Unassigned</SelectItem>
 
-                      {users.map((user) => (
+                      {availableUsersForAssignment.map((user) => (
                         <SelectItem key={user.id} value={user.id}>
                           {user.name}
                         </SelectItem>
@@ -10145,7 +10233,7 @@ const ScrumPage: React.FC = () => {
                     <SelectContent>
                       <SelectItem value="NO_REPORTER">No Reporter</SelectItem>
 
-                      {users.map((user) => (
+                      {availableUsersForAssignment.map((user) => (
                         <SelectItem key={user.id} value={user.id}>
                           {user.name}
                         </SelectItem>
@@ -12568,8 +12656,6 @@ const ScrumPage: React.FC = () => {
                           </label>
 
                           <div className="flex items-center space-x-2 text-sm text-gray-700">
-                            <Calendar className="w-4 h-4" />
-
                             <span>
                               {selectedTaskForDetails.dueDate
                                 ? new Date(
@@ -14183,6 +14269,47 @@ const ScrumPage: React.FC = () => {
         }}
         initialCapacity={newSprint.capacityHours ? parseInt(newSprint.capacityHours) : undefined}
       /> */}
+
+      {/* Add Task Dialog */}
+      <AddTaskDialog
+        isOpen={isAddTaskDialogOpen}
+        onClose={() => setIsAddTaskDialogOpen(false)}
+        onSubmit={async (taskData) => {
+          try {
+            const storyId = taskData.storyId === 'none' ? undefined : taskData.storyId;
+            if (!storyId) {
+              toast.error("Story is required");
+              return;
+            }
+
+            const taskPayload: any = {
+              title: taskData.title,
+              description: taskData.description,
+              storyId: storyId,
+              priority: taskData.priority.toUpperCase(),
+              assigneeId: taskData.assignee,
+              status: taskData.status.toUpperCase(),
+              dueDate: taskData.dueDate ? taskData.dueDate.toISOString().split('T')[0] : undefined,
+              estimatedHours: taskData.estimatedHours,
+            };
+
+            await createTaskMutate(taskPayload);
+            toast.success("Task created successfully");
+            setIsAddTaskDialogOpen(false);
+            
+            // Refresh tasks
+            if (sprintStories.length > 0) {
+              fetchAllTasks(sprintStories, false);
+            }
+          } catch (error: any) {
+            console.error("Error creating task:", error);
+            toast.error(error?.message || "Failed to create task");
+          }
+        }}
+        stories={sprintStories}
+        projectId={selectedProject}
+        users={users}
+      />
     </DndProvider>
   );
 };

@@ -133,7 +133,7 @@ export interface Story extends BaseEntity {
   status: StoryStatus;
   labels?: string[];
   orderIndex?: number;
-  estimatedHours?: number;
+  dueDate?: string; // Date in YYYY-MM-DD format
   actualHours?: number;
   dueDate?: string;
   isActive: boolean;
