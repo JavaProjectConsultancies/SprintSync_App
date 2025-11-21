@@ -41,8 +41,8 @@ const TaskActivityLog: React.FC<TaskActivityLogProps> = ({
 
   const formatActivityDetails = (activityLog: ActivityLog) => {
     // Parse the newValues and oldValues JSON if they exist
-    let parsedNewValues = null;
-    let parsedOldValues = null;
+    let parsedNewValues: any = null;
+    let parsedOldValues: any = null;
     try {
       if (activityLog.newValues) {
         parsedNewValues = JSON.parse(activityLog.newValues);

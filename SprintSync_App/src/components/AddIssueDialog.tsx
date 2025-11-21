@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -39,6 +39,7 @@ interface Story {
   points: number;
   status: 'stories' | 'todo' | 'inprogress' | 'qa' | 'done';
   assignee?: string;
+  projectId?: string; // For deriving projectId from story
 }
 
 interface Issue {
@@ -74,6 +75,7 @@ interface AddIssueDialogProps {
   defaultStoryId?: string;
   requiredStoryId?: string;
   users?: User[];
+  projectId?: string; // REQUIRED for filtering assignees by project
 }
 
 const AddIssueDialog: React.FC<AddIssueDialogProps> = ({ 
@@ -84,7 +86,8 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
   defaultStatus = 'todo',
   defaultStoryId,
   requiredStoryId,
-  users = []
+  users = [],
+  projectId
 }) => {
   const [formData, setFormData] = useState({
     title: '',
@@ -105,12 +108,92 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
   const [attachmentUrl, setAttachmentUrl] = useState<string>('');
   const [attachmentUrlName, setAttachmentUrlName] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
+  
+  // State to control due date popover
+  const [isDueDatePopoverOpen, setIsDueDatePopoverOpen] = useState(false);
+  
+  // State for project team members
+  const [projectTeamMembers, setProjectTeamMembers] = useState<any[]>([]);
+  const [loadingTeamMembers, setLoadingTeamMembers] = useState(false);
+  
+  // Calculate effectiveProjectId - derive from selected story if not provided directly
+  const effectiveProjectId = useMemo(() => {
+    // First, try the projectId prop
+    if (projectId) {
+      return projectId;
+    }
+    // Then, try to get it from the currently selected story
+    const selectedStoryId = formData.storyId && formData.storyId !== 'none' ? formData.storyId : defaultStoryId;
+    if (selectedStoryId) {
+      const story = stories.find(s => s.id === selectedStoryId);
+      return story?.projectId;
+    }
+    return undefined;
+  }, [projectId, formData.storyId, defaultStoryId, stories]);
+  
+  // Fetch team members by project when projectId is provided
+  useEffect(() => {
+    const fetchProjectTeamMembers = async () => {
+      if (!effectiveProjectId) {
+        setProjectTeamMembers([]);
+        return;
+      }
 
-  // Use API users if provided, otherwise fall back to mock data
-  const teamMembers = users.length > 0 
-    ? users.map(user => {
-        // Handle different user name formats (name, firstName+lastName, or email)
-        const displayName = user.name || 
+      setLoadingTeamMembers(true);
+      try {
+        const { teamMemberApi } = await import('../services/api/entities/teamMemberApi');
+        const members = await teamMemberApi.getTeamMembersByProject(effectiveProjectId);
+        console.log(`[AddIssueDialog] Fetched ${members?.length || 0} team members for project ${effectiveProjectId}`, members);
+        setProjectTeamMembers(members || []);
+      } catch (error) {
+        console.error('Error fetching project team members:', error);
+        setProjectTeamMembers([]);
+      } finally {
+        setLoadingTeamMembers(false);
+      }
+    };
+
+    fetchProjectTeamMembers();
+  }, [effectiveProjectId]);
+
+  // Use project team members if projectId is provided, otherwise use provided users or fall back to mock data
+  const teamMembers = useMemo(() => {
+    // If effectiveProjectId is provided, ALWAYS use project team members (ignore users prop)
+    if (effectiveProjectId) {
+      console.log(`[AddIssueDialog] effectiveProjectId provided: ${effectiveProjectId}, loadingTeamMembers: ${loadingTeamMembers}, projectTeamMembers.length: ${projectTeamMembers.length}`);
+      
+      // If still loading, return empty array to prevent showing all users
+      if (loadingTeamMembers) {
+        console.log('[AddIssueDialog] Still loading team members, returning empty array');
+        return [];
+      }
+      
+      // Return project team members (even if empty array - this is correct behavior for filtering)
+      // This ensures we NEVER show all users when a project is available
+      const mappedMembers = projectTeamMembers.map(member => {
+        const displayName = member.name ||
+                           (member.firstName && member.lastName ? `${member.firstName} ${member.lastName}` : '') ||
+                           member.email?.split('@')[0].replace(/\./g, ' ') ||
+                           'Unknown User';
+        
+        return {
+          id: member.userId || member.id,
+          name: displayName,
+          avatar: '',
+          role: member.role || 'Team Member'
+        };
+      });
+      
+      console.log(`[AddIssueDialog] Returning ${mappedMembers.length} filtered team members for project ${effectiveProjectId}`);
+      return mappedMembers;
+    }
+    
+    // Only use provided users if NO projectId is available (no project context)
+    console.log(`[AddIssueDialog] No effectiveProjectId, using ${users.length} users from props or fallback`);
+    
+    if (users.length > 0) {
+      const mappedUsers = users.map(user => {
+        const displayName = user.name ||
                            (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : '') ||
                            user.email?.split('@')[0].replace(/\./g, ' ') ||
                            'Unknown User';
@@ -121,15 +204,23 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
           avatar: '',
           role: user.role || 'Team Member'
         };
-      })
-    : [
-        { id: '1', name: 'Arjun Patel', avatar: '', role: 'Senior Developer' },
-        { id: '2', name: 'Priya Sharma', avatar: '', role: 'UI/UX Designer' },
-        { id: '3', name: 'Sneha Reddy', avatar: '', role: 'QA Engineer' },
-        { id: '4', name: 'Rahul Kumar', avatar: '', role: 'DevOps Engineer' },
-        { id: '5', name: 'Vikram Singh', avatar: '', role: 'Full Stack Developer' },
-        { id: '6', name: 'Ananya Gupta', avatar: '', role: 'Product Manager' }
-      ];
+      });
+      
+      console.log(`[AddIssueDialog] Returning ${mappedUsers.length} users from props`);
+      return mappedUsers;
+    }
+    
+    // Fall back to mock data only if no users provided
+    console.log('[AddIssueDialog] No users provided, using mock data');
+    return [
+      { id: '1', name: 'Arjun Patel', avatar: '', role: 'Senior Developer' },
+      { id: '2', name: 'Priya Sharma', avatar: '', role: 'UI/UX Designer' },
+      { id: '3', name: 'Sneha Reddy', avatar: '', role: 'QA Engineer' },
+      { id: '4', name: 'Rahul Kumar', avatar: '', role: 'DevOps Engineer' },
+      { id: '5', name: 'Vikram Singh', avatar: '', role: 'Full Stack Developer' },
+      { id: '6', name: 'Ananya Gupta', avatar: '', role: 'Product Manager' }
+    ];
+  }, [effectiveProjectId, projectTeamMembers, users, loadingTeamMembers]);
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
@@ -210,6 +301,7 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
     setAttachmentUrls([]);
     setAttachmentUrl('');
     setAttachmentUrlName('');
+    setIsDueDatePopoverOpen(false);
   };
 
   // File upload handler
@@ -354,7 +446,12 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
           background: #94a3b8;
         }
       `}</style>
-      <Dialog open={isOpen} onOpenChange={onClose}>
+      <Dialog open={isOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsDueDatePopoverOpen(false);
+          onClose();
+        }
+      }}>
         <DialogContent className="max-w-2xl max-h-[95vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center space-x-2">
@@ -466,7 +563,12 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                       disabled={!!requiredStoryId}
                     >
                       <SelectTrigger className={errors.storyId ? 'border-red-300' : ''}>
-                        <SelectValue placeholder="Select a user story..." />
+                        <SelectValue placeholder="Select a user story...">
+                          {formData.storyId && formData.storyId !== 'none' && (() => {
+                            const selected = stories.find(s => s.id === formData.storyId);
+                            return selected ? selected.title : 'Select a user story...';
+                          })()}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {!requiredStoryId && <SelectItem value="none">No story (Standalone issue)</SelectItem>}
@@ -608,7 +710,17 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        {teamMembers.map(member => (
+                        {loadingTeamMembers && effectiveProjectId ? (
+                          <div className="flex items-center justify-center p-4">
+                            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                            <span className="ml-2 text-sm text-muted-foreground">Loading team members...</span>
+                          </div>
+                        ) : teamMembers.length === 0 && effectiveProjectId ? (
+                          <div className="p-4 text-center text-sm text-muted-foreground">
+                            No team members found for this project
+                          </div>
+                        ) : (
+                          teamMembers.map(member => (
                           <SelectItem key={member.id} value={member.id}>
                             <div className="flex items-center space-x-3">
                               <Avatar className="h-6 w-6">
@@ -623,7 +735,8 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                               </div>
                             </div>
                           </SelectItem>
-                        ))}
+                        ))
+                        )}
                       </SelectContent>
                     </Select>
                     {errors.assignee && <p className="text-sm text-red-600">{errors.assignee}</p>}
@@ -635,7 +748,7 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                       <span>Due Date</span>
                       <span className="text-red-500">*</span>
                     </Label>
-                    <Popover>
+                    <Popover open={isDueDatePopoverOpen} onOpenChange={setIsDueDatePopoverOpen} modal={false}>
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
@@ -647,11 +760,22 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                           {formData.dueDate ? format(formData.dueDate, "PPP") : "Pick a date"}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
+                      <PopoverContent className="w-auto p-0 !z-[9999]" align="start" side="bottom" sideOffset={5} style={{ zIndex: 9999 }}>
                         <Calendar
                           mode="single"
                           selected={formData.dueDate}
-                          onSelect={(date) => setFormData(prev => ({ ...prev, dueDate: date }))}
+                          onSelect={(date) => {
+                            setFormData(prev => ({ ...prev, dueDate: date }));
+                            setIsDueDatePopoverOpen(false);
+                            // Clear error when date is selected
+                            if (date) {
+                              setErrors(prev => {
+                                const newErrors = { ...prev };
+                                delete newErrors.dueDate;
+                                return newErrors;
+                              });
+                            }
+                          }}
                           initialFocus
                         />
                       </PopoverContent>

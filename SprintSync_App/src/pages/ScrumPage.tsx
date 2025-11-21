@@ -6694,6 +6694,20 @@ const ScrumPage: React.FC = () => {
       setIsIssueDetailsOpen(true);
     };
 
+    // Get initials helper function
+    const getInitials = (name: string) => {
+      return name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
+    };
+
+    // Calculate estimated and actual hours for issues
+    const estimatedHours = issue.estimatedHours || 0;
+    const actualHours = issue.actualHours || 0;
+
     return (
       <div
         ref={drag}
@@ -6702,49 +6716,68 @@ const ScrumPage: React.FC = () => {
         }`}
       >
         <Card
-          className={`border-l-4 ${
+          className={`border-l-4 group ${
             parentStory?.priority === "CRITICAL"
-              ? "border-l-red-600"
+              ? "border-l-red-500"
               : parentStory?.priority === "HIGH"
-                ? "border-l-red-500"
+                ? "border-l-orange-500"
                 : parentStory?.priority === "MEDIUM"
-                  ? "border-l-red-400"
-                  : "border-l-red-300"
-          } bg-red-50/30 hover:shadow-lg transition-all duration-200 rounded-lg overflow-hidden`}
+                  ? "border-l-blue-500"
+                  : "border-l-green-500"
+          } bg-white hover:shadow-lg transition-all duration-200 rounded-lg overflow-hidden w-full aspect-square flex flex-col`}
         >
-          {/* Main Issue Section */}
+          <CardContent className="p-3 flex flex-col flex-1 justify-between">
+            {/* Top Row: Issue ID and Due Date */}
+            <div className="flex items-center justify-between mb-2 flex-shrink-0">
+              <span className="text-xs font-semibold text-red-600">
+                I#{issueNumber}
+              </span>
+              {issue.dueDate && (
+                <div className="flex items-center space-x-1">
+                  <CalendarIcon className="w-3 h-3 text-red-500" />
+                  <span className="text-xs font-medium text-red-500">
+                    {new Date(issue.dueDate).getDate()}
+                  </span>
+                </div>
+              )}
+            </div>
 
-          <CardContent className="p-3 bg-gradient-to-r from-red-50/50 to-white">
-            {/* Issue Header with Number and Assignee */}
+            {/* Middle: Issue Title (can wrap) */}
+            <h4
+              className="text-xs font-medium text-gray-900 leading-tight cursor-pointer hover:text-red-600 transition-colors flex-1 mb-2 line-clamp-3"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleViewIssueDetails();
+              }}
+              title={issue.title}
+            >
+              {issue.title.length > 40 ? `${issue.title.substring(0, 40)}...` : issue.title}
+            </h4>
 
-            <div className="flex items-center justify-between mb-2">
-              <Badge
-                variant="secondary"
-                className="text-xs px-2 py-0.5 bg-red-100 text-red-700 font-medium"
-              >
-                I{issueNumber}
-              </Badge>
+            {/* Bottom Row: Time and Assignee */}
+            <div className="flex items-center justify-between mt-auto flex-shrink-0">
+              {/* Time (left) - Format as HH:00 */}
+              <span className="text-xs font-medium text-gray-700">
+                {actualHours > 0 
+                  ? `${Math.floor(actualHours)}:00`
+                  : estimatedHours > 0 
+                    ? `${Math.floor(estimatedHours)}:00`
+                    : '0:00'}
+              </span>
 
-              <div className="flex items-center space-x-2">
+              {/* Assignee Initials (right) with dropdown menu */}
+              <div className="flex items-center space-x-1">
                 {assigneeName && (
-                  <div className="flex items-center space-x-1">
-                    <User className="w-3 h-3 text-red-500" />
-
-                    <span
-                      className="text-xs text-red-600 truncate max-w-[100px]"
-                      title={assigneeName}
-                    >
-                      {assigneeName}
-                    </span>
-                  </div>
+                  <span className="text-xs font-semibold text-gray-700">
+                    {getInitials(assigneeName)}
+                  </span>
                 )}
-
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 w-6 p-0"
+                      className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 hover:opacity-100"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <MoreVertical className="w-3 h-3" />
@@ -6781,20 +6814,6 @@ const ScrumPage: React.FC = () => {
                 </DropdownMenu>
               </div>
             </div>
-
-            {/* Issue Name - Clickable */}
-
-            <h4
-              className="font-semibold text-sm leading-tight text-red-900 cursor-pointer hover:text-red-600 transition-colors"
-              onClick={(e) => {
-                e.stopPropagation();
-
-                handleViewIssueDetails();
-              }}
-              title="Click to view issue details"
-            >
-              {issue.title}
-            </h4>
           </CardContent>
         </Card>
       </div>
@@ -6863,6 +6882,16 @@ const ScrumPage: React.FC = () => {
 
     const assigneeName = task.assigneeId ? getUserName(task.assigneeId) : null;
 
+    // Get initials helper function
+    const getInitials = (name: string) => {
+      return name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
+    };
+
     return (
       <div
         ref={drag}
@@ -6871,9 +6900,9 @@ const ScrumPage: React.FC = () => {
         }`}
       >
         <Card
-          className={`border-l-4 ${
+          className={`border-l-4 group ${
             task.isPulledFromBacklog
-              ? "border-l-yellow-500 bg-yellow-50"
+              ? "border-l-yellow-500"
               : parentStory?.priority === "CRITICAL"
                 ? "border-l-red-500"
                 : parentStory?.priority === "HIGH"
@@ -6881,41 +6910,60 @@ const ScrumPage: React.FC = () => {
                   : parentStory?.priority === "MEDIUM"
                     ? "border-l-blue-500"
                     : "border-l-green-500"
-          } ${task.isPulledFromBacklog ? "bg-yellow-50" : "bg-white"} hover:shadow-lg transition-all duration-200 rounded-lg overflow-hidden`}
+          } bg-white hover:shadow-lg transition-all duration-200 rounded-lg overflow-hidden w-full aspect-square flex flex-col`}
         >
-          {/* Main Task Section - Simplified to show only name */}
+          <CardContent className="p-3 flex flex-col flex-1 justify-between">
+            {/* Top Row: Task ID and Due Date */}
+            <div className="flex items-center justify-between mb-2 flex-shrink-0">
+              <span className="text-xs font-semibold text-blue-600">
+                TK#{taskNumber}
+              </span>
+              {task.dueDate && (
+                <div className="flex items-center space-x-1">
+                  <CalendarIcon className="w-3 h-3 text-red-500" />
+                  <span className="text-xs font-medium text-red-500">
+                    {new Date(task.dueDate).getDate()}
+                  </span>
+                </div>
+              )}
+            </div>
 
-          <CardContent className={`p-3 ${task.isPulledFromBacklog ? "bg-gradient-to-r from-yellow-50 to-yellow-100" : "bg-gradient-to-r from-gray-50 to-white"}`}>
-            {/* Task Header with Number and Assignee */}
+            {/* Middle: Task Title (can wrap) */}
+            <h4
+              className="text-xs font-medium text-gray-900 leading-tight cursor-pointer hover:text-blue-600 transition-colors flex-1 mb-2 line-clamp-3"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleViewTaskDetails();
+              }}
+              title={task.title}
+            >
+              {task.title.length > 40 ? `${task.title.substring(0, 40)}...` : task.title}
+            </h4>
 
-            <div className="flex items-center justify-between mb-2">
-              <Badge
-                variant="secondary"
-                className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 font-medium"
-              >
-                T{taskNumber}
-              </Badge>
+            {/* Bottom Row: Time and Assignee */}
+            <div className="flex items-center justify-between mt-auto flex-shrink-0">
+              {/* Time (left) - Format as HH:00 */}
+              <span className="text-xs font-medium text-gray-700">
+                {actualHours > 0 
+                  ? `${Math.floor(actualHours)}:00`
+                  : estimatedHours > 0 
+                    ? `${Math.floor(estimatedHours)}:00`
+                    : '0:00'}
+              </span>
 
-              <div className="flex items-center space-x-2">
+              {/* Assignee Initials (right) with dropdown menu */}
+              <div className="flex items-center space-x-1">
                 {assigneeName && (
-                  <div className="flex items-center space-x-1">
-                    <User className="w-3 h-3 text-gray-500" />
-
-                    <span
-                      className="text-xs text-gray-600 truncate max-w-[100px]"
-                      title={assigneeName}
-                    >
-                      {assigneeName}
-                    </span>
-                  </div>
+                  <span className="text-xs font-semibold text-gray-700">
+                    {getInitials(assigneeName)}
+                  </span>
                 )}
-
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 w-6 p-0"
+                      className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 hover:opacity-100"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <MoreVertical className="w-3 h-3" />
@@ -6952,20 +7000,6 @@ const ScrumPage: React.FC = () => {
                 </DropdownMenu>
               </div>
             </div>
-
-            {/* Task Name - Clickable */}
-
-            <h4
-              className="font-semibold text-sm leading-tight text-gray-900 cursor-pointer hover:text-blue-600 transition-colors"
-              onClick={(e) => {
-                e.stopPropagation();
-
-                handleViewTaskDetails();
-              }}
-              title="Click to view task details"
-            >
-              {task.title}
-            </h4>
           </CardContent>
         </Card>
       </div>
@@ -8775,7 +8809,7 @@ const ScrumPage: React.FC = () => {
                                   : undefined
                           }
                         >
-                          <div className="space-y-2 min-h-[80px]">
+                          <div className="grid grid-cols-2 gap-2 min-h-[80px]">
                             {tasks.map((task, taskIndex) => (
                               <DraggableTask
                                 key={task.id}
@@ -8795,7 +8829,7 @@ const ScrumPage: React.FC = () => {
                             {tasks.length === 0 &&
                               issues.length === 0 &&
                               !isOver && (
-                                <div className="text-center py-6 text-gray-300 text-xs">
+                                <div className="col-span-2 text-center py-6 text-gray-300 text-xs">
                                   Drop here
                                 </div>
                               )}
@@ -14278,6 +14312,7 @@ const ScrumPage: React.FC = () => {
             storyId: "",
           }));
         }}
+        projectId={selectedProject}
         onSubmit={async (taskData) => {
           try {
             const storyId = taskData.storyId === 'none' ? undefined : taskData.storyId;

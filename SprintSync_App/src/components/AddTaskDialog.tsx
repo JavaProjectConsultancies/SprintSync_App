@@ -89,13 +89,10 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
   users = [],
   projectId
 }) => {
-  // Try to derive projectId from selected story if not provided
-  const effectiveProjectId = projectId || (defaultStoryId && stories.find(s => s.id === defaultStoryId)?.projectId);
-  
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    storyId: defaultStoryId || 'none',
+    storyId: defaultStoryId || '',
     priority: 'medium' as 'high' | 'medium' | 'low',
     assignee: '',
     estimatedHours: 4,
@@ -108,6 +105,22 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
 
   // State to control due date popover
   const [isDueDatePopoverOpen, setIsDueDatePopoverOpen] = useState(false);
+  
+  // Calculate effectiveProjectId - derive from selected story if not provided directly
+  // MUST be defined before any useEffect that uses it
+  const effectiveProjectId = useMemo(() => {
+    // First, try the projectId prop
+    if (projectId) {
+      return projectId;
+    }
+    // Then, try to get it from the currently selected story
+    const selectedStoryId = formData.storyId && formData.storyId.trim() !== '' ? formData.storyId : defaultStoryId;
+    if (selectedStoryId) {
+      const story = stories.find(s => s.id === selectedStoryId);
+      return story?.projectId;
+    }
+    return undefined;
+  }, [projectId, formData.storyId, defaultStoryId, stories]);
   
   // Log for debugging
   useEffect(() => {
@@ -214,13 +227,13 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
     // Fall back to mock data only if no users provided
     console.log('[AddTaskDialog] No users provided, using mock data');
     return [
-      { id: '1', name: 'Arjun Patel', avatar: '', role: 'Senior Developer' },
-      { id: '2', name: 'Priya Sharma', avatar: '', role: 'UI/UX Designer' },
-      { id: '3', name: 'Sneha Reddy', avatar: '', role: 'QA Engineer' },
-      { id: '4', name: 'Rahul Kumar', avatar: '', role: 'DevOps Engineer' },
-      { id: '5', name: 'Vikram Singh', avatar: '', role: 'Full Stack Developer' },
-      { id: '6', name: 'Ananya Gupta', avatar: '', role: 'Product Manager' }
-    ];
+        { id: '1', name: 'Arjun Patel', avatar: '', role: 'Senior Developer' },
+        { id: '2', name: 'Priya Sharma', avatar: '', role: 'UI/UX Designer' },
+        { id: '3', name: 'Sneha Reddy', avatar: '', role: 'QA Engineer' },
+        { id: '4', name: 'Rahul Kumar', avatar: '', role: 'DevOps Engineer' },
+        { id: '5', name: 'Vikram Singh', avatar: '', role: 'Full Stack Developer' },
+        { id: '6', name: 'Ananya Gupta', avatar: '', role: 'Product Manager' }
+      ];
   }, [effectiveProjectId, projectTeamMembers, users, loadingTeamMembers]);
 
   const getInitials = (name: string) => {
@@ -238,13 +251,17 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
       newErrors.description = 'Task description is required';
     }
 
+    if (!formData.storyId || formData.storyId.trim() === '') {
+      newErrors.storyId = 'Please select a user story for this task';
+    }
+
     if (!formData.assignee) {
       newErrors.assignee = 'Please assign someone to this task';
     }
 
     if (!formData.dueDate) {
       newErrors.dueDate = 'Due date is required';
-    } else if (formData.storyId && formData.storyId !== 'none') {
+    } else if (formData.storyId && formData.storyId.trim() !== '') {
       // Validate that task due date is within story's due date
       const selectedStory = stories.find(s => s.id === formData.storyId);
       if (selectedStory && selectedStory.dueDate) {
@@ -276,7 +293,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
     const newTask: Omit<Task, 'id'> & { attachments?: File[]; attachmentUrls?: Array<{ url: string; name: string }> } = {
       title: formData.title.trim(),
       description: formData.description.trim(),
-      storyId: formData.storyId === 'none' ? undefined : formData.storyId || undefined,
+      storyId: formData.storyId && formData.storyId.trim() !== '' ? formData.storyId : undefined,
       priority: formData.priority,
       assignee: formData.assignee,
       status: formData.status,
@@ -297,7 +314,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
     setFormData({
       title: '',
       description: '',
-      storyId: defaultStoryId || 'none',
+      storyId: defaultStoryId || '',
       priority: 'medium',
       assignee: '',
       estimatedHours: 4,
@@ -407,7 +424,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
   };
 
   // Safe story lookup with null check
-  const selectedStory = formData.storyId !== 'none' && stories 
+  const selectedStory = formData.storyId && formData.storyId.trim() !== '' && stories 
     ? stories.find(story => story.id === formData.storyId) 
     : null;
 
@@ -433,11 +450,12 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
 
   // Update formData when defaultStoryId changes or dialog opens
   useEffect(() => {
-    if (isOpen) {
-      if (defaultStoryId) {
-        // Set the story ID when dialog opens with a default story
-        setFormData(prev => ({ ...prev, storyId: defaultStoryId }));
-      }
+    if (isOpen && defaultStoryId) {
+      // Auto-select the story when dialog opens with a defaultStoryId
+      setFormData(prev => ({ ...prev, storyId: defaultStoryId }));
+    } else if (isOpen && !defaultStoryId && formData.storyId) {
+      // Reset to empty if dialog opens without defaultStoryId and storyId is set
+      setFormData(prev => ({ ...prev, storyId: '' }));
     }
   }, [defaultStoryId, isOpen]);
 
@@ -670,16 +688,33 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="storyId">Link to User Story (Optional)</Label>
+                    <Label htmlFor="storyId" className="flex items-center space-x-1">
+                      <span>Link to User Story</span>
+                      <span className="text-red-500">*</span>
+                    </Label>
                     <Select 
                       value={formData.storyId} 
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, storyId: value }))}
+                      onValueChange={(value) => {
+                        setFormData(prev => ({ ...prev, storyId: value }));
+                        // Clear error when story is selected
+                        if (value && value.trim() !== '') {
+                          setErrors(prev => {
+                            const newErrors = { ...prev };
+                            delete newErrors.storyId;
+                            return newErrors;
+                          });
+                        }
+                      }}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a user story..." />
+                      <SelectTrigger className={errors.storyId ? 'border-red-300' : ''}>
+                        <SelectValue placeholder="Select a user story...">
+                          {formData.storyId && formData.storyId.trim() !== '' && (() => {
+                            const selected = stories.find(s => s.id === formData.storyId);
+                            return selected ? selected.title : 'Select a user story...';
+                          })()}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">No story (Standalone task)</SelectItem>
                         {stories.map(story => (
                           <SelectItem key={story.id} value={story.id}>
                             <div className="flex items-center space-x-2">
@@ -695,6 +730,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                         ))}
                       </SelectContent>
                     </Select>
+                    {errors.storyId && <p className="text-sm text-red-600">{errors.storyId}</p>}
                     
                     {selectedStory && (
                       <div className="mt-2 p-2 bg-green-50 rounded border-l-3 border-green-200">
@@ -827,20 +863,20 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                           </div>
                         ) : (
                           teamMembers.map(member => (
-                            <SelectItem key={member.id} value={member.id}>
-                              <div className="flex items-center space-x-3">
-                                <Avatar className="h-6 w-6">
-                                  <AvatarImage src={member.avatar} alt={member.name} />
-                                  <AvatarFallback className="text-xs bg-gradient-to-br from-green-100 to-cyan-100">
-                                    {getInitials(member.name)}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div className="flex flex-col">
-                                  <span className="font-medium">{member.name}</span>
-                                  <span className="text-xs text-muted-foreground">{member.role}</span>
-                                </div>
+                          <SelectItem key={member.id} value={member.id}>
+                            <div className="flex items-center space-x-3">
+                              <Avatar className="h-6 w-6">
+                                <AvatarImage src={member.avatar} alt={member.name} />
+                                <AvatarFallback className="text-xs bg-gradient-to-br from-green-100 to-cyan-100">
+                                  {getInitials(member.name)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex flex-col">
+                                <span className="font-medium">{member.name}</span>
+                                <span className="text-xs text-muted-foreground">{member.role}</span>
                               </div>
-                            </SelectItem>
+                            </div>
+                          </SelectItem>
                           ))
                         )}
                       </SelectContent>
@@ -872,7 +908,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                           selected={formData.dueDate}
                           onSelect={(date) => {
                             // Validate date against story's due date before setting
-                            if (date && formData.storyId && formData.storyId !== 'none') {
+                            if (date && formData.storyId && formData.storyId.trim() !== '') {
                               const selectedStory = stories.find(s => s.id === formData.storyId);
                               if (selectedStory && selectedStory.dueDate) {
                                 const storyDueDate = new Date(selectedStory.dueDate);
@@ -894,7 +930,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                           }}
                           disabled={(date) => {
                             // Disable dates after story's due date
-                            if (formData.storyId && formData.storyId !== 'none') {
+                            if (formData.storyId && formData.storyId.trim() !== '') {
                               const selectedStory = stories.find(s => s.id === formData.storyId);
                               if (selectedStory && selectedStory.dueDate) {
                                 const storyDueDate = new Date(selectedStory.dueDate);

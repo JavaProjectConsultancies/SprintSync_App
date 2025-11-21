@@ -437,12 +437,12 @@ const TimeTrackingPage: React.FC = () => {
           }
 
           const isManagerOrAdmin = currentUser && (
-            currentUser.role === 'admin' || 
-            currentUser.role === 'manager' || 
-            currentUser.role === 'MANAGER' ||
-            currentUser.role === 'ADMIN' ||
-            currentUser.role?.toLowerCase() === 'manager' ||
-            currentUser.role?.toLowerCase() === 'admin'
+            (currentUser.role as string) === 'admin' || 
+            (currentUser.role as string) === 'manager' || 
+            (currentUser.role as string) === 'MANAGER' ||
+            (currentUser.role as string) === 'ADMIN' ||
+            (currentUser.role as string)?.toLowerCase() === 'manager' ||
+            (currentUser.role as string)?.toLowerCase() === 'admin'
           );
 
           if (!isManagerOrAdmin) {
@@ -554,12 +554,12 @@ const TimeTrackingPage: React.FC = () => {
   const users = useMemo(() => {
     // Check if current user is manager or admin
     const isManagerOrAdmin = currentUser && (
-      currentUser.role === 'admin' || 
-      currentUser.role === 'manager' || 
-      currentUser.role === 'MANAGER' ||
-      currentUser.role === 'ADMIN' ||
-      currentUser.role?.toLowerCase() === 'manager' ||
-      currentUser.role?.toLowerCase() === 'admin'
+      (currentUser.role as string) === 'admin' || 
+      (currentUser.role as string) === 'manager' || 
+      (currentUser.role as string) === 'MANAGER' ||
+      (currentUser.role as string) === 'ADMIN' ||
+      (currentUser.role as string)?.toLowerCase() === 'manager' ||
+      (currentUser.role as string)?.toLowerCase() === 'admin'
     );
     
     // If current user is manager/admin, show all users; otherwise show only current user
@@ -671,12 +671,12 @@ const TimeTrackingPage: React.FC = () => {
     }
 
     const isManagerOrAdmin = currentUser && (
-      currentUser.role === 'admin' || 
-      currentUser.role === 'manager' || 
-      currentUser.role === 'MANAGER' ||
-      currentUser.role === 'ADMIN' ||
-      currentUser.role?.toLowerCase() === 'manager' ||
-      currentUser.role?.toLowerCase() === 'admin'
+      (currentUser.role as string) === 'admin' || 
+      (currentUser.role as string) === 'manager' || 
+      (currentUser.role as string) === 'MANAGER' ||
+      (currentUser.role as string) === 'ADMIN' ||
+      (currentUser.role as string)?.toLowerCase() === 'manager' ||
+      (currentUser.role as string)?.toLowerCase() === 'admin'
     );
 
     if (isManagerOrAdmin && usersData.length === 0) {
@@ -708,10 +708,10 @@ const TimeTrackingPage: React.FC = () => {
               
               if (Array.isArray(response.data)) {
                 userTasks = response.data;
-              } else if (response.data?.content && Array.isArray(response.data.content)) {
-                userTasks = response.data.content;
-              } else if (response.data?.data && Array.isArray(response.data.data)) {
-                userTasks = response.data.data;
+              } else if (response.data && typeof response.data === 'object' && 'content' in response.data && Array.isArray((response.data as any).content)) {
+                userTasks = (response.data as any).content;
+              } else if (response.data && typeof response.data === 'object' && 'data' in response.data && Array.isArray((response.data as any).data)) {
+                userTasks = (response.data as any).data;
               }
 
               if (userTasks.length > 0) {
@@ -765,10 +765,10 @@ const TimeTrackingPage: React.FC = () => {
             
             if (Array.isArray(response.data)) {
               userTasks = response.data;
-            } else if (response.data?.content && Array.isArray(response.data.content)) {
-              userTasks = response.data.content;
-            } else if (response.data?.data && Array.isArray(response.data.data)) {
-              userTasks = response.data.data;
+            } else if (response.data && typeof response.data === 'object' && 'content' in response.data && Array.isArray((response.data as any).content)) {
+              userTasks = (response.data as any).content;
+            } else if (response.data && typeof response.data === 'object' && 'data' in response.data && Array.isArray((response.data as any).data)) {
+              userTasks = (response.data as any).data;
             }
 
             if (userTasks.length > 0) {
@@ -1137,12 +1137,12 @@ const TimeTrackingPage: React.FC = () => {
     }
 
     const isManagerOrAdmin = currentUser && (
-      currentUser.role === 'admin' || 
-      currentUser.role === 'manager' || 
-      currentUser.role === 'MANAGER' ||
-      currentUser.role === 'ADMIN' ||
-      currentUser.role?.toLowerCase() === 'manager' ||
-      currentUser.role?.toLowerCase() === 'admin'
+      (currentUser.role as string) === 'admin' || 
+      (currentUser.role as string) === 'manager' || 
+      (currentUser.role as string) === 'MANAGER' ||
+      (currentUser.role as string) === 'ADMIN' ||
+      (currentUser.role as string)?.toLowerCase() === 'manager' ||
+      (currentUser.role as string)?.toLowerCase() === 'admin'
     );
 
     const fetchKey = isManagerOrAdmin ? `${userId}-all` : userId;
@@ -1200,12 +1200,12 @@ const TimeTrackingPage: React.FC = () => {
 
         // Check if current user is manager or admin
         const isManagerOrAdmin = currentUser && (
-          currentUser.role === 'admin' || 
-          currentUser.role === 'manager' || 
-          currentUser.role === 'MANAGER' ||
-          currentUser.role === 'ADMIN' ||
-          currentUser.role?.toLowerCase() === 'manager' ||
-          currentUser.role?.toLowerCase() === 'admin'
+          (currentUser.role as string) === 'admin' || 
+          (currentUser.role as string) === 'manager' || 
+          (currentUser.role as string) === 'MANAGER' ||
+          (currentUser.role as string) === 'ADMIN' ||
+          (currentUser.role as string)?.toLowerCase() === 'manager' ||
+          (currentUser.role as string)?.toLowerCase() === 'admin'
         );
 
         // Always try getAllTimeEntries; fallback to pagination
@@ -1485,12 +1485,12 @@ const TimeTrackingPage: React.FC = () => {
 
     // Filter entries: managers/admins see entries from their accessible projects, others see only their own
     const isManagerOrAdmin = currentUser && (
-      currentUser.role === 'admin' || 
-      currentUser.role === 'manager' || 
-      currentUser.role === 'MANAGER' ||
-      currentUser.role === 'ADMIN' ||
-      currentUser.role?.toLowerCase() === 'manager' ||
-      currentUser.role?.toLowerCase() === 'admin'
+      (currentUser.role as string) === 'admin' || 
+      (currentUser.role as string) === 'manager' || 
+      (currentUser.role as string) === 'MANAGER' ||
+      (currentUser.role as string) === 'ADMIN' ||
+      (currentUser.role as string)?.toLowerCase() === 'manager' ||
+      (currentUser.role as string)?.toLowerCase() === 'admin'
     );
     
     let entriesToMap = rawTimeEntries;
@@ -1824,12 +1824,12 @@ const TimeTrackingPage: React.FC = () => {
   const summaryStats = useMemo(() => {
     // Check if current user is manager or admin
     const isManagerOrAdmin = currentUser && (
-      currentUser.role === 'admin' || 
-      currentUser.role === 'manager' || 
-      currentUser.role === 'MANAGER' ||
-      currentUser.role === 'ADMIN' ||
-      currentUser.role?.toLowerCase() === 'manager' ||
-      currentUser.role?.toLowerCase() === 'admin'
+      (currentUser.role as string) === 'admin' || 
+      (currentUser.role as string) === 'manager' || 
+      (currentUser.role as string) === 'MANAGER' ||
+      (currentUser.role as string) === 'ADMIN' ||
+      (currentUser.role as string)?.toLowerCase() === 'manager' ||
+      (currentUser.role as string)?.toLowerCase() === 'admin'
     );
     
     // Calculate allotted time
@@ -2838,7 +2838,7 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                   <TableHead>Work Type</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Billable</TableHead>
-                  <TableHead>Notes</TableHead>
+                  <TableHead>Description</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -2880,7 +2880,13 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
       </div>
                       </TableCell>
                       <TableCell className="max-w-[220px]">
-                        <p className="truncate font-medium text-foreground">{entry.task}</p>
+                        <p 
+                          className="truncate font-medium text-foreground" 
+                          title={entry.task}
+                          style={{ maxWidth: '220px' }}
+                        >
+                          {entry.task.length > 50 ? `${entry.task.substring(0, 50)}...` : entry.task}
+                        </p>
                         <p className="truncate text-xs text-muted-foreground">{entry.story}</p>
                       </TableCell>
                       <TableCell className="max-w-[160px] truncate">{entry.project}</TableCell>
@@ -2903,8 +2909,16 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                           {entry.billable ? 'Billable' : 'Non-billable'}
                         </Badge>
                       </TableCell>
-                      <TableCell className="max-w-[220px] truncate">
-                        {entry.notes ? entry.notes : '—'}
+                      <TableCell className="max-w-[220px]">
+                        {entry.notes ? (
+                          <p 
+                            className="truncate" 
+                            title={entry.notes}
+                            style={{ maxWidth: '220px' }}
+                          >
+                            {entry.notes.length > 50 ? `${entry.notes.substring(0, 50)}...` : entry.notes}
+                          </p>
+                        ) : '—'}
                       </TableCell>
                     </TableRow>
                   );
@@ -3064,27 +3078,50 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
       </div>
             <div className="mt-6 h-72">
               {workTypeBreakdownData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Pie
-                      data={workTypeBreakdownData}
-                      dataKey="hours"
-                      nameKey="category"
-                      innerRadius={60}
-                      outerRadius={90}
-                      paddingAngle={3}
-                    >
-                      {workTypeBreakdownData.map((item, index) => (
-                        <Cell
-                          key={item.category}
-                          fill={workTypeColorPalette[index % workTypeColorPalette.length]}
-                        />
-                      ))}
-                    </Pie>
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
+                <ChartContainer
+                  config={workTypeBreakdownData.reduce(
+                    (acc, item, index) => ({
+                      ...acc,
+                      [item.category]: {
+                        label: formatDisplayName(item.category),
+                        color: workTypeColorPalette[index % workTypeColorPalette.length],
+                      },
+                    }),
+                    {}
+                  )}
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <ChartTooltip 
+                        content={<ChartTooltipContent />}
+                        formatter={(value: any, name: any) => [
+                          `${value} hours`,
+                          formatDisplayName(name)
+                        ]}
+                      />
+                      <Pie
+                        data={workTypeBreakdownData}
+                        dataKey="hours"
+                        nameKey="category"
+                        innerRadius={60}
+                        outerRadius={90}
+                        paddingAngle={3}
+                        label={(entry: any) => `${formatDisplayName(entry.category)}: ${entry.hours}h`}
+                      >
+                        {workTypeBreakdownData.map((item, index) => (
+                          <Cell
+                            key={item.category}
+                            fill={workTypeColorPalette[index % workTypeColorPalette.length]}
+                          />
+                        ))}
+                      </Pie>
+                      <Legend 
+                        formatter={(value: string) => formatDisplayName(value)}
+                        wrapperStyle={{ fontSize: '12px' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </ChartContainer>
               ) : (
                 <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                   No work type data available.
