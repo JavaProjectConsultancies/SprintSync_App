@@ -9806,19 +9806,22 @@ const ScrumPage: React.FC = () => {
                       </p>
                     </div>
 
-                    {selectedStoryForDetails.dueDate && (
-                      <div>
-                        <h4 className="font-medium mb-2">Due Date</h4>
+                    <div>
+                      <h4 className="font-medium mb-2 flex items-center space-x-2">
+                        <CalendarDays className="w-4 h-4 text-blue-600" />
+                        <span>Due Date</span>
+                      </h4>
 
-                        <p className="text-sm bg-gray-50 p-2 rounded">
-                          {new Date(selectedStoryForDetails.dueDate).toLocaleDateString("en-US", {
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
-                          })}
-                        </p>
-                      </div>
-                    )}
+                      <p className="text-sm bg-gray-50 p-2 rounded">
+                        {selectedStoryForDetails.dueDate
+                          ? new Date(selectedStoryForDetails.dueDate).toLocaleDateString("en-US", {
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            })
+                          : "No due date set"}
+                      </p>
+                    </div>
                   </div>
 
                   {/* Attachments Section */}
@@ -14267,7 +14270,14 @@ const ScrumPage: React.FC = () => {
       {/* Add Task Dialog */}
       <AddTaskDialog
         isOpen={isAddTaskDialogOpen}
-        onClose={() => setIsAddTaskDialogOpen(false)}
+        onClose={() => {
+          setIsAddTaskDialogOpen(false);
+          // Reset storyId when dialog closes
+          setNewTask((prev) => ({
+            ...prev,
+            storyId: "",
+          }));
+        }}
         onSubmit={async (taskData) => {
           try {
             const storyId = taskData.storyId === 'none' ? undefined : taskData.storyId;
@@ -14313,6 +14323,12 @@ const ScrumPage: React.FC = () => {
             toast.success("Task created successfully");
             setIsAddTaskDialogOpen(false);
             
+            // Reset storyId after successful creation
+            setNewTask((prev) => ({
+              ...prev,
+              storyId: "",
+            }));
+            
             // Refresh tasks
             if (sprintStories.length > 0) {
               fetchAllTasks(sprintStories, false);
@@ -14322,7 +14338,35 @@ const ScrumPage: React.FC = () => {
             toast.error(error?.message || "Failed to create task");
           }
         }}
-        stories={sprintStories}
+        stories={sprintStories.map((story) => ({
+          id: story.id,
+          title: story.title,
+          priority: (story.priority?.toLowerCase() || "medium") as
+            | "high"
+            | "medium"
+            | "low",
+          points: story.storyPoints || 0,
+          status: story.status?.toLowerCase()?.includes("backlog")
+            ? "stories"
+            : story.status?.toLowerCase()?.includes("todo")
+              ? "todo"
+              : story.status?.toLowerCase()?.includes("progress")
+                ? "inprogress"
+                : story.status?.toLowerCase()?.includes("review")
+                  ? "qa"
+                  : story.status?.toLowerCase()?.includes("done")
+                    ? "done"
+                    : ("stories" as
+                        | "stories"
+                        | "todo"
+                        | "inprogress"
+                        | "qa"
+                        | "done"),
+          assignee: undefined,
+          dueDate: story.dueDate || undefined,
+          projectId: story.projectId,
+        }))}
+        defaultStoryId={newTask.storyId || undefined}
         projectId={selectedProject}
         users={users}
       />

@@ -431,10 +431,13 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
     }
   };
 
-  // Update formData when defaultStoryId changes
+  // Update formData when defaultStoryId changes or dialog opens
   useEffect(() => {
-    if (defaultStoryId && formData.storyId === 'none') {
-      setFormData(prev => ({ ...prev, storyId: defaultStoryId }));
+    if (isOpen) {
+      if (defaultStoryId) {
+        // Set the story ID when dialog opens with a default story
+        setFormData(prev => ({ ...prev, storyId: defaultStoryId }));
+      }
     }
   }, [defaultStoryId, isOpen]);
 
