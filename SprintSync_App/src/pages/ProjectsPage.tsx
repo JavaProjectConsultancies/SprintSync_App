@@ -2124,59 +2124,6 @@ const ProjectsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* API Status Indicators */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-blue-200">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <div className={`w-3 h-3 rounded-full ${projectsLoading ? 'bg-yellow-500 animate-pulse' : projectsError ? 'bg-red-500' : 'bg-green-500'}`}></div>
-              <span className="text-sm font-medium">Projects API</span>
-              {projectsLoading && <span className="text-xs text-gray-500">Loading...</span>}
-              {projectsError && <span className="text-xs text-red-500">Error</span>}
-              {apiProjects && <span className="text-xs text-green-600">{apiProjects.length} projects</span>}
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="border-blue-200">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <div className={`w-3 h-3 rounded-full ${usersLoading ? 'bg-yellow-500 animate-pulse' : usersError ? 'bg-red-500' : 'bg-green-500'}`}></div>
-              <span className="text-sm font-medium">Users API</span>
-              {usersLoading && <span className="text-xs text-gray-500">Loading...</span>}
-              {usersError && <span className="text-xs text-red-500">Error</span>}
-              {apiUsers && <span className="text-xs text-green-600">{apiUsers.length} users</span>}
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="border-blue-200">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <div className={`w-3 h-3 rounded-full ${departmentsLoading ? 'bg-yellow-500 animate-pulse' : departmentsError ? 'bg-red-500' : 'bg-green-500'}`}></div>
-              <span className="text-sm font-medium">Departments API</span>
-              {departmentsLoading && <span className="text-xs text-gray-500">Loading...</span>}
-              {departmentsError && <span className="text-xs text-red-500">Error</span>}
-              {apiDepartments && <span className="text-xs text-green-600">{apiDepartments.length} departments</span>}
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="border-blue-200">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <div className={`w-3 h-3 rounded-full ${(projectsLoading || usersLoading || departmentsLoading) ? 'bg-yellow-500 animate-pulse' : (projectsError || usersError || departmentsError) ? 'bg-red-500' : 'bg-green-500'}`}></div>
-              <span className="text-sm font-medium">Data Source</span>
-              {apiProjects && apiProjects.length > 0 ? (
-                <span className="text-xs text-green-600">Live API Data</span>
-              ) : (
-                <span className="text-xs text-gray-500">Mock Data</span>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Projects Grid/List */}
       {filteredProjects.length === 0 ? (
         <Card className="border-dashed border-2">

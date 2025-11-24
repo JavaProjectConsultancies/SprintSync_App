@@ -48,6 +48,7 @@ interface TimeEntry {
   duration: string;
   date: string;
   status: 'active' | 'completed';
+  taskStatus?: string; // Actual task status (IN_PROGRESS, DONE, QA, etc.)
   billable: boolean;
   category: string;
   description?: string;
@@ -1621,8 +1622,15 @@ const TimeTrackingPage: React.FC = () => {
         const estimation = estimatedHours > 0 ? `${estHours}h ${estMinutes}m` : undefined;
 
         const taskStatus = task?.status || 'TO_DO';
-        const isActive = taskStatus === 'IN_PROGRESS';
-        const isCompleted = taskStatus === 'DONE';
+        // Keep the original task status for display purposes
+        const normalizedTaskStatus = (taskStatus || '').toString().toUpperCase().trim();
+        // Map task status to entry status for filtering/grouping (legacy support)
+        let entryStatus: 'active' | 'completed' = 'active';
+        if (normalizedTaskStatus === 'DONE' || normalizedTaskStatus === 'COMPLETED') {
+          entryStatus = 'completed';
+        } else {
+          entryStatus = 'active';
+        }
 
         const displayUserName = assigneeUser?.name || (assigneeId || user?.name || 'Unknown User');
         const displayUserRole = assigneeUser?.role || user?.role || 'DEVELOPER';
@@ -1642,7 +1650,8 @@ const TimeTrackingPage: React.FC = () => {
           userRole: displayUserRole,
           duration: timeSpent,
           date: entry.workDate || entry.createdAt,
-          status: isActive ? 'active' : (isCompleted ? 'completed' : 'completed'),
+          status: entryStatus,
+          taskStatus: normalizedTaskStatus, // Store the actual task status for display
           billable: entry.isBillable !== false,
           category: normalizedCategory,
           description: entry.description,
@@ -2128,6 +2137,57 @@ const TimeTrackingPage: React.FC = () => {
     }),
     []
   );
+
+  // Helper function to get status style based on task status
+  const getTaskStatusStyle = useCallback((taskStatus: string | undefined) => {
+    const normalizedStatus = (taskStatus || '').toString().toUpperCase().trim();
+    
+    switch (normalizedStatus) {
+      case 'DONE':
+      case 'COMPLETED':
+        return {
+          label: 'Done',
+          className: 'bg-green-100 text-green-700 border-green-200',
+        };
+      case 'IN_PROGRESS':
+      case 'INPROGRESS':
+      case 'ACTIVE':
+        return {
+          label: 'In Progress',
+          className: 'bg-blue-100 text-blue-700 border-blue-200',
+        };
+      case 'QA':
+      case 'QA_REVIEW':
+      case 'REVIEW':
+        return {
+          label: 'QA Review',
+          className: 'bg-purple-100 text-purple-700 border-purple-200',
+        };
+      case 'TO_DO':
+      case 'TODO':
+      case 'BACKLOG':
+        return {
+          label: 'To Do',
+          className: 'bg-gray-100 text-gray-700 border-gray-200',
+        };
+      case 'BLOCKED':
+        return {
+          label: 'Blocked',
+          className: 'bg-red-100 text-red-700 border-red-200',
+        };
+      case 'CANCELLED':
+      case 'CANCELED':
+        return {
+          label: 'Cancelled',
+          className: 'bg-slate-100 text-slate-600 border-slate-200',
+        };
+      default:
+        return {
+          label: normalizedStatus || 'Unknown',
+          className: 'bg-gray-100 text-gray-700 border-gray-200',
+        };
+    }
+  }, []);
 
   const entryStatusStyles = useMemo(
     () => ({
@@ -2859,7 +2919,8 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                     estimatedMinutesRaw !== undefined
                       ? Math.round((estimatedMinutesRaw / 60) * 10) / 10
                       : undefined;
-                  const statusStyle = entryStatusStyles[entry.status];
+                  // Get the actual task status style for display
+                  const taskStatusStyle = getTaskStatusStyle(entry.taskStatus);
                   const billableBadgeClass = entry.billable
                     ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
                     : 'bg-slate-100 text-slate-600 border-slate-200';
@@ -2900,8 +2961,8 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={`text-xs ${statusStyle.className}`}>
-                          {statusStyle.label}
+                        <Badge variant="outline" className={`text-xs ${taskStatusStyle.className}`}>
+                          {taskStatusStyle.label}
                         </Badge>
                       </TableCell>
                       <TableCell>

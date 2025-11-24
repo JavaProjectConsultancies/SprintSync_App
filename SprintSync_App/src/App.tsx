@@ -395,9 +395,17 @@ const AppContent: React.FC = () => {
                     {/* Dashboard - accessible by all roles */}
                     <Route path="/" element={<Dashboard />} />
                     
-                    {/* Projects - accessible by all roles */}
-                    <Route path="/projects" element={<ProjectsPage />} />
-                    <Route path="/projects/:id" element={<ProjectDetailsPage />} />
+                    {/* Projects - accessible by admin, manager, qa (not developers) */}
+                    <Route path="/projects" element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager', 'qa']}>
+                        <ProjectsPage />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/projects/:id" element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager', 'qa']}>
+                        <ProjectDetailsPage />
+                      </ProtectedRoute>
+                    } />
                     
                     {/* Backlog - accessible by all roles */}
                     <Route path="/backlog" element={<BacklogPage />} />

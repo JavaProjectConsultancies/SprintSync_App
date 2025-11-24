@@ -206,6 +206,10 @@ import LaneConfigurationModal from "../components/LaneConfigurationModal";
 
 import EffortManager from "../components/EffortManager";
 
+import TaskDetailsFullDialog from "../components/TaskDetailsFullDialog";
+
+import LoadingSpinner from "../components/LoadingSpinner";
+
 // import CreateSprintDialog from "../components/CreateSprintDialog";
 
 // import TeamCapacityCalculator from "../components/TeamCapacityCalculator";
@@ -428,6 +432,9 @@ const ScrumPage: React.FC = () => {
     useState(false);
   const [selectedBacklogTaskForEffort, setSelectedBacklogTaskForEffort] =
     useState<Task | null>(null);
+  const [isBacklogTaskDialogOpen, setIsBacklogTaskDialogOpen] = useState(false);
+  const [backlogTaskToView, setBacklogTaskToView] = useState<Task | null>(null);
+  const [selectedBacklogTasks, setSelectedBacklogTasks] = useState<string[]>([]);
 
   // Role-based permissions
 
@@ -3015,551 +3022,8 @@ const ScrumPage: React.FC = () => {
     }
   }, [backlogStories, fetchTasksForBacklogStories]);
 
-  // Filter stories: show all backlog stories (not just those with overdue tasks)
-  const filteredBacklogStories = useMemo(() => {
-    if (!backlogStoriesWithTasks || backlogStoriesWithTasks.length === 0) {
-      return [];
-    }
+  // Note: allBacklogStoriesForDisplay is declared later and used for backlog display
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Start with all backlog stories (not filtered by overdue tasks)
-    let filtered = backlogStoriesWithTasks;
-
-    // Apply additional filters
-    filtered = filtered.filter((story) => {
-      const matchesSearch =
-        story.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (story.description &&
-          story.description.toLowerCase().includes(searchTerm.toLowerCase()));
-
-      const matchesStatus =
-        backlogStatusFilter === "all" || story.status === backlogStatusFilter;
-
-      const priorityMap: { [key: string]: string } = {
-        critical: "CRITICAL",
-        high: "HIGH",
-        medium: "MEDIUM",
-        low: "LOW",
-      };
-      const matchesPriority =
-        backlogPriorityFilter === "all" ||
-        story.priority === priorityMap[backlogPriorityFilter];
-
-      const matchesAssignee =
-        backlogAssigneeFilter === "all" ||
-        story.assigneeId === backlogAssigneeFilter;
-
-      return (
-        matchesSearch && matchesStatus && matchesPriority && matchesAssignee
-      );
-    });
-
-    // Sort stories
-    filtered.sort((a, b) => {
-      let aValue, bValue;
-
-      switch (backlogSortBy) {
-        case "priority":
-          const priorityOrder = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
-          aValue = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
-          bValue = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
-          break;
-        case "storyPoints":
-          aValue = a.storyPoints || 0;
-          bValue = b.storyPoints || 0;
-          break;
-        case "dueDate":
-          // Use the earliest overdue task due date
-          const aTasks = a.tasks.filter(
-            (t) => t.dueDate && new Date(t.dueDate) < today,
-          );
-          const bTasks = b.tasks.filter(
-            (t) => t.dueDate && new Date(t.dueDate) < today,
-          );
-          aValue =
-            aTasks.length > 0
-              ? Math.min(...aTasks.map((t) => new Date(t.dueDate!).getTime()))
-              : Infinity;
-          bValue =
-            bTasks.length > 0
-              ? Math.min(...bTasks.map((t) => new Date(t.dueDate!).getTime()))
-              : Infinity;
-          break;
-        case "created":
-          aValue = new Date(a.createdAt).getTime();
-          bValue = new Date(b.createdAt).getTime();
-          break;
-        default:
-          aValue = a.title;
-          bValue = b.title;
-      }
-
-      if (backlogSortOrder === "asc") {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
-      }
-    });
-
-    return filtered;
-  }, [
-    backlogStoriesWithTasks,
-    searchTerm,
-    backlogStatusFilter,
-    backlogPriorityFilter,
-    backlogAssigneeFilter,
-    backlogSortBy,
-    backlogSortOrder,
-  ]);
-
-  // Convert filtered stories to tasks for display (flattening tasks from stories)
-  const backlogTasks = useMemo(() => {
-    const allTasks: Task[] = [];
-    filteredBacklogStories.forEach((story) => {
-      if (story.tasks && story.tasks.length > 0) {
-        // For non-managers/admins, tasks are already filtered in fetchTasksForBacklogStories
-        // For managers/admins, show all tasks
-        const tasksToAdd = !canManageSprintsAndStories && user
-          ? story.tasks.filter((task) => task.assigneeId === user.id)
-          : story.tasks;
-        allTasks.push(...tasksToAdd);
-      }
-    });
-    return allTasks;
-  }, [filteredBacklogStories, canManageSprintsAndStories, user]);
-
-  // Get all backlog stories (including those without tasks) for proper integration
-  const allBacklogStoriesForDisplay = useMemo(() => {
-    console.log("Computing allBacklogStoriesForDisplay:", {
-      backlogStoriesCount: backlogStories.length,
-      backlogStoriesWithTasksCount: backlogStoriesWithTasks.length,
-      selectedProject,
-    });
-
-    // Combine stories with tasks and stories without tasks
-    const storiesWithTasksMap = new Map(
-      backlogStoriesWithTasks.map((s) => [s.id, s]),
-    );
-    let allStories = backlogStories.map((story) => {
-      const storyWithTasks = storiesWithTasksMap.get(story.id);
-      return storyWithTasks || { ...story, tasks: [] };
-    });
-
-    // Role-based filtering: Non-managers/admins see only stories with tasks assigned to them
-    if (!canManageSprintsAndStories && user) {
-      allStories = allStories
-        .map((story) => ({
-          ...story,
-          tasks: story.tasks?.filter((task) => task.assigneeId === user.id) || [],
-        }))
-        .filter((story) => story.tasks.length > 0); // Only keep stories that have at least one user-assigned task
-    }
-
-    console.log("All stories after combining:", allStories.length);
-
-    // Apply filters
-    const filtered = allStories.filter((story) => {
-      const matchesSearch =
-        story.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (story.description &&
-          story.description.toLowerCase().includes(searchTerm.toLowerCase()));
-
-      const matchesStatus =
-        backlogStatusFilter === "all" || story.status === backlogStatusFilter;
-
-      const priorityMap: { [key: string]: string } = {
-        critical: "CRITICAL",
-        high: "HIGH",
-        medium: "MEDIUM",
-        low: "LOW",
-      };
-      const matchesPriority =
-        backlogPriorityFilter === "all" ||
-        story.priority === priorityMap[backlogPriorityFilter];
-
-      const matchesAssignee =
-        backlogAssigneeFilter === "all" ||
-        story.assigneeId === backlogAssigneeFilter;
-
-      return (
-        matchesSearch && matchesStatus && matchesPriority && matchesAssignee
-      );
-    });
-
-    console.log("Filtered stories:", filtered.length);
-
-    // Sort filtered stories
-    return filtered.sort((a, b) => {
-      let aValue, bValue;
-
-      switch (backlogSortBy) {
-        case "priority":
-          const priorityOrder = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
-          aValue = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
-          bValue = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
-          break;
-        case "storyPoints":
-          aValue = a.storyPoints || 0;
-          bValue = b.storyPoints || 0;
-          break;
-        case "dueDate":
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const aTasks =
-            a.tasks?.filter((t) => t.dueDate && new Date(t.dueDate) < today) ||
-            [];
-          const bTasks =
-            b.tasks?.filter((t) => t.dueDate && new Date(t.dueDate) < today) ||
-            [];
-          aValue =
-            aTasks.length > 0
-              ? Math.min(...aTasks.map((t) => new Date(t.dueDate!).getTime()))
-              : Infinity;
-          bValue =
-            bTasks.length > 0
-              ? Math.min(...bTasks.map((t) => new Date(t.dueDate!).getTime()))
-              : Infinity;
-          break;
-        case "created":
-          aValue = new Date(a.createdAt).getTime();
-          bValue = new Date(b.createdAt).getTime();
-          break;
-        default:
-          aValue = a.title;
-          bValue = b.title;
-      }
-
-      if (backlogSortOrder === "asc") {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
-      }
-    });
-  }, [
-    backlogStories,
-    backlogStoriesWithTasks,
-    searchTerm,
-    backlogStatusFilter,
-    backlogPriorityFilter,
-    backlogAssigneeFilter,
-    backlogSortBy,
-    backlogSortOrder,
-    canManageSprintsAndStories,
-    user,
-  ]);
-
-  // Helper functions for backlog page
-  const getBacklogStatusColor = (status: string) => {
-    switch (status?.toUpperCase()) {
-      case "BACKLOG":
-      case "TO_DO":
-      case "TODO":
-        return "bg-gray-100 text-gray-800";
-      case "SPRINT_READY":
-      case "IN_PROGRESS":
-        return "bg-yellow-100 text-yellow-800";
-      case "QA_REVIEW":
-      case "REVIEW":
-        return "bg-blue-100 text-blue-800";
-      case "DONE":
-        return "bg-green-100 text-green-800";
-      case "BLOCKED":
-        return "bg-red-100 text-red-800";
-      case "CANCELLED":
-        return "bg-gray-100 text-gray-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const getBacklogPriorityColor = (priority: string) => {
-    const p = priority?.toUpperCase();
-    switch (p) {
-      case "CRITICAL":
-        return "bg-red-100 text-red-800";
-      case "HIGH":
-        return "bg-orange-100 text-orange-800";
-      case "MEDIUM":
-        return "bg-yellow-100 text-yellow-800";
-      case "LOW":
-        return "bg-green-100 text-green-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const getBacklogStoryStatusColor = (status: string) => {
-    switch (status?.toUpperCase()) {
-      case "BACKLOG":
-        return "bg-gray-100 text-gray-800";
-      case "TODO":
-        return "bg-blue-100 text-blue-800";
-      case "IN_PROGRESS":
-        return "bg-yellow-100 text-yellow-800";
-      case "REVIEW":
-        return "bg-purple-100 text-purple-800";
-      case "DONE":
-        return "bg-green-100 text-green-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const formatBacklogDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-IN", {
-      day: "numeric",
-      month: "short",
-    });
-  };
-
-  const toggleBacklogStoryExpansion = (storyId: string) => {
-    setExpandedBacklogStories((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(storyId)) {
-        newSet.delete(storyId);
-      } else {
-        newSet.add(storyId);
-      }
-      return newSet;
-    });
-  };
-
-  const handleOpenBacklogEffortManager = (task: Task) => {
-    setSelectedBacklogTaskForEffort(task);
-    setIsBacklogEffortManagerOpen(true);
-  };
-
-  const handleLogBacklogEffort = (effortData: any) => {
-    setSelectedBacklogTaskForEffort(null);
-  };
-
-  // Story Card Component for Backlog
-  const BacklogStoryCard: React.FC<{ story: Story & { tasks: Task[] } }> = ({
-    story,
-  }) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const overdueTasks =
-      story.tasks?.filter((task) => {
-        if (!task.dueDate) return false;
-        const taskDueDate = new Date(task.dueDate);
-        taskDueDate.setHours(0, 0, 0, 0);
-        return (
-          taskDueDate < today &&
-          task.status !== "DONE" &&
-          task.status !== "CANCELLED"
-        );
-      }) || [];
-
-    const isExpanded = expandedBacklogStories.has(story.id);
-
-    return (
-      <Card className="mb-4">
-        <CardHeader
-          className="cursor-pointer hover:bg-muted/50 transition-colors"
-          onClick={() => toggleBacklogStoryExpansion(story.id)}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <ChevronDown
-                className={`w-4 h-4 text-muted-foreground transition-transform ${isExpanded ? "rotate-180" : ""}`}
-              />
-              <h3 className="font-semibold text-lg">{story.title}</h3>
-              <Badge
-                variant="outline"
-                className={`text-xs ${getBacklogStoryStatusColor(story.status)}`}
-              >
-                {story.status}
-              </Badge>
-            </div>
-          </div>
-        </CardHeader>
-        {isExpanded && (
-          <CardContent>
-            <div className="space-y-4">
-              {/* Story Info */}
-              {story.description && (
-                <p className="text-sm text-muted-foreground">
-                  {story.description}
-                </p>
-              )}
-              <div className="flex items-center space-x-4 text-sm">
-                <Badge
-                  variant="outline"
-                  className={`${getBacklogPriorityColor(story.priority)}`}
-                >
-                  <Flag className="w-3 h-3 mr-1" />
-                  {story.priority}
-                </Badge>
-                {story.storyPoints && (
-                  <div className="flex items-center space-x-1 text-muted-foreground">
-                    <Target className="w-4 h-4" />
-                    <span>{story.storyPoints} points</span>
-                  </div>
-                )}
-                {overdueTasks.length > 0 && (
-                  <Badge variant="destructive" className="text-xs">
-                    <AlertCircle className="w-3 h-3 mr-1" />
-                    {overdueTasks.length} overdue task
-                    {overdueTasks.length > 1 ? "s" : ""}
-                  </Badge>
-                )}
-              </div>
-
-              {/* Tasks */}
-              {story.tasks && story.tasks.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-medium">
-                      Tasks ({story.tasks.length})
-                    </h4>
-                    <div className="text-xs text-muted-foreground">
-                      {story.tasks.filter((t) => t.status === "DONE").length}{" "}
-                      completed
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    {story.tasks.map((task) => {
-                      const isOverdue =
-                        task.dueDate && new Date(task.dueDate) < today;
-                      const isIncomplete =
-                        task.status !== "DONE" && task.status !== "CANCELLED";
-                      const isOverdueAndIncomplete = isOverdue && isIncomplete;
-                      const enrichedTask = task as Task & { assigneeName?: string };
-                      const resolvedAssigneeName =
-                        enrichedTask.assigneeName ||
-                        (task.assigneeId ? getUserName(task.assigneeId) : null);
-                      const assigneeLabel =
-                        resolvedAssigneeName ||
-                        (!task.assigneeId
-                          ? "Unassigned"
-                          : usersLoading
-                            ? "Loading..."
-                            : "Unknown user");
-
-                      return (
-                        <Card
-                          key={task.id}
-                          className={`border-l-4 ${
-                            isOverdueAndIncomplete
-                              ? "border-l-red-500 bg-red-50"
-                              : task.status === "DONE"
-                                ? "border-l-green-500 bg-green-50"
-                                : "border-l-blue-500"
-                          }`}
-                        >
-                          <CardContent className="p-3">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center space-x-2 mb-1">
-                                  <h5 className="text-sm font-medium">
-                                    {task.title}
-                                  </h5>
-                                  <Badge
-                                    variant="outline"
-                                    className={`text-xs ${getBacklogStatusColor(task.status)}`}
-                                  >
-                                    {task.status?.replace("_", " ") || "TO_DO"}
-                                  </Badge>
-                                  {isOverdueAndIncomplete && (
-                                    <Badge
-                                      variant="destructive"
-                                      className="text-xs"
-                                    >
-                                      Overdue
-                                    </Badge>
-                                  )}
-                                </div>
-                                {task.description && (
-                                  <p className="text-xs text-muted-foreground mb-2">
-                                    {task.description}
-                                  </p>
-                                )}
-                                <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-                                  <Badge
-                                    variant="outline"
-                                    className={`${getBacklogPriorityColor(task.priority)}`}
-                                  >
-                                    {task.priority}
-                                  </Badge>
-                                  {task.dueDate && (
-                                    <div className="flex items-center space-x-1">
-                                      <CalendarIcon className="w-3 h-3" />
-                                      <span
-                                        className={
-                                          isOverdue
-                                            ? "text-red-600 font-medium"
-                                            : ""
-                                        }
-                                      >
-                                        {formatBacklogDate(task.dueDate)}
-                                      </span>
-                                    </div>
-                                  )}
-                                  {task.estimatedHours && (
-                                    <div className="flex items-center space-x-1">
-                                      <Clock className="w-3 h-3" />
-                                      <span>{task.estimatedHours}h</span>
-                                    </div>
-                                  )}
-                                  {assigneeLabel && (
-                                    <div className="flex items-center space-x-1">
-                                      <User className="w-3 h-3" />
-                                      <span className="font-bold text-black">
-                                        {assigneeLabel}
-                                      </span>
-                                    </div>
-                                  )}
-                                  {task.actualHours > 0 && (
-                                    <div className="flex items-center space-x-1">
-                                      <Target className="w-3 h-3" />
-                                      <span>{task.actualHours}h actual</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 w-6 p-0"
-                                  >
-                                    <MoreVertical className="w-3 h-3" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      handleOpenBacklogEffortManager(task)
-                                    }
-                                  >
-                                    <Clock className="w-4 h-4 mr-2" />
-                                    Manage Efforts
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem>
-                                    <Eye className="w-4 h-4 mr-2" />
-                                    View Details
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        )}
-      </Card>
-    );
-  };
 
   // Helper function to convert file to base64
 
@@ -7006,6 +6470,70 @@ const ScrumPage: React.FC = () => {
     );
   };
 
+  // Backlog helper functions (matching BacklogPage) - moved outside to prevent re-declaration
+  const getBacklogStatusColor = useCallback((status: string) => {
+    switch (status?.toUpperCase()) {
+      case 'BACKLOG':
+      case 'TO_DO':
+      case 'TODO': return 'bg-gray-100 text-gray-800';
+      case 'SPRINT_READY':
+      case 'IN_PROGRESS': return 'bg-yellow-100 text-yellow-800';
+      case 'QA_REVIEW':
+      case 'REVIEW': return 'bg-blue-100 text-blue-800';
+      case 'DONE': return 'bg-green-100 text-green-800';
+      case 'BLOCKED': return 'bg-red-100 text-red-800';
+      case 'CANCELLED': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  }, []);
+
+  const getBacklogPriorityColor = useCallback((priority: string) => {
+    const p = priority?.toUpperCase();
+    switch (p) {
+      case 'CRITICAL': return 'bg-red-100 text-red-800';
+      case 'HIGH': return 'bg-orange-100 text-orange-800';
+      case 'MEDIUM': return 'bg-yellow-100 text-yellow-800';
+      case 'LOW': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  }, []);
+
+  const getBacklogStoryStatusColor = useCallback((status: string) => {
+    switch (status?.toUpperCase()) {
+      case 'BACKLOG': return 'bg-gray-100 text-gray-800';
+      case 'TODO': return 'bg-blue-100 text-blue-800';
+      case 'IN_PROGRESS': return 'bg-yellow-100 text-yellow-800';
+      case 'REVIEW': return 'bg-purple-100 text-purple-800';
+      case 'DONE': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  }, []);
+
+  const formatBacklogDate = useCallback((dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short'
+    });
+  }, []);
+
+  const toggleBacklogStoryExpansion = useCallback((storyId: string) => {
+    setExpandedBacklogStories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(storyId)) {
+        newSet.delete(storyId);
+      } else {
+        newSet.add(storyId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  const getSprintNameForBacklog = useCallback((sprintId: string | undefined): string => {
+    if (!sprintId) return '';
+    const sprint = sprints.find((s: Sprint) => s.id === sprintId);
+    return sprint?.name || '';
+  }, [sprints]);
+
   // Drop Zone Component
 
   const DropZone: React.FC<{
@@ -7055,6 +6583,198 @@ const ScrumPage: React.FC = () => {
         <div className="flex-1 p-3 overflow-y-auto">{children}</div>
       </div>
     );
+  };
+
+  // Task-level filter predicate for backlog (matching BacklogPage)
+  const backlogTaskPassesFilters = useCallback((task: Task) => {
+    if (!task) return false;
+
+    const normalizeStatus = (s: any) =>
+      (s || '').toString().toUpperCase().replace(/[^A-Z]/g, '');
+
+    // Assignee filter
+    if (backlogAssigneeFilter !== 'all' && task.assigneeId !== backlogAssigneeFilter) {
+      return false;
+    }
+
+    // Status filter
+    if (backlogStatusFilter !== 'all') {
+      const taskStatusNorm = normalizeStatus(task.status);
+      const desiredStatusNorm = normalizeStatus(backlogStatusFilter);
+      if (taskStatusNorm !== desiredStatusNorm) {
+        return false;
+      }
+    }
+
+    // Priority filter
+    if (backlogPriorityFilter !== 'all') {
+      const priorityMap: { [key: string]: string } = {
+        'critical': 'CRITICAL',
+        'high': 'HIGH',
+        'medium': 'MEDIUM',
+        'low': 'LOW'
+      };
+      const desiredPriority = priorityMap[backlogPriorityFilter];
+      const taskPriority = (task.priority || '').toString().toUpperCase();
+      if (taskPriority !== desiredPriority) {
+        return false;
+      }
+    }
+
+    return true;
+  }, [backlogAssigneeFilter, backlogStatusFilter, backlogPriorityFilter]);
+
+  // Fetch tasks for backlog stories
+  useEffect(() => {
+    if (backlogStories && backlogStories.length > 0 && selectedProject) {
+      const fetchBacklogTasks = async () => {
+        setBacklogTasksLoading(true);
+        try {
+          const tasksPromises = backlogStories.map(async (story: Story) => {
+            try {
+              const response = await taskApiService.getTasksByStory(story.id);
+              const tasks = Array.isArray(response.data) ? response.data : (response.data?.content || []);
+              return { storyId: story.id, tasks };
+            } catch (error) {
+              console.error(`Error fetching tasks for story ${story.id}:`, error);
+              return { storyId: story.id, tasks: [] };
+            }
+          });
+
+          const results = await Promise.all(tasksPromises);
+          const storiesWithTasksData = backlogStories.map((story: Story) => {
+            const result = results.find(r => r.storyId === story.id);
+            return {
+              ...story,
+              tasks: result?.tasks || []
+            };
+          });
+
+          // Role-based filtering: Only managers see all tasks
+          let filteredStoriesWithTasks = storiesWithTasksData;
+          if (!isManager && user) {
+            filteredStoriesWithTasks = storiesWithTasksData.map((story) => ({
+              ...story,
+              tasks: (story.tasks || []).filter((t: Task) => t.assigneeId === user.id)
+            })).filter(story => (story.tasks || []).length > 0);
+          }
+
+          setBacklogStoriesWithTasks(filteredStoriesWithTasks);
+        } catch (error) {
+          console.error('Error fetching backlog tasks:', error);
+        } finally {
+          setBacklogTasksLoading(false);
+        }
+      };
+
+      fetchBacklogTasks();
+    } else {
+      setBacklogStoriesWithTasks([]);
+      setBacklogTasksLoading(false);
+    }
+  }, [backlogStories, selectedProject, isManager, user]);
+
+  // Filter and sort backlog stories (matching BacklogPage logic)
+  const allBacklogStoriesForDisplay = useMemo(() => {
+    if (!backlogStoriesWithTasks || backlogStoriesWithTasks.length === 0) {
+      return [];
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Keep stories that belong to a sprint and contain at least one task that passes filters
+    let filtered = backlogStoriesWithTasks.filter((story: Story & { tasks: Task[] }) => {
+      // Only show stories that belong to a sprint
+      if (!story.sprintId || story.sprintId.trim() === '') {
+        return false;
+      }
+
+      // Filter by selected sprint if one is selected
+      if (selectedSprint && story.sprintId !== selectedSprint) {
+        return false;
+      }
+
+      const tasksForStory = Array.isArray(story.tasks) ? story.tasks : [];
+
+      // If not manager, respect earlier rule of user assignment visibility
+      if (!isManager && user?.id) {
+        const hasAssigned = tasksForStory.some((t: Task) => t.assigneeId === user.id);
+        if (!hasAssigned) return false;
+      }
+
+      // Apply task-level filters; keep story only if any task matches
+      const anyVisibleTask = tasksForStory.some(backlogTaskPassesFilters);
+      return anyVisibleTask;
+    });
+
+    // Apply search filter
+    filtered = filtered.filter((story: Story & { tasks: Task[] }) => {
+      const matchesSearch = story.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (story.description && story.description.toLowerCase().includes(searchTerm.toLowerCase()));
+      return matchesSearch;
+    });
+
+    // Sort stories
+    filtered.sort((a, b) => {
+      let aValue: any, bValue: any;
+      
+      switch (backlogSortBy) {
+        case 'priority':
+          const priorityOrder: { [key: string]: number } = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
+          aValue = priorityOrder[a.priority as string] || 0;
+          bValue = priorityOrder[b.priority as string] || 0;
+          break;
+        case 'storyPoints':
+          aValue = a.storyPoints || 0;
+          bValue = b.storyPoints || 0;
+          break;
+        case 'dueDate':
+          const aTasks = (a.tasks || []).filter((t: Task) => t.dueDate && new Date(t.dueDate) < today);
+          const bTasks = (b.tasks || []).filter((t: Task) => t.dueDate && new Date(t.dueDate) < today);
+          aValue = aTasks.length > 0 ? Math.min(...aTasks.map((t: Task) => new Date(t.dueDate!).getTime())) : Infinity;
+          bValue = bTasks.length > 0 ? Math.min(...bTasks.map((t: Task) => new Date(t.dueDate!).getTime())) : Infinity;
+          break;
+        case 'created':
+          aValue = new Date(a.createdAt).getTime();
+          bValue = new Date(b.createdAt).getTime();
+          break;
+        default:
+          aValue = a.title;
+          bValue = b.title;
+      }
+
+      if (backlogSortOrder === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
+
+    return filtered;
+  }, [backlogStoriesWithTasks, searchTerm, backlogStatusFilter, backlogPriorityFilter, backlogAssigneeFilter, backlogSortBy, backlogSortOrder, user?.id, isManager, backlogTaskPassesFilters, selectedSprint]);
+
+  // Flatten tasks from filtered stories for stats
+  const backlogTasks = useMemo(() => {
+    const allTasks: Task[] = [];
+    allBacklogStoriesForDisplay.forEach((story: Story & { tasks: Task[] }) => {
+      if (story.tasks && story.tasks.length > 0) {
+        const visibleTasks = story.tasks.filter(backlogTaskPassesFilters);
+        allTasks.push(...visibleTasks);
+      }
+    });
+    return allTasks;
+  }, [allBacklogStoriesForDisplay, backlogTaskPassesFilters]);
+
+  // Handler functions for backlog
+  const handleOpenBacklogEffortManager = (task: Task) => {
+    setSelectedBacklogTaskForEffort(task);
+    setIsBacklogEffortManagerOpen(true);
+  };
+
+  const handleLogBacklogEffort = async (effortData: any) => {
+    // Handle effort logging if needed
+    setSelectedBacklogTaskForEffort(null);
   };
 
   if (projectsLoading) {
@@ -7378,8 +7098,44 @@ const ScrumPage: React.FC = () => {
                 <h1 className="text-2xl font-semibold">Product Backlog</h1>
 
                 <p className="text-muted-foreground">
-                  All project stories, sprints, and tasks
+                  {canManageSprintsAndStories ? 'All stories and tasks in sprints' : 'Stories where you are assigned to tasks'}
                 </p>
+              </div>
+
+              <div className="flex items-center space-x-3">
+                {/* Project Selector */}
+                <Select value={selectedProject || "all"} onValueChange={(value) => setSelectedProject(value === "all" ? "" : value)}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder={projectsLoading ? "Loading projects..." : "Select Project"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Projects</SelectItem>
+                    {projects?.map(project => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Sprint Selector */}
+                <Select 
+                  value={selectedSprint || "all"} 
+                  onValueChange={(value) => setSelectedSprint(value === "all" ? "" : value)}
+                  disabled={!selectedProject || sprintsLoading}
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder={sprintsLoading ? "Loading sprints..." : (!selectedProject ? "Select project first" : "Select Sprint")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Sprints</SelectItem>
+                    {sprints?.filter((s: Sprint) => s.projectId === selectedProject).map(sprint => (
+                      <SelectItem key={sprint.id} value={sprint.id}>
+                        {sprint.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -7387,10 +7143,10 @@ const ScrumPage: React.FC = () => {
 
             <Card>
               <CardContent className="p-4">
-                <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-x-8 lg:gap-x-10 flex-nowrap">
                   {/* Search */}
 
-                  <div className="relative flex-1 min-w-[200px]">
+                  <div className="relative flex-1 min-w-[260px] mr-6">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
 
                     <Input
@@ -7403,72 +7159,78 @@ const ScrumPage: React.FC = () => {
 
                   {/* Filters */}
 
-                  <Select
-                    value={backlogStatusFilter}
-                    onValueChange={setBacklogStatusFilter}
-                  >
-                    <SelectTrigger className="w-[140px]">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
+                  <div className="shrink-0 ml-6">
+                    <Select
+                      value={backlogStatusFilter}
+                      onValueChange={setBacklogStatusFilter}
+                    >
+                      <SelectTrigger className="w-[140px]">
+                        <SelectValue placeholder="Status" />
+                      </SelectTrigger>
 
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectContent>
+                        <SelectItem value="all">All Status</SelectItem>
 
-                      <SelectItem value="BACKLOG">Backlog</SelectItem>
+                        <SelectItem value="BACKLOG">Backlog</SelectItem>
 
-                      <SelectItem value="TODO">To Do</SelectItem>
+                        <SelectItem value="TODO">To Do</SelectItem>
 
-                      <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                        <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
 
-                      <SelectItem value="REVIEW">Review</SelectItem>
+                        <SelectItem value="REVIEW">Review</SelectItem>
 
-                      <SelectItem value="DONE">Done</SelectItem>
-                    </SelectContent>
-                  </Select>
+                        <SelectItem value="DONE">Done</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                  <Select
-                    value={backlogPriorityFilter}
-                    onValueChange={setBacklogPriorityFilter}
-                  >
-                    <SelectTrigger className="w-[120px]">
-                      <SelectValue placeholder="Priority" />
-                    </SelectTrigger>
+                  <div className="shrink-0 ml-6">
+                    <Select
+                      value={backlogPriorityFilter}
+                      onValueChange={setBacklogPriorityFilter}
+                    >
+                      <SelectTrigger className="w-[120px]">
+                        <SelectValue placeholder="Priority" />
+                      </SelectTrigger>
 
-                    <SelectContent>
-                      <SelectItem value="all">All Priority</SelectItem>
+                      <SelectContent>
+                        <SelectItem value="all">All Priority</SelectItem>
 
-                      <SelectItem value="critical">Critical</SelectItem>
+                        <SelectItem value="critical">Critical</SelectItem>
 
-                      <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
 
-                      <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
 
-                      <SelectItem value="low">Low</SelectItem>
-                    </SelectContent>
-                  </Select>
+                        <SelectItem value="low">Low</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                  <Select
-                    value={backlogAssigneeFilter}
-                    onValueChange={setBacklogAssigneeFilter}
-                  >
-                    <SelectTrigger className="w-[140px]">
-                      <SelectValue placeholder="Assignee" />
-                    </SelectTrigger>
+                  <div className="shrink-0 ml-6">
+                    <Select
+                      value={backlogAssigneeFilter}
+                      onValueChange={setBacklogAssigneeFilter}
+                    >
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder={usersLoading ? 'Loading assignees...' : (selectedProject ? 'Assignee (project)' : 'Assignee')} />
+                      </SelectTrigger>
 
-                    <SelectContent>
-                      <SelectItem value="all">All Assignees</SelectItem>
+                      <SelectContent>
+                        <SelectItem value="all">All Assignees</SelectItem>
 
-                      {users.map((user: any) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                        {users.map((user: any) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            {user.name || user.email || user.id}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
                   {/* Sort */}
 
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 ml-6">
                     <Select
                       value={backlogSortBy}
                       onValueChange={setBacklogSortBy}
@@ -7508,6 +7270,25 @@ const ScrumPage: React.FC = () => {
                         <SortDesc className="w-4 h-4" />
                       )}
                     </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSearchTerm('');
+                        setBacklogStatusFilter('all');
+                        setBacklogPriorityFilter('all');
+                        setBacklogAssigneeFilter('all');
+                        setBacklogSortBy('priority');
+                        setBacklogSortOrder('desc');
+                      }}
+                      disabled={!searchTerm && backlogStatusFilter === 'all' && backlogPriorityFilter === 'all' && backlogAssigneeFilter === 'all'}
+                      className="px-3 border-red-300 text-red-600 hover:text-red-700 hover:border-red-400 hover:bg-red-50 disabled:text-red-300 disabled:border-red-200"
+                      title="Clear all filters"
+                    >
+                      <X className="w-4 h-4 mr-1" />
+                      Clear
+                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -7515,92 +7296,45 @@ const ScrumPage: React.FC = () => {
 
             {/* Stats */}
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 lg:gap-8">
               <Card>
                 <CardContent className="p-4 text-center">
-                  <div className="text-2xl font-semibold text-blue-600">
-                    {allBacklogStoriesForDisplay.length}
-                  </div>
-
-                  <div className="text-sm text-muted-foreground">
-                    Total Backlog Stories
-                  </div>
+                  <div className="text-2xl font-semibold text-blue-600">{allBacklogStoriesForDisplay.length}</div>
+                  <div className="text-sm text-muted-foreground">{isManager ? 'All Stories' : 'My Assigned Stories'}</div>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardContent className="p-4 text-center">
                   <div className="text-2xl font-semibold text-red-600">
-                    {allBacklogStoriesForDisplay.reduce((count, story) => {
-                      if (!story.tasks) return count;
-
+                    {backlogTasks.filter(t => {
+                      if (!t.dueDate) return false;
                       const today = new Date();
-
                       today.setHours(0, 0, 0, 0);
-
-                      return (
-                        count +
-                        story.tasks.filter((t) => {
-                          if (!t.dueDate) return false;
-
-                          const taskDueDate = new Date(t.dueDate);
-
-                          taskDueDate.setHours(0, 0, 0, 0);
-
-                          return (
-                            taskDueDate < today &&
-                            t.status !== "DONE" &&
-                            t.status !== "CANCELLED"
-                          );
-                        }).length
-                      );
-                    }, 0)}
+                      const taskDueDate = new Date(t.dueDate);
+                      taskDueDate.setHours(0, 0, 0, 0);
+                      return taskDueDate < today && t.status !== 'DONE' && t.status !== 'CANCELLED';
+                    }).length}
                   </div>
-
-                  <div className="text-sm text-muted-foreground">
-                    Overdue Incomplete Tasks
-                  </div>
+                  <div className="text-sm text-muted-foreground">Overdue Incomplete Tasks</div>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardContent className="p-4 text-center">
                   <div className="text-2xl font-semibold text-yellow-600">
-                    {allBacklogStoriesForDisplay.reduce((count, story) => {
-                      if (!story.tasks) return count;
-
-                      return (
-                        count +
-                        story.tasks.filter(
-                          (t) =>
-                            t.status === "IN_PROGRESS" || t.status === "TO_DO",
-                        ).length
-                      );
-                    }, 0)}
+                    {backlogTasks.filter(t => t.status === 'IN_PROGRESS' || t.status === 'TO_DO').length}
                   </div>
-
-                  <div className="text-sm text-muted-foreground">
-                    Incomplete Tasks
-                  </div>
+                  <div className="text-sm text-muted-foreground">Incomplete Tasks</div>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardContent className="p-4 text-center">
                   <div className="text-2xl font-semibold text-green-600">
-                    {allBacklogStoriesForDisplay.reduce((count, story) => {
-                      if (!story.tasks) return count;
-
-                      return (
-                        count +
-                        story.tasks.filter((t) => t.status === "DONE").length
-                      );
-                    }, 0)}
+                    {backlogTasks.filter(t => t.status === 'DONE').length}
                   </div>
-
-                  <div className="text-sm text-muted-foreground">
-                    Completed Tasks
-                  </div>
+                  <div className="text-sm text-muted-foreground">Completed Tasks</div>
                 </CardContent>
               </Card>
             </div>
@@ -7608,42 +7342,35 @@ const ScrumPage: React.FC = () => {
             {/* Loading State */}
 
             {(backlogStoriesLoading || backlogTasksLoading) && (
-              <Card>
-                <CardContent className="p-12 text-center">
-                  <Loader2 className="w-8 h-8 mx-auto animate-spin text-primary" />
-
-                  <p className="text-sm text-muted-foreground mt-4">
-                    Loading stories and tasks...
-                  </p>
-                </CardContent>
-              </Card>
+              <LoadingSpinner message="Loading Backlog..." fullScreen />
             )}
 
             {/* Stories List */}
 
-            {!backlogStoriesLoading && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-medium">
-                    All Backlog Stories ({allBacklogStoriesForDisplay.length})
-                  </h3>
+            {!backlogStoriesLoading && !backlogTasksLoading && (
+              <>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-medium">
+                      {isManager ? 'All Stories' : 'Stories with My Assigned Tasks'} ({allBacklogStoriesForDisplay.length})
+                    </h3>
 
-                  <div className="flex items-center space-x-2">
-                    {allBacklogStoriesForDisplay.reduce(
-                      (sum, story) => sum + (story.storyPoints || 0),
-                      0,
-                    ) > 0 && (
-                      <Badge variant="secondary">
-                        Total:{" "}
-                        {allBacklogStoriesForDisplay.reduce(
-                          (sum, story) => sum + (story.storyPoints || 0),
-                          0,
-                        )}{" "}
-                        points
-                      </Badge>
-                    )}
+                    <div className="flex items-center space-x-2">
+                      {allBacklogStoriesForDisplay.reduce(
+                        (sum, story) => sum + (story.storyPoints || 0),
+                        0,
+                      ) > 0 && (
+                        <Badge variant="secondary">
+                          Total:{" "}
+                          {allBacklogStoriesForDisplay.reduce(
+                            (sum, story) => sum + (story.storyPoints || 0),
+                            0,
+                          )}{" "}
+                          points
+                        </Badge>
+                      )}
+                    </div>
                   </div>
-                </div>
 
                 {allBacklogStoriesForDisplay.length > 0 ? (
                   <div className="space-y-4">
@@ -7678,12 +7405,10 @@ const ScrumPage: React.FC = () => {
                                   {story.status}
                                 </Badge>
 
-                                {storySprint && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-xs bg-purple-100 text-purple-800"
-                                  >
-                                    Sprint: {storySprint.name}
+                                {story.sprintId && getSprintNameForBacklog(story.sprintId) && (
+                                  <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                    <GitBranch className="w-3 h-3 mr-1" />
+                                    {getSprintNameForBacklog(story.sprintId)}
                                   </Badge>
                                 )}
                               </div>
@@ -7741,133 +7466,123 @@ const ScrumPage: React.FC = () => {
 
                                 {/* Tasks */}
 
-                                {story.tasks && story.tasks.length > 0 ? (
-                                  <div className="space-y-2">
-                                    <div className="flex items-center justify-between">
-                                      <h4 className="text-sm font-medium">
-                                        Tasks ({story.tasks.length})
-                                      </h4>
+                                {(() => {
+                                  const visibleTasks = (story.tasks || []).filter(backlogTaskPassesFilters);
+                                  const overdueTasks = visibleTasks.filter((t: Task) => {
+                                    if (!t.dueDate) return false;
+                                    const taskDueDate = new Date(t.dueDate);
+                                    taskDueDate.setHours(0, 0, 0, 0);
+                                    const today = new Date();
+                                    today.setHours(0, 0, 0, 0);
+                                    return taskDueDate < today && t.status !== 'DONE' && t.status !== 'CANCELLED';
+                                  });
 
-                                      <div className="text-xs text-muted-foreground">
-                                        {
-                                          story.tasks.filter(
-                                            (t) => t.status === "DONE",
-                                          ).length
-                                        }{" "}
-                                        completed
-                                      </div>
-                                    </div>
-
+                                  return visibleTasks.length > 0 ? (
                                     <div className="space-y-2">
-                                      {story.tasks.map((task) => {
-                                        const today = new Date();
+                                      <div className="flex items-center justify-between">
+                                        <h4 className="text-sm font-medium">Tasks ({visibleTasks.length})</h4>
+                                        <div className="text-xs text-muted-foreground">
+                                          {visibleTasks.filter((t: Task) => t.status === 'DONE').length} completed
+                                        </div>
+                                      </div>
 
-                                        today.setHours(0, 0, 0, 0);
+                                      {overdueTasks.length > 0 && (
+                                        <Badge variant="destructive" className="text-xs">
+                                          <AlertCircle className="w-3 h-3 mr-1" />
+                                          {overdueTasks.length} overdue task{overdueTasks.length > 1 ? 's' : ''}
+                                        </Badge>
+                                      )}
 
-                                        const isOverdue =
-                                          task.dueDate &&
-                                          new Date(task.dueDate) < today;
+                                      <div className="space-y-2">
+                                        {visibleTasks.map((task: Task) => {
+                                          const today = new Date();
+                                          today.setHours(0, 0, 0, 0);
+                                          const isOverdue = task.dueDate && new Date(task.dueDate) < today;
+                                          const taskStatusUpper = task.status?.toUpperCase() || '';
+                                          const isTaskDoneStatus = taskStatusUpper === 'DONE';
+                                          const isTaskCancelled = taskStatusUpper === 'CANCELLED';
+                                          const isIncomplete = !isTaskDoneStatus && !isTaskCancelled;
+                                          const isOverdueAndIncomplete = isOverdue && isIncomplete;
+                                          const isDoneAfterDue = isTaskDoneStatus && isOverdue;
+                                          const isUserAssigned = user?.id && task.assigneeId === user.id;
+                                          const isDoneBeforeDue = isTaskDoneStatus && task.dueDate && new Date(task.dueDate) >= today;
+                                          
+                                          const assigneeName = task.assigneeId ? users.find((u: any) => u.id === task.assigneeId)?.name : null;
+                                          const assigneeLabel = assigneeName || (!task.assigneeId ? 'Unassigned' : usersLoading ? 'Loading...' : 'Unknown user');
 
-                                        const isIncomplete =
-                                          task.status !== "DONE" &&
-                                          task.status !== "CANCELLED";
-
-                                        const isOverdueAndIncomplete =
-                                          isOverdue && isIncomplete;
-
-                                        return (
-                                          <Card
-                                            key={task.id}
-                                            className={`border-l-4 ${
-                                              isOverdueAndIncomplete
-                                                ? "border-l-red-500 bg-red-50"
-                                                : task.status === "DONE"
-                                                  ? "border-l-green-500 bg-green-50"
-                                                  : "border-l-blue-500"
-                                            }`}
-                                          >
-                                            <CardContent className="p-3">
-                                              <div className="flex items-start justify-between">
-                                                <div className="flex-1">
-                                                  <div className="flex items-center space-x-2 mb-1">
-                                                    <h5 className="text-sm font-medium">
-                                                      {task.title}
-                                                    </h5>
-
-                                                    <Badge
-                                                      variant="outline"
-                                                      className={`text-xs ${getBacklogStatusColor(task.status)}`}
-                                                    >
-                                                      {task.status?.replace(
-                                                        "_",
-                                                        " ",
-                                                      ) || "TO_DO"}
-                                                    </Badge>
-
-                                                    {isOverdueAndIncomplete && (
-                                                      <Badge
-                                                        variant="destructive"
-                                                        className="text-xs"
-                                                      >
-                                                        Overdue
+                                          return (
+                                            <Card 
+                                              key={task.id} 
+                                              className={`border-l-4 ${
+                                                isOverdueAndIncomplete ? 'border-l-red-500 bg-red-50' : 
+                                                isDoneBeforeDue ? 'border-l-green-300 bg-green-50' :
+                                                isTaskDoneStatus ? 'border-l-green-500 bg-green-50' :
+                                                isUserAssigned ? 'border-l-purple-500 bg-purple-50' :
+                                                'border-l-blue-500'
+                                              }`}
+                                            >
+                                              <CardContent className="p-3">
+                                                <div className="flex items-start justify-between">
+                                                  <div className="flex-1">
+                                                    <div className="flex items-center space-x-2 mb-1">
+                                                      <h5 className="text-sm font-medium">
+                                                        {task.title}
+                                                      </h5>
+                                                      <Badge variant="outline" className={`text-xs ${getBacklogStatusColor(task.status)}`}>
+                                                        {task.status?.replace('_', ' ') || 'TO_DO'}
                                                       </Badge>
+                                                      {isOverdueAndIncomplete && (
+                                                        <Badge variant="destructive" className="text-xs">
+                                                          Overdue
+                                                        </Badge>
+                                                      )}
+                                                      {isDoneAfterDue && (
+                                                        <Badge variant="destructive" className="text-xs">
+                                                          Overdue
+                                                        </Badge>
+                                                      )}
+                                                    </div>
+                                                    {task.description && (
+                                                      <p className="text-xs text-muted-foreground mb-2">{task.description}</p>
                                                     )}
+                                                    <div className="flex items-center space-x-4 text-xs text-muted-foreground">
+                                                      <Badge variant="outline" className={`${getBacklogPriorityColor(task.priority)}`}>
+                                                        {task.priority}
+                                                      </Badge>
+                                                      {task.dueDate && (
+                                                        <div className="flex items-center space-x-1">
+                                                          <CalendarIcon className={`w-3 h-3 ${isDoneBeforeDue ? 'text-green-400' : isOverdue ? 'text-red-600' : ''}`} />
+                                                          <span className={
+                                                            isDoneBeforeDue ? 'text-green-600 font-medium' :
+                                                            isOverdue ? 'text-red-600 font-medium' : ''
+                                                          }>
+                                                            {formatBacklogDate(task.dueDate)}
+                                                            {isDoneBeforeDue && ' (Completed Early)'}
+                                                          </span>
+                                                        </div>
+                                                      )}
+                                                      {task.estimatedHours && (
+                                                        <div className="flex items-center space-x-1">
+                                                          <Clock className="w-3 h-3" />
+                                                          <span>{task.estimatedHours}h</span>
+                                                        </div>
+                                                      )}
+                                                      {assigneeLabel && (
+                                                        <div className="flex items-center space-x-1">
+                                                          <User className="w-3 h-3" />
+                                                          <span className="font-bold text-black">
+                                                            {assigneeLabel}
+                                                          </span>
+                                                        </div>
+                                                      )}
+                                                      {task.actualHours > 0 && (
+                                                        <div className="flex items-center space-x-1">
+                                                          <Target className="w-3 h-3" />
+                                                          <span>{task.actualHours}h actual</span>
+                                                        </div>
+                                                      )}
+                                                    </div>
                                                   </div>
-
-                                                  {task.description && (
-                                                    <p className="text-xs text-muted-foreground mb-2">
-                                                      {task.description}
-                                                    </p>
-                                                  )}
-
-                                                  <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-                                                    <Badge
-                                                      variant="outline"
-                                                      className={`${getBacklogPriorityColor(task.priority)}`}
-                                                    >
-                                                      {task.priority}
-                                                    </Badge>
-
-                                                    {task.dueDate && (
-                                                      <div className="flex items-center space-x-1">
-                                                        <CalendarIcon className="w-3 h-3" />
-
-                                                        <span
-                                                          className={
-                                                            isOverdue
-                                                              ? "text-red-600 font-medium"
-                                                              : ""
-                                                          }
-                                                        >
-                                                          {formatBacklogDate(
-                                                            task.dueDate,
-                                                          )}
-                                                        </span>
-                                                      </div>
-                                                    )}
-
-                                                    {task.estimatedHours && (
-                                                      <div className="flex items-center space-x-1">
-                                                        <Clock className="w-3 h-3" />
-
-                                                        <span>
-                                                          {task.estimatedHours}h
-                                                        </span>
-                                                      </div>
-                                                    )}
-
-                                                    {task.actualHours > 0 && (
-                                                      <div className="flex items-center space-x-1">
-                                                        <Target className="w-3 h-3" />
-
-                                                        <span>
-                                                          {task.actualHours}h
-                                                          actual
-                                                        </span>
-                                                      </div>
-                                                    )}
-                                                  </div>
-                                                </div>
 
                                                 <DropdownMenu>
                                                   <DropdownMenuTrigger asChild>
@@ -7892,9 +7607,14 @@ const ScrumPage: React.FC = () => {
                                                       Manage Efforts
                                                     </DropdownMenuItem>
 
-                                                    <DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                      onClick={() => {
+                                                        setBacklogTaskToView(task);
+                                                        setIsBacklogTaskDialogOpen(true);
+                                                      }}
+                                                    >
                                                       <Eye className="w-4 h-4 mr-2" />
-                                                      View Details
+                                                      View Tasks
                                                     </DropdownMenuItem>
                                                   </DropdownMenuContent>
                                                 </DropdownMenu>
@@ -7909,7 +7629,8 @@ const ScrumPage: React.FC = () => {
                                   <div className="text-sm text-muted-foreground">
                                     No tasks assigned to this story yet.
                                   </div>
-                                )}
+                                );
+                                })()}
                               </div>
                             </CardContent>
                           )}
@@ -7922,34 +7643,42 @@ const ScrumPage: React.FC = () => {
                     <CardContent className="p-12 text-center">
                       <div className="text-muted-foreground space-y-2">
                         <Target className="w-12 h-12 mx-auto opacity-50" />
-
-                        <p>No backlog stories found</p>
-
+                        <p>{isManager ? 'No stories found' : 'No stories with your assigned tasks found'}</p>
                         <p className="text-sm">
                           {selectedProject
-                            ? `No stories found for project. Total stories in data: ${backlogStories.length}, Stories with tasks: ${backlogStoriesWithTasks.length}. Try adjusting your search or filter criteria.`
+                            ? (isManager 
+                                ? "No stories found for this project." 
+                                : "You are not assigned to any tasks in stories for this project.")
                             : "Please select a project to view stories."}
                         </p>
-
-                        {selectedProject && backlogStories.length === 0 && (
-                          <p className="text-xs text-muted-foreground mt-2">
-                            Debug: backlogStoriesData has{" "}
-                            {Array.isArray(backlogStoriesData)
-                              ? backlogStoriesData.length
-                              : backlogStoriesData?.data?.length || 0}{" "}
-                            stories
-                          </p>
-                        )}
                       </div>
                     </CardContent>
                   </Card>
                 )}
               </div>
+              </>
             )}
           </div>
 
-          {/* Effort Manager */}
+          {/* Task View Dialog (View Details) - aligned with BacklogPage */}
+          <TaskDetailsFullDialog
+            open={isBacklogTaskDialogOpen}
+            onOpenChange={setIsBacklogTaskDialogOpen}
+            task={backlogTaskToView as any}
+            stories={allBacklogStoriesForDisplay as any}
+            resolveUserName={(id) => {
+              const foundUser = users.find((u: any) => u.id === id);
+              return foundUser?.name || id;
+            }}
+            formatDate={(dateString: string) => {
+              return new Date(dateString).toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'short'
+              });
+            }}
+          />
 
+          {/* Effort Manager */}
           <EffortManager
             open={isBacklogEffortManagerOpen}
             onOpenChange={setIsBacklogEffortManagerOpen}

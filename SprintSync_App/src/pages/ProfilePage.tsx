@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -8,7 +8,12 @@ import { Textarea } from '../components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Switch } from '../components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { useAuth } from '../contexts/AuthContextEnhanced';
+import { useUser, useUpdateUser } from '../hooks/api/useUsers';
+import { useDepartments } from '../hooks/api/useUsers';
+import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
 import { 
   User, 
   Settings,
@@ -29,19 +34,72 @@ import {
 } from 'lucide-react';
 
 const ProfilePage: React.FC = () => {
-  const { user } = useAuth();
+  const { user: authUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // Fetch user data from API (only if user ID exists)
+  const shouldFetchUser = !!authUser?.id;
+  const { data: userData, loading: userLoading, error: userError, refetch: refetchUser } = useUser(authUser?.id || '');
+  
+  // Fetch departments for department name lookup
+  const { data: departmentsData } = useDepartments();
+  const departments = Array.isArray(departmentsData) ? departmentsData : [];
+  
+  // Update user mutation
+  const updateUserMutation = useUpdateUser();
+  
+  // Initialize form data from API
   const [formData, setFormData] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
-    phone: '+91 9876543210',
-    location: 'Mumbai, Maharashtra',
-    bio: 'Senior Full Stack Developer with 5+ years of experience in React, Node.js, and cloud technologies. Passionate about creating scalable web applications and mentoring junior developers.',
-    title: user?.role || '',
-    department: 'Engineering',
-    joiningDate: '2022-01-15',
-    manager: 'Rahul Kumar'
+    name: '',
+    email: '',
+    phone: '',
+    location: '',
+    bio: '',
+    title: '',
+    department: '',
+    departmentId: '',
+    joiningDate: '',
+    manager: '',
+    avatarUrl: '',
+    experience: '',
+    skills: '',
+    hourlyRate: '',
+    availabilityPercentage: ''
   });
+  
+  // Get department name from ID
+  const departmentName = useMemo(() => {
+    if (formData.departmentId && departments.length > 0) {
+      const dept = departments.find(d => d.id === formData.departmentId);
+      return dept?.name || '';
+    }
+    return formData.department || '';
+  }, [formData.departmentId, formData.department, departments]);
+  
+  // Populate form data when user data is loaded
+  useEffect(() => {
+    if (userData) {
+      const user = userData as any;
+      setFormData({
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.phone || '',
+        location: user.location || '',
+        bio: user.bio || user.skills || '',
+        title: user.role || '',
+        department: user.departmentId ? (departments.find(d => d.id === user.departmentId)?.name || '') : '',
+        departmentId: user.departmentId || '',
+        joiningDate: user.createdAt ? new Date(user.createdAt).toISOString().split('T')[0] : '',
+        manager: user.manager || '',
+        avatarUrl: user.avatarUrl || '',
+        experience: user.experience || '',
+        skills: user.skills || '',
+        hourlyRate: user.hourlyRate?.toString() || '',
+        availabilityPercentage: user.availabilityPercentage?.toString() || ''
+      });
+    }
+  }, [userData, departments]);
 
   const [notifications, setNotifications] = useState({
     email: true,
@@ -77,10 +135,51 @@ const ProfilePage: React.FC = () => {
     }
   };
 
-  const handleSave = () => {
-    // Save logic would go here
-    setIsEditing(false);
-    console.log('Saving profile data:', formData);
+  const handleSave = async () => {
+    if (!authUser?.id) {
+      toast.error('User ID not found');
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      // Prepare update payload
+      const updatePayload: any = {
+        name: formData.name,
+        email: formData.email,
+        departmentId: formData.departmentId || undefined,
+        avatarUrl: formData.avatarUrl || undefined,
+        experience: formData.experience || undefined,
+        skills: formData.skills || undefined,
+        hourlyRate: formData.hourlyRate ? parseFloat(formData.hourlyRate) : undefined,
+        availabilityPercentage: formData.availabilityPercentage ? parseInt(formData.availabilityPercentage) : undefined,
+      };
+      
+      // Remove undefined values
+      Object.keys(updatePayload).forEach(key => {
+        if (updatePayload[key] === undefined || updatePayload[key] === '') {
+          delete updatePayload[key];
+        }
+      });
+      
+      const response = await updateUserMutation.mutate({
+        id: authUser.id,
+        user: updatePayload
+      });
+      
+      // Refetch user data to get updated information
+      if (refetchUser) {
+        await refetchUser();
+      }
+      
+      toast.success('Profile updated successfully');
+      setIsEditing(false);
+    } catch (error: any) {
+      console.error('Error updating profile:', error);
+      toast.error(error?.message || 'Failed to update profile');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const achievements = [
@@ -131,9 +230,38 @@ const ProfilePage: React.FC = () => {
     }
   ];
 
-  if (!user) {
-    return <div>Loading...</div>;
+  // Loading state
+  if (userLoading || !authUser) {
+    return (
+      <div className="p-6 flex items-center justify-center h-full">
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading profile...</p>
+        </div>
+      </div>
+    );
   }
+  
+  // Error state
+  if (userError) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-center space-y-4">
+              <p className="text-destructive">Error loading profile data</p>
+              <Button onClick={() => refetchUser()} variant="outline">
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
+  // Use authUser as fallback if userData is not available
+  const displayUser = userData || authUser;
 
   return (
     <div className="p-6 space-y-6">
@@ -153,9 +281,22 @@ const ProfilePage: React.FC = () => {
           </Button>
         ) : (
           <div className="flex space-x-2">
-            <Button onClick={handleSave} className="bg-green-600 hover:bg-green-700 text-white">
-              <Save className="w-4 h-4 mr-2" />
-              Save Changes
+            <Button 
+              onClick={handleSave} 
+              className="bg-green-600 hover:bg-green-700 text-white"
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  Save Changes
+                </>
+              )}
             </Button>
             <Button variant="outline" onClick={() => setIsEditing(false)}>
               <X className="w-4 h-4 mr-2" />
@@ -171,9 +312,9 @@ const ProfilePage: React.FC = () => {
           <div className="flex items-start space-x-6">
             <div className="relative">
               <Avatar className="h-24 w-24 border-4 border-white shadow-lg">
-                <AvatarImage src={user.avatar} alt={user.name} />
+                <AvatarImage src={formData.avatarUrl || displayUser?.avatar || displayUser?.avatarUrl} alt={displayUser?.name || ''} />
                 <AvatarFallback className="bg-gradient-to-br from-green-100 to-cyan-100 text-green-800 text-xl">
-                  {getInitials(user.name)}
+                  {getInitials(displayUser?.name || formData.name || '')}
                 </AvatarFallback>
               </Avatar>
               {isEditing && (
@@ -189,39 +330,49 @@ const ProfilePage: React.FC = () => {
             <div className="flex-1 space-y-4">
               <div className="space-y-2">
                 <div className="flex items-center space-x-3">
-                  <h2 className="text-2xl font-semibold">{user.name}</h2>
-                  <Badge variant="outline" className={getRoleColor(user.role)}>
-                    {user.role?.charAt(0).toUpperCase() + user.role?.slice(1)}
+                  <h2 className="text-2xl font-semibold">{formData.name || displayUser?.name || ''}</h2>
+                  <Badge variant="outline" className={getRoleColor(displayUser?.role || formData.title)}>
+                    {(displayUser?.role || formData.title)?.charAt(0).toUpperCase() + (displayUser?.role || formData.title)?.slice(1)}
                   </Badge>
                 </div>
-                <p className="text-muted-foreground">{formData.title} • {formData.department}</p>
+                <p className="text-muted-foreground">{formData.title || displayUser?.role || ''} • {departmentName || formData.department || 'No Department'}</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                 <div className="flex items-center space-x-2 text-muted-foreground">
                   <Mail className="w-4 h-4" />
-                  <span>{user.email}</span>
+                  <span>{formData.email || displayUser?.email || ''}</span>
                 </div>
-                <div className="flex items-center space-x-2 text-muted-foreground">
-                  <Phone className="w-4 h-4" />
-                  <span>{formData.phone}</span>
-                </div>
-                <div className="flex items-center space-x-2 text-muted-foreground">
-                  <MapPin className="w-4 h-4" />
-                  <span>{formData.location}</span>
-                </div>
-                <div className="flex items-center space-x-2 text-muted-foreground">
-                  <Calendar className="w-4 h-4" />
-                  <span>Joined {new Date(formData.joiningDate).toLocaleDateString()}</span>
-                </div>
-                <div className="flex items-center space-x-2 text-muted-foreground">
-                  <Briefcase className="w-4 h-4" />
-                  <span>Reports to {formData.manager}</span>
-                </div>
-                <div className="flex items-center space-x-2 text-green-600">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span>Active now</span>
-                </div>
+                {formData.phone && (
+                  <div className="flex items-center space-x-2 text-muted-foreground">
+                    <Phone className="w-4 h-4" />
+                    <span>{formData.phone}</span>
+                  </div>
+                )}
+                {formData.location && (
+                  <div className="flex items-center space-x-2 text-muted-foreground">
+                    <MapPin className="w-4 h-4" />
+                    <span>{formData.location}</span>
+                  </div>
+                )}
+                {formData.joiningDate && (
+                  <div className="flex items-center space-x-2 text-muted-foreground">
+                    <Calendar className="w-4 h-4" />
+                    <span>Joined {new Date(formData.joiningDate).toLocaleDateString()}</span>
+                  </div>
+                )}
+                {formData.manager && (
+                  <div className="flex items-center space-x-2 text-muted-foreground">
+                    <Briefcase className="w-4 h-4" />
+                    <span>Reports to {formData.manager}</span>
+                  </div>
+                )}
+                {userData && (userData as any).isActive !== false && (
+                  <div className="flex items-center space-x-2 text-green-600">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span>Active now</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -230,11 +381,8 @@ const ProfilePage: React.FC = () => {
 
       {/* Profile Tabs */}
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-1">
           <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="notifications">Notifications</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
-          <TabsTrigger value="achievements">Achievements</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-6 mt-6">
@@ -262,9 +410,10 @@ const ProfilePage: React.FC = () => {
                     id="email"
                     type="email"
                     value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
-                    disabled={!isEditing}
+                    disabled={true}
+                    className="bg-muted"
                   />
+                  <p className="text-xs text-muted-foreground">Email cannot be changed</p>
                 </div>
                 
                 <div className="space-y-2">
@@ -319,12 +468,36 @@ const ProfilePage: React.FC = () => {
                 
                 <div className="space-y-2">
                   <Label htmlFor="department">Department</Label>
-                  <Input
-                    id="department"
-                    value={formData.department}
-                    onChange={(e) => setFormData({...formData, department: e.target.value})}
-                    disabled={!isEditing}
-                  />
+                  {isEditing ? (
+                    <Select
+                      value={formData.departmentId}
+                      onValueChange={(value) => {
+                        const selectedDept = departments.find(d => d.id === value);
+                        setFormData({
+                          ...formData,
+                          departmentId: value,
+                          department: selectedDept?.name || ''
+                        });
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {departments.map((dept) => (
+                          <SelectItem key={dept.id} value={dept.id}>
+                            {dept.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id="department"
+                      value={departmentName || formData.department || 'No Department'}
+                      disabled
+                    />
+                  )}
                 </div>
                 
                 <div className="space-y-2">
@@ -378,123 +551,6 @@ const ProfilePage: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="notifications" className="space-y-6 mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Notification Preferences</CardTitle>
-              <CardDescription>Manage how and when you receive notifications</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <Label>Email Notifications</Label>
-                    <p className="text-sm text-muted-foreground">Receive notifications via email</p>
-                  </div>
-                  <Switch 
-                    checked={notifications.email}
-                    onCheckedChange={(checked) => setNotifications({...notifications, email: checked})}
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <Label>Push Notifications</Label>
-                    <p className="text-sm text-muted-foreground">Receive push notifications in browser</p>
-                  </div>
-                  <Switch 
-                    checked={notifications.push}
-                    onCheckedChange={(checked) => setNotifications({...notifications, push: checked})}
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <Label>Sprint Updates</Label>
-                    <p className="text-sm text-muted-foreground">Notifications about sprint progress and changes</p>
-                  </div>
-                  <Switch 
-                    checked={notifications.sprint}
-                    onCheckedChange={(checked) => setNotifications({...notifications, sprint: checked})}
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <Label>Mentions & Comments</Label>
-                    <p className="text-sm text-muted-foreground">When someone mentions you or comments on your work</p>
-                  </div>
-                  <Switch 
-                    checked={notifications.mentions}
-                    onCheckedChange={(checked) => setNotifications({...notifications, mentions: checked})}
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <Label>Weekly Updates</Label>
-                    <p className="text-sm text-muted-foreground">Weekly summary of your activities and team progress</p>
-                  </div>
-                  <Switch 
-                    checked={notifications.updates}
-                    onCheckedChange={(checked) => setNotifications({...notifications, updates: checked})}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="activity" className="space-y-6 mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Activity</CardTitle>
-              <CardDescription>Your recent actions and contributions</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {recentActivity.map((activity, index) => (
-                  <div key={index} className="flex items-start space-x-4 p-4 border rounded-lg">
-                    <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
-                    <div className="flex-1">
-                      <p className="text-sm">
-                        <span className="font-medium">{activity.action}</span>
-                        <span className="text-blue-600 ml-1">{activity.item}</span>
-                        <span className="text-muted-foreground ml-1">in {activity.project}</span>
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">{activity.time}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="achievements" className="space-y-6 mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {achievements.map((achievement, index) => {
-              const IconComponent = achievement.icon;
-              return (
-                <Card key={index} className="text-center">
-                  <CardContent className="p-6 space-y-4">
-                    <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center mx-auto">
-                      <IconComponent className="w-6 h-6 text-white" />
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="font-semibold">{achievement.title}</h3>
-                      <p className="text-sm text-muted-foreground">{achievement.description}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Earned on {new Date(achievement.date).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
           </div>
         </TabsContent>
       </Tabs>

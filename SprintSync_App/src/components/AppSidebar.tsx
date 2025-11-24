@@ -170,8 +170,26 @@ const AppSidebar: React.FC = () => {
       // Manager and QA have access to all sidebar widgets
       return allMenuItems;
     } else {
-      // Developer has limited access (excluding admin panel)
-      return allMenuItems.filter(item => item.title !== 'ADMINISTRATION');
+      // Developer has limited access (excluding admin panel and projects)
+      return allMenuItems
+        .filter(item => item.title !== 'ADMINISTRATION')
+        .map(item => {
+          // Remove Projects from PROJECT MANAGEMENT section for developers
+          if (item.title === 'PROJECT MANAGEMENT' && item.children) {
+            return {
+              ...item,
+              children: item.children.filter(child => child.title !== 'Projects')
+            };
+          }
+          return item;
+        })
+        .filter(item => {
+          // Remove PROJECT MANAGEMENT section if it has no children after filtering
+          if (item.title === 'PROJECT MANAGEMENT' && item.children) {
+            return item.children.length > 0;
+          }
+          return true;
+        });
     }
   };
 

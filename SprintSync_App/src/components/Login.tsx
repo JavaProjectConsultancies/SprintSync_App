@@ -62,7 +62,7 @@ const Login: React.FC = () => {
     try {
       const success = await login(email, password);
       if (!success) {
-        setError('Invalid credentials. Please use one of the demo accounts below.');
+        setError('Invalid credentials. Please check your email and password.');
       }
     } catch (err) {
       setError('An error occurred during login. Please try again.');
@@ -142,7 +142,7 @@ const Login: React.FC = () => {
               </div>
             </div>
           </div>
-          <p className="text-muted-foreground text-lg">
+          <p className="text-muted-foreground text-lg mb-16">
             AI-Powered Agile Project Management
           </p>
           <p className="text-sm text-muted-foreground">
@@ -179,7 +179,7 @@ const Login: React.FC = () => {
                 <div className="space-y-2">
                   <Label htmlFor="fullName">Full Name</Label>
                   <div className="relative">
-                    <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                     <Input
                       id="fullName"
                       type="text"
@@ -196,7 +196,7 @@ const Login: React.FC = () => {
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                   <Input
                     id="email"
                     type="email"
@@ -230,7 +230,7 @@ const Login: React.FC = () => {
                   <div className="space-y-2">
                     <Label htmlFor="department">Department/Project</Label>
                     <div className="relative">
-                      <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                       <select
                         id="department"
                         value={department}
@@ -250,7 +250,7 @@ const Login: React.FC = () => {
                   <div className="space-y-2">
                     <Label htmlFor="domain">Domain/Specialization</Label>
                     <div className="relative">
-                      <Briefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                       <select
                         id="domain"
                         value={domain}
@@ -276,7 +276,7 @@ const Login: React.FC = () => {
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
@@ -289,7 +289,7 @@ const Login: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -300,7 +300,7 @@ const Login: React.FC = () => {
                 <div className="space-y-2">
                   <Label htmlFor="confirmPassword">Confirm Password</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                     <Input
                       id="confirmPassword"
                       type={showPassword ? "text" : "password"}
@@ -351,62 +351,6 @@ const Login: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Demo Accounts */}
-        {!isSignUpMode && (
-          <Card className="shadow-lg border-0 bg-gradient-light">
-            <CardHeader>
-              <CardTitle className="text-sm flex items-center space-x-2">
-                <Sparkles className="w-4 h-4 text-green-600" />
-                <span>Demo Access</span>
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Try SprintSync with sample accounts. Password: demo123
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {demoAccounts.map((account) => {
-                  const IconComponent = account.icon;
-                  return (
-                    <button
-                      key={account.email}
-                      onClick={() => handleDemoLogin(account.email)}
-                      className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-white/50 transition-all duration-200 text-left bg-white/30 hover:shadow-md"
-                    >
-                      <div className="flex-shrink-0">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-400 to-cyan-400 flex items-center justify-center">
-                          <IconComponent className="w-4 h-4 text-white" />
-                        </div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <span className="text-sm font-medium truncate">{account.name}</span>
-                          <Badge variant="outline" className={`text-xs ${account.color}`}>
-                            {account.role}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground truncate">{account.email}</p>
-                        <p className="text-xs text-muted-foreground">{account.description}</p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <Separator className="my-4" />
-              
-              <div className="text-center space-y-2">
-                <div className="flex items-center justify-center space-x-1 text-green-600">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="text-xs font-medium">Demo environment active</span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  All data is simulated for demonstration purposes
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Footer */}
         <div className="text-center space-y-2">
