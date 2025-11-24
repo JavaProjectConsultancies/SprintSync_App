@@ -22,7 +22,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { authApiService } from '../services/api/authApi';
-import sprintSyncLogo from 'figma:asset/aadf192e83d08c7cc03896c06b452017e84d04aa.png';
+import sprintSyncLogo from '../assets/aadf192e83d08c7cc03896c06b452017e84d04aa.png';
 import { useDepartments } from '../hooks/api/useDepartments';
 import { useDomains } from '../hooks/api/useDomains';
 

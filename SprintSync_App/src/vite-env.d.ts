@@ -30,8 +30,3 @@ declare module '*.webp' {
   export default src;
 }
 
-declare module 'figma:asset/aadf192e83d08c7cc03896c06b452017e84d04aa.png' {
-  const src: string;
-  export default src;
-}
-

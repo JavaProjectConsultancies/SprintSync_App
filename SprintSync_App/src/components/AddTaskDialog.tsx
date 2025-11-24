@@ -77,6 +77,8 @@ interface AddTaskDialogProps {
   defaultStoryId?: string;
   users?: User[];
   projectId?: string; // REQUIRED for filtering assignees by project
+  sprintStartDate?: string; // Sprint start date for date restrictions
+  sprintEndDate?: string; // Sprint end date for date restrictions
 }
 
 const AddTaskDialog: React.FC<AddTaskDialogProps> = ({ 
@@ -87,7 +89,9 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
   defaultStatus = 'todo',
   defaultStoryId,
   users = [],
-  projectId
+  projectId,
+  sprintStartDate,
+  sprintEndDate
 }) => {
   const [formData, setFormData] = useState({
     title: '',
@@ -143,6 +147,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [projectTeamMembers, setProjectTeamMembers] = useState<any[]>([]);
   const [loadingTeamMembers, setLoadingTeamMembers] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch team members by project when projectId is provided
   useEffect(() => {
@@ -288,26 +293,33 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
-    const validSubtasks = formData.subtasks.filter(subtask => subtask.trim());
-    
-    const newTask: Omit<Task, 'id'> & { attachments?: File[]; attachmentUrls?: Array<{ url: string; name: string }> } = {
-      title: formData.title.trim(),
-      description: formData.description.trim(),
-      storyId: formData.storyId && formData.storyId.trim() !== '' ? formData.storyId : undefined,
-      priority: formData.priority,
-      assignee: formData.assignee,
-      status: formData.status,
-      dueDate: formData.dueDate ? formData.dueDate.toISOString().split('T')[0] : '',
-      estimatedHours: formData.estimatedHours,
-      subtasks: validSubtasks,
-      progress: 0,
-      attachments: attachments.length > 0 ? attachments : undefined,
-      attachmentUrls: attachmentUrls.length > 0 ? attachmentUrls : undefined
-    };
+    setIsSubmitting(true);
+    try {
+      const validSubtasks = formData.subtasks.filter(subtask => subtask.trim());
+      
+      const newTask: Omit<Task, 'id'> & { attachments?: File[]; attachmentUrls?: Array<{ url: string; name: string }> } = {
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        storyId: formData.storyId && formData.storyId.trim() !== '' ? formData.storyId : undefined,
+        priority: formData.priority,
+        assignee: formData.assignee,
+        status: formData.status,
+        dueDate: formData.dueDate ? formData.dueDate.toISOString().split('T')[0] : '',
+        estimatedHours: formData.estimatedHours,
+        subtasks: validSubtasks,
+        progress: 0,
+        attachments: attachments.length > 0 ? attachments : undefined,
+        attachmentUrls: attachmentUrls.length > 0 ? attachmentUrls : undefined
+      };
 
-    await onSubmit(newTask);
-    handleReset();
-    onClose();
+      await onSubmit(newTask);
+      handleReset();
+      onClose();
+    } catch (error) {
+      console.error('Error creating task:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleReset = () => {
@@ -929,13 +941,31 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                             }
                           }}
                           disabled={(date) => {
-                            // Disable dates after story's due date
+                            const dateOnly = new Date(date);
+                            dateOnly.setHours(0, 0, 0, 0);
+                            
+                            // First, check sprint date restrictions
+                            if (sprintStartDate && sprintEndDate) {
+                              const startDate = new Date(sprintStartDate);
+                              startDate.setHours(0, 0, 0, 0);
+                              const endDate = new Date(sprintEndDate);
+                              endDate.setHours(0, 0, 0, 0);
+                              
+                              // Disable dates outside sprint range
+                              if (dateOnly < startDate || dateOnly > endDate) {
+                                return true;
+                              }
+                            }
+                            
+                            // Also disable dates after story's due date (if story has one)
                             if (formData.storyId && formData.storyId.trim() !== '') {
                               const selectedStory = stories.find(s => s.id === formData.storyId);
                               if (selectedStory && selectedStory.dueDate) {
                                 const storyDueDate = new Date(selectedStory.dueDate);
                                 storyDueDate.setHours(23, 59, 59, 999); // End of day
-                                return date > storyDueDate;
+                                if (date > storyDueDate) {
+                                  return true;
+                                }
                               }
                             }
                             return false;
@@ -1271,11 +1301,18 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
         <div className="flex-shrink-0">
           <Separator />
           <DialogFooter className="gap-2 pt-4">
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} className="bg-gradient-primary hover:opacity-90">
-              Create Task
+            <Button onClick={handleSubmit} className="bg-gradient-primary hover:opacity-90" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                'Create Task'
+              )}
             </Button>
           </DialogFooter>
         </div>

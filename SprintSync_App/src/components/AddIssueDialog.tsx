@@ -76,6 +76,8 @@ interface AddIssueDialogProps {
   requiredStoryId?: string;
   users?: User[];
   projectId?: string; // REQUIRED for filtering assignees by project
+  sprintStartDate?: string; // Sprint start date for date restrictions
+  sprintEndDate?: string; // Sprint end date for date restrictions
 }
 
 const AddIssueDialog: React.FC<AddIssueDialogProps> = ({ 
@@ -87,7 +89,9 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
   defaultStoryId,
   requiredStoryId,
   users = [],
-  projectId
+  projectId,
+  sprintStartDate,
+  sprintEndDate
 }) => {
   const [formData, setFormData] = useState({
     title: '',
@@ -776,6 +780,24 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                               });
                             }
                           }}
+                          disabled={(date) => {
+                            const dateOnly = new Date(date);
+                            dateOnly.setHours(0, 0, 0, 0);
+                            
+                            // Check sprint date restrictions
+                            if (sprintStartDate && sprintEndDate) {
+                              const startDate = new Date(sprintStartDate);
+                              startDate.setHours(0, 0, 0, 0);
+                              const endDate = new Date(sprintEndDate);
+                              endDate.setHours(0, 0, 0, 0);
+                              
+                              // Disable dates outside sprint range
+                              if (dateOnly < startDate || dateOnly > endDate) {
+                                return true;
+                              }
+                            }
+                            return false;
+                          }}
                           initialFocus
                         />
                       </PopoverContent>
@@ -1110,7 +1132,7 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
             <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white">
+            <Button onClick={handleSubmit} className="bg-gradient-primary hover:opacity-90 text-white">
               Create Issue
             </Button>
           </DialogFooter>

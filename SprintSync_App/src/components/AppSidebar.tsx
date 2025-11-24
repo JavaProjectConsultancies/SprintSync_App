@@ -48,7 +48,7 @@ import {
   Activity,
   TestTube
 } from 'lucide-react';
-import sprintSyncLogo from 'figma:asset/aadf192e83d08c7cc03896c06b452017e84d04aa.png';
+import sprintSyncLogo from '../assets/aadf192e83d08c7cc03896c06b452017e84d04aa.png';
 
 interface MenuItem {
   title: string;
@@ -104,7 +104,7 @@ const AppSidebar: React.FC = () => {
       icon: User,
       children: [
         { title: 'Profile', icon: User, id: 'profile' },
-        { title: 'Todo List', icon: CheckSquare, id: 'todo-list' },
+        { title: 'My Tasks', icon: CheckSquare, id: 'todo-list' },
       ]
     },
     {

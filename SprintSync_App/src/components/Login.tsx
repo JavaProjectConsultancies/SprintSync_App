@@ -24,7 +24,7 @@ import {
   Building,
   Briefcase
 } from 'lucide-react';
-import sprintSyncLogo from 'figma:asset/aadf192e83d08c7cc03896c06b452017e84d04aa.png';
+import sprintSyncLogo from '../assets/aadf192e83d08c7cc03896c06b452017e84d04aa.png';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');

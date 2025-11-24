@@ -15,7 +15,7 @@ import AppSidebar from './components/AppSidebar';
 import NotificationDropdown from './components/NotificationDropdown';
 import { Toaster } from './components/ui/sonner';
 import { Brain, Sparkles, ChevronRight } from 'lucide-react';
-import sprintSyncLogo from 'figma:asset/aadf192e83d08c7cc03896c06b452017e84d04aa.png';
+import sprintSyncLogo from './assets/aadf192e83d08c7cc03896c06b452017e84d04aa.png';
 import PageTransition from './components/PageTransition';
 
 // Import page components
@@ -110,7 +110,7 @@ const AppContent: React.FC = () => {
       '/reports': { title: 'Reports', description: 'Performance metrics and analytics', icon: '📈' },
       '/profile': { title: 'Profile', description: 'Your account settings', icon: '👤' },
       '/admin-panel': { title: 'Admin Panel', description: 'System administration', icon: '⚙️' },
-      '/todo-list': { title: 'Todo List', description: 'Personal task management', icon: '✅' },
+      '/todo-list': { title: 'My Tasks', description: 'Personal task management', icon: '✅' },
       // '/api-demo': { title: 'API Demo', description: 'Interactive API integration showcase', icon: '🔌' },
       // '/api-status': { title: 'API Status', description: 'Monitor API health and connectivity', icon: '📡' },
       // '/api-test': { title: 'API Test', description: 'Test and validate API endpoints', icon: '🧪' }
@@ -367,26 +367,20 @@ const AppContent: React.FC = () => {
 
         {/* Enhanced Main Content */}
         <main className="flex-1 flex flex-col bg-gradient-to-br from-white via-green-50/30 to-cyan-50/30 min-h-0 relative">
-          <div className="flex-shrink-0 px-6 pt-6">
-            {/* Page Header */}
-            <div className="flex items-center justify-between mb-6">
-              <div className="space-y-1">
-                <div className="flex items-center space-x-3">
-                  <span className="text-2xl">{pageInfo.icon}</span>
-                  <h1 className="text-2xl font-semibold text-green-600">{pageInfo.title}</h1>
-                </div>
-                <p className="text-muted-foreground">{pageInfo.description}</p>
-              </div>
-              
-              {/* Quick Actions */}
-              <div className="hidden md:flex items-center space-x-2">
-                <div className="flex items-center space-x-2 text-xs text-muted-foreground bg-white/50 px-3 py-2 rounded-lg border">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span>Live Updates</span>
+          {location.pathname !== '/todo-list' && (
+            <div className="flex-shrink-0 px-6 pt-6"> 
+              {/* Page Header */}
+              <div className="flex items-center justify-between mb-6">
+                {/* Quick Actions */}
+                <div className="hidden md:flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 text-xs text-muted-foreground bg-white/50 px-3 py-2 rounded-lg border">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span>Live Updates</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Route Content - Uses remaining space */}
           <div className="flex-1 min-h-0 px-6 pb-6">

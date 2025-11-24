@@ -6,7 +6,7 @@ import React, {
   useRef,
 } from "react";
 
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 
 import {
   Card,
@@ -245,6 +245,7 @@ const ScrumPage: React.FC = () => {
   const { user } = useAuth();
 
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const [selectedProject, setSelectedProject] = useState("");
 
@@ -258,7 +259,7 @@ const ScrumPage: React.FC = () => {
 
   // const [isCreateSprintDialogOpen, setIsCreateSprintDialogOpen] = useState(false);
 
-  // const [isCapacityCalculatorOpen, setIsCapacityCalculatorOpen] = useState(false);
+  const [isCapacityCalculatorOpen, setIsCapacityCalculatorOpen] = useState(false);
 
   const [isAddStoryDialogOpen, setIsAddStoryDialogOpen] = useState(false);
 
@@ -400,6 +401,8 @@ const ScrumPage: React.FC = () => {
 
     endTime: "",
   });
+
+  const [isLoggingEffort, setIsLoggingEffort] = useState(false);
 
   // Task details modal state (JIRA-style)
 
@@ -812,6 +815,7 @@ const ScrumPage: React.FC = () => {
   // Extract project ID from query params (as string) for stable dependency
 
   const projectFromQuery = searchParams.get("project");
+  const taskIdFromQuery = searchParams.get("taskId");
 
   useEffect(() => {
     // Only run if we have projects loaded and haven't initialized yet
@@ -1531,6 +1535,48 @@ const ScrumPage: React.FC = () => {
     return sprint;
   }, [sprints, selectedSprint, selectedProject]);
 
+  // Helper function to get sprint dates for date restrictions
+  const getSprintDateRange = useCallback((sprintId?: string) => {
+    if (!sprintId) {
+      // If no sprint ID provided, try to use current sprint
+      if (currentSprint?.startDate && currentSprint?.endDate) {
+        return {
+          startDate: new Date(currentSprint.startDate),
+          endDate: new Date(currentSprint.endDate),
+        };
+      }
+      return null;
+    }
+    
+    const sprint = sprints.find((s: Sprint) => s.id === sprintId);
+    if (sprint?.startDate && sprint?.endDate) {
+      return {
+        startDate: new Date(sprint.startDate),
+        endDate: new Date(sprint.endDate),
+      };
+    }
+    return null;
+  }, [sprints, currentSprint]);
+
+  // Helper function to disable dates outside sprint range
+  const getDisabledDates = useCallback((sprintId?: string) => {
+    const dateRange = getSprintDateRange(sprintId);
+    if (!dateRange) return undefined;
+    
+    return (date: Date) => {
+      const dateOnly = new Date(date);
+      dateOnly.setHours(0, 0, 0, 0);
+      
+      const startDate = new Date(dateRange.startDate);
+      startDate.setHours(0, 0, 0, 0);
+      
+      const endDate = new Date(dateRange.endDate);
+      endDate.setHours(0, 0, 0, 0);
+      
+      return dateOnly < startDate || dateOnly > endDate;
+    };
+  }, [getSprintDateRange]);
+
   const sprintStories = useMemo(() => {
     // If no sprint is selected or no sprint exists for the project, return empty array
 
@@ -1578,6 +1624,24 @@ const ScrumPage: React.FC = () => {
     // Stories will be filtered for display after tasks are fetched
     return filteredStories;
   }, [selectedSprint, selectedProject, sprintStoriesData, currentSprint]);
+
+  // Helper function to get sprint dates for a task or issue
+  const getSprintDatesForEntity = useCallback((task?: Task | null, issue?: Issue | null) => {
+    if (task?.storyId) {
+      const story = sprintStories.find((s: Story) => s.id === task.storyId);
+      if (story?.sprintId) {
+        return getSprintDateRange(story.sprintId);
+      }
+    }
+    if (issue?.storyId) {
+      const story = sprintStories.find((s: Story) => s.id === issue.storyId);
+      if (story?.sprintId) {
+        return getSprintDateRange(story.sprintId);
+      }
+    }
+    // Fallback to current sprint
+    return getSprintDateRange();
+  }, [sprintStories, getSprintDateRange]);
 
   // Filter sprint stories for display (after tasks are loaded)
   const filteredSprintStories = useMemo(() => {
@@ -1853,6 +1917,21 @@ const ScrumPage: React.FC = () => {
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
+
+  // Handle taskId from URL query parameter - open task details
+  useEffect(() => {
+    if (taskIdFromQuery && allTasks.length > 0) {
+      const task = allTasks.find((t: Task) => t.id === taskIdFromQuery);
+      if (task) {
+        setSelectedTaskForDetails(task);
+        setIsTaskDetailsOpen(true);
+        // Remove taskId from URL after opening
+        const newSearchParams = new URLSearchParams(searchParams);
+        newSearchParams.delete('taskId');
+        navigate(`/scrum${newSearchParams.toString() ? `?${newSearchParams.toString()}` : ''}`, { replace: true });
+      }
+    }
+  }, [taskIdFromQuery, allTasks, searchParams, navigate]);
 
   // Add window focus/visibility change listener to refresh tasks when user returns to the page
   // This ensures tasks are visible after tab change or refresh
@@ -3219,8 +3298,6 @@ const ScrumPage: React.FC = () => {
       assigneeId: "",
 
       reporterId: "",
-
-      dueDate: undefined,
 
       dueDate: undefined,
 
@@ -5252,6 +5329,119 @@ const ScrumPage: React.FC = () => {
       });
     };
 
+    const formatActivityDetails = (log: any) => {
+      // Parse the newValues and oldValues JSON if they exist
+      let parsedNewValues: any = null;
+      let parsedOldValues: any = null;
+      
+      try {
+        if (log.newValues) {
+          parsedNewValues = typeof log.newValues === "string" 
+            ? JSON.parse(log.newValues) 
+            : log.newValues;
+        }
+        if (log.oldValues) {
+          parsedOldValues = typeof log.oldValues === "string" 
+            ? JSON.parse(log.oldValues) 
+            : log.oldValues;
+        }
+      } catch (e) {
+        console.warn("Failed to parse activity log values:", e);
+      }
+
+      // Format different types of activities
+      switch (log.action?.toLowerCase()) {
+        case "effort_logged":
+          if (parsedNewValues?.subtaskId && parsedNewValues?.hours) {
+            return `Logged ${parsedNewValues.hours}h on subtask`;
+          }
+          return log.description || "Logged effort";
+        
+        case "status_changed":
+          if (parsedOldValues?.status && parsedNewValues?.status) {
+            return `Changed status from ${parsedOldValues.status} to ${parsedNewValues.status}`;
+          } else if (parsedNewValues?.status) {
+            return `Changed status to ${parsedNewValues.status}`;
+          }
+          return log.description || "Changed status";
+        
+        case "created":
+          return log.description || "Created issue";
+        
+        case "subtask_created":
+          if (parsedNewValues?.title) {
+            return `Created subtask "${parsedNewValues.title}"`;
+          }
+          return log.description || "Created subtask";
+        
+        case "updated":
+        case "issue_updated":
+          if (parsedNewValues) {
+            const changes: string[] = [];
+            Object.keys(parsedNewValues).forEach(key => {
+              if (key !== "updatedAt" && key !== "id") {
+                const oldVal = parsedOldValues?.[key];
+                const newVal = parsedNewValues[key];
+                if (oldVal !== newVal) {
+                  const fieldName = key.replace(/([A-Z])/g, " $1").replace(/^./, str => str.toUpperCase());
+                  if (oldVal !== undefined) {
+                    changes.push(`${fieldName}: ${oldVal} → ${newVal}`);
+                  } else {
+                    changes.push(`${fieldName}: ${newVal}`);
+                  }
+                }
+              }
+            });
+            if (changes.length > 0) {
+              return changes.join(", ");
+            }
+          }
+          return log.description || "Updated issue";
+        
+        case "assigned":
+          if (parsedNewValues?.assigneeId) {
+            const assigneeName = getUserName(parsedNewValues.assigneeId);
+            return `Assigned to ${assigneeName}`;
+          }
+          return log.description || "Issue assigned";
+        
+        case "unassigned":
+          return log.description || "Issue unassigned";
+        
+        default:
+          // For any other action, try to format the changes nicely
+          if (parsedNewValues || parsedOldValues) {
+            const changes: string[] = [];
+            const allKeys = new Set([
+              ...Object.keys(parsedNewValues || {}),
+              ...Object.keys(parsedOldValues || {})
+            ]);
+            
+            allKeys.forEach(key => {
+              if (key !== "updatedAt" && key !== "id" && key !== "createdAt") {
+                const oldVal = parsedOldValues?.[key];
+                const newVal = parsedNewValues?.[key];
+                if (oldVal !== newVal) {
+                  const fieldName = key.replace(/([A-Z])/g, " $1").replace(/^./, str => str.toUpperCase());
+                  if (oldVal !== undefined && newVal !== undefined) {
+                    changes.push(`${fieldName}: ${oldVal} → ${newVal}`);
+                  } else if (newVal !== undefined) {
+                    changes.push(`${fieldName}: ${newVal}`);
+                  } else if (oldVal !== undefined) {
+                    changes.push(`${fieldName}: removed`);
+                  }
+                }
+              }
+            });
+            
+            if (changes.length > 0) {
+              return changes.join(", ");
+            }
+          }
+          return log.description || log.action?.replace(/_/g, " ") || "Activity performed";
+      }
+    };
+
     if (loading) {
       return (
         <div className="flex items-center justify-center py-12">
@@ -5328,26 +5518,8 @@ const ScrumPage: React.FC = () => {
                     </div>
 
                     <p className="text-sm text-gray-700">
-                      {log.description || `${log.action} ${log.entityType}`}
+                      {formatActivityDetails(log)}
                     </p>
-
-                    {log.newValues && (
-                      <div className="mt-2 p-2 bg-white rounded border border-gray-200">
-                        <p className="text-xs text-gray-600 font-mono whitespace-pre-wrap">
-                          {typeof log.newValues === "string"
-                            ? log.newValues.substring(0, 200)
-                            : JSON.stringify(log.newValues, null, 2).substring(
-                                0,
-                                200,
-                              )}
-
-                          {(typeof log.newValues === "string"
-                            ? log.newValues.length
-                            : JSON.stringify(log.newValues).length) > 200 &&
-                            "..."}
-                        </p>
-                      </div>
-                    )}
                   </div>
                 </div>
               ))}
@@ -5415,6 +5587,119 @@ const ScrumPage: React.FC = () => {
         day: "numeric",
         year: "numeric",
       });
+    };
+
+    const formatActivityDetails = (log: any) => {
+      // Parse the newValues and oldValues JSON if they exist
+      let parsedNewValues: any = null;
+      let parsedOldValues: any = null;
+      
+      try {
+        if (log.newValues) {
+          parsedNewValues = typeof log.newValues === "string" 
+            ? JSON.parse(log.newValues) 
+            : log.newValues;
+        }
+        if (log.oldValues) {
+          parsedOldValues = typeof log.oldValues === "string" 
+            ? JSON.parse(log.oldValues) 
+            : log.oldValues;
+        }
+      } catch (e) {
+        console.warn("Failed to parse activity log values:", e);
+      }
+
+      // Format different types of activities
+      switch (log.action?.toLowerCase()) {
+        case "effort_logged":
+          if (parsedNewValues?.subtaskId && parsedNewValues?.hours) {
+            return `Logged ${parsedNewValues.hours}h on subtask`;
+          }
+          return log.description || "Logged effort";
+        
+        case "status_changed":
+          if (parsedOldValues?.status && parsedNewValues?.status) {
+            return `Changed status from ${parsedOldValues.status} to ${parsedNewValues.status}`;
+          } else if (parsedNewValues?.status) {
+            return `Changed status to ${parsedNewValues.status}`;
+          }
+          return log.description || "Changed status";
+        
+        case "created":
+          return log.description || "Created task";
+        
+        case "subtask_created":
+          if (parsedNewValues?.title) {
+            return `Created subtask "${parsedNewValues.title}"`;
+          }
+          return log.description || "Created subtask";
+        
+        case "updated":
+        case "task_updated":
+          if (parsedNewValues) {
+            const changes: string[] = [];
+            Object.keys(parsedNewValues).forEach(key => {
+              if (key !== "updatedAt" && key !== "id") {
+                const oldVal = parsedOldValues?.[key];
+                const newVal = parsedNewValues[key];
+                if (oldVal !== newVal) {
+                  const fieldName = key.replace(/([A-Z])/g, " $1").replace(/^./, str => str.toUpperCase());
+                  if (oldVal !== undefined) {
+                    changes.push(`${fieldName}: ${oldVal} → ${newVal}`);
+                  } else {
+                    changes.push(`${fieldName}: ${newVal}`);
+                  }
+                }
+              }
+            });
+            if (changes.length > 0) {
+              return changes.join(", ");
+            }
+          }
+          return log.description || "Updated task";
+        
+        case "assigned":
+          if (parsedNewValues?.assigneeId) {
+            const assigneeName = getUserName(parsedNewValues.assigneeId);
+            return `Assigned to ${assigneeName}`;
+          }
+          return log.description || "Task assigned";
+        
+        case "unassigned":
+          return log.description || "Task unassigned";
+        
+        default:
+          // For any other action, try to format the changes nicely
+          if (parsedNewValues || parsedOldValues) {
+            const changes: string[] = [];
+            const allKeys = new Set([
+              ...Object.keys(parsedNewValues || {}),
+              ...Object.keys(parsedOldValues || {})
+            ]);
+            
+            allKeys.forEach(key => {
+              if (key !== "updatedAt" && key !== "id" && key !== "createdAt") {
+                const oldVal = parsedOldValues?.[key];
+                const newVal = parsedNewValues?.[key];
+                if (oldVal !== newVal) {
+                  const fieldName = key.replace(/([A-Z])/g, " $1").replace(/^./, str => str.toUpperCase());
+                  if (oldVal !== undefined && newVal !== undefined) {
+                    changes.push(`${fieldName}: ${oldVal} → ${newVal}`);
+                  } else if (newVal !== undefined) {
+                    changes.push(`${fieldName}: ${newVal}`);
+                  } else if (oldVal !== undefined) {
+                    changes.push(`${fieldName}: removed`);
+                  }
+                }
+              }
+            });
+            
+            if (changes.length > 0) {
+              return changes.join(", ");
+            }
+          }
+          return log.description || log.action?.replace(/_/g, " ") || "Activity performed";
+      }
     };
 
     if (loading) {
@@ -5493,26 +5778,8 @@ const ScrumPage: React.FC = () => {
                     </div>
 
                     <p className="text-sm text-gray-700">
-                      {log.description || `${log.action} ${log.entityType}`}
+                      {formatActivityDetails(log)}
                     </p>
-
-                    {log.newValues && (
-                      <div className="mt-2 p-2 bg-white rounded border border-gray-200">
-                        <p className="text-xs text-gray-600 font-mono whitespace-pre-wrap">
-                          {typeof log.newValues === "string"
-                            ? log.newValues.substring(0, 200)
-                            : JSON.stringify(log.newValues, null, 2).substring(
-                                0,
-                                200,
-                              )}
-
-                          {(typeof log.newValues === "string"
-                            ? log.newValues.length
-                            : JSON.stringify(log.newValues).length) > 200 &&
-                            "..."}
-                        </p>
-                      </div>
-                    )}
                   </div>
                 </div>
               ))}
@@ -5544,6 +5811,7 @@ const ScrumPage: React.FC = () => {
       return;
     }
 
+    setIsLoggingEffort(true);
     try {
       // Find the parent task
 
@@ -5616,6 +5884,39 @@ const ScrumPage: React.FC = () => {
           parentTask.id,
           totalSubtaskHours,
         );
+
+        // Update local state immediately for instant UI update
+        // Update subtask in allSubtasks
+        setAllSubtasks((prev) =>
+          prev.map((st) =>
+            st.id === selectedSubtaskForEffort.id
+              ? { ...st, actualHours: newSubtaskActualHours }
+              : st
+          )
+        );
+
+        // Update selectedSubtaskForEffort if it's still selected
+        setSelectedSubtaskForEffort((prev) =>
+          prev?.id === selectedSubtaskForEffort.id
+            ? { ...prev, actualHours: newSubtaskActualHours }
+            : prev
+        );
+
+        // Update parent task in allTasks
+        setAllTasks((prev) =>
+          prev.map((task) =>
+            task.id === parentTask.id
+              ? { ...task, actualHours: totalSubtaskHours }
+              : task
+          )
+        );
+
+        // Update selectedTaskForDetails if it matches the parent task
+        setSelectedTaskForDetails((prev) =>
+          prev?.id === parentTask.id
+            ? { ...prev, actualHours: totalSubtaskHours }
+            : prev
+        );
       }
 
       // Log activity for effort logging
@@ -5681,6 +5982,8 @@ const ScrumPage: React.FC = () => {
       toast.error("Failed to log effort");
 
       console.error("Error logging effort:", error);
+    } finally {
+      setIsLoggingEffort(false);
     }
   };
 
@@ -5701,6 +6004,7 @@ const ScrumPage: React.FC = () => {
       return;
     }
 
+    setIsLoggingEffort(true);
     try {
       // Create time entry for the task
       const timeEntryData = {
@@ -5723,6 +6027,29 @@ const ScrumPage: React.FC = () => {
       // Update task actual hours
       const newTaskActualHours = (selectedTaskForEffort.actualHours || 0) + effortLog.hours;
       await taskApiService.updateTaskActualHours(selectedTaskForEffort.id, newTaskActualHours);
+
+      // Update local state immediately for instant UI update
+      setAllTasks((prev) =>
+        prev.map((task) =>
+          task.id === selectedTaskForEffort.id
+            ? { ...task, actualHours: newTaskActualHours }
+            : task
+        )
+      );
+
+      // Update selectedTaskForEffort if it's still selected
+      setSelectedTaskForEffort((prev) =>
+        prev?.id === selectedTaskForEffort.id
+          ? { ...prev, actualHours: newTaskActualHours }
+          : prev
+      );
+
+      // Update selectedTaskForDetails if it matches the logged task
+      setSelectedTaskForDetails((prev) =>
+        prev?.id === selectedTaskForEffort.id
+          ? { ...prev, actualHours: newTaskActualHours }
+          : prev
+      );
 
       // Automatically move task to IN_PROGRESS if it's currently in TO_DO status
       const currentStatus = selectedTaskForEffort.status?.toUpperCase() || "";
@@ -5797,6 +6124,8 @@ const ScrumPage: React.FC = () => {
     } catch (error) {
       toast.error("Failed to log effort");
       console.error("Error logging effort:", error);
+    } finally {
+      setIsLoggingEffort(false);
     }
   };
 
@@ -5817,6 +6146,7 @@ const ScrumPage: React.FC = () => {
       return;
     }
 
+    setIsLoggingEffort(true);
     try {
       // Create time entry for the issue
       const timeEntryData = {
@@ -5835,6 +6165,32 @@ const ScrumPage: React.FC = () => {
 
       console.log("Creating time entry for issue with data:", timeEntryData);
       await timeEntryApiService.createTimeEntry(timeEntryData);
+
+      // Update local state immediately for instant UI update
+      // Note: Issues may not track actualHours the same way, but we'll update for consistency
+      const newIssueActualHours = (selectedIssueForEffort.actualHours || 0) + effortLog.hours;
+      
+      setAllIssues((prev) =>
+        prev.map((issue) =>
+          issue.id === selectedIssueForEffort.id
+            ? { ...issue, actualHours: newIssueActualHours }
+            : issue
+        )
+      );
+
+      // Update selectedIssueForEffort if it's still selected
+      setSelectedIssueForEffort((prev) =>
+        prev?.id === selectedIssueForEffort.id
+          ? { ...prev, actualHours: newIssueActualHours }
+          : prev
+      );
+
+      // Update selectedIssueForDetails if it matches the logged issue
+      setSelectedIssueForDetails((prev) =>
+        prev?.id === selectedIssueForEffort.id
+          ? { ...prev, actualHours: newIssueActualHours }
+          : prev
+      );
 
       // Log activity for effort logging
       try {
@@ -5876,6 +6232,8 @@ const ScrumPage: React.FC = () => {
     } catch (error) {
       toast.error("Failed to log effort");
       console.error("Error logging effort:", error);
+    } finally {
+      setIsLoggingEffort(false);
     }
   };
 
@@ -6188,7 +6546,7 @@ const ScrumPage: React.FC = () => {
                 : parentStory?.priority === "MEDIUM"
                   ? "border-l-blue-500"
                   : "border-l-green-500"
-          } bg-white hover:shadow-lg transition-all duration-200 rounded-lg overflow-hidden w-full aspect-square flex flex-col`}
+          } bg-red-50 border-red-200 hover:shadow-lg transition-all duration-200 rounded-lg overflow-hidden w-full aspect-square flex flex-col`}
         >
           <CardContent className="p-3 flex flex-col flex-1 justify-between">
             {/* Top Row: Issue ID and Due Date */}
@@ -6374,7 +6732,7 @@ const ScrumPage: React.FC = () => {
                   : parentStory?.priority === "MEDIUM"
                     ? "border-l-blue-500"
                     : "border-l-green-500"
-          } bg-white hover:shadow-lg transition-all duration-200 rounded-lg overflow-hidden w-full aspect-square flex flex-col`}
+          } bg-green-50 border-green-200 hover:shadow-lg transition-all duration-200 rounded-lg overflow-hidden w-full aspect-square flex flex-col`}
         >
           <CardContent className="p-3 flex flex-col flex-1 justify-between">
             {/* Top Row: Task ID and Due Date */}
@@ -6633,7 +6991,7 @@ const ScrumPage: React.FC = () => {
           const tasksPromises = backlogStories.map(async (story: Story) => {
             try {
               const response = await taskApiService.getTasksByStory(story.id);
-              const tasks = Array.isArray(response.data) ? response.data : (response.data?.content || []);
+              const tasks = Array.isArray(response.data) ? response.data : (Array.isArray((response.data as any)?.content) ? (response.data as any).content : []);
               return { storyId: story.id, tasks };
             } catch (error) {
               console.error(`Error fetching tasks for story ${story.id}:`, error);
@@ -7073,7 +7431,16 @@ const ScrumPage: React.FC = () => {
               )}
 
               <TabsList>
-                <TabsTrigger value="backlog">Backlog</TabsTrigger>
+                <TabsTrigger 
+                  value="backlog"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate('/backlog');
+                  }}
+                  className="cursor-pointer"
+                >
+                  Backlog
+                </TabsTrigger>
 
                 <TabsTrigger value="scrum-board">Scrum Board</TabsTrigger>
 
@@ -7087,7 +7454,7 @@ const ScrumPage: React.FC = () => {
           </div>
         </div>
 
-        <TabsContent value="backlog" className="mt-0 flex-1">
+                <TabsContent value="backlog" className="mt-0 flex-1">
           {/* Backlog Management - Full BacklogPage Functionality */}
 
           <div className="p-6 space-y-6">
@@ -7688,6 +8055,8 @@ const ScrumPage: React.FC = () => {
             allStories={[]}
           />
         </TabsContent>
+
+
 
         {/* Add Story Button - Positioned above scrum board, below sprint section, on the right */}
         {activeView === "scrum-board" && isManager && (
@@ -9833,7 +10202,7 @@ const ScrumPage: React.FC = () => {
                         )}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 !z-[9999]" align="start" side="bottom" sideOffset={5} style={{ zIndex: 9999 }}>
+                    <PopoverContent className="w-auto p-0 !z-[10000]" align="start" side="bottom" sideOffset={5} style={{ zIndex: 10000 }}>
                       <Calendar
                         mode="single"
                         selected={typeof newStory.dueDate === 'string' ? new Date(newStory.dueDate) : newStory.dueDate}
@@ -9846,6 +10215,7 @@ const ScrumPage: React.FC = () => {
                             setIsDueDatePopoverOpen(false);
                           }
                         }}
+                        disabled={getDisabledDates(newStory.sprintId || selectedSprint)}
                         initialFocus
                       />
                     </PopoverContent>
@@ -10760,6 +11130,14 @@ const ScrumPage: React.FC = () => {
                       dueDate: e.target.value,
                     }))
                   }
+                  min={(() => {
+                    const dateRange = getSprintDatesForEntity(selectedTaskForSubtask, selectedIssueForSubtask);
+                    return dateRange ? dateRange.startDate.toISOString().split('T')[0] : undefined;
+                  })()}
+                  max={(() => {
+                    const dateRange = getSprintDatesForEntity(selectedTaskForSubtask, selectedIssueForSubtask);
+                    return dateRange ? dateRange.endDate.toISOString().split('T')[0] : undefined;
+                  })()}
                 />
               </div>
             </div>
@@ -10938,6 +11316,14 @@ const ScrumPage: React.FC = () => {
                       dueDate: e.target.value,
                     }))
                   }
+                  min={(() => {
+                    const dateRange = getSprintDatesForEntity(selectedTaskForSubtask, selectedIssueForSubtask);
+                    return dateRange ? dateRange.startDate.toISOString().split('T')[0] : undefined;
+                  })()}
+                  max={(() => {
+                    const dateRange = getSprintDatesForEntity(selectedTaskForSubtask, selectedIssueForSubtask);
+                    return dateRange ? dateRange.endDate.toISOString().split('T')[0] : undefined;
+                  })()}
                 />
               </div>
             </div>
@@ -11375,13 +11761,25 @@ const ScrumPage: React.FC = () => {
                   }
                 }}
                 disabled={
+                  isLoggingEffort ||
                   !effortLog.hours ||
                   effortLog.hours <= 0 ||
                   !effortLog.description.trim()
                 }
+                className="cursor-pointer"
+                style={{ cursor: isLoggingEffort ? 'not-allowed' : 'pointer' }}
               >
-                <Clock className="w-4 h-4 mr-2" />
-                Log {effortLog.hours}h
+                {isLoggingEffort ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Logging...
+                  </>
+                ) : (
+                  <>
+                    <Clock className="w-4 h-4 mr-2" />
+                    Log {effortLog.hours}h
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -11390,7 +11788,7 @@ const ScrumPage: React.FC = () => {
         {/* JIRA-Style Task Details Modal */}
 
         <Dialog open={isTaskDetailsOpen} onOpenChange={setIsTaskDetailsOpen}>
-          <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden p-0 flex flex-col">
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden p-0 flex flex-col" style={{ zIndex: 50 }}>
             <DialogTitle className="sr-only">
               Task Details: {selectedTaskForDetails?.title || "Task"}
             </DialogTitle>
@@ -11921,7 +12319,7 @@ const ScrumPage: React.FC = () => {
 
                         <div
                           className="flex-1 overflow-y-auto p-6 pt-4 space-y-2"
-                          style={{ maxHeight: "400px" }}
+                          style={{ maxHeight: "400px", position: "relative", zIndex: 1 }}
                         >
                           {getSubtasksForTask(selectedTaskForDetails.id).map(
                             (subtask) => (
@@ -12038,7 +12436,7 @@ const ScrumPage: React.FC = () => {
 
                                         {subtask.dueDate && (
                                           <div className="flex items-center space-x-1">
-                                            <Calendar className="w-3 h-3" />
+                                            <CalendarIcon className="w-3 h-3" />
 
                                             <span>
                                               {new Date(
@@ -12159,7 +12557,7 @@ const ScrumPage: React.FC = () => {
                           <div className="space-y-4">
                             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                               <div className="flex items-center space-x-2 mb-2">
-                                <Calendar className="w-4 h-4 text-gray-600" />
+                                <CalendarIcon className="w-4 h-4 text-gray-600" />
 
                                 <span className="text-sm font-medium text-gray-900">
                                   Task Due Date
@@ -13112,7 +13510,7 @@ const ScrumPage: React.FC = () => {
 
                                     {subtask.dueDate && (
                                       <div className="flex items-center space-x-1">
-                                        <Calendar className="w-3 h-3" />
+                                        <CalendarIcon className="w-3 h-3" />
 
                                         <span>
                                           {new Date(
@@ -13195,7 +13593,7 @@ const ScrumPage: React.FC = () => {
                         <div className="space-y-4">
                           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                             <div className="flex items-center space-x-2 mb-2">
-                              <Calendar className="w-4 h-4 text-gray-600" />
+                              <CalendarIcon className="w-4 h-4 text-gray-600" />
 
                               <span className="text-sm font-medium text-gray-900">
                                 Issue Due Date
@@ -13410,7 +13808,7 @@ const ScrumPage: React.FC = () => {
                         </label>
 
                         <div className="flex items-center space-x-2 text-sm text-gray-700">
-                          <Calendar className="w-4 h-4" />
+                          <CalendarIcon className="w-4 h-4" />
 
                           <span>
                             {selectedIssueForDetails.dueDate
@@ -13540,11 +13938,15 @@ const ScrumPage: React.FC = () => {
                         | "done"),
 
           assignee: undefined,
+          projectId: story.projectId,
         }))}
         defaultStatus="todo"
         defaultStoryId={selectedStoryForIssue || undefined}
         requiredStoryId={selectedStoryForIssue || undefined}
         users={users}
+        projectId={selectedProject}
+        sprintStartDate={currentSprint?.startDate}
+        sprintEndDate={currentSprint?.endDate}
       />
 
       {/* Add Task Dialog */}
@@ -13571,6 +13973,8 @@ const ScrumPage: React.FC = () => {
           });
         }}
         onSubmit={handleAddTask}
+        sprintStartDate={currentSprint?.startDate}
+        sprintEndDate={currentSprint?.endDate}
         stories={sprintStories.map((story) => ({
           id: story.id,
 
@@ -14042,6 +14446,8 @@ const ScrumPage: React.FC = () => {
           }));
         }}
         projectId={selectedProject}
+        sprintStartDate={currentSprint?.startDate}
+        sprintEndDate={currentSprint?.endDate}
         onSubmit={async (taskData) => {
           try {
             const storyId = taskData.storyId === 'none' ? undefined : taskData.storyId;
@@ -14128,10 +14534,8 @@ const ScrumPage: React.FC = () => {
                         | "done"),
           assignee: undefined,
           dueDate: story.dueDate || undefined,
-          projectId: story.projectId,
         }))}
         defaultStoryId={newTask.storyId || undefined}
-        projectId={selectedProject}
         users={users}
       />
     </DndProvider>
