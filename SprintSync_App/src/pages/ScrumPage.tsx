@@ -121,6 +121,7 @@ import {
   SortDesc,
   Calculator,
   CalendarIcon,
+  Calendar as CalendarIconLucide,
 } from "lucide-react";
 
 import { Checkbox } from "../components/ui/checkbox";
@@ -6892,6 +6893,59 @@ const ScrumPage: React.FC = () => {
     return sprint?.name || '';
   }, [sprints]);
 
+  // Build users visible in Assignee picker filtered by selected project (matching BacklogPage)
+  const assigneeOptions = useMemo(() => {
+    const allUsers = Array.isArray(users) ? users : [];
+    if (!selectedProject) {
+      return allUsers;
+    }
+    const project = Array.isArray(projects) ? projects.find(p => p.id === selectedProject) : undefined;
+    if (!project) {
+      return [];
+    }
+    const memberIds = new Set<string>();
+    const teamMembers = (project as any).teamMembers;
+    if (Array.isArray(teamMembers)) {
+      teamMembers.forEach((m: any) => {
+        const id = typeof m === 'string' ? m : (m?.id || m?.userId);
+        if (id) memberIds.add(id);
+      });
+    }
+    return allUsers.filter(u => u && u.id && memberIds.has(u.id));
+  }, [users, selectedProject, projects]);
+
+  // If current assignee selection is not part of filtered options, reset to 'all'
+  useEffect(() => {
+    if (backlogAssigneeFilter !== 'all') {
+      const stillPresent = assigneeOptions.some(u => u && u.id === backlogAssigneeFilter);
+      if (!stillPresent) {
+        setBacklogAssigneeFilter('all');
+      }
+    }
+  }, [assigneeOptions, backlogAssigneeFilter]);
+
+  // Clear all filters function (matching BacklogPage)
+  const clearAllBacklogFilters = useCallback(() => {
+    setSearchTerm('');
+    setBacklogStatusFilter('all');
+    setBacklogPriorityFilter('all');
+    setBacklogAssigneeFilter('all');
+    setBacklogSortBy('priority');
+    setBacklogSortOrder('desc');
+  }, []);
+
+  // Check if filters are active (matching BacklogPage)
+  const backlogFiltersActive = useMemo(() => {
+    return (
+      (searchTerm ?? '').trim().length > 0 ||
+      backlogStatusFilter !== 'all' ||
+      backlogPriorityFilter !== 'all' ||
+      backlogAssigneeFilter !== 'all' ||
+      backlogSortBy !== 'priority' ||
+      backlogSortOrder !== 'desc'
+    );
+  }, [searchTerm, backlogStatusFilter, backlogPriorityFilter, backlogAssigneeFilter, backlogSortBy, backlogSortOrder]);
+
   // Drop Zone Component
 
   const DropZone: React.FC<{
@@ -7123,6 +7177,19 @@ const ScrumPage: React.FC = () => {
     });
     return allTasks;
   }, [allBacklogStoriesForDisplay, backlogTaskPassesFilters]);
+
+  // Build userMap for assignee resolution (matching BacklogPage)
+  const backlogUserMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (Array.isArray(users)) {
+      users.forEach((u: any) => {
+        if (u?.id) {
+          map[u.id] = u.name || u.email || u.id;
+        }
+      });
+    }
+    return map;
+  }, [users]);
 
   // Handler functions for backlog
   const handleOpenBacklogEffortManager = (task: Task) => {
@@ -7433,11 +7500,6 @@ const ScrumPage: React.FC = () => {
               <TabsList>
                 <TabsTrigger 
                   value="backlog"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    navigate('/backlog');
-                  }}
-                  className="cursor-pointer"
                 >
                   Backlog
                 </TabsTrigger>
@@ -7586,11 +7648,15 @@ const ScrumPage: React.FC = () => {
                       <SelectContent>
                         <SelectItem value="all">All Assignees</SelectItem>
 
-                        {users.map((user: any) => (
-                          <SelectItem key={user.id} value={user.id}>
-                            {user.name || user.email || user.id}
-                          </SelectItem>
-                        ))}
+                        {assigneeOptions.length > 0 ? (
+                          assigneeOptions.map(u => (
+                            <SelectItem key={u.id} value={u.id}>
+                              {u.name || u.email || u.id}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          !usersLoading && <SelectItem value="none" disabled>No users found</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -7641,15 +7707,8 @@ const ScrumPage: React.FC = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        setSearchTerm('');
-                        setBacklogStatusFilter('all');
-                        setBacklogPriorityFilter('all');
-                        setBacklogAssigneeFilter('all');
-                        setBacklogSortBy('priority');
-                        setBacklogSortOrder('desc');
-                      }}
-                      disabled={!searchTerm && backlogStatusFilter === 'all' && backlogPriorityFilter === 'all' && backlogAssigneeFilter === 'all'}
+                      onClick={clearAllBacklogFilters}
+                      disabled={!backlogFiltersActive}
                       className="px-3 border-red-300 text-red-600 hover:text-red-700 hover:border-red-400 hover:bg-red-50 disabled:text-red-300 disabled:border-red-200"
                       title="Clear all filters"
                     >
@@ -7811,24 +7870,23 @@ const ScrumPage: React.FC = () => {
                                     </div>
                                   )}
 
-                                  {storySprint && (
-                                    <div className="flex items-center space-x-1 text-muted-foreground">
-                                      <CalendarIcon className="w-4 h-4" />
-
-                                      <span>Sprint: {storySprint.name}</span>
-                                    </div>
-                                  )}
-
-                                  {story.tasks && story.tasks.length > 0 && (
-                                    <div className="flex items-center space-x-1 text-muted-foreground">
-                                      <CheckCircle2 className="w-4 h-4" />
-
-                                      <span>
-                                        {story.tasks.length} task
-                                        {story.tasks.length > 1 ? "s" : ""}
-                                      </span>
-                                    </div>
-                                  )}
+                                  {(() => {
+                                    const visibleTasks = (story.tasks || []).filter(backlogTaskPassesFilters);
+                                    const today = new Date();
+                                    today.setHours(0, 0, 0, 0);
+                                    const overdueTasks = visibleTasks.filter((t: Task) => {
+                                      if (!t.dueDate) return false;
+                                      const taskDueDate = new Date(t.dueDate);
+                                      taskDueDate.setHours(0, 0, 0, 0);
+                                      return taskDueDate < today && t.status !== 'DONE' && t.status !== 'CANCELLED';
+                                    });
+                                    return overdueTasks.length > 0 ? (
+                                      <Badge variant="destructive" className="text-xs">
+                                        <AlertCircle className="w-3 h-3 mr-1" />
+                                        {overdueTasks.length} overdue task{overdueTasks.length > 1 ? 's' : ''}
+                                      </Badge>
+                                    ) : null;
+                                  })()}
                                 </div>
 
                                 {/* Tasks */}
@@ -7874,8 +7932,17 @@ const ScrumPage: React.FC = () => {
                                           const isUserAssigned = user?.id && task.assigneeId === user.id;
                                           const isDoneBeforeDue = isTaskDoneStatus && task.dueDate && new Date(task.dueDate) >= today;
                                           
-                                          const assigneeName = task.assigneeId ? users.find((u: any) => u.id === task.assigneeId)?.name : null;
-                                          const assigneeLabel = assigneeName || (!task.assigneeId ? 'Unassigned' : usersLoading ? 'Loading...' : 'Unknown user');
+                                          const enrichedTask = task as Task & { assigneeName?: string };
+                                          const resolvedAssigneeName =
+                                            enrichedTask.assigneeName ||
+                                            (task.assigneeId ? backlogUserMap[task.assigneeId] : null);
+                                          const assigneeLabel =
+                                            resolvedAssigneeName ||
+                                            (!task.assigneeId
+                                              ? 'Unassigned'
+                                              : usersLoading
+                                                ? 'Loading...'
+                                                : 'Unknown user');
 
                                           return (
                                             <Card 
@@ -7918,7 +7985,7 @@ const ScrumPage: React.FC = () => {
                                                       </Badge>
                                                       {task.dueDate && (
                                                         <div className="flex items-center space-x-1">
-                                                          <CalendarIcon className={`w-3 h-3 ${isDoneBeforeDue ? 'text-green-400' : isOverdue ? 'text-red-600' : ''}`} />
+                                                          <CalendarIconLucide className={`w-3 h-3 ${isDoneBeforeDue ? 'text-green-400' : isOverdue ? 'text-red-600' : ''}`} />
                                                           <span className={
                                                             isDoneBeforeDue ? 'text-green-600 font-medium' :
                                                             isOverdue ? 'text-red-600 font-medium' : ''
@@ -7963,17 +8030,6 @@ const ScrumPage: React.FC = () => {
                                                   </DropdownMenuTrigger>
 
                                                   <DropdownMenuContent align="end">
-                                                    <DropdownMenuItem
-                                                      onClick={() =>
-                                                        handleOpenBacklogEffortManager(
-                                                          task,
-                                                        )
-                                                      }
-                                                    >
-                                                      <Clock className="w-4 h-4 mr-2" />
-                                                      Manage Efforts
-                                                    </DropdownMenuItem>
-
                                                     <DropdownMenuItem
                                                       onClick={() => {
                                                         setBacklogTaskToView(task);
