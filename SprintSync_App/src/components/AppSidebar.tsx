@@ -63,6 +63,11 @@ const AppSidebar: React.FC = () => {
   const { user, logout, hasPermission } = useAuth();
   const { navigationState, navigateTo } = useNavigation();
   
+  // Early return if user is not available (shouldn't happen, but safety check)
+  if (!user) {
+    return null;
+  }
+  
   const allMenuItems: MenuItem[] = [
     {
       title: 'Dashboard',
@@ -166,8 +171,8 @@ const AppSidebar: React.FC = () => {
           ]
         },
       ];
-    } else if (userRole === 'manager' || userRole === 'qa') {
-      // Manager and QA have access to all sidebar widgets
+    } else if (userRole === 'manager') {
+      // Manager has access to all sidebar widgets
       return allMenuItems;
     } else {
       // Developer has limited access (excluding admin panel and projects)

@@ -147,7 +147,7 @@ const ScrumPage: React.FC = () => {
   const [selectedTaskStatus, setSelectedTaskStatus] = useState<string>('');
 
   // Role-based permissions
-  const canManageSprintsAndStories = user?.role === 'admin' || user?.role === 'manager' || user?.role === 'qa';
+  const canManageSprintsAndStories = user?.role === 'admin' || user?.role === 'manager';
   const canAddTasks = true;
   const canLogEffort = true;
 
@@ -163,9 +163,9 @@ const ScrumPage: React.FC = () => {
   const projects: Project[] = [
     { 
       id: 'proj-1', 
-      name: 'E-Commerce Platform - VNIT', 
+      name: 'E-Commerce Platform - ERP & Strategic Technology', 
       status: 'active',
-      department: 'VNIT',
+      department: 'ERP & Strategic Technology',
       manager: 'Priya Mehta',
       startDate: '2024-01-15',
       endDate: '2024-04-15',
@@ -173,9 +173,9 @@ const ScrumPage: React.FC = () => {
     },
     { 
       id: 'proj-2', 
-      name: 'Mobile Banking App - Dinshaw', 
+      name: 'Mobile Banking App - ERP & Strategic Technology', 
       status: 'planning',
-      department: 'Dinshaw',
+      department: 'ERP & Strategic Technology',
       manager: 'Rajesh Gupta',
       startDate: '2024-03-01',
       endDate: '2024-08-01',
@@ -185,7 +185,7 @@ const ScrumPage: React.FC = () => {
       id: 'proj-3', 
       name: 'AI Chat Support - VNIT', 
       status: 'completed',
-      department: 'VNIT',
+      department: 'ERP & Strategic Technology',
       manager: 'Priya Mehta',
       startDate: '2023-10-01',
       endDate: '2024-01-15',

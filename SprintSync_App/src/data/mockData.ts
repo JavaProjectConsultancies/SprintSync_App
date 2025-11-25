@@ -622,8 +622,8 @@ export const mockNotifications: Notification[] = [
 export const getDashboardMetrics = (userRole: string, userId: string): DashboardMetrics => {
   // Simulate role-based metrics
   const baseMetrics: DashboardMetrics = {
-    projectCount: userRole === 'admin' || userRole === 'manager' || userRole === 'qa' ? 8 : 2,
-    teamMembers: userRole === 'admin' ? 18 : (userRole === 'manager' || userRole === 'qa') ? 8 : 4,
+    projectCount: userRole === 'admin' || userRole === 'manager' ? 8 : 2,
+    teamMembers: userRole === 'admin' ? 18 : userRole === 'manager' ? 8 : 4,
     sprintProgress: 85,
     taskCompletion: 73,
     criticalItems: 3,

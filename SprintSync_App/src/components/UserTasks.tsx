@@ -48,8 +48,8 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
   // State for filter dropdown
   const [selectedFilter, setSelectedFilter] = useState<'in-progress' | 'pending' | 'overdue'>('in-progress');
 
-  // Check if user is manager/admin/qa
-  const isManagerOrAdmin = userRole === 'admin' || userRole === 'manager' || userRole === 'qa';
+  // Check if user is manager/admin
+  const isManagerOrAdmin = userRole === 'admin' || userRole === 'manager';
   
   // Fetch projects and stories to filter tasks by manager's projects
   const { data: apiProjects } = useProjects();

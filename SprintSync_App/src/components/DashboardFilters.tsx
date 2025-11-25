@@ -61,10 +61,12 @@ const DashboardFilters: React.FC<DashboardFiltersProps> = ({
   ];
 
   const mockDepartments = [
-    { id: 'dept-1', name: 'Engineering' },
-    { id: 'dept-2', name: 'Product' },
-    { id: 'dept-3', name: 'Design' },
-    { id: 'dept-4', name: 'QA' }
+    { id: 'dept-1', name: 'ERP & Strategic Technology' },
+    { id: 'dept-2', name: 'HIMS & Pharma ZIP' },
+    { id: 'dept-3', name: 'Pharma Old' },
+    { id: 'dept-4', name: 'Infrastructure Management' },
+    { id: 'dept-5', name: 'Implementation' },
+    { id: 'dept-6', name: 'Administration' }
   ];
 
   const mockDomains = [

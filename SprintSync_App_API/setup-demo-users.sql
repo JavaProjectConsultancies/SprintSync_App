@@ -10,64 +10,87 @@
 -- First, ensure we have departments and domains
 INSERT INTO departments (id, name, description) 
 VALUES 
-    ('550e8400-e29b-41d4-a716-446655440000', 'Engineering', 'Software development and engineering')
-ON CONFLICT (id) DO NOTHING;
+    ('550e8400-e29b-41d4-a716-446655440010', 'ERP & Strategic Technology', 'ERP systems and strategic technology initiatives'),
+    ('550e8400-e29b-41d4-a716-446655440011', 'HIMS & Pharma ZIP', 'Hospital Information Management Systems and Pharma ZIP solutions'),
+    ('550e8400-e29b-41d4-a716-446655440012', 'Pharma Old', 'Legacy pharmaceutical systems and applications'),
+    ('550e8400-e29b-41d4-a716-446655440013', 'Infrastructure Management', 'IT infrastructure and system management'),
+    ('550e8400-e29b-41d4-a716-446655440014', 'Implementation', 'Project implementation and deployment services'),
+    ('550e8400-e29b-41d4-a716-446655440015', 'Administration', 'Administrative and management services')
+ON CONFLICT (id) DO UPDATE 
+SET name = EXCLUDED.name, 
+    description = EXCLUDED.description,
+    updated_at = NOW();
 
+-- Insert the two required domains
 INSERT INTO domains (id, name, description)
 VALUES 
-    ('550e8400-e29b-41d4-a716-446655440001', 'Web Development', 'Web application development')
+    ('550e8400-e29b-41d4-a716-446655440001', 'development', 'Development and Engineering Domain'),
+    ('550e8400-e29b-41d4-a716-446655440002', 'management', 'Management and Administration Domain')
 ON CONFLICT (id) DO NOTHING;
 
 -- Insert demo users
+-- Admin user goes to management domain
+-- 3 other users go to development domain
 INSERT INTO users (id, email, password_hash, name, role, department_id, domain_id, is_active)
 VALUES 
-    -- Admin user
-    ('550e8400-e29b-41d4-a716-446655440002', 
+    -- Admin user (management domain) - assigned to Administration department
+    ('550e8400-e29b-41d4-a716-446655440003', 
      'admin@demo.com', 
      '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 
      'Admin User', 
      'admin',
-     '550e8400-e29b-41d4-a716-446655440000',
-     '550e8400-e29b-41d4-a716-446655440001',
+     '550e8400-e29b-41d4-a716-446655440015', -- Administration department
+     '550e8400-e29b-41d4-a716-446655440002', -- management domain
      true),
     
-    -- Manager user
-    ('550e8400-e29b-41d4-a716-446655440003',
-     'manager@demo.com',
-     '$2a$10$TKh8H1.PfQx37YgCzwiKb.KjNyWgaHb9cbcoQgdIVFlYg7B77UdFm',
-     'Manager User',
-     'manager',
-     '550e8400-e29b-41d4-a716-446655440000',
-     '550e8400-e29b-41d4-a716-446655440001',
-     true),
-    
-    -- Developer user
+    -- Developer user 1 (development domain) - assigned to ERP & Strategic Technology
     ('550e8400-e29b-41d4-a716-446655440004',
-     'developer@demo.com',
+     'developer1@demo.com',
      '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVEFDi',
-     'Developer User',
+     'Developer User 1',
      'developer',
-     '550e8400-e29b-41d4-a716-446655440000',
-     '550e8400-e29b-41d4-a716-446655440001',
+     '550e8400-e29b-41d4-a716-446655440010', -- ERP & Strategic Technology department
+     '550e8400-e29b-41d4-a716-446655440001', -- development domain
      true),
     
-    -- Designer user
+    -- Developer user 2 (development domain) - assigned to ERP & Strategic Technology
     ('550e8400-e29b-41d4-a716-446655440005',
-     'designer@demo.com',
+     'developer2@demo.com',
+     '$2a$10$TKh8H1.PfQx37YgCzwiKb.KjNyWgaHb9cbcoQgdIVFlYg7B77UdFm',
+     'Developer User 2',
+     'developer',
+     '550e8400-e29b-41d4-a716-446655440010', -- ERP & Strategic Technology department
+     '550e8400-e29b-41d4-a716-446655440001', -- development domain
+     true),
+    
+    -- Developer user 3 (development domain) - assigned to ERP & Strategic Technology
+    ('550e8400-e29b-41d4-a716-446655440006',
+     'developer3@demo.com',
      '$2a$10$rqA8q8q8q8q8q8q8q8q8qu8q8q8q8q8q8q8q8q8q8q8q8q8q8q8q8q',
-     'Designer User',
-     'designer',
-     '550e8400-e29b-41d4-a716-446655440000',
-     '550e8400-e29b-41d4-a716-446655440001',
+     'Developer User 3',
+     'developer',
+     '550e8400-e29b-41d4-a716-446655440010', -- ERP & Strategic Technology department
+     '550e8400-e29b-41d4-a716-446655440001', -- development domain
      true)
 ON CONFLICT (email) DO UPDATE 
-SET password_hash = EXCLUDED.password_hash;
+SET password_hash = EXCLUDED.password_hash, domain_id = EXCLUDED.domain_id;
 
 -- Verify users were created
-SELECT id, email, name, role, is_active FROM users WHERE email IN (
+SELECT id, email, name, role, is_active, domain_id FROM users WHERE email IN (
     'admin@demo.com', 
-    'manager@demo.com', 
-    'developer@demo.com', 
-    'designer@demo.com'
+    'developer1@demo.com', 
+    'developer2@demo.com', 
+    'developer3@demo.com'
 );
+
+-- Verify domain assignments
+SELECT 
+    d.name as domain_name,
+    COUNT(u.id) as user_count,
+    STRING_AGG(u.name, ', ') as users
+FROM domains d
+LEFT JOIN users u ON u.domain_id = d.id
+WHERE d.name IN ('development', 'management')
+GROUP BY d.id, d.name
+ORDER BY d.name;
 

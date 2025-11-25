@@ -621,27 +621,21 @@ const TimeTrackingPage: React.FC = () => {
         setAllTasks(prev => mergeById(prev, tasksData));
         
         // Fetch all subtasks to create subtaskId -> taskId mapping
+        // Use paginated endpoint with large page size to get all subtasks
         let subtasksData: any[] = [];
         try {
-          const subtasksResponse = await subtaskApiService.getAllSubtasks();
-          subtasksData = Array.isArray(subtasksResponse.data) ? subtasksResponse.data : [];
-        } catch (err: any) {
-          // If /all fails, try regular endpoint
-          if (err?.status === 404 || err?.code === 'HTTP_404') {
-            try {
-              const subtasksResponse = await subtaskApiService.getSubtasks({ page: 0, size: 1000 });
-              const data = subtasksResponse.data as any;
-              if (Array.isArray(data)) {
-                subtasksData = data;
-              } else if (data?.content && Array.isArray(data.content)) {
-                subtasksData = data.content;
-              } else if (data?.data && Array.isArray(data.data)) {
-                subtasksData = data.data;
-              }
-            } catch (err2) {
-              console.error('Error fetching subtasks from regular endpoint:', err2);
-            }
+          const subtasksResponse = await subtaskApiService.getSubtasks({ page: 0, size: 10000 });
+          const data = subtasksResponse.data as any;
+          if (Array.isArray(data)) {
+            subtasksData = data;
+          } else if (data?.content && Array.isArray(data.content)) {
+            subtasksData = data.content;
+          } else if (data?.data && Array.isArray(data.data)) {
+            subtasksData = data.data;
           }
+        } catch (err) {
+          console.error('Error fetching subtasks:', err);
+          subtasksData = [];
         }
         
         setAllSubtasks(prev => mergeById(prev, subtasksData));
@@ -1478,11 +1472,18 @@ const TimeTrackingPage: React.FC = () => {
   }, [rawTimeEntries, allTasks, allStories, additionalProjects, projectsResult.data, additionalSprints, sprintsResult.data]);
 
   // Map API entries to UI format and aggregate subtask time into parent tasks
+  const isProcessingRef = useRef(false);
   useEffect(() => {
+    if (isProcessingRef.current) {
+      return; // Prevent concurrent processing
+    }
+    
     if (rawTimeEntries.length === 0) {
-      setTimeEntries([]);
+      setTimeEntries(prev => prev.length === 0 ? prev : []);
       return;
     }
+    
+    isProcessingRef.current = true;
 
     // Filter entries: managers/admins see entries from their accessible projects, others see only their own
     const isManagerOrAdmin = currentUser && (
@@ -1710,7 +1711,37 @@ const TimeTrackingPage: React.FC = () => {
       };
     });
 
-    setTimeEntries(aggregatedEntries);
+    // Only update state if the entries have actually changed to prevent infinite loops
+    setTimeEntries(prevEntries => {
+      // Compare by length and IDs to avoid unnecessary updates
+      if (prevEntries.length !== aggregatedEntries.length) {
+        return aggregatedEntries;
+      }
+      
+      // Check if any entry IDs have changed
+      const prevIds = new Set(prevEntries.map(e => e.id));
+      const newIds = new Set(aggregatedEntries.map(e => e.id));
+      
+      if (prevIds.size !== newIds.size || 
+          Array.from(prevIds).some(id => !newIds.has(id)) ||
+          Array.from(newIds).some(id => !prevIds.has(id))) {
+        return aggregatedEntries;
+      }
+      
+      // Check if hoursWorked has changed for any entry
+      const hasChanged = aggregatedEntries.some((newEntry, index) => {
+        const prevEntry = prevEntries[index];
+        return !prevEntry || 
+               prevEntry.hoursWorked !== newEntry.hoursWorked ||
+               prevEntry.taskId !== newEntry.taskId ||
+               prevEntry.storyId !== newEntry.storyId;
+      });
+      
+      return hasChanged ? aggregatedEntries : prevEntries;
+    });
+    
+    // Reset processing flag
+    isProcessingRef.current = false;
   }, [rawTimeEntries, usersMap, projectsMap, storiesMap, tasksMap, sprintsMap, projectToSprintMap, subtaskToTaskMap, currentUser, projects]);
 
   // Parse time string to minutes

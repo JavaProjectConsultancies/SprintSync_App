@@ -218,8 +218,8 @@ const Dashboard: React.FC = () => {
       console.warn('[Dashboard] No tasks found in API data. Tasks loading:', tasksLoading, 'Tasks data:', apiTasks);
     }
     
-    // Check if user is manager/admin/qa
-    const isManagerOrAdmin = user.role === 'admin' || user.role === 'manager' || user.role === 'qa';
+    // Check if user is manager/admin
+    const isManagerOrAdmin = user.role === 'admin' || user.role === 'manager';
     
     // Get user's project IDs first (needed for both sprint filtering and fallback)
     // For managers: only projects where they are the manager
@@ -1254,7 +1254,7 @@ const Dashboard: React.FC = () => {
             )}
           </CardTitle>
           <CardDescription>
-            {user.role === 'admin' || user.role === 'manager' || user.role === 'qa'
+            {user.role === 'admin' || user.role === 'manager'
               ? 'All active projects' 
               : 'Your assigned projects'
             }
@@ -1315,7 +1315,7 @@ const Dashboard: React.FC = () => {
       </Card>
 
       {/* Team Performance Alerts - Only for Managers/Admins */}
-      {(user.role === 'admin' || user.role === 'manager' || user.role === 'qa') && underperformingMembers.length > 0 && (
+      {(user.role === 'admin' || user.role === 'manager') && underperformingMembers.length > 0 && (
         <Card className="border-orange-200 hover:shadow-xl transition-all duration-300 animate-fadeInUp" style={{ animationDelay: '0.8s' }}>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">

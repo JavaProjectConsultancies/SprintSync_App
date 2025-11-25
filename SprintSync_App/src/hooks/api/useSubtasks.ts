@@ -21,8 +21,19 @@ export const useSubtasks = (): UseSubtasksReturn => {
     try {
       setLoading(true);
       setError(null);
-      const response = await subtaskApiService.getAllSubtasksList();
-      setData(response.data);
+      // Use paginated endpoint with large page size to get all subtasks
+      const response = await subtaskApiService.getSubtasks({ page: 0, size: 10000 });
+      const data = response.data as any;
+      // Handle paginated response
+      if (Array.isArray(data)) {
+        setData(data);
+      } else if (data?.content && Array.isArray(data.content)) {
+        setData(data.content);
+      } else if (data?.data && Array.isArray(data.data)) {
+        setData(data.data);
+      } else {
+        setData([]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch subtasks'));
       setData(null);

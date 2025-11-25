@@ -375,7 +375,7 @@ const ProjectsPage: React.FC = () => {
       startDate: '2024-01-15',
       endDate: '2024-03-15',
       managerId: '3', // Priya Mehta (manager: proj-1, proj-2)
-      department: 'DEPT0000000000001', // Engineering
+      department: 'ERP & Strategic Technology',
       teamMembers: [
         { name: 'Rohit Kumar', role: 'Angular Developer', avatar: '' }, // ID 7: assigned proj-1, proj-3
         { name: 'Sneha Patel', role: 'Designer', avatar: '' }, // ID 31: assigned proj-1, proj-2
@@ -394,7 +394,7 @@ const ProjectsPage: React.FC = () => {
     },
     {
       id: 2,
-      name: 'Mobile Banking App - Dinshaw',
+      name: 'Mobile Banking App - ERP & Strategic Technology',
       description: 'Secure and user-friendly banking solution',
       status: 'planning',
       progress: 15,
@@ -402,7 +402,7 @@ const ProjectsPage: React.FC = () => {
       startDate: '2024-03-01',
       endDate: '2024-06-01',
       managerId: '3', // Priya Mehta (manager: proj-1, proj-2)
-      department: 'Dinshaw',
+      department: 'ERP & Strategic Technology',
       teamMembers: [
         { name: 'Sanjay Reddy', role: 'Angular Developer', avatar: '' }, // ID 9: assigned proj-2, proj-4
         { name: 'Amit Patel', role: 'Java Developer', avatar: '' }, // ID 11: assigned proj-2, proj-4
@@ -429,7 +429,7 @@ const ProjectsPage: React.FC = () => {
       startDate: '2023-10-01',
       endDate: '2024-01-15',
       managerId: '4', // Rajesh Gupta (manager: proj-3, proj-4)
-      department: 'DEPT0000000000001', // Engineering
+      department: 'ERP & Strategic Technology',
       teamMembers: [
         { name: 'Rohit Kumar', role: 'Angular Developer', avatar: '' }, // ID 7: assigned proj-1, proj-3
         { name: 'Ravi Sharma', role: 'Java Developer', avatar: '' }, // ID 12: assigned proj-1, proj-3
@@ -448,7 +448,7 @@ const ProjectsPage: React.FC = () => {
     },
     {
       id: 4,
-      name: 'Hospital Management System - Hospy',
+      name: 'Hospital Management System - HIMS & Pharma ZIP',
       description: 'Comprehensive healthcare management platform',
       status: 'active',
       progress: 60,
@@ -456,7 +456,7 @@ const ProjectsPage: React.FC = () => {
       startDate: '2024-02-01',
       endDate: '2024-05-01',
       managerId: '4', // Rajesh Gupta (manager: proj-3, proj-4)
-      department: 'Hospy',
+      department: 'HIMS & Pharma ZIP',
       teamMembers: [
         { name: 'Sanjay Reddy', role: 'Angular Developer', avatar: '' }, // ID 9: assigned proj-2, proj-4
         { name: 'Amit Patel', role: 'Java Developer', avatar: '' }, // ID 11: assigned proj-2, proj-4
@@ -475,7 +475,7 @@ const ProjectsPage: React.FC = () => {
     },
     {
       id: 5,
-      name: 'Pharmaceutical Inventory - Pharma',
+      name: 'Pharmaceutical Inventory - Pharma Old',
       description: 'Drug inventory and supply chain management',
       status: 'active',
       progress: 45,
@@ -483,7 +483,7 @@ const ProjectsPage: React.FC = () => {
       startDate: '2024-01-20',
       endDate: '2024-04-20',
       managerId: '5', // Anita Verma (manager: proj-5, proj-6)
-      department: 'Pharma',
+      department: 'Pharma Old',
       teamMembers: [
         { name: 'Neha Agarwal', role: 'Angular Developer', avatar: '' }, // ID 8: assigned proj-5, proj-6
         { name: 'Pooja Yadav', role: 'Java Developer', avatar: '' }, // ID 13: assigned proj-5, proj-7
@@ -510,7 +510,7 @@ const ProjectsPage: React.FC = () => {
       startDate: '2024-04-01',
       endDate: '2024-07-01',
       managerId: '5', // Anita Verma (manager: proj-5, proj-6)
-      department: 'DEPT0000000000001', // Engineering
+      department: 'ERP & Strategic Technology',
       teamMembers: [
         { name: 'Neha Agarwal', role: 'Angular Developer', avatar: '' }, // ID 8: assigned proj-5, proj-6
         { name: 'Karthik Nair', role: 'Java Developer', avatar: '' }, // ID 14: assigned proj-6, proj-8
@@ -529,7 +529,7 @@ const ProjectsPage: React.FC = () => {
     },
     {
       id: 7,
-      name: 'Financial Analytics - Dinshaw',
+      name: 'Financial Analytics - ERP & Strategic Technology',
       description: 'Business intelligence and financial reporting',
       status: 'active',
       progress: 75,
@@ -537,7 +537,7 @@ const ProjectsPage: React.FC = () => {
       startDate: '2023-11-01',
       endDate: '2024-02-01',
       managerId: '6', // Deepak Joshi (manager: proj-7, proj-8)
-      department: 'Dinshaw',
+      department: 'ERP & Strategic Technology',
       teamMembers: [
         { name: 'Meera Iyer', role: 'Angular Developer', avatar: '' }, // ID 10: assigned proj-7, proj-8
         { name: 'Pooja Yadav', role: 'Java Developer', avatar: '' }, // ID 13: assigned proj-5, proj-7
@@ -556,7 +556,7 @@ const ProjectsPage: React.FC = () => {
     },
     {
       id: 8,
-      name: 'Patient Portal - Hospy',
+      name: 'Patient Portal - HIMS & Pharma ZIP',
       description: 'Patient appointment and health records portal',
       status: 'completed',
       progress: 100,
@@ -564,7 +564,7 @@ const ProjectsPage: React.FC = () => {
       startDate: '2023-09-01',
       endDate: '2023-12-01',
       managerId: '6', // Deepak Joshi (manager: proj-7, proj-8)
-      department: 'Hospy',
+      department: 'HIMS & Pharma ZIP',
       teamMembers: [
         { name: 'Meera Iyer', role: 'Angular Developer', avatar: '' }, // ID 10: assigned proj-7, proj-8
         { name: 'Karthik Nair', role: 'Java Developer', avatar: '' }, // ID 14: assigned proj-6, proj-8
@@ -1615,10 +1615,10 @@ const ProjectsPage: React.FC = () => {
 
     if (user.role === 'admin') {
       return projects; // Admin can see all projects
-    } else if (user.role === 'manager' || user.role === 'qa') {
-      return projects.filter(project => project.managerId === user.id); // Manager and QA see their projects
+    } else if (user.role === 'manager') {
+      return projects.filter(project => project.managerId === user.id); // Manager sees their projects
     } else {
-      // Developer and QA see only projects they're assigned to
+      // Developer sees only projects they're assigned to
       return projects.filter(project => 
         user.assignedProjects?.some(assignedId => `proj-${project.id}` === assignedId)
       );
@@ -1665,7 +1665,7 @@ const ProjectsPage: React.FC = () => {
 
   // Check if user can add projects/milestones
   const canAddProject = () => {
-    return user?.role === 'admin' || user?.role === 'manager' || user?.role === 'qa';
+    return user?.role === 'admin' || user?.role === 'manager';
   };
 
   // Handle create project query param from Dashboard
@@ -2082,7 +2082,7 @@ const ProjectsPage: React.FC = () => {
               <h1 className="text-2xl font-semibold text-foreground">Projects</h1>
               <p className="text-muted-foreground">
                 {filteredProjects.length} project{filteredProjects.length !== 1 ? 's' : ''} available
-                {user?.role === 'developer' || user?.role === 'qa' ? ' (assigned to you)' : ''}
+                {user?.role === 'developer' ? ' (assigned to you)' : ''}
               </p>
             </div>
           </div>
@@ -2130,10 +2130,10 @@ const ProjectsPage: React.FC = () => {
           <CardContent className="flex flex-col items-center justify-center py-12">
             <FolderKanban className="w-16 h-16 text-muted-foreground mb-4" />
             <h3 className="font-semibold text-lg mb-2">
-              {user?.role === 'developer' || user?.role === 'qa' ? 'No Projects Assigned' : 'No Projects Yet'}
+              {user?.role === 'developer' ? 'No Projects Assigned' : 'No Projects Yet'}
             </h3>
             <p className="text-muted-foreground text-center mb-6 max-w-sm">
-              {user?.role === 'developer' || user?.role === 'qa' 
+              {user?.role === 'developer' 
                 ? 'You haven\'t been assigned to any projects yet. Contact your manager to get assigned to projects.'
                 : 'Get started by creating your first project to organize your work and track progress.'
               }

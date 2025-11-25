@@ -10,7 +10,7 @@ This database schema supports the SprintSync agile project management applicatio
 
 #### User Management
 - **users**: Application users with role-based access (admin, manager, developer, designer)
-- **departments**: VNIT, Dinshaw, Hospy, Pharma
+- **departments**: ERP & Strategic Technology, HIMS & Pharma ZIP, Pharma Old, Infrastructure Management, Implementation, Administration
 - **domains**: Angular, Java, Maui, Testing, Implementation, Database, Marketing, HR
 
 #### Project Hierarchy

@@ -108,7 +108,7 @@ const TeamAllocationPage: React.FC = () => {
   const [newMember, setNewMember] = useState({
     name: '',
     email: '',
-    role: 'developer' as 'developer' | 'qa' | 'manager' | 'admin',
+    role: 'developer' as 'developer' | 'manager' | 'admin',
     domain: '',
     department: '',
     password: '',
@@ -147,7 +147,7 @@ const TeamAllocationPage: React.FC = () => {
 
   const { teamMembers: projectTeamMembers, refreshTeamMembers } = useProjectTeamMembers(selectedProjectId || undefined);
 
-  const roleOptions = ['developer', 'qa', 'manager', 'admin'];
+  const roleOptions = ['developer', 'manager', 'admin'];
 
   // Project helpers: team members per project and manager names cache
   const [projectIdToMembers, setProjectIdToMembers] = useState<Record<string, any[]>>({});
@@ -332,22 +332,28 @@ const TeamAllocationPage: React.FC = () => {
       if (!selectedProjectId && projects && projects.length > 0) {
         setSelectedProjectId(projects[0].id);
       }
-      // load users for picker - use all users (not just active) for admin
+      // load users for picker - exclude admin users from team allocation
       setLoadingUsers(true);
-      const rawList = (users || []).map((u: any) => ({
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        role: (u.role || 'developer').toLowerCase(),
-        departmentId: u.departmentId,
-        domainId: u.domainId,
-        avatarUrl: u.avatarUrl,
-        experience: normalizeExperience(u.experience),
-        hourlyRate: u.hourlyRate || 0,
-        availabilityPercentage: u.availabilityPercentage || 100,
-        skills: typeof u.skills === 'string' ? u.skills : Array.isArray(u.skills) ? u.skills.join(', ') : '',
-        isActive: u.isActive,
-      }));
+      const rawList = (users || [])
+        .filter((u: any) => {
+          // Exclude admin users
+          const userRole = (u.role || '').toString().toUpperCase();
+          return userRole !== 'ADMIN';
+        })
+        .map((u: any) => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          role: (u.role || 'developer').toLowerCase(),
+          departmentId: u.departmentId,
+          domainId: u.domainId,
+          avatarUrl: u.avatarUrl,
+          experience: normalizeExperience(u.experience),
+          hourlyRate: u.hourlyRate || 0,
+          availabilityPercentage: u.availabilityPercentage || 100,
+          skills: typeof u.skills === 'string' ? u.skills : Array.isArray(u.skills) ? u.skills.join(', ') : '',
+          isActive: u.isActive,
+        }));
       const assignedIds = new Set((projectTeamMembers || []).map((m: any) => m.userId));
       const filtered = rawList.filter(u => !assignedIds.has(u.id));
       setAvailableUsers(filtered);
@@ -493,15 +499,22 @@ const TeamAllocationPage: React.FC = () => {
   };
 
   // Enhanced team member data based on real user data from AuthContext
+  // Filter out admin users - they should not appear in team allocation
   const teamMembers = useMemo(() => {
-    return allUsers.map((user, index) => {
+    // Exclude admin users from team allocation
+    const nonAdminUsers = allUsers.filter((user: any) => {
+      const userRole = (user.role || '').toString().toUpperCase();
+      return userRole !== 'ADMIN';
+    });
+    
+    return nonAdminUsers.map((user, index) => {
       // Resolve role and names
       const normalizedRole = normalizeRole((user as any).role as string);
       const resolvedDomain = (user as any).domainId ? (domainIdToName[(user as any).domainId as string] || '') : ((user as any).domain || '');
       const resolvedDepartment = (user as any).departmentId ? (departmentIdToName[(user as any).departmentId as string] || '') : ((user as any).department || '');
 
       // Generate realistic data based on resolved values
-      const baseCapacity = normalizedRole === 'admin' ? 35 : normalizedRole === 'manager' ? 35 : normalizedRole === 'qa' ? 35 : 40;
+      const baseCapacity = normalizedRole === 'admin' ? 35 : normalizedRole === 'manager' ? 35 : 40;
       const utilization = Math.floor(Math.random() * 30) + 70; // 70-100%
       const allocated = Math.floor((utilization / 100) * baseCapacity);
       
@@ -548,15 +561,15 @@ const TeamAllocationPage: React.FC = () => {
         ];
         
         // Assign user to 1-2 projects based on their role and availability
-        const numProjects = (normalizedRole === 'manager' || normalizedRole === 'qa') ? 1 : Math.floor(Math.random() * 2) + 1;
+        const numProjects = normalizedRole === 'manager' ? 1 : Math.floor(Math.random() * 2) + 1;
         const availableProjects = projectDistribution.filter(p => 
-          (normalizedRole === 'manager' || normalizedRole === 'qa') ? !p.hasManager : true
+          normalizedRole === 'manager' ? !p.hasManager : true
         );
         
         for (let i = 0; i < Math.min(numProjects, availableProjects.length); i++) {
           const project = availableProjects[i];
-          const allocation = (normalizedRole === 'manager' || normalizedRole === 'qa') ? 
-            Math.floor(Math.random() * 30) + 50 : // Managers and QA get 50-80% allocation
+          const allocation = normalizedRole === 'manager' ? 
+            Math.floor(Math.random() * 30) + 50 : // Managers get 50-80% allocation
             Math.floor(Math.random() * 40) + 30;  // Others get 30-70% allocation
           
           assignments.push({
@@ -572,7 +585,6 @@ const TeamAllocationPage: React.FC = () => {
       const getRoleInProject = (userRole: string, domain: string) => {
         if (userRole === 'admin') return 'System Administrator';
         if (userRole === 'manager') return 'Project Manager';
-        if (userRole === 'qa') return 'Project Manager'; // QA has same role as manager
         
         const devRoles: { [key: string]: string } = {
           'Angular': 'Frontend Developer',
@@ -638,15 +650,11 @@ const TeamAllocationPage: React.FC = () => {
   }, [allUsers, departmentIdToName, domainIdToName]);
 
   // Filter team members based on search and filters
-  // By default, only show members that are assigned to at least one project
+  // Show ALL non-admin users (not just those assigned to projects)
   const filteredMembers = useMemo(() => {
     return teamMembers.filter(member => {
-      // First check if member is in any project (only show team members in projects)
-      const isInAnyProject = Object.values(projectIdToMembers).some((members: any) => 
-        (members || []).some((m: any) => (m.userId || m.id) === member.id)
-      );
-      
-      if (!isInAnyProject) return false;
+      // Admin users are already excluded in teamMembers creation, so no need to check here
+      // Show all users regardless of project assignment
       
       const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            member.domain.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -656,7 +664,8 @@ const TeamAllocationPage: React.FC = () => {
       const matchesDomain = domainFilter === 'all' || member.domain === domainFilter;
       const matchesRole = roleFilter === 'all' || (member.role as string) === roleFilter;
       
-      // Filter by project: only show members that are in the selected project
+      // Filter by project: if a specific project is selected, only show members in that project
+      // Otherwise, show all members
       const matchesProject = projectFilter === 'all' || (() => {
         if (projectFilter === 'all') return true;
         // Check if member is assigned to the selected project
@@ -708,11 +717,6 @@ const TeamAllocationPage: React.FC = () => {
   const getRoleIcon = (role: string, domain: string) => {
     if (role === 'admin') return Shield;
     if (role === 'manager') return Users;
-    if (role === 'qa') {
-      if (domain === 'Marketing') return Briefcase;
-      if (domain === 'HR') return Heart;
-      return TestTube;
-    }
     if (role === 'developer') {
       if (domain === 'Angular' || domain === 'Maui') return Code;
       if (domain === 'Java') return Coffee;
@@ -767,7 +771,7 @@ const TeamAllocationPage: React.FC = () => {
     const email = `${firstName}.${lastName}@company.com`;
     
     // Determine role based on name patterns
-    let role: 'developer' | 'qa' | 'manager' | 'admin' = 'developer';
+    let role: 'developer' | 'manager' | 'admin' = 'developer';
     let domain = '';
     let department = '';
     let experience: 'E1' | 'E2' | 'M1' | 'M2' | 'M3' | 'L1' | 'L2' | 'L3' | 'S1' = 'M1';
@@ -785,8 +789,9 @@ const TeamAllocationPage: React.FC = () => {
       experience = 'L2';
       hourlyRate = 3000;
       skills = ['Administration', 'Strategic Planning', 'Leadership', 'System Management'];
-    } else if (nameLower.includes('qa') || nameLower.includes('test') || nameLower.includes('quality')) {
-      role = 'qa';
+    } else if (nameLower.includes('test') || nameLower.includes('quality')) {
+      // Test/QA related names default to developer role
+      role = 'developer';
       experience = 'M1';
       hourlyRate = 2000;
       skills = ['Quality Assurance', 'Testing', 'Test Automation', 'Bug Tracking'];
@@ -930,7 +935,7 @@ const TeamAllocationPage: React.FC = () => {
       toast.error(`Cannot add more members. Team is at maximum capacity (${validation.maxMembers} members).`);
       return;
     }
-    if ((newMember.role === 'manager' || newMember.role === 'qa') && !validation.canAddManager) {
+    if (newMember.role === 'manager' && !validation.canAddManager) {
       toast.error('Cannot add another manager. Only one manager is allowed per project.');
       return;
     }
@@ -1892,7 +1897,6 @@ const TeamAllocationPage: React.FC = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="developer">Developer</SelectItem>
-                      <SelectItem value="qa">QA</SelectItem>
                       <SelectItem value="manager">Manager</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>

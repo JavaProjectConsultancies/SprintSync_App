@@ -25,6 +25,7 @@ import {
   Briefcase
 } from 'lucide-react';
 import sprintSyncLogo from '../assets/aadf192e83d08c7cc03896c06b452017e84d04aa.png';
+import { useDomains } from '../hooks/api/useDomains';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -39,6 +40,8 @@ const Login: React.FC = () => {
   const [department, setDepartment] = useState('');
   const [domain, setDomain] = useState('');
   const { login } = useAuth();
+  const { data: domainsData } = useDomains();
+  const domains = Array.isArray(domainsData) ? domainsData : [];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -239,10 +242,12 @@ const Login: React.FC = () => {
                         required
                       >
                         <option value="">Select Department/Project</option>
-                        <option value="VNIT">VNIT</option>
-                        <option value="Dinshaw">Dinshaw</option>
-                        <option value="Hospy">Hospy</option>
-                        <option value="Pharma">Pharma</option>
+                        <option value="ERP & Strategic Technology">ERP & Strategic Technology</option>
+                        <option value="HIMS & Pharma ZIP">HIMS & Pharma ZIP</option>
+                        <option value="Pharma Old">Pharma Old</option>
+                        <option value="Infrastructure Management">Infrastructure Management</option>
+                        <option value="Implementation">Implementation</option>
+                        <option value="Administration">Administration</option>
                       </select>
                     </div>
                   </div>
@@ -259,14 +264,11 @@ const Login: React.FC = () => {
                         required
                       >
                         <option value="">Select Domain/Specialization</option>
-                        <option value="Angular">Angular</option>
-                        <option value="Java">Java</option>
-                        <option value="Maui">Maui</option>
-                        <option value="Testing">Testing</option>
-                        <option value="Implementation">Implementation</option>
-                        <option value="Database">Database</option>
-                        <option value="Marketing">Marketing</option>
-                        <option value="HR">HR</option>
+                        {domains.map((domainItem) => (
+                          <option key={domainItem.id} value={domainItem.id}>
+                            {domainItem.name}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>

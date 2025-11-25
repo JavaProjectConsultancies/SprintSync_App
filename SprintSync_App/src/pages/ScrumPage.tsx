@@ -442,11 +442,10 @@ const ScrumPage: React.FC = () => {
 
   // Role-based permissions
 
-  // Only MANAGER and QA can create sprints, stories, tasks, and boards
+  // Only MANAGER can create sprints, stories, tasks, and boards
 
   const canManageSprintsAndStories =
-    user?.role?.toUpperCase() === "MANAGER" ||
-    user?.role?.toUpperCase() === "QA";
+    user?.role?.toUpperCase() === "MANAGER";
 
   // Only MANAGER can create stories, tasks, and issues
   const isManager = user?.role?.toUpperCase() === "MANAGER";
@@ -454,12 +453,12 @@ const ScrumPage: React.FC = () => {
   // Only managers can add tasks and issues
   const canAddTasks = isManager; // Only managers can create tasks and issues
 
-  const canCreateBoards = canManageSprintsAndStories; // Only managers and QA can create boards
+  const canCreateBoards = canManageSprintsAndStories; // Only managers can create boards
 
   const canLogEffort = true;
 
-  // Check if user is a developer (not MANAGER or QA)
-  const isDeveloper = user?.role?.toUpperCase() !== "MANAGER" && user?.role?.toUpperCase() !== "QA";
+  // Check if user is a developer (not MANAGER)
+  const isDeveloper = user?.role?.toUpperCase() !== "MANAGER";
 
   // All users can create subtasks (checked individually where needed)
 
@@ -3356,6 +3355,36 @@ const ScrumPage: React.FC = () => {
 
           const oldStatus = task?.status;
           
+          // Prevent moving tasks from DONE to any status except TO_DO
+          // Check if newStatus maps to TO_DO (handles custom lanes too)
+          const mappedNewStatus = mapColumnToTaskStatus(newStatus);
+          const isMovingFromDone = 
+            (oldStatus === "DONE" || oldStatus === "done") && 
+            (newStatus !== "todo" && newStatus !== "TO_DO" && newStatus !== "TODO" &&
+             mappedNewStatus !== "TO_DO" && mappedNewStatus !== "TODO" &&
+             (typeof mappedNewStatus === "string" && mappedNewStatus.toUpperCase() !== "TO_DO"));
+          
+          if (isMovingFromDone) {
+            toast.error("Tasks in Done lane can only be moved back to To Do lane");
+            // Log blocked attempt
+            try {
+              await activityLogApiService.createActivityLog({
+                userId: user?.id || "",
+                entityType: "tasks",
+                entityId: id,
+                action: "status_change_blocked",
+                description: `Attempted to move task from DONE to ${newStatus} (blocked - can only move to TO_DO)`,
+                oldValues: JSON.stringify({ status: oldStatus }),
+                newValues: JSON.stringify({ status: newStatus }),
+                ipAddress: undefined,
+                userAgent: undefined,
+              });
+            } catch (error) {
+              console.error("Failed to log blocked activity:", error);
+            }
+            return;
+          }
+          
           // Prevent non-managers from moving tasks from "In Progress" back to "To Do"
           const isMovingFromInProgressToTodo = 
             (oldStatus === "IN_PROGRESS" || oldStatus === "in_progress") && 
@@ -3460,6 +3489,36 @@ const ScrumPage: React.FC = () => {
           const issue = allIssues.find((i) => i.id === id);
 
           const oldStatus = issue?.status;
+          
+          // Prevent moving issues from DONE to any status except TO_DO
+          // Check if newStatus maps to TO_DO (handles custom lanes too)
+          const mappedNewStatusForIssue = mapColumnToTaskStatus(newStatus);
+          const isMovingIssueFromDone = 
+            (oldStatus === "DONE" || oldStatus === "done") && 
+            (newStatus !== "todo" && newStatus !== "TO_DO" && newStatus !== "TODO" &&
+             mappedNewStatusForIssue !== "TO_DO" && mappedNewStatusForIssue !== "TODO" &&
+             (typeof mappedNewStatusForIssue === "string" && mappedNewStatusForIssue.toUpperCase() !== "TO_DO"));
+          
+          if (isMovingIssueFromDone) {
+            toast.error("Issues in Done lane can only be moved back to To Do lane");
+            // Log blocked attempt
+            try {
+              await activityLogApiService.createActivityLog({
+                userId: user?.id || "",
+                entityType: "issues",
+                entityId: id,
+                action: "status_change_blocked",
+                description: `Attempted to move issue from DONE to ${newStatus} (blocked - can only move to TO_DO)`,
+                oldValues: JSON.stringify({ status: oldStatus }),
+                newValues: JSON.stringify({ status: newStatus }),
+                ipAddress: undefined,
+                userAgent: undefined,
+              });
+            } catch (error) {
+              console.error("Failed to log blocked activity:", error);
+            }
+            return;
+          }
           
           // Prevent non-managers from moving issues from "In Progress" back to "To Do"
           const isMovingFromInProgressToTodo = 
@@ -3982,7 +4041,7 @@ const ScrumPage: React.FC = () => {
 
   const handleCreateBoard = async () => {
     if (!canCreateBoards) {
-      toast.error("Only Managers and QA can create boards");
+      toast.error("Only Managers can create boards");
 
       return;
     }
@@ -4042,10 +4101,10 @@ const ScrumPage: React.FC = () => {
   ) => {
     e.stopPropagation(); // Prevent triggering the dropdown item click
 
-    // Only MANAGER and QA can delete boards
+    // Only MANAGER can delete boards
 
     if (!canCreateBoards) {
-      toast.error("Only Managers and QA can delete boards");
+      toast.error("Only Managers can delete boards");
 
       return;
     }
@@ -7390,7 +7449,7 @@ const ScrumPage: React.FC = () => {
                   {!canCreateBoards && (
                     <DropdownMenuItem disabled>
                       <Plus className="w-4 h-4 mr-2" />
-                      Create Board (Manager/QA only)
+                      Create Board (Manager only)
                     </DropdownMenuItem>
                   )}
 
@@ -8881,16 +8940,43 @@ const ScrumPage: React.FC = () => {
                       const canDropForDeveloper = !(isDeveloper && isDoneStatus);
                       
                       // Check if trying to drop from "In Progress" to "To Do" (only managers allowed)
+                      // Also check if this is a custom lane that maps to TO_DO
+                      const mappedStatusForColumn = mapColumnToTaskStatus(status);
                       const isTodoColumn = status === "todo" || status === "TO_DO" || status === "TODO" || 
-                                          (status && status.toLowerCase() === "todo");
+                                          (status && status.toLowerCase() === "todo") ||
+                                          mappedStatusForColumn === "TO_DO" || mappedStatusForColumn === "TODO" || 
+                                          (typeof mappedStatusForColumn === "string" && mappedStatusForColumn.toUpperCase() === "TO_DO");
                       
                       // Check if trying to drop to "In Progress" column
                       const isInProgressColumn = status === "inprogress" || status === "IN_PROGRESS" || status === "in_progress" ||
                                                   (status && status.toLowerCase() === "inprogress");
                       
                       const canDropForManager = (item: { id: string; type: string } | null) => {
-                        if (!item || canManageSprintsAndStories) {
-                          return true; // Allow if user is manager
+                        if (!item) {
+                          return true;
+                        }
+                        
+                        // Prevent dropping tasks from DONE to any column except To Do
+                        if (item.type === ItemTypes.TASK) {
+                          const task = allTasks.find((t) => t.id === item.id);
+                          const taskStatus = task?.status?.toUpperCase() || "";
+                          const isTaskDone = taskStatus === "DONE" || taskStatus === "done".toUpperCase();
+                          
+                          if (isTaskDone && !isTodoColumn) {
+                            return false; // Prevent dropping DONE tasks to any column except To Do
+                          }
+                        } else if (item.type === ItemTypes.ISSUE) {
+                          const issue = allIssues.find((i) => i.id === item.id);
+                          const issueStatus = issue?.status?.toUpperCase() || "";
+                          const isIssueDone = issueStatus === "DONE" || issueStatus === "done".toUpperCase();
+                          
+                          if (isIssueDone && !isTodoColumn) {
+                            return false; // Prevent dropping DONE issues to any column except To Do
+                          }
+                        }
+                        
+                        if (canManageSprintsAndStories) {
+                          return true; // Allow if user is manager (for other restrictions)
                         }
                         
                         // Check if trying to drop from "In Progress" to "To Do" (only managers allowed)
@@ -8959,7 +9045,7 @@ const ScrumPage: React.FC = () => {
                               : isTodoColumn && !canManageSprintsAndStories 
                                 ? "Only managers can move items from In Progress back to To Do" 
                                 : isInProgressColumn && !canManageSprintsAndStories 
-                                  ? "Only managers can move items from To Do to In Progress" 
+                                  ? "Only managers can move items from To Do to In Progress"
                                   : undefined
                           }
                         >

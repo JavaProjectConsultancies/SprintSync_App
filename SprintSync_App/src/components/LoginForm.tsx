@@ -111,12 +111,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
     }
   };
 
-  const demoLogin = (role: 'admin' | 'manager' | 'developer' | 'qa') => {
+  const demoLogin = (role: 'admin' | 'manager' | 'developer') => {
     const demoCredentials = {
       admin: { email: 'admin@demo.com', password: 'admin123' },
       manager: { email: 'manager@demo.com', password: 'manager123' },
       developer: { email: 'developer@demo.com', password: 'dev123' },
-      qa: { email: 'qa@demo.com', password: 'qa123' },
     };
 
     setFormData(demoCredentials[role]);

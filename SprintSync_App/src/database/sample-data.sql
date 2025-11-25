@@ -12,201 +12,201 @@
 INSERT INTO users (id, email, password_hash, name, role, department_id, domain_id, experience, hourly_rate, availability_percentage, skills) VALUES
 -- Admins
 ('00000000-0000-0000-0000-000000000001', 'admin@demo.com', '$2b$10$example_hash', 'Arjun Sharma', 'admin', 
- (SELECT id FROM departments WHERE name = 'IT'), 
+ (SELECT id FROM departments WHERE name = 'Administration'), 
  (SELECT id FROM domains WHERE name = 'System Administration'), 
  'senior', 150.00, 100, '["System Administration", "DevOps", "Security"]'),
 
 ('00000000-0000-0000-0000-000000000002', 'kavita.admin@demo.com', '$2b$10$example_hash', 'Kavita Singh', 'admin', 
- (SELECT id FROM departments WHERE name = 'IT'), 
+ (SELECT id FROM departments WHERE name = 'Administration'), 
  (SELECT id FROM domains WHERE name = 'Database'), 
  'senior', 140.00, 100, '["Database Management", "Data Architecture", "Performance Tuning"]'),
 
 -- Managers
 ('00000000-0000-0000-0000-000000000003', 'priya@demo.com', '$2b$10$example_hash', 'Priya Mehta', 'manager', 
- (SELECT id FROM departments WHERE name = 'VNIT'), 
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'), 
  (SELECT id FROM domains WHERE name = 'Implementation'), 
  'senior', 120.00, 100, '["Project Management", "Agile", "Team Leadership"]'),
 
 ('00000000-0000-0000-0000-000000000004', 'rajesh.manager@demo.com', '$2b$10$example_hash', 'Rajesh Gupta', 'manager', 
- (SELECT id FROM departments WHERE name = 'Dinshaw'), 
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'), 
  (SELECT id FROM domains WHERE name = 'Java'), 
  'senior', 125.00, 100, '["Java Development", "Project Management", "Architecture"]'),
 
 ('00000000-0000-0000-0000-000000000005', 'anita.manager@demo.com', '$2b$10$example_hash', 'Anita Verma', 'manager', 
- (SELECT id FROM departments WHERE name = 'Hospy'), 
+ (SELECT id FROM departments WHERE name = 'HIMS & Pharma ZIP'), 
  (SELECT id FROM domains WHERE name = 'Angular'), 
  'senior', 115.00, 100, '["Angular Development", "Team Management", "Healthcare Systems"]'),
 
 ('00000000-0000-0000-0000-000000000006', 'deepak.manager@demo.com', '$2b$10$example_hash', 'Deepak Joshi', 'manager', 
- (SELECT id FROM departments WHERE name = 'Pharma'), 
+ (SELECT id FROM departments WHERE name = 'Pharma Old'), 
  (SELECT id FROM domains WHERE name = 'Testing'), 
  'senior', 110.00, 100, '["Quality Assurance", "Test Management", "Pharmaceutical Compliance"]'),
 
 -- Angular Developers
 ('00000000-0000-0000-0000-000000000007', 'rohit@demo.com', '$2b$10$example_hash', 'Rohit Kumar', 'developer', 
- (SELECT id FROM departments WHERE name = 'VNIT'), 
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'), 
  (SELECT id FROM domains WHERE name = 'Angular'), 
  'mid', 75.00, 100, '["Angular", "TypeScript", "RxJS", "NgRx"]'),
 
 ('00000000-0000-0000-0000-000000000008', 'neha.angular@demo.com', '$2b$10$example_hash', 'Neha Agarwal', 'developer', 
- (SELECT id FROM departments WHERE name = 'Hospy'), 
+ (SELECT id FROM departments WHERE name = 'HIMS & Pharma ZIP'), 
  (SELECT id FROM domains WHERE name = 'Angular'), 
  'mid', 70.00, 100, '["Angular", "HTML5", "CSS3", "Bootstrap"]'),
 
 ('00000000-0000-0000-0000-000000000009', 'sanjay.angular@demo.com', '$2b$10$example_hash', 'Sanjay Reddy', 'developer', 
- (SELECT id FROM departments WHERE name = 'Dinshaw'), 
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'), 
  (SELECT id FROM domains WHERE name = 'Angular'), 
  'senior', 85.00, 100, '["Angular", "Node.js", "Express", "MongoDB"]'),
 
 ('00000000-0000-0000-0000-00000000000a', 'meera.angular@demo.com', '$2b$10$example_hash', 'Meera Iyer', 'developer', 
- (SELECT id FROM departments WHERE name = 'Pharma'), 
+ (SELECT id FROM departments WHERE name = 'Pharma Old'), 
  (SELECT id FROM domains WHERE name = 'Angular'), 
  'senior', 80.00, 100, '["Angular", "Material Design", "PWA", "Testing"]'),
 
 -- Java Developers
 ('00000000-0000-0000-0000-00000000000b', 'amit.dev@demo.com', '$2b$10$example_hash', 'Amit Patel', 'developer', 
- (SELECT id FROM departments WHERE name = 'Dinshaw'), 
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'), 
  (SELECT id FROM domains WHERE name = 'Java'), 
  'senior', 90.00, 100, '["Java", "Spring Boot", "Microservices", "REST APIs"]'),
 
 ('00000000-0000-0000-0000-00000000000c', 'ravi.java@demo.com', '$2b$10$example_hash', 'Ravi Sharma', 'developer', 
- (SELECT id FROM departments WHERE name = 'VNIT'), 
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'), 
  (SELECT id FROM domains WHERE name = 'Java'), 
  'mid', 75.00, 100, '["Java", "Spring", "Hibernate", "MySQL"]'),
 
 ('00000000-0000-0000-0000-00000000000d', 'pooja.java@demo.com', '$2b$10$example_hash', 'Pooja Yadav', 'developer', 
- (SELECT id FROM departments WHERE name = 'Hospy'), 
+ (SELECT id FROM departments WHERE name = 'HIMS & Pharma ZIP'), 
  (SELECT id FROM domains WHERE name = 'Java'), 
  'mid', 70.00, 100, '["Java", "Spring Security", "JPA", "PostgreSQL"]'),
 
 ('00000000-0000-0000-0000-00000000000e', 'karthik.java@demo.com', '$2b$10$example_hash', 'Karthik Nair', 'developer', 
- (SELECT id FROM departments WHERE name = 'Pharma'), 
+ (SELECT id FROM departments WHERE name = 'Pharma Old'), 
  (SELECT id FROM domains WHERE name = 'Java'), 
  'senior', 85.00, 100, '["Java", "Spring Cloud", "Docker", "Kubernetes"]'),
 
 -- Maui Developers
 ('00000000-0000-0000-0000-00000000000f', 'vikram.dev@demo.com', '$2b$10$example_hash', 'Vikram Singh', 'developer', 
- (SELECT id FROM departments WHERE name = 'Hospy'), 
+ (SELECT id FROM departments WHERE name = 'HIMS & Pharma ZIP'), 
  (SELECT id FROM domains WHERE name = 'Maui'), 
  'mid', 80.00, 100, '["MAUI", "C#", "Xamarin", "Mobile Development"]'),
 
 ('00000000-0000-0000-0000-000000000010', 'shreya.maui@demo.com', '$2b$10$example_hash', 'Shreya Kapoor', 'developer', 
- (SELECT id FROM departments WHERE name = 'VNIT'), 
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'), 
  (SELECT id FROM domains WHERE name = 'Maui'), 
  'junior', 60.00, 100, '["MAUI", ".NET", "SQLite", "Azure"]'),
 
 ('00000000-0000-0000-0000-000000000011', 'arun.maui@demo.com', '$2b$10$example_hash', 'Arun Ghosh', 'developer', 
- (SELECT id FROM departments WHERE name = 'Dinshaw'), 
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'), 
  (SELECT id FROM domains WHERE name = 'Maui'), 
  'mid', 75.00, 100, '["MAUI", "Blazor", "SignalR", "Entity Framework"]'),
 
 ('00000000-0000-0000-0000-000000000012', 'divya.maui@demo.com', '$2b$10$example_hash', 'Divya Menon', 'developer', 
- (SELECT id FROM departments WHERE name = 'Pharma'), 
+ (SELECT id FROM departments WHERE name = 'Pharma Old'), 
  (SELECT id FROM domains WHERE name = 'Maui'), 
  'senior', 85.00, 100, '["MAUI", "Cross-platform", "API Integration", "Mobile Security"]'),
 
 -- Testing Engineers
 ('00000000-0000-0000-0000-000000000013', 'ravi.test@demo.com', '$2b$10$example_hash', 'Ravi Shankar', 'developer', 
- (SELECT id FROM departments WHERE name = 'Pharma'), 
+ (SELECT id FROM departments WHERE name = 'Pharma Old'), 
  (SELECT id FROM domains WHERE name = 'Testing'), 
  'senior', 80.00, 100, '["Manual Testing", "Automation", "Selenium", "Performance Testing"]'),
 
 ('00000000-0000-0000-0000-000000000014', 'sunita.test@demo.com', '$2b$10$example_hash', 'Sunita Gupta', 'developer', 
- (SELECT id FROM departments WHERE name = 'VNIT'), 
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'), 
  (SELECT id FROM domains WHERE name = 'Testing'), 
  'mid', 65.00, 100, '["QA", "Test Planning", "Bug Tracking", "Regression Testing"]'),
 
 ('00000000-0000-0000-0000-000000000015', 'manoj.test@demo.com', '$2b$10$example_hash', 'Manoj Kumar', 'developer', 
- (SELECT id FROM departments WHERE name = 'Dinshaw'), 
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'), 
  (SELECT id FROM domains WHERE name = 'Testing'), 
  'mid', 70.00, 100, '["API Testing", "Postman", "JMeter", "CI/CD Testing"]'),
 
 ('00000000-0000-0000-0000-000000000016', 'lakshmi.test@demo.com', '$2b$10$example_hash', 'Lakshmi Pillai', 'developer', 
- (SELECT id FROM departments WHERE name = 'Hospy'), 
+ (SELECT id FROM departments WHERE name = 'HIMS & Pharma ZIP'), 
  (SELECT id FROM domains WHERE name = 'Testing'), 
  'senior', 75.00, 100, '["Test Strategy", "Healthcare Testing", "Compliance", "Security Testing"]'),
 
 -- Implementation Engineers
 ('00000000-0000-0000-0000-000000000017', 'suresh.impl@demo.com', '$2b$10$example_hash', 'Suresh Bhat', 'developer', 
- (SELECT id FROM departments WHERE name = 'Dinshaw'), 
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'), 
  (SELECT id FROM domains WHERE name = 'Implementation'), 
  'senior', 85.00, 100, '["System Implementation", "DevOps", "Cloud Migration", "Monitoring"]'),
 
 ('00000000-0000-0000-0000-000000000018', 'rekha.impl@demo.com', '$2b$10$example_hash', 'Rekha Jain', 'developer', 
- (SELECT id FROM departments WHERE name = 'VNIT'), 
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'), 
  (SELECT id FROM domains WHERE name = 'Implementation'), 
  'mid', 70.00, 100, '["Deployment", "Configuration", "Documentation", "Training"]'),
 
 ('00000000-0000-0000-0000-000000000019', 'ashok.impl@demo.com', '$2b$10$example_hash', 'Ashok Reddy', 'developer', 
- (SELECT id FROM departments WHERE name = 'Hospy'), 
+ (SELECT id FROM departments WHERE name = 'HIMS & Pharma ZIP'), 
  (SELECT id FROM domains WHERE name = 'Implementation'), 
  'mid', 75.00, 100, '["Healthcare Implementation", "Integration", "Data Migration", "Support"]'),
 
 ('00000000-0000-0000-0000-00000000001a', 'geetha.impl@demo.com', '$2b$10$example_hash', 'Geetha Krishnan', 'developer', 
- (SELECT id FROM departments WHERE name = 'Pharma'), 
+ (SELECT id FROM departments WHERE name = 'Pharma Old'), 
  (SELECT id FROM domains WHERE name = 'Implementation'), 
  'senior', 80.00, 100, '["Pharmaceutical Systems", "Compliance", "Validation", "GxP"]'),
 
 -- Database Engineers
 ('00000000-0000-0000-0000-00000000001b', 'vinod.db@demo.com', '$2b$10$example_hash', 'Vinod Agarwal', 'developer', 
- (SELECT id FROM departments WHERE name = 'VNIT'), 
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'), 
  (SELECT id FROM domains WHERE name = 'Database'), 
  'senior', 85.00, 100, '["PostgreSQL", "Database Design", "Performance Tuning", "Backup Strategies"]'),
 
 ('00000000-0000-0000-0000-00000000001c', 'radha.db@demo.com', '$2b$10$example_hash', 'Radha Sharma', 'developer', 
- (SELECT id FROM departments WHERE name = 'Dinshaw'), 
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'), 
  (SELECT id FROM domains WHERE name = 'Database'), 
  'mid', 75.00, 100, '["MySQL", "Data Modeling", "ETL", "Business Intelligence"]'),
 
 ('00000000-0000-0000-0000-00000000001d', 'ramesh.db@demo.com', '$2b$10$example_hash', 'Ramesh Rao', 'developer', 
- (SELECT id FROM departments WHERE name = 'Hospy'), 
+ (SELECT id FROM departments WHERE name = 'HIMS & Pharma ZIP'), 
  (SELECT id FROM domains WHERE name = 'Database'), 
  'senior', 80.00, 100, '["Oracle", "Healthcare Data", "HIPAA Compliance", "Data Security"]'),
 
 ('00000000-0000-0000-0000-00000000001e', 'nandini.db@demo.com', '$2b$10$example_hash', 'Nandini Joshi', 'developer', 
- (SELECT id FROM departments WHERE name = 'Pharma'), 
+ (SELECT id FROM departments WHERE name = 'Pharma Old'), 
  (SELECT id FROM domains WHERE name = 'Database'), 
  'mid', 70.00, 100, '["SQL Server", "Clinical Data", "Regulatory Compliance", "Data Integrity"]'),
 
 -- Marketing Professionals (Designers)
 ('00000000-0000-0000-0000-00000000001f', 'sneha@demo.com', '$2b$10$example_hash', 'Sneha Patel', 'designer', 
- (SELECT id FROM departments WHERE name = 'VNIT'), 
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'), 
  (SELECT id FROM domains WHERE name = 'Marketing'), 
  'mid', 65.00, 100, '["UI/UX Design", "Adobe Creative Suite", "Figma", "User Research"]'),
 
 ('00000000-0000-0000-0000-000000000020', 'aarti.marketing@demo.com', '$2b$10$example_hash', 'Aarti Jain', 'designer', 
- (SELECT id FROM departments WHERE name = 'Dinshaw'), 
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'), 
  (SELECT id FROM domains WHERE name = 'Marketing'), 
  'senior', 75.00, 100, '["Brand Design", "Digital Marketing", "Content Strategy", "Analytics"]'),
 
 ('00000000-0000-0000-0000-000000000021', 'kiran.marketing@demo.com', '$2b$10$example_hash', 'Kiran Nair', 'designer', 
- (SELECT id FROM departments WHERE name = 'Hospy'), 
+ (SELECT id FROM departments WHERE name = 'HIMS & Pharma ZIP'), 
  (SELECT id FROM domains WHERE name = 'Marketing'), 
  'mid', 60.00, 100, '["Healthcare Marketing", "Patient Experience Design", "Accessibility", "Compliance"]'),
 
 ('00000000-0000-0000-0000-000000000022', 'deepika.marketing@demo.com', '$2b$10$example_hash', 'Deepika Shetty', 'designer', 
- (SELECT id FROM departments WHERE name = 'Pharma'), 
+ (SELECT id FROM departments WHERE name = 'Pharma Old'), 
  (SELECT id FROM domains WHERE name = 'Marketing'), 
  'senior', 70.00, 100, '["Pharmaceutical Marketing", "Medical Design", "Regulatory Graphics", "Scientific Visualization"]'),
 
 -- HR Professionals (Designers)
 ('00000000-0000-0000-0000-000000000025', 'sonia.hr@demo.com', '$2b$10$example_hash', 'Sonia Kapoor', 'designer', 
- (SELECT id FROM departments WHERE name = 'Pharma'), 
+ (SELECT id FROM departments WHERE name = 'Pharma Old'), 
  (SELECT id FROM domains WHERE name = 'HR'), 
  'senior', 75.00, 100, '["HR Systems Design", "Employee Experience", "Workflow Design", "Training Materials"]'),
 
 ('00000000-0000-0000-0000-000000000026', 'manisha.hr@demo.com', '$2b$10$example_hash', 'Manisha Gupta', 'designer', 
- (SELECT id FROM departments WHERE name = 'VNIT'), 
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'), 
  (SELECT id FROM domains WHERE name = 'HR'), 
  'mid', 60.00, 100, '["HR Process Design", "Onboarding Experience", "Policy Documentation", "Internal Communications"]'),
 
 ('00000000-0000-0000-0000-000000000027', 'neelam.hr@demo.com', '$2b$10$example_hash', 'Neelam Singh', 'designer', 
- (SELECT id FROM departments WHERE name = 'Dinshaw'), 
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'), 
  (SELECT id FROM domains WHERE name = 'HR'), 
  'mid', 65.00, 100, '["Talent Acquisition Design", "Performance Management", "Learning Experience", "HR Analytics"]'),
 
 ('00000000-0000-0000-0000-000000000028', 'shweta.hr@demo.com', '$2b$10$example_hash', 'Shweta Reddy', 'designer', 
- (SELECT id FROM departments WHERE name = 'Hospy'), 
+ (SELECT id FROM departments WHERE name = 'HIMS & Pharma ZIP'), 
  (SELECT id FROM domains WHERE name = 'HR'), 
  'senior', 70.00, 100, '["Healthcare HR", "Compliance Training", "Safety Protocols", "Staff Management Systems"]');
 
@@ -216,64 +216,64 @@ INSERT INTO users (id, email, password_hash, name, role, department_id, domain_i
 
 INSERT INTO projects (id, name, description, status, priority, methodology, template, department_id, manager_id, start_date, end_date, budget, spent, progress_percentage, scope, success_criteria, objectives) VALUES
 
-('00000000-0000-0000-0000-100000000001', 'E-Commerce Platform - VNIT', 'Modern online shopping experience with AI recommendations', 'active', 'high', 'scrum', 'web-app',
- (SELECT id FROM departments WHERE name = 'VNIT'),
+('00000000-0000-0000-0000-100000000001', 'E-Commerce Platform - ERP & Strategic Technology', 'Modern online shopping experience with AI recommendations', 'active', 'high', 'scrum', 'web-app',
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'),
  '00000000-0000-0000-0000-000000000003', -- Priya Mehta
  '2024-01-15', '2024-03-15', 2500000.00, 2125000.00, 85,
  'Develop a responsive web application with user authentication, data management, and AI integration.',
  '["User satisfaction rating above 4.5", "Page load time under 2 seconds", "99.9% uptime", "Mobile responsive design"]',
  '["Increase online sales by 30%", "Improve user engagement", "Implement AI recommendations", "Achieve scalable architecture"]'),
 
-('00000000-0000-0000-0000-100000000002', 'Mobile Banking App - Dinshaw', 'Secure and user-friendly banking solution', 'planning', 'medium', 'kanban', 'mobile-app',
- (SELECT id FROM departments WHERE name = 'Dinshaw'),
+('00000000-0000-0000-0000-100000000002', 'Mobile Banking App - ERP & Strategic Technology', 'Secure and user-friendly banking solution', 'planning', 'medium', 'kanban', 'mobile-app',
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'),
  '00000000-0000-0000-0000-000000000003', -- Priya Mehta
  '2024-03-01', '2024-06-01', 4000000.00, 600000.00, 15,
  'Create a mobile application with offline capability, push notifications, and native performance.',
  '["Bank security compliance", "Biometric authentication", "Offline transaction capability", "Cross-platform compatibility"]',
  '["Modernize banking services", "Improve customer accessibility", "Reduce branch visits by 40%", "Enhance security measures"]'),
 
-('00000000-0000-0000-0000-100000000003', 'AI Chat Support - VNIT', 'Intelligent customer support automation', 'completed', 'low', 'scrum', 'api-service',
- (SELECT id FROM departments WHERE name = 'VNIT'),
+('00000000-0000-0000-0000-100000000003', 'AI Chat Support - ERP & Strategic Technology', 'Intelligent customer support automation', 'completed', 'low', 'scrum', 'api-service',
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'),
  '00000000-0000-0000-0000-000000000004', -- Rajesh Gupta
  '2023-10-01', '2024-01-15', 1500000.00, 1450000.00, 100,
  'Build scalable API service with authentication, rate limiting, and comprehensive documentation.',
  '["Response time under 2 seconds", "95% query resolution rate", "24/7 availability", "Multi-language support"]',
  '["Reduce customer service costs", "Improve response times", "Handle 1000+ concurrent users", "Integrate with existing systems"]'),
 
-('00000000-0000-0000-0000-100000000004', 'Hospital Management System - Hospy', 'Comprehensive healthcare management platform', 'active', 'high', 'scrum', 'web-app',
- (SELECT id FROM departments WHERE name = 'Hospy'),
+('00000000-0000-0000-0000-100000000004', 'Hospital Management System - HIMS & Pharma ZIP', 'Comprehensive healthcare management platform', 'active', 'high', 'scrum', 'web-app',
+ (SELECT id FROM departments WHERE name = 'HIMS & Pharma ZIP'),
  '00000000-0000-0000-0000-000000000004', -- Rajesh Gupta
  '2024-02-01', '2024-05-01', 3500000.00, 2100000.00, 60,
  'Develop a responsive web application with user authentication, data management, and API integration.',
  '["HIPAA compliance", "Patient data security", "Integration with existing systems", "Staff training completion"]',
  '["Digitize patient records", "Improve operational efficiency", "Enhance patient care", "Reduce administrative costs"]'),
 
-('00000000-0000-0000-0000-100000000005', 'Pharmaceutical Inventory - Pharma', 'Drug inventory and supply chain management', 'active', 'medium', 'kanban', 'web-app',
- (SELECT id FROM departments WHERE name = 'Pharma'),
+('00000000-0000-0000-0000-100000000005', 'Pharmaceutical Inventory - Pharma Old', 'Drug inventory and supply chain management', 'active', 'medium', 'kanban', 'web-app',
+ (SELECT id FROM departments WHERE name = 'Pharma Old'),
  '00000000-0000-0000-0000-000000000005', -- Anita Verma
  '2024-01-20', '2024-04-20', 2000000.00, 900000.00, 45,
  'Develop a responsive web application with user authentication, data management, and API integration.',
  '["FDA compliance", "Real-time inventory tracking", "Supply chain visibility", "Quality control integration"]',
  '["Optimize inventory levels", "Reduce waste by 20%", "Improve supply chain efficiency", "Ensure regulatory compliance"]'),
 
-('00000000-0000-0000-0000-100000000006', 'Learning Management System - VNIT', 'Online education platform with video streaming', 'planning', 'medium', 'scrum', 'web-app',
- (SELECT id FROM departments WHERE name = 'VNIT'),
+('00000000-0000-0000-0000-100000000006', 'Learning Management System - ERP & Strategic Technology', 'Online education platform with video streaming', 'planning', 'medium', 'scrum', 'web-app',
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'),
  '00000000-0000-0000-0000-000000000005', -- Anita Verma
  '2024-04-01', '2024-07-01', 3000000.00, 300000.00, 10,
  'Develop a responsive web application with user authentication, data management, and API integration.',
  '["Support 5000+ concurrent users", "Mobile accessibility", "Content management system", "Assessment tools"]',
  '["Modernize education delivery", "Improve student engagement", "Enable remote learning", "Track learning analytics"]'),
 
-('00000000-0000-0000-0000-100000000007', 'Financial Analytics - Dinshaw', 'Business intelligence and financial reporting', 'active', 'high', 'scrum', 'data-analytics',
- (SELECT id FROM departments WHERE name = 'Dinshaw'),
+('00000000-0000-0000-0000-100000000007', 'Financial Analytics - ERP & Strategic Technology', 'Business intelligence and financial reporting', 'active', 'high', 'scrum', 'data-analytics',
+ (SELECT id FROM departments WHERE name = 'ERP & Strategic Technology'),
  '00000000-0000-0000-0000-000000000006', -- Deepak Joshi
  '2023-11-01', '2024-02-01', 1800000.00, 1350000.00, 75,
  'Develop analytics platform with data visualization, reporting, and real-time insights.',
  '["Real-time data processing", "Advanced visualization", "Regulatory reporting", "Data accuracy 99.9%"]',
  '["Improve decision making", "Automate reporting", "Reduce manual effort by 60%", "Enhance data insights"]'),
 
-('00000000-0000-0000-0000-100000000008', 'Patient Portal - Hospy', 'Patient appointment and health records portal', 'completed', 'medium', 'kanban', 'web-app',
- (SELECT id FROM departments WHERE name = 'Hospy'),
+('00000000-0000-0000-0000-100000000008', 'Patient Portal - HIMS & Pharma ZIP', 'Patient appointment and health records portal', 'completed', 'medium', 'kanban', 'web-app',
+ (SELECT id FROM departments WHERE name = 'HIMS & Pharma ZIP'),
  '00000000-0000-0000-0000-000000000006', -- Deepak Joshi
  '2023-09-01', '2023-12-01', 2200000.00, 2150000.00, 100,
  'Develop a responsive web application with user authentication, data management, and API integration.',

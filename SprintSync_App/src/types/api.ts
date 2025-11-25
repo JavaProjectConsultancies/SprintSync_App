@@ -25,7 +25,7 @@ export interface User extends BaseEntity {
   lastLogin?: string;
 }
 
-export type UserRole = 'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'QA' | 'TESTER' | 'ANALYST';
+export type UserRole = 'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'TESTER' | 'ANALYST';
 
 // Department entity
 export interface Department extends BaseEntity {

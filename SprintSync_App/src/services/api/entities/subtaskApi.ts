@@ -14,8 +14,9 @@ export const subtaskApiService = {
   getSubtasks: (params?: any) => 
     apiClient.get<Page<Subtask>>(BASE_URL, { params }),
   
+  // Note: /all endpoint doesn't exist in backend, use getSubtasks with large page size instead
   getAllSubtasks: () => 
-    apiClient.get<Subtask[]>(`${BASE_URL}/all`),
+    apiClient.get<Page<Subtask>>(BASE_URL, { params: { page: 0, size: 10000 } }),
   
   updateSubtask: (id: string, subtask: Partial<Subtask>) => 
     apiClient.put<Subtask>(`${BASE_URL}/${id}`, subtask),
