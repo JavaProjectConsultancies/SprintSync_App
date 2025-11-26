@@ -12,6 +12,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -67,6 +68,12 @@ public class User extends BaseEntity {
 
     @Column(name = "skills", columnDefinition = "jsonb")
     private String skills;
+
+    @Column(name = "reporting_manager", length = 100)
+    private String reportingManager;
+
+    @Column(name = "date_of_joining")
+    private LocalDate dateOfJoining;
 
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
@@ -180,6 +187,22 @@ public class User extends BaseEntity {
 
     public void setSkills(String skills) {
         this.skills = skills;
+    }
+
+    public String getReportingManager() {
+        return reportingManager;
+    }
+
+    public void setReportingManager(String reportingManager) {
+        this.reportingManager = reportingManager;
+    }
+
+    public LocalDate getDateOfJoining() {
+        return dateOfJoining;
+    }
+
+    public void setDateOfJoining(LocalDate dateOfJoining) {
+        this.dateOfJoining = dateOfJoining;
     }
 
     public Boolean getIsActive() {

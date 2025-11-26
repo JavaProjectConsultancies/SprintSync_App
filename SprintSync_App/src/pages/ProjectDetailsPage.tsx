@@ -158,6 +158,7 @@ const ProjectDetailsPage = () => {
   const [localEpics, setLocalEpics] = useState<any[]>([]);
   const [localRequirements, setLocalRequirements] = useState<any[]>([]);
   const [isAddRequirementDialogOpen, setIsAddRequirementDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<'requirement' | 'attachment'>('attachment');
   
   // Team management state
   const [isTeamManagerOpen, setIsTeamManagerOpen] = useState(false);
@@ -892,6 +893,7 @@ const ProjectDetailsPage = () => {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="epics">Epics</TabsTrigger>
           <TabsTrigger value="requirements">Requirements</TabsTrigger>
+          <TabsTrigger value="attachments">Attachments</TabsTrigger>
           <TabsTrigger value="milestones">Milestones</TabsTrigger>
           <TabsTrigger value="team">Team</TabsTrigger>
           <TabsTrigger value="stakeholders">Stakeholders</TabsTrigger>
@@ -1180,19 +1182,135 @@ const ProjectDetailsPage = () => {
           <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-6 border border-blue-200 mb-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-xl font-semibold text-blue-800">Project Attachments</h3>
-                <p className="text-blue-600 mt-1">Upload files and add URLs/links to this project</p>
+                <h3 className="text-xl font-semibold text-blue-800">Project Requirements</h3>
+                <p className="text-blue-600 mt-1">Manage functional and non-functional requirements for this project</p>
               </div>
               <div className="flex items-center space-x-4">
                 <div className="text-right">
-                  <div className="text-2xl font-bold text-blue-600">{attachments?.length || 0}</div>
-                  <div className="text-sm text-blue-500">Total Attachments</div>
+                  <div className="text-2xl font-bold text-blue-600">{localRequirements?.length || 0}</div>
+                  <div className="text-sm text-blue-500">Total Requirements</div>
                 </div>
                 <Button 
                   variant="outline" 
                   size="sm" 
                   className="bg-white hover:bg-blue-50"
-                  onClick={() => setIsAddRequirementDialogOpen(true)}
+                  onClick={() => {
+                    setDialogMode('requirement');
+                    setRequirementForm({
+                      title: '',
+                      description: '',
+                      priority: 'medium',
+                      type: 'functional',
+                      acceptanceCriteria: ''
+                    });
+                    setIsAddRequirementDialogOpen(true);
+                  }}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Requirement
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {requirementsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Loading requirements...</p>
+              </div>
+            </div>
+          ) : localRequirements.length === 0 ? (
+            <Card>
+              <CardContent className="py-12">
+                <div className="text-center">
+                  <Target className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-muted-foreground">No requirements defined yet</p>
+                  <p className="text-sm text-muted-foreground mt-2">Add your first requirement to get started</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {localRequirements.map((requirement: any) => (
+                <Card key={requirement.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <h4 className="font-medium text-sm">{requirement.title}</h4>
+                          <Badge variant="outline" className={getPriorityColor(requirement.priority || 'medium')}>
+                            {requirement.priority?.toUpperCase() || 'MEDIUM'}
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            {requirement.type || 'functional'}
+                          </Badge>
+                        </div>
+                        {requirement.description && (
+                          <p className="text-sm text-muted-foreground">{requirement.description}</p>
+                        )}
+                        {requirement.acceptanceCriteria && (
+                          <div className="mt-2">
+                            <p className="text-xs font-medium text-muted-foreground mb-1">Acceptance Criteria:</p>
+                            <p className="text-sm">{requirement.acceptanceCriteria}</p>
+                          </div>
+                        )}
+                        <div className="flex items-center space-x-4 text-xs text-muted-foreground mt-2">
+                          {requirement.status && (
+                            <Badge variant="outline" className={getStatusColor(requirement.status)}>
+                              {requirement.status}
+                            </Badge>
+                          )}
+                          {requirement.createdAt && (
+                            <span>Created: {formatDate(requirement.createdAt)}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2 ml-4">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0"
+                          onClick={() => {
+                            // TODO: Implement edit requirement
+                            toast.info('Edit requirement functionality coming soon');
+                          }}
+                          title="Edit requirement"
+                        >
+                          <Settings className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="attachments" className="space-y-6">
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-6 border border-green-200 mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-semibold text-green-800">Project Attachments</h3>
+                <p className="text-green-600 mt-1">Upload files and add URLs/links to this project</p>
+              </div>
+              <div className="flex items-center space-x-4">
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-green-600">{attachments?.length || 0}</div>
+                  <div className="text-sm text-green-500">Total Attachments</div>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="bg-white hover:bg-green-50"
+                  onClick={() => {
+                    setDialogMode('attachment');
+                    setSelectedFile(null);
+                    setAttachmentUrl('');
+                    setAttachmentUrlName('');
+                    setIsAddRequirementDialogOpen(true);
+                  }}
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Add Attachment
@@ -1204,7 +1322,7 @@ const ProjectDetailsPage = () => {
           {isLoadingAttachments ? (
             <div className="flex items-center justify-center py-12">
               <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-4"></div>
                 <p className="text-muted-foreground">Loading attachments...</p>
               </div>
             </div>
@@ -1747,89 +1865,165 @@ const ProjectDetailsPage = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Add Attachment Dialog */}
+      {/* Add Requirement/Attachment Dialog */}
       <Dialog open={isAddRequirementDialogOpen} onOpenChange={setIsAddRequirementDialogOpen}>
         <DialogContent 
-          className="max-w-[90vw] w-[90vw] h-[90vh] max-h-[90vh] flex flex-col"
-          style={{ width: '90vw', height: '90vh', maxWidth: '90vw', maxHeight: '90vh' }}
+          className={`max-w-[90vw] w-[90vw] ${dialogMode === 'attachment' ? 'h-[90vh] max-h-[90vh]' : 'max-h-[80vh]'} flex flex-col`}
+          style={{ width: '90vw', maxWidth: '90vw', ...(dialogMode === 'attachment' ? { height: '90vh', maxHeight: '90vh' } : { maxHeight: '80vh' }) }}
         >
           <DialogHeader>
-            <DialogTitle className="text-xl">Add Attachment</DialogTitle>
+            <DialogTitle className="text-xl">
+              {dialogMode === 'requirement' ? 'Add Requirement' : 'Add Attachment'}
+            </DialogTitle>
             <DialogDescription className="text-base">
-              Upload files or add URLs to attach to this project. All file types are supported.
+              {dialogMode === 'requirement' 
+                ? 'Create a new functional or non-functional requirement for this project.'
+                : 'Upload files or add URLs to attach to this project. All file types are supported.'}
             </DialogDescription>
           </DialogHeader>
           
           <div className="flex-1 space-y-6 overflow-y-auto">
-            {/* File Upload Section */}
-            <div className="space-y-2">
-              <Label htmlFor="file-upload">Upload File</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="file-upload"
-                  type="file"
-                  onChange={handleFileChange}
-                  className="cursor-pointer"
-                />
+            {dialogMode === 'requirement' ? (
+              /* Requirement Form */
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="requirement-title">Title *</Label>
+                  <Input
+                    id="requirement-title"
+                    placeholder="Enter requirement title"
+                    value={requirementForm.title}
+                    onChange={(e) => setRequirementForm(prev => ({ ...prev, title: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="requirement-description">Description</Label>
+                  <Textarea
+                    id="requirement-description"
+                    placeholder="Enter requirement description"
+                    value={requirementForm.description}
+                    onChange={(e) => setRequirementForm(prev => ({ ...prev, description: e.target.value }))}
+                    rows={4}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="requirement-type">Type</Label>
+                    <Select
+                      value={requirementForm.type}
+                      onValueChange={(value) => setRequirementForm(prev => ({ ...prev, type: value as any }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="functional">Functional</SelectItem>
+                        <SelectItem value="non-functional">Non-Functional</SelectItem>
+                        <SelectItem value="technical">Technical</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="requirement-priority">Priority</Label>
+                    <Select
+                      value={requirementForm.priority}
+                      onValueChange={(value) => setRequirementForm(prev => ({ ...prev, priority: value as any }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="low">Low</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="requirement-acceptance">Acceptance Criteria</Label>
+                  <Textarea
+                    id="requirement-acceptance"
+                    placeholder="Enter acceptance criteria"
+                    value={requirementForm.acceptanceCriteria}
+                    onChange={(e) => setRequirementForm(prev => ({ ...prev, acceptanceCriteria: e.target.value }))}
+                    rows={3}
+                  />
+                </div>
               </div>
-              {selectedFile && (
-                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-blue-600" />
-                      <div>
-                        <p className="text-sm font-medium">{selectedFile.name}</p>
-                        <p className="text-xs text-muted-foreground">{formatFileSize(selectedFile.size)}</p>
+            ) : (
+              /* Attachment Form */
+              <>
+                {/* File Upload Section */}
+                <div className="space-y-2">
+                  <Label htmlFor="file-upload">Upload File</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="file-upload"
+                      type="file"
+                      onChange={handleFileChange}
+                      className="cursor-pointer"
+                    />
+                  </div>
+                  {selectedFile && (
+                    <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-blue-600" />
+                          <div>
+                            <p className="text-sm font-medium">{selectedFile.name}</p>
+                            <p className="text-xs text-muted-foreground">{formatFileSize(selectedFile.size)}</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
+                  )}
+                </div>
+
+                {/* Separator */}
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">Or</span>
                   </div>
                 </div>
-              )}
-            </div>
 
-            {/* Separator */}
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">Or</span>
-              </div>
-            </div>
-
-            {/* URL Input Section */}
-            <div className="space-y-2">
-              <Label htmlFor="url-input">Add URL/Link</Label>
-              <div className="space-y-2">
-                <Input
-                  id="url-input"
-                  type="url"
-                  placeholder="https://example.com/document.pdf"
-                  value={attachmentUrl}
-                  onChange={(e) => setAttachmentUrl(e.target.value)}
-                  className="w-full"
-                />
-                <Input
-                  id="url-name-input"
-                  type="text"
-                  placeholder="Link name (optional)"
-                  value={attachmentUrlName}
-                  onChange={(e) => setAttachmentUrlName(e.target.value)}
-                  className="w-full"
-                />
-              </div>
-              {attachmentUrl && (
-                <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                  <div className="flex items-center gap-2">
-                    <Link className="w-4 h-4 text-green-600" />
-                    <div>
-                      <p className="text-sm font-medium">{attachmentUrlName || attachmentUrl}</p>
-                      <p className="text-xs text-muted-foreground break-all">{attachmentUrl}</p>
+                {/* URL Input Section */}
+                <div className="space-y-2">
+                  <Label htmlFor="url-input">Add URL/Link</Label>
+                  <div className="space-y-2">
+                    <Input
+                      id="url-input"
+                      type="url"
+                      placeholder="https://example.com/document.pdf"
+                      value={attachmentUrl}
+                      onChange={(e) => setAttachmentUrl(e.target.value)}
+                      className="w-full"
+                    />
+                    <Input
+                      id="url-name-input"
+                      type="text"
+                      placeholder="Link name (optional)"
+                      value={attachmentUrlName}
+                      onChange={(e) => setAttachmentUrlName(e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+                  {attachmentUrl && (
+                    <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                      <div className="flex items-center gap-2">
+                        <Link className="w-4 h-4 text-green-600" />
+                        <div>
+                          <p className="text-sm font-medium">{attachmentUrlName || attachmentUrl}</p>
+                          <p className="text-xs text-muted-foreground break-all">{attachmentUrl}</p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
           
           <DialogFooter className="flex-shrink-0">
@@ -1838,31 +2032,91 @@ const ProjectDetailsPage = () => {
               setSelectedFile(null);
               setAttachmentUrl('');
               setAttachmentUrlName('');
+              setRequirementForm({
+                title: '',
+                description: '',
+                priority: 'medium',
+                type: 'functional',
+                acceptanceCriteria: ''
+              });
             }}>
               Cancel
             </Button>
-            <Button onClick={handleUploadFile} disabled={(!selectedFile && !attachmentUrl.trim()) || isUploading}>
-              {isUploading ? (
-                <>
-                  <Upload className="w-4 h-4 mr-2 animate-pulse" />
-                  {selectedFile ? 'Uploading...' : 'Adding...'}
-                </>
-              ) : (
-                <>
-                  {selectedFile ? (
-                    <>
-                      <Upload className="w-4 h-4 mr-2" />
-                      Upload File
-                    </>
-                  ) : (
-                    <>
-                      <Link className="w-4 h-4 mr-2" />
-                      Add URL
-                    </>
-                  )}
-                </>
-              )}
-            </Button>
+            {dialogMode === 'requirement' ? (
+              <Button 
+                onClick={async () => {
+                  if (!requirementForm.title.trim()) {
+                    toast.error('Please enter a requirement title');
+                    return;
+                  }
+                  if (!id) {
+                    toast.error('Project ID not found');
+                    return;
+                  }
+                  try {
+                    const newRequirement = await createRequirement({
+                      projectId: id,
+                      title: requirementForm.title,
+                      description: requirementForm.description || undefined,
+                      type: requirementForm.type.toUpperCase() as any,
+                      priority: requirementForm.priority.toUpperCase() as any,
+                      acceptanceCriteria: requirementForm.acceptanceCriteria || undefined
+                    });
+                    if (newRequirement) {
+                      toast.success('Requirement created successfully');
+                      setLocalRequirements(prev => [...prev, newRequirement]);
+                      setIsAddRequirementDialogOpen(false);
+                      setRequirementForm({
+                        title: '',
+                        description: '',
+                        priority: 'medium',
+                        type: 'functional',
+                        acceptanceCriteria: ''
+                      });
+                    }
+                  } catch (error) {
+                    console.error('Error creating requirement:', error);
+                    toast.error('Failed to create requirement');
+                  }
+                }}
+                disabled={!requirementForm.title.trim() || requirementsLoading}
+              >
+                {requirementsLoading ? (
+                  <>
+                    <Plus className="w-4 h-4 mr-2 animate-pulse" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create Requirement
+                  </>
+                )}
+              </Button>
+            ) : (
+              <Button onClick={handleUploadFile} disabled={(!selectedFile && !attachmentUrl.trim()) || isUploading}>
+                {isUploading ? (
+                  <>
+                    <Upload className="w-4 h-4 mr-2 animate-pulse" />
+                    {selectedFile ? 'Uploading...' : 'Adding...'}
+                  </>
+                ) : (
+                  <>
+                    {selectedFile ? (
+                      <>
+                        <Upload className="w-4 h-4 mr-2" />
+                        Upload File
+                      </>
+                    ) : (
+                      <>
+                        <Link className="w-4 h-4 mr-2" />
+                        Add URL
+                      </>
+                    )}
+                  </>
+                )}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

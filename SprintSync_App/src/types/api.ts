@@ -21,6 +21,8 @@ export interface User extends BaseEntity {
   ctc?: number;
   availabilityPercentage?: number;
   skills?: string;
+  reportingManager?: string;
+  dateOfJoining?: string;
   isActive: boolean;
   lastLogin?: string;
 }

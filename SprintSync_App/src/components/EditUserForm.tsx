@@ -29,7 +29,8 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
-  Edit3
+  Edit3,
+  Calendar
 } from 'lucide-react';
 import EnhancedScrollToTopButton from './EnhancedScrollToTopButton';
 import { useUpdateUser } from '../hooks/api/useUsers';
@@ -62,6 +63,8 @@ interface FormData {
   ctc: string;
   availabilityPercentage: string;
   skills: string;
+  reportingManager: string;
+  dateOfJoining: string;
   isActive: boolean;
 }
 
@@ -80,6 +83,8 @@ interface FormErrors {
   ctc?: string;
   availabilityPercentage?: string;
   skills?: string;
+  reportingManager?: string;
+  dateOfJoining?: string;
 }
 
 const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess, user }) => {
@@ -98,6 +103,8 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
     ctc: '',
     availabilityPercentage: '100',
     skills: '',
+    reportingManager: '',
+    dateOfJoining: '',
     isActive: true
   });
 
@@ -114,6 +121,19 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
 
   const departments = Array.isArray(departmentsData) ? departmentsData : [];
   const domains = Array.isArray(domainsData) ? domainsData : [];
+  const maxJoiningDate = new Date().toISOString().split('T')[0];
+
+  const normalizeDateInputValue = (value?: string | null) => {
+    if (!value) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return value;
+    }
+    const parsed = new Date(value);
+    if (isNaN(parsed.getTime())) {
+      return '';
+    }
+    return parsed.toISOString().split('T')[0];
+  };
 
   // Debug logging
   console.log('🔍 [EditUserForm] Departments:', { departmentsData, departments, departmentsLoading, departmentsError });
@@ -138,6 +158,8 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
         ctc: (user.ctc != null && user.ctc !== undefined) ? String(user.ctc) : '',
         availabilityPercentage: (user.availabilityPercentage != null && user.availabilityPercentage !== undefined) ? String(user.availabilityPercentage) : '100',
         skills: user.skills || '',
+        reportingManager: user.reportingManager || '',
+        dateOfJoining: normalizeDateInputValue(user.dateOfJoining),
         isActive: user.isActive ?? true
       });
       setErrors({});
@@ -160,6 +182,8 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
         ctc: '',
         availabilityPercentage: '100',
         skills: '',
+        reportingManager: '',
+        dateOfJoining: '',
         isActive: true
       });
     }
@@ -255,6 +279,8 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
     availabilityPercentage: (value: string) => isString(value) && !isNaN(Number(value)) && isPercentage(Number(value)),
     experience: (value: string) => isString(value) && ['E1', 'E2', 'M1', 'M2', 'M3', 'L1', 'L2', 'L3', 'S1'].includes(value.toUpperCase()),
     skills: (value: string) => isString(value),
+    reportingManager: (value: string) => value === '' || (isString(value) && value.trim().length >= 2 && value.trim().length <= 100),
+    dateOfJoining: (value: string) => value === '' || (isString(value) && !isNaN(Date.parse(value)) && Date.parse(value) <= Date.now()),
     
     // Profile Section
     avatarUrl: (value: string) => value === '' || (isString(value) && isUrl(value))
@@ -284,6 +310,11 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
     skills: data.skills.trim() ? JSON.stringify(data.skills.split(',').map(s => s.trim())) : undefined
   });
 
+  const convertReportingAndJoining = (data: FormData) => ({
+    reportingManager: data.reportingManager.trim() || undefined,
+    dateOfJoining: data.dateOfJoining || undefined
+  });
+
   const convertProfile = (data: FormData) => ({
     avatarUrl: data.avatarUrl.trim() || undefined
   });
@@ -309,6 +340,10 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
         availabilityPercentage: { type: 'percentage', valid: validationSchema.availabilityPercentage(data.availabilityPercentage), value: data.availabilityPercentage },
         experience: { type: 'enum', valid: validationSchema.experience(data.experience), value: data.experience },
         skills: { type: 'string', valid: validationSchema.skills(data.skills), value: data.skills }
+      },
+      reportingAndJoining: {
+        reportingManager: { type: 'string', valid: validationSchema.reportingManager(data.reportingManager), value: data.reportingManager },
+        dateOfJoining: { type: 'date', valid: validationSchema.dateOfJoining(data.dateOfJoining), value: data.dateOfJoining }
       },
       profile: {
         avatarUrl: { type: 'url', valid: validationSchema.avatarUrl(data.avatarUrl), value: data.avatarUrl }
@@ -356,6 +391,12 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
             break;
           case 'avatarUrl':
             newErrors.avatarUrl = 'Please enter a valid URL starting with http:// or https://';
+            break;
+          case 'reportingManager':
+            newErrors.reportingManager = 'Reporting manager name must be between 2 and 100 characters';
+            break;
+          case 'dateOfJoining':
+            newErrors.dateOfJoining = 'Please select a valid date (cannot be in the future)';
             break;
         }
       }
@@ -437,12 +478,14 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
       const basicInfo = convertBasicInformation(formData);
       const roleAndOrg = convertRoleAndOrganization(formData);
       const professionalDetails = convertProfessionalDetails(formData);
+      const reportingAndJoining = convertReportingAndJoining(formData);
       const profile = convertProfile(formData);
 
       const userData: Partial<User> = {
         ...basicInfo,
         ...roleAndOrg,
         ...professionalDetails,
+        ...reportingAndJoining,
         ...profile,
         role: roleAndOrg.role as any // Type assertion for role conversion
       };
@@ -458,6 +501,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
         basicInformation: basicInfo,
         roleAndOrganization: roleAndOrg,
         professionalDetails: professionalDetails,
+        reportingAndJoining,
         profile: profile
       });
       console.log('🔄 User ID being updated:', user.id);
@@ -492,7 +536,9 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
           ctc: userData.ctc,
           availabilityPercentage: userData.availabilityPercentage,
           skills: userData.skills,
-          avatarUrl: userData.avatarUrl
+          avatarUrl: userData.avatarUrl,
+          reportingManager: userData.reportingManager,
+          dateOfJoining: userData.dateOfJoining
         };
         
         console.log('🔄 Trying safe fields update...', safeFields);
@@ -541,6 +587,8 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
         ctc: '',
         availabilityPercentage: '100',
         skills: '',
+        reportingManager: '',
+        dateOfJoining: '',
         isActive: true
       });
       setErrors({});
@@ -589,6 +637,8 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
       ctc: '',
       availabilityPercentage: '100',
       skills: '',
+      reportingManager: '',
+      dateOfJoining: '',
       isActive: true
     });
     setErrors({});
@@ -881,6 +931,68 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                 </div>
               </div>
             </div>
+
+          {/* Reporting & Joining Section */}
+          <div className="space-y-3">
+            <div className="edit-user-section-header flex items-center gap-2">
+              <Calendar className="edit-user-section-icon text-emerald-600" />
+              <h3>Reporting & Joining</h3>
+            </div>
+
+            <div className="edit-user-form-grid">
+              {/* Reporting Manager */}
+              <div className="edit-user-form-field space-y-2">
+                <Label htmlFor="editReportingManager" className="text-sm font-semibold text-gray-700">
+                  Reporting Manager
+                </Label>
+                <Input
+                  id="editReportingManager"
+                  value={formData.reportingManager}
+                  onChange={(e) => handleInputChange('reportingManager', e.target.value)}
+                  className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
+                    errors.reportingManager ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                  }`}
+                  placeholder="Enter reporting manager name"
+                  maxLength={100}
+                />
+                {errors.reportingManager && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="w-4 h-4" />
+                    {errors.reportingManager}
+                  </p>
+                )}
+                <p className="text-xs text-gray-500">
+                  Stored as plain text so everyone can quickly see who the user reports to.
+                </p>
+              </div>
+
+              {/* Date of Joining */}
+              <div className="edit-user-form-field space-y-2">
+                <Label htmlFor="editDateOfJoining" className="text-sm font-semibold text-gray-700">
+                  Date of Joining
+                </Label>
+                <Input
+                  id="editDateOfJoining"
+                  type="date"
+                  value={formData.dateOfJoining}
+                  onChange={(e) => handleInputChange('dateOfJoining', e.target.value)}
+                  className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
+                    errors.dateOfJoining ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                  }`}
+                  max={maxJoiningDate}
+                />
+                {errors.dateOfJoining && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="w-4 h-4" />
+                    {errors.dateOfJoining}
+                  </p>
+                )}
+                <p className="text-xs text-gray-500">
+                  Use the calendar picker to align with the actual onboarding date.
+                </p>
+              </div>
+            </div>
+          </div>
 
             {/* Professional Details Section */}
             <div className="space-y-3">

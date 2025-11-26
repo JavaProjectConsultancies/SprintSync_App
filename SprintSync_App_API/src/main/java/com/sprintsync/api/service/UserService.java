@@ -127,6 +127,12 @@ public class UserService {
         if (user.getSkills() != null) {
             existingUser.setSkills(user.getSkills());
         }
+        if (user.getReportingManager() != null) {
+            existingUser.setReportingManager(user.getReportingManager());
+        }
+        if (user.getDateOfJoining() != null) {
+            existingUser.setDateOfJoining(user.getDateOfJoining());
+        }
         if (user.getIsActive() != null) {
             existingUser.setIsActive(user.getIsActive());
         }

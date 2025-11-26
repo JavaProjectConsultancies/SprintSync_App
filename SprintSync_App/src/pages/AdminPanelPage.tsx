@@ -176,6 +176,8 @@ const AdminPanelPage: React.FC = () => {
       hourlyRate: user.hourlyRate,
       availabilityPercentage: user.availabilityPercentage,
       experience: user.experience,
+      reportingManager: user.reportingManager,
+      dateOfJoining: user.dateOfJoining,
       isActive: user.isActive,
     });
     setEditDialogOpen(true);
@@ -208,6 +210,8 @@ const AdminPanelPage: React.FC = () => {
         hourlyRate: editFormData.hourlyRate !== undefined ? editFormData.hourlyRate : editingUser.hourlyRate,
         availabilityPercentage: editFormData.availabilityPercentage !== undefined ? editFormData.availabilityPercentage : editingUser.availabilityPercentage,
         experience: editFormData.experience !== undefined ? editFormData.experience : editingUser.experience,
+        reportingManager: editFormData.reportingManager !== undefined ? editFormData.reportingManager : editingUser.reportingManager,
+        dateOfJoining: editFormData.dateOfJoining !== undefined ? editFormData.dateOfJoining : editingUser.dateOfJoining,
         skills: editingUser.skills, // Preserve skills
         isActive: editingUser.isActive, // Preserve active status
         lastLogin: editingUser.lastLogin, // Preserve last login
@@ -258,50 +262,6 @@ const AdminPanelPage: React.FC = () => {
     setViewingUser(null);
   };
 
-  const systemLogs = [
-    {
-      id: 1,
-      timestamp: '2024-02-23 14:30:22',
-      type: 'security',
-      severity: 'high',
-      message: 'Failed login attempt detected from IP 192.168.1.100',
-      user: 'System'
-    },
-    {
-      id: 2,
-      timestamp: '2024-02-23 14:25:15',
-      type: 'user',
-      severity: 'low',
-      message: 'User Arjun Patel updated profile information',
-      user: 'Arjun Patel'
-    },
-    {
-      id: 3,
-      timestamp: '2024-02-23 14:20:08',
-      type: 'project',
-      severity: 'medium',
-      message: 'New project "AI Chat Support" created',
-      user: 'Rahul Kumar'
-    },
-    {
-      id: 4,
-      timestamp: '2024-02-23 14:15:45',
-      type: 'system',
-      severity: 'low',
-      message: 'Database backup completed successfully',
-      user: 'System'
-    },
-    {
-      id: 5,
-      timestamp: '2024-02-23 14:10:30',
-      type: 'user',
-      severity: 'medium',
-      message: 'User permissions updated for Priya Sharma',
-      user: 'Admin'
-    }
-  ];
-
-
   const getStatusColor = (isActive: boolean) => {
     return isActive 
       ? 'bg-green-100 text-green-800 border-green-200' 
@@ -323,17 +283,15 @@ const AdminPanelPage: React.FC = () => {
     }
   };
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'high': return 'bg-red-100 text-red-800 border-red-200';
-      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'low': return 'bg-green-100 text-green-800 border-green-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
+  };
+
+  const formatShortDate = (dateString?: string) => {
+    if (!dateString) return undefined;
+    const parsed = new Date(dateString);
+    if (isNaN(parsed.getTime())) return undefined;
+    return parsed.toLocaleDateString();
   };
 
   // Check if any API is still loading, but only if data is not already present
@@ -403,11 +361,9 @@ const AdminPanelPage: React.FC = () => {
 
       {/* Admin Tabs */}
       <Tabs defaultValue="users" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="users">User Management</TabsTrigger>
           <TabsTrigger value="permissions">Permissions</TabsTrigger>
-          <TabsTrigger value="logs">System Logs</TabsTrigger>
-          <TabsTrigger value="settings">System Settings</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users" className="space-y-4 mt-6">
@@ -498,6 +454,17 @@ const AdminPanelPage: React.FC = () => {
                             )}
                             {/* Last login removed from list view as requested */}
                           </div>
+                          {(user.reportingManager || user.dateOfJoining) && (
+                            <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                              {user.reportingManager && (
+                                <span>Reports to: {user.reportingManager}</span>
+                              )}
+                              {user.reportingManager && user.dateOfJoining && <span>•</span>}
+                              {user.dateOfJoining && (
+                                <span>Joined: {formatShortDate(user.dateOfJoining)}</span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -564,121 +531,6 @@ const AdminPanelPage: React.FC = () => {
 
         <TabsContent value="permissions" className="space-y-4 mt-6">
           <PendingRegistrationsTab onRefresh={refetchUsers} />
-        </TabsContent>
-
-        <TabsContent value="logs" className="space-y-4 mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>System Activity Logs</CardTitle>
-              <CardDescription>Monitor system activities and security events</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {systemLogs.map((log) => (
-                  <div key={log.id} className="flex items-start justify-between p-4 border rounded-lg">
-                    <div className="flex items-start space-x-4 flex-1">
-                      <div className="space-y-1 flex-1">
-                        <div className="flex items-center space-x-2">
-                          <Badge variant="outline" className={getSeverityColor(log.severity)}>
-                            {log.severity.toUpperCase()}
-                          </Badge>
-                          <Badge variant="secondary" className="text-xs">
-                            {log.type.toUpperCase()}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">{log.timestamp}</span>
-                        </div>
-                        <p className="text-sm">{log.message}</p>
-                        <p className="text-xs text-muted-foreground">By: {log.user}</p>
-                      </div>
-                    </div>
-                    <Button size="sm" variant="outline">
-                      <Eye className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="settings" className="space-y-4 mt-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>System Configuration</CardTitle>
-                <CardDescription>Core system settings and preferences</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Maintenance Mode</h4>
-                    <p className="text-sm text-muted-foreground">Temporarily disable user access</p>
-                  </div>
-                  <Button variant="outline" className="text-orange-600 border-orange-200">
-                    Enable
-                  </Button>
-                </div>
-                
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Auto Backups</h4>
-                    <p className="text-sm text-muted-foreground">Automated daily system backups</p>
-                  </div>
-                  <Badge variant="outline" className="bg-green-100 text-green-800">
-                    Enabled
-                  </Badge>
-                </div>
-                
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Email Notifications</h4>
-                    <p className="text-sm text-muted-foreground">System-wide email alerts</p>
-                  </div>
-                  <Badge variant="outline" className="bg-green-100 text-green-800">
-                    Enabled
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Security Settings</CardTitle>
-                <CardDescription>Security policies and access controls</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Two-Factor Authentication</h4>
-                    <p className="text-sm text-muted-foreground">Require 2FA for all users</p>
-                  </div>
-                  <Button variant="outline" className="text-green-600 border-green-200">
-                    Enable
-                  </Button>
-                </div>
-                
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Session Timeout</h4>
-                    <p className="text-sm text-muted-foreground">Auto logout after 8 hours</p>
-                  </div>
-                  <Badge variant="outline" className="bg-blue-100 text-blue-800">
-                    Active
-                  </Badge>
-                </div>
-                
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">IP Whitelist</h4>
-                    <p className="text-sm text-muted-foreground">Restrict access by IP address</p>
-                  </div>
-                  <Badge variant="outline" className="bg-gray-100 text-gray-800">
-                    Disabled
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
         </TabsContent>
       </Tabs>
 
