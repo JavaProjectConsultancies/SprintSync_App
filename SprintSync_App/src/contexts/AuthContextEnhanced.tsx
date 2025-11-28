@@ -108,10 +108,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (response.success && response.data) {
         const { token: authToken, user: userData } = response.data;
         
+        // Extract name with fallbacks
+        const userName = userData.name || 
+                        (userData as any).fullName || 
+                        (userData.email ? userData.email.split('@')[0] : 'User');
+        
         // Convert API user format to local User format
         const localUser: User = {
           id: userData.id,
-          name: userData.name,
+          name: userName,
           email: userData.email,
           role: (userData.role ? (typeof userData.role === 'string' ? userData.role.toLowerCase() : String(userData.role).toLowerCase()) : 'developer') as UserRole,
           avatar: userData.avatarUrl || userData.avatar,
@@ -119,6 +124,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           domain: userData.domainId || userData.domain,
           assignedProjects: [], // This would come from a separate API call
         };
+        
+        console.log('[AuthContext] Login - Setting user:', localUser);
 
         setToken(authToken);
         setUser(localUser);
@@ -185,8 +192,31 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     try {
       const response = await authApiService.getCurrentUser();
+      console.log('[AuthContext] Full API response:', JSON.stringify(response, null, 2));
+      
       if (response.success && response.data) {
-        const userData = response.data;
+        // Handle nested data structure: response.data.data or response.data
+        // The API might return: {success: true, data: {data: {user object}}}
+        // Or: {success: true, data: {user object}}
+        let userData = response.data;
+        
+        // Check if data is nested
+        if ((userData as any).data && typeof (userData as any).data === 'object') {
+          console.log('[AuthContext] Found nested data structure, extracting...');
+          userData = (userData as any).data;
+        }
+        
+        console.log('[AuthContext] Extracted user data:', JSON.stringify(userData, null, 2));
+        
+        if (!userData || (typeof userData === 'object' && !userData.id && !userData.email)) {
+          console.error('[AuthContext] Invalid user data structure:', userData);
+          console.error('[AuthContext] Response structure:', {
+            hasData: !!response.data,
+            dataType: typeof response.data,
+            dataKeys: response.data ? Object.keys(response.data) : []
+          });
+          return;
+        }
         
         // Safely handle role conversion with fallback
         let userRole: string = 'developer'; // Default role
@@ -198,9 +228,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
         }
         
+        // Extract name with better fallbacks
+        const userName = userData.name || 
+                        userData.fullName || 
+                        (userData.email ? userData.email.split('@')[0] : null) ||
+                        'User';
+        
         const localUser: User = {
           id: userData.id,
-          name: userData.name || userData.email || 'Unknown User',
+          name: userName,
           email: userData.email,
           role: (userRole as UserRole) || 'developer',
           avatar: userData.avatar || userData.avatarUrl,
@@ -209,8 +245,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           assignedProjects: [],
         };
         
+        console.log('[AuthContext] Setting user:', localUser);
         setUser(localUser);
         saveAuthData(token, localUser);
+      } else {
+        console.error('[AuthContext] Failed to refresh user:', response);
       }
     } catch (error) {
       console.error('Failed to refresh user:', error);
@@ -242,15 +281,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     console.log('Setting auth state with token:', authToken);
     console.log('Setting auth state with user data:', userData);
     
+    // Extract name with fallbacks
+    const userName = userData.name || 
+                    userData.fullName || 
+                    (userData.email ? userData.email.split('@')[0] : 'User');
+    
     // Convert API user format to local User format
     const localUser: User = {
       id: userData.id,
-      name: userData.name,
+      name: userName,
       email: userData.email,
-      role: userData.role.toLowerCase() as UserRole,
-      avatar: userData.avatarUrl,
-      department: userData.departmentId,
-      domain: userData.domainId,
+      role: (userData.role ? (typeof userData.role === 'string' ? userData.role.toLowerCase() : String(userData.role).toLowerCase()) : 'developer') as UserRole,
+      avatar: userData.avatarUrl || userData.avatar,
+      department: userData.departmentId || userData.department,
+      domain: userData.domainId || userData.domain,
       assignedProjects: [], // This would come from a separate API call
     };
 

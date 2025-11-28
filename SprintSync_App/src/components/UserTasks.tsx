@@ -27,12 +27,15 @@ import {
   Play,
   Edit,
   CheckSquare,
-  Loader2
+  Loader2,
+  Filter
 } from 'lucide-react';
 import { UserTask } from '../types';
 import { useTasksByAssignee, useTasks } from '../hooks/api/useTasks';
 import { useProjects } from '../hooks/api/useProjects';
 import { useStories } from '../hooks/api/useStories';
+import { useSprints } from '../hooks/api/useSprints';
+import { useUsers } from '../hooks/api/useUsers';
 import { Task } from '../types/api';
 
 interface UserTasksProps {
@@ -47,13 +50,27 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
 
   // State for filter dropdown
   const [selectedFilter, setSelectedFilter] = useState<'in-progress' | 'pending' | 'overdue'>('in-progress');
+  
+  // State for manager filters (only for managers)
+  const [selectedProjectFilter, setSelectedProjectFilter] = useState<string>('all');
+  const [selectedSprintFilter, setSelectedSprintFilter] = useState<string>('all');
+  const [selectedMemberFilter, setSelectedMemberFilter] = useState<string>('all');
+
+  // Reset sprint filter when project filter changes
+  useEffect(() => {
+    if (selectedProjectFilter === 'all') {
+      setSelectedSprintFilter('all');
+    }
+  }, [selectedProjectFilter]);
 
   // Check if user is manager/admin
   const isManagerOrAdmin = userRole === 'admin' || userRole === 'manager';
   
-  // Fetch projects and stories to filter tasks by manager's projects
+  // Fetch projects, stories, sprints, and users for filters
   const { data: apiProjects } = useProjects();
   const { data: apiStories } = useStories();
+  const { data: apiSprints } = useSprints();
+  const { data: apiUsers } = useUsers({ page: 0, size: 1000 });
   
   // Helper to normalize API data
   const normalizeApiData = (data: any): any[] => {
@@ -233,6 +250,11 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
       // Determine display status with fallback
       const displayStatus = statusMap[taskStatus] || 'pending';
 
+      // Get assignee information
+      const assigneeId = (task as any).assigneeId || (task as any).assignee?.id;
+      const assignee = assigneeId ? normalizeApiData(apiUsers).find((u: any) => String(u.id) === String(assigneeId)) : null;
+      const assigneeName = assignee ? (assignee.name || assignee.email || 'Unassigned') : 'Unassigned';
+
       return {
         id: task.id,
         title: task.title,
@@ -243,10 +265,12 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
         estimatedHours: task.estimatedHours || 0,
         projectId: task.storyId || 'unknown',
         projectName: `Task ${task.id.slice(-4)}`, // Fallback if no story info
-        type: 'development' // Default type
-      } as UserTask;
+        type: 'development', // Default type
+        assigneeName: assigneeName,
+        assigneeId: assigneeId
+      } as UserTask & { assigneeName?: string; assigneeId?: string };
     });
-  }, [assignedTasks]);
+  }, [assignedTasks, apiUsers]);
 
   // Navigation handlers
   const handleTaskClick = (task: UserTask) => {
@@ -320,18 +344,146 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
   const pendingCount = pendingTasks.length; // Tasks with status 'TO_DO' or 'BLOCKED' from Scrum page
   const completionRate = totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0;
 
-  // Get filtered tasks based on selected dropdown option
+  // Get manager's projects for filter dropdown
+  const managerProjects = useMemo(() => {
+    if (userRole !== 'manager') return [];
+    const projects = normalizeApiData(apiProjects);
+    return projects.filter(project => {
+      const managerId = (project as any).managerId || (project as any).manager?.id || (project as any).manager_id;
+      const managerIdStr = managerId ? String(managerId) : null;
+      const userIdStr = userId ? String(userId) : null;
+      return managerIdStr === userIdStr;
+    });
+  }, [apiProjects, userId, userRole]);
+
+  // Get sprints for selected project
+  const projectSprints = useMemo(() => {
+    if (selectedProjectFilter === 'all') return [];
+    const sprints = normalizeApiData(apiSprints);
+    return sprints.filter(sprint => {
+      const sprintProjectId = (sprint as any).projectId || (sprint as any).project?.id;
+      return sprintProjectId === selectedProjectFilter;
+    });
+  }, [apiSprints, selectedProjectFilter]);
+
+  // Get team members from manager's projects
+  const teamMembers = useMemo(() => {
+    if (userRole !== 'manager') return [];
+    const users = normalizeApiData(apiUsers);
+    const memberIds = new Set<string>();
+    
+    managerProjects.forEach(project => {
+      const teamMembers = (project as any).teamMembers || [];
+      if (Array.isArray(teamMembers)) {
+        teamMembers.forEach((member: any) => {
+          const memberId = typeof member === 'string' ? member : (member?.id || member?.userId);
+          if (memberId) memberIds.add(String(memberId));
+        });
+      }
+    });
+    
+    return users.filter(user => memberIds.has(String(user.id)));
+  }, [apiUsers, managerProjects, userRole]);
+
+  // Apply manager filters to all tasks (for statistics calculation)
+  const getAllFilteredTasks = useMemo(() => {
+    if (userRole !== 'manager') return userTasks;
+    
+    let tasks = [...userTasks];
+
+    // Filter by project
+    if (selectedProjectFilter !== 'all') {
+      const projectStoryIds = new Set(
+        normalizeApiData(apiStories)
+          .filter(story => {
+            const storyProjectId = (story as any).projectId || (story as any).project?.id;
+            return storyProjectId === selectedProjectFilter;
+          })
+          .map(story => story.id)
+      );
+      
+      tasks = tasks.filter(task => {
+        const taskData = assignedTasks.find((t: Task) => t.id === task.id);
+        if (!taskData) return false;
+        const taskStoryId = (taskData as any).storyId || (taskData as any).story?.id;
+        return taskStoryId && projectStoryIds.has(taskStoryId);
+      });
+    }
+
+    // Filter by sprint
+    if (selectedSprintFilter !== 'all') {
+      const sprintStoryIds = new Set(
+        normalizeApiData(apiStories)
+          .filter(story => {
+            const storySprintId = (story as any).sprintId || (story as any).sprint?.id;
+            return storySprintId === selectedSprintFilter;
+          })
+          .map(story => story.id)
+      );
+      
+      tasks = tasks.filter(task => {
+        const taskData = assignedTasks.find((t: Task) => t.id === task.id);
+        if (!taskData) return false;
+        const taskStoryId = (taskData as any).storyId || (taskData as any).story?.id;
+        return taskStoryId && sprintStoryIds.has(taskStoryId);
+      });
+    }
+
+    // Filter by member
+    if (selectedMemberFilter !== 'all') {
+      tasks = tasks.filter(task => {
+        const taskData = assignedTasks.find((t: Task) => t.id === task.id);
+        if (!taskData) return false;
+        const assigneeId = (taskData as any).assigneeId || (taskData as any).assignee?.id;
+        return assigneeId && String(assigneeId) === selectedMemberFilter;
+      });
+    }
+
+    return tasks;
+  }, [userTasks, userRole, selectedProjectFilter, selectedSprintFilter, selectedMemberFilter, assignedTasks, apiStories]);
+
+  // Calculate statistics from filtered tasks
+  const filteredPendingTasks = getAllFilteredTasks.filter(task => task.status === 'pending');
+  const filteredInProgressTasks = getAllFilteredTasks.filter(task => task.status === 'in-progress');
+  const filteredCompletedTasks = getAllFilteredTasks.filter(task => task.status === 'completed');
+  
+  // Use filtered statistics if filters are active (for managers), otherwise use original statistics
+  const hasActiveFilters = userRole === 'manager' && (selectedProjectFilter !== 'all' || selectedSprintFilter !== 'all' || selectedMemberFilter !== 'all');
+  
+  const displayTotalTasks = hasActiveFilters ? getAllFilteredTasks.length : totalTasks;
+  const displayCompletedCount = hasActiveFilters ? filteredCompletedTasks.length : completedCount;
+  const displayInProgressCount = hasActiveFilters ? filteredInProgressTasks.length : inProgressCount;
+  const displayPendingCount = hasActiveFilters ? filteredPendingTasks.length : pendingCount;
+  const displayCompletionRate = displayTotalTasks > 0 
+    ? Math.round((displayCompletedCount / displayTotalTasks) * 100) 
+    : 0;
+
+  // Get filtered tasks based on selected dropdown option and manager filters
   const getFilteredTasks = () => {
+    let tasks = [];
     switch (selectedFilter) {
       case 'in-progress':
-        return inProgressTasks;
+        tasks = hasActiveFilters ? filteredInProgressTasks : inProgressTasks;
+        break;
       case 'pending':
-        return pendingTasks;
+        tasks = hasActiveFilters ? filteredPendingTasks : pendingTasks;
+        break;
       case 'overdue':
-        return overdueTasks;
+        if (hasActiveFilters) {
+          const today = new Date();
+          tasks = getAllFilteredTasks.filter(task => {
+            const dueDate = new Date(task.dueDate);
+            return dueDate < today && task.status !== 'completed';
+          });
+        } else {
+          tasks = overdueTasks;
+        }
+        break;
       default:
-        return inProgressTasks;
+        tasks = hasActiveFilters ? filteredInProgressTasks : inProgressTasks;
     }
+
+    return tasks;
   };
 
   const filteredTasks = getFilteredTasks();
@@ -609,21 +761,108 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Manager Filters - Only show for managers */}
+          {userRole === 'manager' && (
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="flex items-center space-x-2 mb-3">
+                <Filter className="w-4 h-4 text-gray-600" />
+                <span className="text-sm font-medium text-gray-700">Filter by:</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* Project Filter */}
+                <div>
+                  <label className="text-xs text-gray-600 mb-1 block">Project</label>
+                  <Select value={selectedProjectFilter} onValueChange={setSelectedProjectFilter}>
+                    <SelectTrigger className="w-full h-9">
+                      <SelectValue placeholder="All Projects" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Projects</SelectItem>
+                      {managerProjects.map((project) => (
+                        <SelectItem key={project.id} value={project.id}>
+                          {(project as any).name || project.id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Sprint Filter */}
+                <div>
+                  <label className="text-xs text-gray-600 mb-1 block">Sprint</label>
+                  <Select 
+                    value={selectedSprintFilter} 
+                    onValueChange={setSelectedSprintFilter}
+                    disabled={selectedProjectFilter === 'all'}
+                  >
+                    <SelectTrigger className="w-full h-9">
+                      <SelectValue placeholder={selectedProjectFilter === 'all' ? "Select project first" : "All Sprints"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Sprints</SelectItem>
+                      {projectSprints.map((sprint) => (
+                        <SelectItem key={sprint.id} value={sprint.id}>
+                          {(sprint as any).name || sprint.id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Member Filter */}
+                <div>
+                  <label className="text-xs text-gray-600 mb-1 block">Team Member</label>
+                  <Select value={selectedMemberFilter} onValueChange={setSelectedMemberFilter}>
+                    <SelectTrigger className="w-full h-9">
+                      <SelectValue placeholder="All Members" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Members</SelectItem>
+                      {teamMembers.map((member) => (
+                        <SelectItem key={member.id} value={member.id}>
+                          {(member as any).name || member.email || member.id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              {/* Clear Filters Button */}
+              {(selectedProjectFilter !== 'all' || selectedSprintFilter !== 'all' || selectedMemberFilter !== 'all') && (
+                <div className="mt-3 flex justify-end">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedProjectFilter('all');
+                      setSelectedSprintFilter('all');
+                      setSelectedMemberFilter('all');
+                    }}
+                    className="text-xs h-7"
+                  >
+                    Clear Filters
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+          
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{totalTasks}</div>
+              <div className="text-2xl font-bold text-blue-600">{displayTotalTasks}</div>
               <div className="text-sm text-muted-foreground">Total Tasks</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{completedCount}</div>
+              <div className="text-2xl font-bold text-green-600">{displayCompletedCount}</div>
               <div className="text-sm text-muted-foreground">Completed</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-orange-600">{inProgressCount}</div>
+              <div className="text-2xl font-bold text-orange-600">{displayInProgressCount}</div>
               <div className="text-sm text-muted-foreground">In Progress</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-yellow-600">{pendingCount}</div>
+              <div className="text-2xl font-bold text-yellow-600">{displayPendingCount}</div>
               <div className="text-sm text-muted-foreground">Pending</div>
             </div>
           </div>
@@ -632,26 +871,9 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
             <div>
               <div className="flex justify-between text-sm mb-2">
                 <span>Task Completion Progress</span>
-                <span>{completionRate}%</span>
+                <span>{displayCompletionRate}%</span>
               </div>
-              <Progress value={completionRate} className="h-2" />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center space-x-2">
-                <Clock className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm">
-                  <span className="font-medium">{remainingHours}h</span> remaining of {totalEstimatedHours}h estimated
-                </span>
-              </div>
-              {overdueTasks.length > 0 && (
-                <div className="flex items-center space-x-2">
-                  <AlertTriangle className="w-4 h-4 text-red-500" />
-                  <span className="text-sm text-red-600">
-                    <span className="font-medium">{overdueTasks.length}</span> overdue tasks
-                  </span>
-                </div>
-              )}
+              <Progress value={displayCompletionRate} className="h-2" />
             </div>
           </div>
         </CardContent>
@@ -777,6 +999,10 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
                           <span className="flex items-center space-x-1">
                             <Clock className="w-3 h-3" />
                             <span>{task.estimatedHours}h</span>
+                          </span>
+                          <span className="flex items-center space-x-1">
+                            <User className="w-3 h-3" />
+                            <span>{(task as any).assigneeName || 'Unassigned'}</span>
                           </span>
                           <span 
                             className={`flex items-center space-x-1 cursor-pointer ${

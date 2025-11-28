@@ -493,7 +493,7 @@ const ProfilePage: React.FC = () => {
         <div className="h-2" />
       </div>
 
-      <section className="profile-hero rounded-3xl p-6 md:p-8 text-white shadow-2xl mb-8">
+      <section className="profile-hero rounded-3xl p-6 md:p-8 text-white shadow-2xl">
         <div className="flex flex-col gap-8">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
             <div className="flex flex-1 flex-col gap-5 sm:flex-row sm:items-center">
@@ -588,7 +588,7 @@ const ProfilePage: React.FC = () => {
         </div>
       </section>
 
-      <div className="profile-grid gap-y-10">
+      <div className="profile-grid gap-y-10" style={{ marginTop: 'clamp(1.75rem, 2vw, 2.5rem)' }}>
         {infoSections.map((section) => (
           <Card key={section.key} className="glass-panel profile-section-card text-center">
             <CardHeader className="px-7 pt-6 pb-2 space-y-2">

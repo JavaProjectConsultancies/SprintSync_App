@@ -945,7 +945,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Metrics Cards - Key Metrics First */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card 
           className="bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200 cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-105 animate-fadeInUp"
           style={{ animationDelay: '0.1s' }}
@@ -1055,33 +1055,35 @@ const Dashboard: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
+          <div className="space-y-3">
             {aiInsights.map((insight, index) => (
-              <div key={insight.id} className="flex items-start space-x-3 p-3 bg-white rounded-lg border hover:shadow-md transition-all duration-300 hover:scale-[1.02] animate-fadeInUp" style={{ animationDelay: `${0.5 + index * 0.1}s` }}>
-                <div className="flex-shrink-0">
+              <div key={insight.id} className="flex items-start gap-3 p-3 bg-white rounded-lg border hover:shadow-md transition-all duration-300 hover:scale-[1.02] animate-fadeInUp" style={{ animationDelay: `${0.5 + index * 0.1}s` }}>
+                <div className="flex-shrink-0 pt-0.5">
                   {insight.priority === 'positive' ? (
-                    <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                   ) : (
-                    <div className="w-2 h-2 bg-orange-500 rounded-full mt-2"></div>
+                    <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
                   )}
                 </div>
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium">{insight.title}</h4>
-                    <Badge variant="outline" className="text-xs">
-                      {insight.confidence}%
-                    </Badge>
+                <div className="flex-1 min-w-0">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="font-medium text-sm">{insight.title}</h4>
+                      <Badge variant="outline" className="text-xs flex-shrink-0">
+                        {insight.confidence}%
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">{insight.description}</p>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="text-xs"
+                      onClick={() => navigate('/ai-insights')}
+                      title="View detailed AI insights"
+                    >
+                      Take Action
+                    </Button>
                   </div>
-                  <p className="text-sm text-muted-foreground">{insight.description}</p>
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    className="text-xs"
-                    onClick={() => navigate('/ai-insights')}
-                    title="View detailed AI insights"
-                  >
-                    Take Action
-                  </Button>
                 </div>
               </div>
             ))}
