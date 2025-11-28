@@ -180,6 +180,71 @@ public interface TaskRepository extends JpaRepository<Task, String> {
     List<Object[]> countTasksByStatus();
 
     /**
+     * Sum actual hours for completed (Done lane) tasks grouped by assignee for a project.
+     *
+     * This native query joins stories to determine the parent project because the tasks table
+     * does not carry a project reference directly. Only tasks in the Done lane contribute to the
+     * totals and only tasks that currently have an assignee are considered billable.
+     */
+    @Query(
+        value = """
+            SELECT
+                t.assignee_id AS assignee_id,
+                COALESCE(SUM(t.actual_hours), 0) AS total_hours
+            FROM tasks t
+            INNER JOIN stories s ON s.id = t.story_id
+            WHERE s.project_id = :projectId
+              AND t.assignee_id IS NOT NULL
+              AND LOWER(t.status) = 'done'
+            GROUP BY t.assignee_id
+        """,
+        nativeQuery = true
+    )
+    List<Object[]> sumCompletedTaskHoursByAssigneeForProject(@Param("projectId") String projectId);
+
+    /**
+     * Sum hours from time entries for completed tasks grouped by assignee for a project.
+     */
+    @Query(
+        value = """
+            SELECT
+                t.assignee_id AS assignee_id,
+                COALESCE(SUM(te.hours_worked), 0) AS total_hours
+            FROM tasks t
+            INNER JOIN stories s ON s.id = t.story_id
+            INNER JOIN time_entries te ON te.task_id = t.id
+            WHERE s.project_id = :projectId
+              AND t.assignee_id IS NOT NULL
+              AND LOWER(t.status) = 'done'
+            GROUP BY t.assignee_id
+        """,
+        nativeQuery = true
+    )
+    List<Object[]> sumTimeEntryHoursByAssigneeForProject(@Param("projectId") String projectId);
+
+    /**
+     * Sum manual actual hours for completed tasks that do not have time entries.
+     */
+    @Query(
+        value = """
+            SELECT
+                t.assignee_id AS assignee_id,
+                COALESCE(SUM(t.actual_hours), 0) AS total_hours
+            FROM tasks t
+            INNER JOIN stories s ON s.id = t.story_id
+            WHERE s.project_id = :projectId
+              AND t.assignee_id IS NOT NULL
+              AND LOWER(t.status) = 'done'
+              AND NOT EXISTS (
+                  SELECT 1 FROM time_entries te WHERE te.task_id = t.id
+              )
+            GROUP BY t.assignee_id
+        """,
+        nativeQuery = true
+    )
+    List<Object[]> sumManualTaskHoursWithoutTimeEntries(@Param("projectId") String projectId);
+
+    /**
      * Count tasks grouped by priority without loading entities
      */
     @Query("SELECT t.priority, COUNT(t) FROM Task t GROUP BY t.priority")

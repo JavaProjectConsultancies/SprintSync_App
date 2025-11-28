@@ -25,6 +25,7 @@ import { epicApiService } from '../services/api/entities/epicApi';
 import { toast } from 'sonner';
 import { Epic as ApiEpic } from '../types/api';
 import { Epic, EpicStatus } from '../types';
+import { subscribeToProjectBudgetUpdates } from '../utils/projectBudgetEvents';
 import { 
   ArrowLeft,
   Calendar,
@@ -133,6 +134,20 @@ const ProjectDetailsPage = () => {
   
   // Fetch real project data from API
   const { project, loading, error, refetch } = useProjectById(id || '');
+
+  useEffect(() => {
+    if (!id) {
+      return;
+    }
+    const unsubscribe = subscribeToProjectBudgetUpdates(({ projectId }) => {
+      if (!projectId || projectId === id) {
+        refetch();
+      }
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [id, refetch]);
   
   // Fetch requirements for the project
   const { requirements, createRequirement, loading: requirementsLoading } = useRequirements(id || '');

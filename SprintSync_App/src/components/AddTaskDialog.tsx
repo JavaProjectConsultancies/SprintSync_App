@@ -290,6 +290,14 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
+  // Helper function to format date in local timezone (YYYY-MM-DD)
+  const formatDateLocal = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
@@ -304,7 +312,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
         priority: formData.priority,
         assignee: formData.assignee,
         status: formData.status,
-        dueDate: formData.dueDate ? formData.dueDate.toISOString().split('T')[0] : '',
+        dueDate: formData.dueDate ? formatDateLocal(formData.dueDate) : '',
         estimatedHours: formData.estimatedHours,
         subtasks: validSubtasks,
         progress: 0,
@@ -919,26 +927,34 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                           mode="single"
                           selected={formData.dueDate}
                           onSelect={(date) => {
+                            if (!date) {
+                              setFormData(prev => ({ ...prev, dueDate: undefined }));
+                              return;
+                            }
+                            
+                            // Normalize date to midnight in local timezone to prevent timezone shifts
+                            const normalizedDate = new Date(date);
+                            normalizedDate.setHours(0, 0, 0, 0);
+                            
                             // Validate date against story's due date before setting
-                            if (date && formData.storyId && formData.storyId.trim() !== '') {
+                            if (formData.storyId && formData.storyId.trim() !== '') {
                               const selectedStory = stories.find(s => s.id === formData.storyId);
                               if (selectedStory && selectedStory.dueDate) {
                                 const storyDueDate = new Date(selectedStory.dueDate);
-                                if (date > storyDueDate) {
+                                storyDueDate.setHours(0, 0, 0, 0);
+                                if (normalizedDate > storyDueDate) {
                                   setErrors(prev => ({ ...prev, dueDate: `Task due date cannot be after story's due date (${storyDueDate.toLocaleDateString()})` }));
                                   return;
                                 }
                               }
                             }
-                            setFormData(prev => ({ ...prev, dueDate: date }));
+                            setFormData(prev => ({ ...prev, dueDate: normalizedDate }));
                             // Clear error if date is valid
-                            if (date) {
-                              setErrors(prev => {
-                                const newErrors = { ...prev };
-                                delete newErrors.dueDate;
-                                return newErrors;
-                              });
-                            }
+                            setErrors(prev => {
+                              const newErrors = { ...prev };
+                              delete newErrors.dueDate;
+                              return newErrors;
+                            });
                           }}
                           disabled={(date) => {
                             const dateOnly = new Date(date);

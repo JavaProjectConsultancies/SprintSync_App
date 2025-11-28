@@ -72,6 +72,7 @@ import { projectApiService } from '../services/api/entities/projectApi';
 import { attachmentApiService } from '../services/api';
 import { toast } from 'sonner';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { subscribeToProjectBudgetUpdates } from '../utils/projectBudgetEvents';
 
 interface Stakeholder {
   id: string;
@@ -187,6 +188,15 @@ const ProjectsPage: React.FC = () => {
   const { data: apiUsers, loading: usersLoading, error: usersError, refetch: refetchUsers } = useUsers({ page: 0, size: 1000 });
   const { data: apiDepartments, loading: departmentsLoading, error: departmentsError } = useDepartments();
   
+  useEffect(() => {
+    const unsubscribe = subscribeToProjectBudgetUpdates(() => {
+      refetch();
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [refetch]);
+
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
@@ -593,6 +603,20 @@ const ProjectsPage: React.FC = () => {
     sprints: 0, // TODO: Add sprint tracking
     department: project.departmentId ?? ''
   }));
+
+  const selectedProjectId = selectedProject?.id;
+  const selectedProjectBudget = selectedProject?.budget;
+  const selectedProjectSpent = selectedProject?.spent;
+
+  useEffect(() => {
+    if (!selectedProjectId) {
+      return;
+    }
+    const updated = projects.find((project) => project.id === selectedProjectId);
+    if (updated && (updated.spent !== selectedProjectSpent || updated.budget !== selectedProjectBudget)) {
+      setSelectedProject(updated);
+    }
+  }, [projects, selectedProjectId, selectedProjectBudget, selectedProjectSpent]);
 
   const resetNewProjectForm = () => {
     setNewProject({

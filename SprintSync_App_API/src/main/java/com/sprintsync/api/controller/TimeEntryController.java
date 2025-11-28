@@ -4,6 +4,7 @@ import com.sprintsync.api.entity.TimeEntry;
 import com.sprintsync.api.entity.enums.TimeEntryType;
 import com.sprintsync.api.service.TimeEntryService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -39,6 +40,7 @@ public class TimeEntryController {
      * @return ResponseEntity containing the created time entry
      */
     @PostMapping
+    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
     public ResponseEntity<TimeEntry> createTimeEntry(@RequestBody TimeEntry timeEntry) {
         try {
             TimeEntry createdTimeEntry = timeEntryService.createTimeEntry(timeEntry);
@@ -350,6 +352,7 @@ public class TimeEntryController {
      * @return ResponseEntity containing the updated time entry
      */
     @PutMapping("/{id}")
+    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
     public ResponseEntity<TimeEntry> updateTimeEntry(@PathVariable String id, @RequestBody TimeEntry timeEntryDetails) {
         try {
             timeEntryDetails.setId(id);
@@ -367,6 +370,7 @@ public class TimeEntryController {
      * @return ResponseEntity with no content if successful
      */
     @DeleteMapping("/{id}")
+    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
     public ResponseEntity<Void> deleteTimeEntry(@PathVariable String id) {
         try {
             timeEntryService.deleteTimeEntry(id);

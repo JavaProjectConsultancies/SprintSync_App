@@ -5,6 +5,7 @@ import com.sprintsync.api.entity.enums.TaskStatus;
 import com.sprintsync.api.service.TaskService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -76,6 +77,7 @@ public class TaskController {
      * Create a new task
      */
     @PostMapping
+    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
     public ResponseEntity<Task> createTask(@Valid @RequestBody Task task) {
         try {
             Task createdTask = taskService.createTask(task);
@@ -89,6 +91,7 @@ public class TaskController {
      * Update an existing task
      */
     @PutMapping("/{id}")
+    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
     public ResponseEntity<Task> updateTask(@PathVariable String id, @Valid @RequestBody Task task) {
         try {
             task.setId(id);
@@ -107,6 +110,7 @@ public class TaskController {
      * Delete a task
      */
     @DeleteMapping("/{id}")
+    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
     public ResponseEntity<Void> deleteTask(@PathVariable String id) {
         try {
             boolean deleted = taskService.deleteTask(id);
@@ -177,6 +181,7 @@ public class TaskController {
      * Supports both TaskStatus enum values and custom lane status strings
      */
     @PatchMapping("/{id}/status")
+    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
     public ResponseEntity<Task> updateTaskStatus(@PathVariable String id, @RequestBody Map<String, Object> statusUpdate) {
         try {
             Object statusObj = statusUpdate.get("status");
@@ -208,6 +213,7 @@ public class TaskController {
      * Assign task to user
      */
     @PatchMapping("/{id}/assign")
+    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
     public ResponseEntity<Task> assignTask(@PathVariable String id, @RequestBody Map<String, String> assignment) {
         try {
             String assigneeId = assignment.get("assigneeId");
@@ -226,6 +232,7 @@ public class TaskController {
      * Update task assignee (alternative endpoint)
      */
     @PatchMapping("/{id}/assignee")
+    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
     public ResponseEntity<Task> updateTaskAssignee(@PathVariable String id, @RequestBody Map<String, String> assignment) {
         try {
             String assigneeId = assignment.get("assigneeId");
@@ -244,6 +251,7 @@ public class TaskController {
      * Update task actual hours (for effort logging)
      */
     @PatchMapping("/{id}/actual-hours")
+    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
     public ResponseEntity<Task> updateTaskActualHours(@PathVariable String id, @RequestBody Map<String, Object> update) {
         try {
             Object actualHoursObj = update.get("actualHours");

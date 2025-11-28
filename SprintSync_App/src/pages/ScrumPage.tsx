@@ -175,6 +175,8 @@ import { activityLogApiService } from "../services/api/entities/activityLogApi";
 
 import { attachmentApiService } from "../services/api/entities/attachmentApi";
 
+import { emitProjectBudgetUpdated } from "../utils/projectBudgetEvents";
+
 import { useRecentActivityByEntity } from "../hooks/api/useActivityLogs";
 
 import { useProjectById } from "../hooks/api/useProjectById";
@@ -249,6 +251,14 @@ const ScrumPage: React.FC = () => {
   const navigate = useNavigate();
 
   const [selectedProject, setSelectedProject] = useState("");
+
+  const notifyProjectBudgetUpdate = useCallback(
+    (reason?: string) => {
+      if (!selectedProject) return;
+      emitProjectBudgetUpdated(selectedProject, reason);
+    },
+    [selectedProject],
+  );
 
   const projectInitializedRef = useRef(false);
 
@@ -3445,6 +3455,8 @@ const ScrumPage: React.FC = () => {
             status: mappedStatus as any, // Allow custom status strings
           });
 
+          notifyProjectBudgetUpdate("task-status-updated");
+
           // Log activity
           try {
             const isMovingToInProgress = mappedStatus === "IN_PROGRESS" || mappedStatus === "in_progress";
@@ -5276,6 +5288,8 @@ const ScrumPage: React.FC = () => {
 
       const updateResponse = await timeEntryApiService.updateTimeEntry(selectedLogForEdit.id, updateData);
 
+      notifyProjectBudgetUpdate("time-entry-updated");
+
       if (!updateResponse || !updateResponse.success) {
         throw new Error(updateResponse?.message || "Failed to update time entry in database");
       }
@@ -5945,6 +5959,8 @@ const ScrumPage: React.FC = () => {
           totalSubtaskHours,
         );
 
+        notifyProjectBudgetUpdate("subtask-effort-logged");
+
         // Update local state immediately for instant UI update
         // Update subtask in allSubtasks
         setAllSubtasks((prev) =>
@@ -6087,6 +6103,8 @@ const ScrumPage: React.FC = () => {
       // Update task actual hours
       const newTaskActualHours = (selectedTaskForEffort.actualHours || 0) + effortLog.hours;
       await taskApiService.updateTaskActualHours(selectedTaskForEffort.id, newTaskActualHours);
+
+      notifyProjectBudgetUpdate("task-effort-logged");
 
       // Update local state immediately for instant UI update
       setAllTasks((prev) =>
@@ -7011,7 +7029,7 @@ const ScrumPage: React.FC = () => {
     status: string;
 
     children: React.ReactNode;
-
+ 
     title: string;
 
     icon: React.ReactNode;
@@ -9131,7 +9149,7 @@ const ScrumPage: React.FC = () => {
 
                         <div
                           className="p-4 border-r border-gray-200 bg-green-50/20"
-                          style={{ minHeight: `${maxTaskCount * 120}px` }}
+                          style={{ minHeight: "280px" }}
                         >
                           <DraggableStory story={story} index={storyIndex} />
                         </div>

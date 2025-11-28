@@ -98,12 +98,13 @@ public class ProjectController {
 
     /**
      * Get project by ID.
+     * Note: Caching is disabled to ensure budget calculations are always up-to-date
+     * when tasks are created, updated, or deleted.
      * 
      * @param id the project ID
      * @return ResponseEntity containing the project DTO if found
      */
     @GetMapping("/{id}")
-    @Cacheable(value = "projects", key = "#id")
     public ResponseEntity<ProjectDto> getProjectById(@PathVariable String id) {
         Optional<Project> project = projectService.findById(id);
         return project.map(p -> ResponseEntity.ok(projectMapper.toDto(p)))

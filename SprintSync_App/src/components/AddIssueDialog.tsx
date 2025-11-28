@@ -769,16 +769,23 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                           mode="single"
                           selected={formData.dueDate}
                           onSelect={(date) => {
-                            setFormData(prev => ({ ...prev, dueDate: date }));
+                            if (!date) {
+                              setFormData(prev => ({ ...prev, dueDate: undefined }));
+                              return;
+                            }
+                            
+                            // Normalize date to midnight in local timezone to prevent timezone shifts
+                            const normalizedDate = new Date(date);
+                            normalizedDate.setHours(0, 0, 0, 0);
+                            
+                            setFormData(prev => ({ ...prev, dueDate: normalizedDate }));
                             setIsDueDatePopoverOpen(false);
                             // Clear error when date is selected
-                            if (date) {
-                              setErrors(prev => {
-                                const newErrors = { ...prev };
-                                delete newErrors.dueDate;
-                                return newErrors;
-                              });
-                            }
+                            setErrors(prev => {
+                              const newErrors = { ...prev };
+                              delete newErrors.dueDate;
+                              return newErrors;
+                            });
                           }}
                           disabled={(date) => {
                             const dateOnly = new Date(date);
