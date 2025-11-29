@@ -64,7 +64,7 @@ const TaskActivityLog: React.FC<TaskActivityLogProps> = ({
         return activityLog.description || 'Changed status';
       
       case 'created':
-        return activityLog.description || 'Created task';
+        return activityLog.description || 'Created task';  
       
       case 'subtask_created':
         if (parsedNewValues && parsedNewValues.title) {
