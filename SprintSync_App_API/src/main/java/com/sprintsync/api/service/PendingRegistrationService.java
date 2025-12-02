@@ -23,6 +23,7 @@ import java.util.UUID;
  * @author SprintSync Team
  */
 @Service
+@SuppressWarnings("null")
 public class PendingRegistrationService {
 
     private static final Logger logger = LoggerFactory.getLogger(PendingRegistrationService.class);
@@ -150,4 +151,10 @@ public class PendingRegistrationService {
         }
     }
 }
+
+
+
+
+
+
 

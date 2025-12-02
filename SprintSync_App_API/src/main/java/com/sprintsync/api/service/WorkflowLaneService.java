@@ -20,6 +20,8 @@ import java.util.UUID;
  */
 @Service
 @Transactional
+
+@SuppressWarnings("null")
 public class WorkflowLaneService {
 
     private static final Logger logger = LoggerFactory.getLogger(WorkflowLaneService.class);
@@ -193,4 +195,10 @@ public class WorkflowLaneService {
         }
     }
 }
+
+
+
+
+
+
 

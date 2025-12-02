@@ -19,6 +19,7 @@ import { teamMemberApi } from '../services/api/entities/teamMemberApi';
 import { userApiService } from '../services/api/entities/userApi';
 import { projectApiService } from '../services/api/entities/projectApi';
 import { useTeamMembers as useProjectTeamMembers } from '../hooks/api/useTeamMembers';
+import { useAuth } from '../contexts/AuthContextEnhanced';
 import { toast } from 'sonner';
 import { 
   Users, 
@@ -91,11 +92,13 @@ const ItemTypes = {
 };
 
 const TeamAllocationPage: React.FC = () => {
+  const { user: currentUser } = useAuth();
   const [selectedMember, setSelectedMember] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [domainFilter, setDomainFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
+  const [projectFilter, setProjectFilter] = useState<string>('all');
   const [isAddMemberDialogOpen, setIsAddMemberDialogOpen] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
@@ -105,7 +108,7 @@ const TeamAllocationPage: React.FC = () => {
   const [newMember, setNewMember] = useState({
     name: '',
     email: '',
-    role: 'developer' as 'developer' | 'qa' | 'manager' | 'admin',
+    role: 'developer' as 'developer' | 'manager' | 'admin',
     domain: '',
     department: '',
     password: '',
@@ -130,10 +133,12 @@ const TeamAllocationPage: React.FC = () => {
     setDepartmentFilter('all');
     setDomainFilter('all');
     setRoleFilter('all');
+    setProjectFilter('all');
   };
 
   // Get all users from API and generate realistic team allocation data
-  const { data: users, loading: usersListLoading, refetch: refetchUsersList } = useUsers({ page: 0, size: 1000 });
+  // For admin: fetch all users without any filters
+  const { data: users, loading: usersListLoading, refetch: refetchUsersList } = useUsers({ page: 0, size: 10000 });
   const allUsers = users || [];
   const { data: projects, loading: projectsLoading } = useProjects();
   const { data: activeUsers, loading: usersLoading, error: usersError, refetch: refetchActiveUsers } = useActiveUsers({ page: 0, size: 1000 });
@@ -142,7 +147,7 @@ const TeamAllocationPage: React.FC = () => {
 
   const { teamMembers: projectTeamMembers, refreshTeamMembers } = useProjectTeamMembers(selectedProjectId || undefined);
 
-  const roleOptions = ['developer', 'qa', 'manager', 'admin'];
+  const roleOptions = ['developer', 'manager', 'admin'];
 
   // Project helpers: team members per project and manager names cache
   const [projectIdToMembers, setProjectIdToMembers] = useState<Record<string, any[]>>({});
@@ -327,22 +332,28 @@ const TeamAllocationPage: React.FC = () => {
       if (!selectedProjectId && projects && projects.length > 0) {
         setSelectedProjectId(projects[0].id);
       }
-      // load users for picker from active users and exclude already assigned to selected project
+      // load users for picker - exclude admin users from team allocation
       setLoadingUsers(true);
-      const rawList = (activeUsers || []).map((u: any) => ({
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        role: (u.role || 'developer').toLowerCase(),
-        departmentId: u.departmentId,
-        domainId: u.domainId,
-        avatarUrl: u.avatarUrl,
-        experience: normalizeExperience(u.experience),
-        hourlyRate: u.hourlyRate || 0,
-        availabilityPercentage: u.availabilityPercentage || 100,
-        skills: typeof u.skills === 'string' ? u.skills : Array.isArray(u.skills) ? u.skills.join(', ') : '',
-        isActive: u.isActive,
-      }));
+      const rawList = (users || [])
+        .filter((u: any) => {
+          // Exclude admin users
+          const userRole = (u.role || '').toString().toUpperCase();
+          return userRole !== 'ADMIN';
+        })
+        .map((u: any) => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          role: (u.role || 'developer').toLowerCase(),
+          departmentId: u.departmentId,
+          domainId: u.domainId,
+          avatarUrl: u.avatarUrl,
+          experience: normalizeExperience(u.experience),
+          hourlyRate: u.hourlyRate || 0,
+          availabilityPercentage: u.availabilityPercentage || 100,
+          skills: typeof u.skills === 'string' ? u.skills : Array.isArray(u.skills) ? u.skills.join(', ') : '',
+          isActive: u.isActive,
+        }));
       const assignedIds = new Set((projectTeamMembers || []).map((m: any) => m.userId));
       const filtered = rawList.filter(u => !assignedIds.has(u.id));
       setAvailableUsers(filtered);
@@ -351,7 +362,7 @@ const TeamAllocationPage: React.FC = () => {
         setSelectedUserId(filtered[0].id);
       }
     }
-  }, [isAddMemberDialogOpen, projects, activeUsers, projectTeamMembers, selectedProjectId, normalizeExperience]);
+  }, [isAddMemberDialogOpen, projects, users, projectTeamMembers, selectedProjectId, normalizeExperience]);
 
   const departmentIdToName = useMemo(() => {
     const map: Record<string, string> = {};
@@ -488,15 +499,22 @@ const TeamAllocationPage: React.FC = () => {
   };
 
   // Enhanced team member data based on real user data from AuthContext
+  // Filter out admin users - they should not appear in team allocation
   const teamMembers = useMemo(() => {
-    return allUsers.map((user, index) => {
+    // Exclude admin users from team allocation
+    const nonAdminUsers = allUsers.filter((user: any) => {
+      const userRole = (user.role || '').toString().toUpperCase();
+      return userRole !== 'ADMIN';
+    });
+    
+    return nonAdminUsers.map((user, index) => {
       // Resolve role and names
       const normalizedRole = normalizeRole((user as any).role as string);
       const resolvedDomain = (user as any).domainId ? (domainIdToName[(user as any).domainId as string] || '') : ((user as any).domain || '');
       const resolvedDepartment = (user as any).departmentId ? (departmentIdToName[(user as any).departmentId as string] || '') : ((user as any).department || '');
 
       // Generate realistic data based on resolved values
-      const baseCapacity = normalizedRole === 'admin' ? 35 : normalizedRole === 'manager' ? 35 : normalizedRole === 'qa' ? 35 : 40;
+      const baseCapacity = normalizedRole === 'admin' ? 35 : normalizedRole === 'manager' ? 35 : 40;
       const utilization = Math.floor(Math.random() * 30) + 70; // 70-100%
       const allocated = Math.floor((utilization / 100) * baseCapacity);
       
@@ -543,15 +561,15 @@ const TeamAllocationPage: React.FC = () => {
         ];
         
         // Assign user to 1-2 projects based on their role and availability
-        const numProjects = (normalizedRole === 'manager' || normalizedRole === 'qa') ? 1 : Math.floor(Math.random() * 2) + 1;
+        const numProjects = normalizedRole === 'manager' ? 1 : Math.floor(Math.random() * 2) + 1;
         const availableProjects = projectDistribution.filter(p => 
-          (normalizedRole === 'manager' || normalizedRole === 'qa') ? !p.hasManager : true
+          normalizedRole === 'manager' ? !p.hasManager : true
         );
         
         for (let i = 0; i < Math.min(numProjects, availableProjects.length); i++) {
           const project = availableProjects[i];
-          const allocation = (normalizedRole === 'manager' || normalizedRole === 'qa') ? 
-            Math.floor(Math.random() * 30) + 50 : // Managers and QA get 50-80% allocation
+          const allocation = normalizedRole === 'manager' ? 
+            Math.floor(Math.random() * 30) + 50 : // Managers get 50-80% allocation
             Math.floor(Math.random() * 40) + 30;  // Others get 30-70% allocation
           
           assignments.push({
@@ -567,7 +585,6 @@ const TeamAllocationPage: React.FC = () => {
       const getRoleInProject = (userRole: string, domain: string) => {
         if (userRole === 'admin') return 'System Administrator';
         if (userRole === 'manager') return 'Project Manager';
-        if (userRole === 'qa') return 'Project Manager'; // QA has same role as manager
         
         const devRoles: { [key: string]: string } = {
           'Angular': 'Frontend Developer',
@@ -633,8 +650,12 @@ const TeamAllocationPage: React.FC = () => {
   }, [allUsers, departmentIdToName, domainIdToName]);
 
   // Filter team members based on search and filters
+  // Show ALL non-admin users (not just those assigned to projects)
   const filteredMembers = useMemo(() => {
     return teamMembers.filter(member => {
+      // Admin users are already excluded in teamMembers creation, so no need to check here
+      // Show all users regardless of project assignment
+      
       const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            member.domain.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            (member.role as string).toLowerCase().includes(searchTerm.toLowerCase());
@@ -643,20 +664,34 @@ const TeamAllocationPage: React.FC = () => {
       const matchesDomain = domainFilter === 'all' || member.domain === domainFilter;
       const matchesRole = roleFilter === 'all' || (member.role as string) === roleFilter;
       
-      return matchesSearch && matchesDepartment && matchesDomain && matchesRole;
+      // Filter by project: if a specific project is selected, only show members in that project
+      // Otherwise, show all members
+      const matchesProject = projectFilter === 'all' || (() => {
+        if (projectFilter === 'all') return true;
+        // Check if member is assigned to the selected project
+        const projectMembers = projectIdToMembers[projectFilter] || [];
+        return projectMembers.some((m: any) => (m.userId || m.id) === member.id);
+      })();
+      
+      return matchesSearch && matchesDepartment && matchesDomain && matchesRole && matchesProject;
     });
-  }, [teamMembers, searchTerm, departmentFilter, domainFilter, roleFilter]);
+  }, [teamMembers, searchTerm, departmentFilter, domainFilter, roleFilter, projectFilter, projectIdToMembers]);
 
   // Calculate statistics
+  // For admin: show total count of all team members, not just filtered
+  // For others: show filtered count
   const stats = useMemo(() => {
-    const totalMembers = filteredMembers.length;
-    const totalUtilization = filteredMembers.reduce((sum, member) => sum + member.utilization, 0);
-    const avgUtilization = totalMembers > 0 ? Math.round(totalUtilization / totalMembers) : 0;
-    const availableHours = filteredMembers.reduce((sum, member) => sum + (member.capacity - member.allocated), 0);
-    const overloadedCount = filteredMembers.filter(member => member.utilization > 100).length;
+    const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'ADMIN';
+    // For admin, use total teamMembers count; for others, use filtered count
+    const totalMembers = isAdmin ? teamMembers.length : filteredMembers.length;
+    const membersForStats = isAdmin ? teamMembers : filteredMembers;
+    const totalUtilization = membersForStats.reduce((sum, member) => sum + member.utilization, 0);
+    const avgUtilization = membersForStats.length > 0 ? Math.round(totalUtilization / membersForStats.length) : 0;
+    const availableHours = membersForStats.reduce((sum, member) => sum + (member.capacity - member.allocated), 0);
+    const overloadedCount = membersForStats.filter(member => member.utilization > 100).length;
     
     return { totalMembers, avgUtilization, availableHours, overloadedCount };
-  }, [filteredMembers]);
+  }, [filteredMembers, teamMembers, currentUser]);
 
   // Get unique values for filters (prefer API, fallback to team data)
   const departments = useMemo(() => {
@@ -682,11 +717,6 @@ const TeamAllocationPage: React.FC = () => {
   const getRoleIcon = (role: string, domain: string) => {
     if (role === 'admin') return Shield;
     if (role === 'manager') return Users;
-    if (role === 'qa') {
-      if (domain === 'Marketing') return Briefcase;
-      if (domain === 'HR') return Heart;
-      return TestTube;
-    }
     if (role === 'developer') {
       if (domain === 'Angular' || domain === 'Maui') return Code;
       if (domain === 'Java') return Coffee;
@@ -741,7 +771,7 @@ const TeamAllocationPage: React.FC = () => {
     const email = `${firstName}.${lastName}@company.com`;
     
     // Determine role based on name patterns
-    let role: 'developer' | 'qa' | 'manager' | 'admin' = 'developer';
+    let role: 'developer' | 'manager' | 'admin' = 'developer';
     let domain = '';
     let department = '';
     let experience: 'E1' | 'E2' | 'M1' | 'M2' | 'M3' | 'L1' | 'L2' | 'L3' | 'S1' = 'M1';
@@ -759,8 +789,9 @@ const TeamAllocationPage: React.FC = () => {
       experience = 'L2';
       hourlyRate = 3000;
       skills = ['Administration', 'Strategic Planning', 'Leadership', 'System Management'];
-    } else if (nameLower.includes('qa') || nameLower.includes('test') || nameLower.includes('quality')) {
-      role = 'qa';
+    } else if (nameLower.includes('test') || nameLower.includes('quality')) {
+      // Test/QA related names default to developer role
+      role = 'developer';
       experience = 'M1';
       hourlyRate = 2000;
       skills = ['Quality Assurance', 'Testing', 'Test Automation', 'Bug Tracking'];
@@ -904,7 +935,7 @@ const TeamAllocationPage: React.FC = () => {
       toast.error(`Cannot add more members. Team is at maximum capacity (${validation.maxMembers} members).`);
       return;
     }
-    if ((newMember.role === 'manager' || newMember.role === 'qa') && !validation.canAddManager) {
+    if (newMember.role === 'manager' && !validation.canAddManager) {
       toast.error('Cannot add another manager. Only one manager is allowed per project.');
       return;
     }
@@ -1131,8 +1162,8 @@ const TeamAllocationPage: React.FC = () => {
       {/* Search and Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-2">
+          <div className="flex flex-wrap items-end gap-6">
+            <div className="flex-1 min-w-[200px] space-y-2">
               <Label htmlFor="search">Search Team Members</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -1146,7 +1177,24 @@ const TeamAllocationPage: React.FC = () => {
               </div>
             </div>
             
-            <div className="space-y-2">
+            <div className="flex-1 min-w-[180px] space-y-2">
+              <Label>Project</Label>
+              <Select value={projectFilter} onValueChange={setProjectFilter}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Projects</SelectItem>
+                  {projects?.map((project: any) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex-1 min-w-[160px] space-y-2">
               <Label>Department</Label>
               <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
                 <SelectTrigger>
@@ -1161,7 +1209,7 @@ const TeamAllocationPage: React.FC = () => {
               </Select>
             </div>
             
-            <div className="space-y-2">
+            <div className="flex-1 min-w-[160px] space-y-2">
               <Label>Domain</Label>
               <Select value={domainFilter} onValueChange={setDomainFilter}>
                 <SelectTrigger>
@@ -1176,31 +1224,33 @@ const TeamAllocationPage: React.FC = () => {
               </Select>
             </div>
             
-            <div className="space-y-2">
+            <div className="flex-1 min-w-[140px] space-y-2">
               <Label>Role</Label>
-              <div className="flex items-center gap-2">
-                <Select value={roleFilter} onValueChange={setRoleFilter}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Roles</SelectItem>
-                    {roles.map((role: string) => (
-                      <SelectItem key={role} value={role}>
-                        {role.charAt(0).toUpperCase() + role.slice(1)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="whitespace-nowrap text-red-600 border-red-300 hover:bg-red-50"
-                  onClick={clearAllFilters}
-                >
-                  Clear
-                </Button>
-              </div>
+              <Select value={roleFilter} onValueChange={setRoleFilter}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Roles</SelectItem>
+                  {roles.map((role: string) => (
+                    <SelectItem key={role} value={role}>
+                      {role.charAt(0).toUpperCase() + role.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label className="opacity-0">Clear</Label>
+              <Button
+                variant="outline"
+                size="default"
+                className="whitespace-nowrap text-red-600 border-red-300 hover:bg-red-50 h-10"
+                onClick={clearAllFilters}
+              >
+                Clear
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -1261,10 +1311,10 @@ const TeamAllocationPage: React.FC = () => {
 
       {/* Team Allocation Tabs */}
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="overview">Team Overview</TabsTrigger>
           <TabsTrigger value="projects">Project Allocation</TabsTrigger>
-          <TabsTrigger value="capacity">Capacity Utilisation</TabsTrigger>
+          {/* Capacity Utilisation tab hidden for everyone */}
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4 mt-6">
@@ -1543,104 +1593,107 @@ const TeamAllocationPage: React.FC = () => {
           </div>
         </TabsContent>
 
-        <TabsContent value="capacity" className="space-y-4 mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Capacity Utilisation - Next 2 Weeks</CardTitle>
-              <CardDescription>Plan team allocation for upcoming sprints across all departments</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {filteredMembers.map((member) => (
-                  <div key={member.id} className="space-y-3 p-4 border rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={member.avatar} alt={member.name} />
-                          <AvatarFallback className="bg-gradient-to-br from-green-100 to-cyan-100 text-green-800">
-                            {getInitials(member.name)}
-                          </AvatarFallback>
-                        </Avatar>
+        {/* Capacity Utilisation section hidden for everyone */}
+        {false && (
+          <TabsContent value="capacity" className="space-y-4 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Capacity Utilisation - Next 2 Weeks</CardTitle>
+                <CardDescription>Plan team allocation for upcoming sprints across all departments</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {filteredMembers.map((member) => (
+                    <div key={member.id} className="space-y-3 p-4 border rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={member.avatar} alt={member.name} />
+                            <AvatarFallback className="bg-gradient-to-br from-green-100 to-cyan-100 text-green-800">
+                              {getInitials(member.name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">{member.name}</p>
+                            <p className="text-sm text-muted-foreground">{member.domain} • {member.department}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Badge variant="outline" className={getStatusColor(member.status)}>
+                            {member.status}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {member.role as string}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="text-center">
+                          <p className="text-sm text-muted-foreground">This Week</p>
+                          <div className="space-y-1">
+                            <p className="font-medium">{member.availability.thisWeek}h</p>
+                            <Progress value={(member.availability.thisWeek / member.capacity) * 100} className="h-2" />
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm text-muted-foreground">Next Week</p>
+                          <div className="space-y-1">
+                            <p className="font-medium">{member.availability.nextWeek}h</p>
+                            <Progress value={(member.availability.nextWeek / member.capacity) * 100} className="h-2" />
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm text-muted-foreground">Week +2</p>
+                          <div className="space-y-1">
+                            <p className="font-medium">{member.availability.nextTwoWeeks}h</p>
+                            <Progress value={(member.availability.nextTwoWeeks / member.capacity) * 100} className="h-2" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* CTC, Hourly Rate and Skills Info */}
+                      <div className="grid grid-cols-2 gap-4 pt-3 border-t">
                         <div>
-                          <p className="font-medium">{member.name}</p>
-                          <p className="text-sm text-muted-foreground">{member.domain} • {member.department}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant="outline" className={getStatusColor(member.status)}>
-                          {member.status}
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          {member.role as string}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="text-center">
-                        <p className="text-sm text-muted-foreground">This Week</p>
-                        <div className="space-y-1">
-                          <p className="font-medium">{member.availability.thisWeek}h</p>
-                          <Progress value={(member.availability.thisWeek / member.capacity) * 100} className="h-2" />
-                        </div>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm text-muted-foreground">Next Week</p>
-                        <div className="space-y-1">
-                          <p className="font-medium">{member.availability.nextWeek}h</p>
-                          <Progress value={(member.availability.nextWeek / member.capacity) * 100} className="h-2" />
-                        </div>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm text-muted-foreground">Week +2</p>
-                        <div className="space-y-1">
-                          <p className="font-medium">{member.availability.nextTwoWeeks}h</p>
-                          <Progress value={(member.availability.nextTwoWeeks / member.capacity) * 100} className="h-2" />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* CTC, Hourly Rate and Skills Info */}
-                    <div className="grid grid-cols-2 gap-4 pt-3 border-t">
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground mb-2">CTC & Hourly Rate</p>
-                        <div className="space-y-1">
-                          <div className="flex justify-between">
-                            <span className="text-sm">CTC:</span>
-                            <span className="text-sm font-medium text-green-600">
-                              {member.ctc ? `₹${member.ctc.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'Not Set'}
-                            </span>
+                          <p className="text-sm font-medium text-muted-foreground mb-2">CTC & Hourly Rate</p>
+                          <div className="space-y-1">
+                            <div className="flex justify-between">
+                              <span className="text-sm">CTC:</span>
+                              <span className="text-sm font-medium text-green-600">
+                                {member.ctc ? `₹${member.ctc.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'Not Set'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm">Hourly Rate:</span>
+                              <span className="text-sm font-medium text-blue-600">
+                                {member.hourlyRate ? `₹${member.hourlyRate.toFixed(2)}` : 'Not Set'}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm">Hourly Rate:</span>
-                            <span className="text-sm font-medium text-blue-600">
-                              {member.hourlyRate ? `₹${member.hourlyRate.toFixed(2)}` : 'Not Set'}
-                            </span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground mb-2">Skills</p>
+                          <div className="flex flex-wrap gap-1">
+                            {member.skills.slice(0, 4).map((skill) => (
+                              <Badge key={skill} variant="secondary" className="text-xs">
+                                {skill}
+                              </Badge>
+                            ))}
+                            {member.skills.length > 4 && (
+                              <Badge variant="secondary" className="text-xs">
+                                +{member.skills.length - 4}
+                              </Badge>
+                            )}
                           </div>
                         </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground mb-2">Skills</p>
-                        <div className="flex flex-wrap gap-1">
-                          {member.skills.slice(0, 4).map((skill) => (
-                            <Badge key={skill} variant="secondary" className="text-xs">
-                              {skill}
-                            </Badge>
-                          ))}
-                          {member.skills.length > 4 && (
-                            <Badge variant="secondary" className="text-xs">
-                              +{member.skills.length - 4}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Add Team Member Dialog */}
@@ -1844,7 +1897,6 @@ const TeamAllocationPage: React.FC = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="developer">Developer</SelectItem>
-                      <SelectItem value="qa">QA</SelectItem>
                       <SelectItem value="manager">Manager</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>

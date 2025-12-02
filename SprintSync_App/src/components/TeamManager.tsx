@@ -38,7 +38,7 @@ import { userApiService } from '../services/api/entities/userApi';
 interface TeamMember {
   id: string;
   name: string;
-  role: 'manager' | 'developer' | 'qa' | 'analyst' | 'tester' | 'devops';
+  role: 'manager' | 'developer' | 'analyst' | 'tester' | 'devops';
   skills: string[];
   availability: number; // percentage
   department: string;
@@ -432,7 +432,7 @@ const SelectedTeamDropZone = ({ selectedMembers, onDrop, onRemove, onViewDetails
                           • Optimal team size is 7-8 members per project (Current: {selectedMembers.length})
                         </li>
                       )}
-                      {selectedMembers.filter(m => m.role === 'manager' || m.role === 'qa').length === 0 && (
+                      {selectedMembers.filter(m => m.role === 'manager').length === 0 && (
                         <li>• Consider adding a project manager for better coordination</li>
                       )}
                       {selectedMembers.filter(m => m.role === 'tester').length === 0 && (
@@ -445,7 +445,7 @@ const SelectedTeamDropZone = ({ selectedMembers, onDrop, onRemove, onViewDetails
                         <li>• Consider optimizing team composition to reduce costs</li>
                       )}
                       {selectedMembers.length >= 7 && selectedMembers.length <= 8 && 
-                       selectedMembers.filter(m => m.role === 'manager' || m.role === 'qa').length > 0 &&
+                       selectedMembers.filter(m => m.role === 'manager').length > 0 &&
                        teamAnalysis.budgetUtilization <= 90 && (
                         <li className="text-green-600">• Team composition looks optimal! ✓</li>
                       )}
@@ -891,7 +891,6 @@ const TeamManager = ({
                         <SelectItem value="all">All Roles</SelectItem>
                         <SelectItem value="manager">Manager</SelectItem>
                         <SelectItem value="developer">Developer</SelectItem>
-                        <SelectItem value="qa">QA</SelectItem>
                         <SelectItem value="analyst">Analyst</SelectItem>
                         <SelectItem value="tester">Tester</SelectItem>
                         <SelectItem value="devops">DevOps</SelectItem>

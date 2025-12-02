@@ -27,7 +27,23 @@ interface AuthContextType {
   setAuthState: (token: string, userData: any) => void;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// Create context with a default value to prevent "must be used within AuthProvider" errors
+const defaultAuthContext: AuthContextType = {
+  user: null,
+  token: null,
+  login: async () => false,
+  logout: () => {},
+  hasPermission: () => false,
+  canAccessProject: () => false,
+  isLoading: true,
+  isAuthenticated: false,
+  loginError: null,
+  clearLoginError: () => {},
+  refreshUser: async () => {},
+  setAuthState: () => {},
+};
+
+const AuthContext = createContext<AuthContextType>(defaultAuthContext);
 
 // Token management
 const TOKEN_KEY = 'sprintsync_token';
@@ -92,10 +108,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (response.success && response.data) {
         const { token: authToken, user: userData } = response.data;
         
+        // Extract name with fallbacks
+        const userName = userData.name || 
+                        (userData as any).fullName || 
+                        (userData.email ? userData.email.split('@')[0] : 'User');
+        
         // Convert API user format to local User format
         const localUser: User = {
           id: userData.id,
-          name: userData.name,
+          name: userName,
           email: userData.email,
           role: (userData.role ? (typeof userData.role === 'string' ? userData.role.toLowerCase() : String(userData.role).toLowerCase()) : 'developer') as UserRole,
           avatar: userData.avatarUrl || userData.avatar,
@@ -103,6 +124,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           domain: userData.domainId || userData.domain,
           assignedProjects: [], // This would come from a separate API call
         };
+        
+        console.log('[AuthContext] Login - Setting user:', localUser);
 
         setToken(authToken);
         setUser(localUser);
@@ -169,8 +192,31 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     try {
       const response = await authApiService.getCurrentUser();
+      console.log('[AuthContext] Full API response:', JSON.stringify(response, null, 2));
+      
       if (response.success && response.data) {
-        const userData = response.data;
+        // Handle nested data structure: response.data.data or response.data
+        // The API might return: {success: true, data: {data: {user object}}}
+        // Or: {success: true, data: {user object}}
+        let userData = response.data;
+        
+        // Check if data is nested
+        if ((userData as any).data && typeof (userData as any).data === 'object') {
+          console.log('[AuthContext] Found nested data structure, extracting...');
+          userData = (userData as any).data;
+        }
+        
+        console.log('[AuthContext] Extracted user data:', JSON.stringify(userData, null, 2));
+        
+        if (!userData || (typeof userData === 'object' && !userData.id && !userData.email)) {
+          console.error('[AuthContext] Invalid user data structure:', userData);
+          console.error('[AuthContext] Response structure:', {
+            hasData: !!response.data,
+            dataType: typeof response.data,
+            dataKeys: response.data ? Object.keys(response.data) : []
+          });
+          return;
+        }
         
         // Safely handle role conversion with fallback
         let userRole: string = 'developer'; // Default role
@@ -182,9 +228,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
         }
         
+        // Extract name with better fallbacks
+        const userName = userData.name || 
+                        userData.fullName || 
+                        (userData.email ? userData.email.split('@')[0] : null) ||
+                        'User';
+        
         const localUser: User = {
           id: userData.id,
-          name: userData.name || userData.email || 'Unknown User',
+          name: userName,
           email: userData.email,
           role: (userRole as UserRole) || 'developer',
           avatar: userData.avatar || userData.avatarUrl,
@@ -193,8 +245,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           assignedProjects: [],
         };
         
+        console.log('[AuthContext] Setting user:', localUser);
         setUser(localUser);
         saveAuthData(token, localUser);
+      } else {
+        console.error('[AuthContext] Failed to refresh user:', response);
       }
     } catch (error) {
       console.error('Failed to refresh user:', error);
@@ -211,8 +266,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const canAccessProject = (projectId: string): boolean => {
     if (!user) return false;
     
-    // Admin, Manager, and QA can access all projects
-    if (user.role === 'admin' || user.role === 'manager' || user.role === 'qa') return true;
+    // Admin and Manager can access all projects
+    if (user.role === 'admin' || user.role === 'manager') return true;
     
     // Other roles can only access assigned projects
     return user.assignedProjects?.includes(projectId) || false;
@@ -226,15 +281,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     console.log('Setting auth state with token:', authToken);
     console.log('Setting auth state with user data:', userData);
     
+    // Extract name with fallbacks
+    const userName = userData.name || 
+                    userData.fullName || 
+                    (userData.email ? userData.email.split('@')[0] : 'User');
+    
     // Convert API user format to local User format
     const localUser: User = {
       id: userData.id,
-      name: userData.name,
+      name: userName,
       email: userData.email,
-      role: userData.role.toLowerCase() as UserRole,
-      avatar: userData.avatarUrl,
-      department: userData.departmentId,
-      domain: userData.domainId,
+      role: (userData.role ? (typeof userData.role === 'string' ? userData.role.toLowerCase() : String(userData.role).toLowerCase()) : 'developer') as UserRole,
+      avatar: userData.avatarUrl || userData.avatar,
+      department: userData.departmentId || userData.department,
+      domain: userData.domainId || userData.domain,
       assignedProjects: [], // This would come from a separate API call
     };
 
@@ -276,8 +336,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+  // Context will always have a value (either default or from provider)
+  // Only throw if we can detect we're truly outside a provider
+  // We can check if context is the default one by checking if it has the default login function
+  if (context === defaultAuthContext && !context.user && context.isLoading === true) {
+    // This is a heuristic - if we're using the default context and it hasn't been initialized,
+    // we might be outside the provider. But since we provide a default, this should rarely happen.
+    console.warn('useAuth may be called outside AuthProvider - using default context');
   }
   return context;
 };

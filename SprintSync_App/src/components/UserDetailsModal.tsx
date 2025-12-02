@@ -20,6 +20,7 @@ import {
   Percent, 
   Star, 
   Image as ImageIcon,
+  UserCheck,
   Calendar,
   Clock,
   CheckCircle2,
@@ -160,6 +161,15 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({ isOpen, onClose, us
     });
   };
 
+  const formatDateOnly = (dateString: string | undefined) => {
+    if (!dateString) return 'Not Set';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="user-details-modal-dialog flex flex-col">
@@ -266,6 +276,36 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({ isOpen, onClose, us
                 </div>
                 <p>
                   {getDomainNameById(user.domainId)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Reporting & Joining */}
+          <div className="space-y-4">
+            <div className="user-details-section-header flex items-center gap-2">
+              <UserCheck className="user-details-section-icon text-indigo-600" />
+              <h3>Reporting & Joining</h3>
+            </div>
+
+            <div className="user-details-grid grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="user-details-field space-y-2">
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm font-medium">Reporting Manager</span>
+                </div>
+                <p className="font-medium">
+                  {user.reportingManager || 'Not Set'}
+                </p>
+              </div>
+
+              <div className="user-details-field space-y-2">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm font-medium">Date of Joining</span>
+                </div>
+                <p className="font-medium">
+                  {formatDateOnly(user.dateOfJoining)}
                 </p>
               </div>
             </div>

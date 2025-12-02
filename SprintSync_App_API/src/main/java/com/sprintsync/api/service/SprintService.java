@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
  * @author Mayuresh G
  */
 @Service
+@SuppressWarnings("null")
 public class SprintService {
 
     @Autowired
@@ -27,6 +28,9 @@ public class SprintService {
 
     @Autowired
     private IdGenerationService idGenerationService;
+
+    @Autowired
+    private BacklogService backlogService;
 
     /**
      * Get all sprints with pagination
@@ -125,6 +129,15 @@ public class SprintService {
                 sprint.setStartDate(LocalDate.now());
             } else if (status == SprintStatus.COMPLETED && sprint.getEndDate() == null) {
                 sprint.setEndDate(LocalDate.now());
+                // When sprint is completed, move incomplete stories and tasks to backlog
+                if (backlogService != null) {
+                    try {
+                        backlogService.moveSprintToBacklog(id);
+                    } catch (Exception e) {
+                        // Log error but don't fail sprint status update
+                        System.err.println("Error moving sprint to backlog: " + e.getMessage());
+                    }
+                }
             }
             
             return sprintRepository.save(sprint);
@@ -141,9 +154,22 @@ public class SprintService {
 
     /**
      * Complete a sprint
+     * Automatically moves incomplete stories and tasks to backlog when sprint ends
      */
     public Sprint completeSprint(String id) {
-        return updateSprintStatus(id, SprintStatus.COMPLETED);
+        Sprint completedSprint = updateSprintStatus(id, SprintStatus.COMPLETED);
+        
+        // When sprint is completed, move incomplete stories and tasks to backlog
+        if (completedSprint != null && backlogService != null) {
+            try {
+                backlogService.moveSprintToBacklog(id);
+            } catch (Exception e) {
+                // Log error but don't fail sprint completion
+                System.err.println("Error moving sprint to backlog: " + e.getMessage());
+            }
+        }
+        
+        return completedSprint;
     }
 
     /**
@@ -411,3 +437,9 @@ public class SprintService {
             .collect(Collectors.toList());
     }
 }
+
+
+
+
+
+

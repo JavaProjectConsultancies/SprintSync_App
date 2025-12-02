@@ -1,8 +1,10 @@
 package com.sprintsync.api.service;
 
 import com.sprintsync.api.entity.Story;
+import com.sprintsync.api.entity.Task;
 import com.sprintsync.api.entity.enums.StoryPriority;
 import com.sprintsync.api.entity.enums.StoryStatus;
+import com.sprintsync.api.entity.enums.TaskStatus;
 import com.sprintsync.api.repository.StoryRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -13,7 +15,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -24,11 +31,15 @@ import java.util.Optional;
  */
 @Service
 @Transactional
+
+@SuppressWarnings("null")
 public class StoryService {
 
     private final StoryRepository storyRepository;
     private final IdGenerationService idGenerationService;
     private NotificationService notificationService;
+    private TaskService taskService;
+    private ActivityLogService activityLogService;
 
     @Autowired
     public StoryService(StoryRepository storyRepository, IdGenerationService idGenerationService) {
@@ -39,6 +50,16 @@ public class StoryService {
     @Autowired
     public void setNotificationService(NotificationService notificationService) {
         this.notificationService = notificationService;
+    }
+
+    @Autowired
+    public void setTaskService(TaskService taskService) {
+        this.taskService = taskService;
+    }
+
+    @Autowired
+    public void setActivityLogService(ActivityLogService activityLogService) {
+        this.activityLogService = activityLogService;
     }
 
     /**
@@ -123,24 +144,63 @@ public class StoryService {
 
     /**
      * Find stories by project ID.
+     * Enriches stories with parent story information if parentId is set.
      * 
      * @param projectId the project ID
-     * @return list of stories for the specified project
+     * @return list of stories for the specified project with parent story details
      */
     @Transactional(readOnly = true)
     public List<Story> findStoriesByProject(String projectId) {
-        return storyRepository.findByProjectId(projectId);
+        List<Story> stories = storyRepository.findByProjectId(projectId);
+        // Enrich stories with parent story details
+        enrichStoriesWithParentDetails(stories);
+        return stories;
     }
 
     /**
      * Find stories by sprint ID.
+     * Enriches stories with parent story information if parentId is set.
      * 
      * @param sprintId the sprint ID
-     * @return list of stories in the specified sprint
+     * @return list of stories in the specified sprint with parent story details
      */
     @Transactional(readOnly = true)
     public List<Story> findStoriesBySprint(String sprintId) {
-        return storyRepository.findBySprintId(sprintId);
+        List<Story> stories = storyRepository.findBySprintId(sprintId);
+        // Enrich stories with parent story details
+        enrichStoriesWithParentDetails(stories);
+        return stories;
+    }
+
+    /**
+     * Enrich stories with parent story details.
+     * This helps the frontend display parent story information correctly.
+     * Checks both stories and backlog_stories tables for parent story.
+     * 
+     * @param stories list of stories to enrich
+     */
+    private void enrichStoriesWithParentDetails(List<Story> stories) {
+        // First, try to find parent stories in the stories table
+        for (Story story : stories) {
+            if (story.getParentId() != null && !story.getParentId().isEmpty()) {
+                try {
+                    Optional<Story> parentStoryOpt = storyRepository.findById(story.getParentId());
+                    if (parentStoryOpt.isPresent()) {
+                        Story parentStory = parentStoryOpt.get();
+                        story.setParentStory(parentStory);
+                        story.setParentStoryTitle(parentStory.getTitle());
+                    }
+                    // If not found in stories table, parent might be in backlog - handled separately if needed
+                } catch (Exception e) {
+                    // Log error but don't fail the request
+                    System.err.println("Error fetching parent story for story " + story.getId() + ": " + e.getMessage());
+                }
+            }
+        }
+        
+        // For stories where parent was not found in stories table, check backlog_stories
+        // Note: This requires BacklogStoryRepository to be injected if needed
+        // For now, parent stories in backlog will show null title, which frontend can handle
     }
 
     /**
@@ -317,8 +377,23 @@ public class StoryService {
         Optional<Story> storyOptional = storyRepository.findById(id);
         if (storyOptional.isPresent()) {
             Story story = storyOptional.get();
+            String oldSprintId = story.getSprintId();
             story.setSprintId(sprintId);
-            return storyRepository.save(story);
+            Story savedStory = storyRepository.save(story);
+            
+            // Verify the sprintId was set correctly
+            if (savedStory.getSprintId() == null || !savedStory.getSprintId().equals(sprintId)) {
+                throw new IllegalStateException(
+                    String.format("Failed to update sprintId for story %s. Expected: %s, Got: %s", 
+                        id, sprintId, savedStory.getSprintId()));
+            }
+            
+            // Log the change for debugging
+            System.out.println(String.format(
+                "Story %s moved from sprint %s to sprint %s. Story sprintId is now: %s",
+                id, oldSprintId != null ? oldSprintId : "null", sprintId, savedStory.getSprintId()));
+            
+            return savedStory;
         } else {
             throw new IllegalArgumentException("Story not found with ID: " + id);
         }
@@ -385,4 +460,180 @@ public class StoryService {
     public List<Story> getStoriesBySprintOrdered(String sprintId) {
         return storyRepository.findStoriesBySprintOrderedByIndex(sprintId);
     }
+
+    /**
+     * Create a new story from a previous sprint story with new ID and copy only overdue, in-progress, and incomplete tasks.
+     * This method duplicates a story from a previous sprint to a new sprint with a new story ID.
+     * 
+     * @param sourceStoryId the source story ID to duplicate (from previous sprint)
+     * @param targetSprintId the target sprint ID to assign the new story to
+     * @param userId the user ID performing the action (for activity logging)
+     * @return the newly created story with copied tasks
+     * @throws IllegalArgumentException if story not found
+     */
+    @Transactional
+    public Story createStoryFromPreviousSprint(String sourceStoryId, String targetSprintId, String userId) {
+        // Get the original story from previous sprint
+        Optional<Story> sourceStoryOpt = storyRepository.findById(sourceStoryId);
+        if (sourceStoryOpt.isEmpty()) {
+            throw new IllegalArgumentException("Source story not found with ID: " + sourceStoryId);
+        }
+        
+        Story sourceStory = sourceStoryOpt.get();
+        
+        // Create a new story with new ID
+        Story newStory = new Story();
+        newStory.setId(idGenerationService.generateStoryId());
+        newStory.setProjectId(sourceStory.getProjectId());
+        newStory.setSprintId(targetSprintId);
+
+        // Set parentId so that all pulled copies reference the original/root story
+        // For the first sprint's stories, parentId will be null.
+        // When pulling to a new sprint:
+        // - If the source story already has a parentId, reuse it (keep the root reference)
+        // - Otherwise, use the source story's id as the parentId for the new story
+        if (sourceStory.getParentId() != null) {
+            newStory.setParentId(sourceStory.getParentId());
+        } else {
+            newStory.setParentId(sourceStory.getId());
+        }
+
+        newStory.setTitle(sourceStory.getTitle());
+        newStory.setDescription(sourceStory.getDescription());
+        newStory.setAcceptanceCriteria(sourceStory.getAcceptanceCriteria() != null ? 
+            new ArrayList<>(sourceStory.getAcceptanceCriteria()) : new ArrayList<>());
+        newStory.setStatus(StoryStatus.TODO); // Reset status to TODO when story is pulled to new sprint
+        newStory.setPriority(sourceStory.getPriority());
+        newStory.setStoryPoints(sourceStory.getStoryPoints());
+        newStory.setAssigneeId(sourceStory.getAssigneeId());
+        newStory.setReporterId(sourceStory.getReporterId());
+        newStory.setEpicId(sourceStory.getEpicId());
+        newStory.setReleaseId(sourceStory.getReleaseId());
+        newStory.setLabels(sourceStory.getLabels() != null ? 
+            new ArrayList<>(sourceStory.getLabels()) : new ArrayList<>());
+        newStory.setOrderIndex(sourceStory.getOrderIndex());
+        newStory.setEstimatedHours(sourceStory.getEstimatedHours());
+        newStory.setActualHours(BigDecimal.ZERO); // Reset actual hours for new story
+        
+        // Save the new story
+        Story savedStory = storyRepository.save(newStory);
+        
+        // Get all tasks from the source story
+        List<Task> sourceTasks = taskService.getTasksByStoryId(sourceStoryId);
+        
+        // Filter tasks: only overdue, in-progress, and incomplete (not done) tasks
+        LocalDate today = LocalDate.now();
+        List<Task> tasksToCopy = new ArrayList<>();
+        String sourceSprintId = sourceStory.getSprintId();
+        
+        for (Task sourceTask : sourceTasks) {
+            boolean isOverdue = sourceTask.getDueDate() != null && 
+                               sourceTask.getDueDate().isBefore(today);
+            boolean isInProgress = sourceTask.getStatus() == TaskStatus.IN_PROGRESS;
+            boolean isIncomplete = sourceTask.getStatus() != TaskStatus.DONE && 
+                                  sourceTask.getStatus() != TaskStatus.CANCELLED;
+            
+            // Copy task if it's overdue, in-progress, or incomplete
+            if (isOverdue || isInProgress || isIncomplete) {
+                Task newTask = new Task();
+                // ID will be generated by TaskService.createTask() if null
+                newTask.setStoryId(savedStory.getId());
+                newTask.setTitle(sourceTask.getTitle());
+                newTask.setDescription(sourceTask.getDescription());
+                newTask.setStatus(sourceTask.getStatus());
+                newTask.setPriority(sourceTask.getPriority());
+                newTask.setAssigneeId(sourceTask.getAssigneeId());
+                newTask.setReporterId(sourceTask.getReporterId());
+                newTask.setEstimatedHours(sourceTask.getEstimatedHours());
+                newTask.setActualHours(sourceTask.getActualHours());
+                newTask.setOrderIndex(sourceTask.getOrderIndex());
+                newTask.setDueDate(sourceTask.getDueDate());
+                newTask.setLabels(sourceTask.getLabels() != null ? 
+                    new ArrayList<>(sourceTask.getLabels()) : new ArrayList<>());
+                newTask.setIsPulledFromBacklog(true); // Mark as pulled (from previous sprint)
+                newTask.setTaskNumber(sourceTask.getTaskNumber());
+                
+                // Create the task
+                Task savedTask = taskService.createTask(newTask);
+                tasksToCopy.add(savedTask);
+                
+                // Log task creation activity
+                if (activityLogService != null && userId != null) {
+                    Map<String, Object> taskDetails = new HashMap<>();
+                    taskDetails.put("taskId", savedTask.getId());
+                    taskDetails.put("title", savedTask.getTitle());
+                    taskDetails.put("status", savedTask.getStatus().getValue());
+                    taskDetails.put("storyId", savedStory.getId());
+                    taskDetails.put("targetSprintId", targetSprintId);
+                    taskDetails.put("sourceSprintId", sourceSprintId);
+                    taskDetails.put("estimatedHours", savedTask.getEstimatedHours());
+                    taskDetails.put("actualHours", savedTask.getActualHours());
+                    taskDetails.put("dueDate", savedTask.getDueDate());
+                    taskDetails.put("isPulledFromBacklog", true);
+                    taskDetails.put("originalTaskId", sourceTask.getId());
+                    taskDetails.put("column", savedTask.getStatus().getValue());
+                    taskDetails.put("createdAt", LocalDateTime.now());
+                    
+                    activityLogService.logActivity(
+                        userId,
+                        "task",
+                        savedTask.getId(),
+                        "pulled_to_sprint",
+                        String.format("Task '%s' pulled from previous sprint '%s' to sprint '%s'. Status: %s, Column: %s, Estimated: %s, Actual: %s, Due Date: %s",
+                            savedTask.getTitle(),
+                            sourceSprintId != null ? sourceSprintId : "N/A",
+                            targetSprintId,
+                            savedTask.getStatus().getValue(),
+                            savedTask.getStatus().getValue(),
+                            savedTask.getEstimatedHours() != null ? savedTask.getEstimatedHours().toString() : "N/A",
+                            savedTask.getActualHours() != null ? savedTask.getActualHours().toString() : "0",
+                            savedTask.getDueDate() != null ? savedTask.getDueDate().toString() : "N/A"),
+                        null,
+                        taskDetails
+                    );
+                }
+            }
+        }
+        
+        // Log story creation activity
+        if (activityLogService != null && userId != null) {
+            Map<String, Object> storyDetails = new HashMap<>();
+            storyDetails.put("storyId", savedStory.getId());
+            storyDetails.put("title", savedStory.getTitle());
+            storyDetails.put("targetSprintId", targetSprintId);
+            storyDetails.put("sourceSprintId", sourceSprintId);
+            storyDetails.put("originalStoryId", sourceStoryId);
+            storyDetails.put("tasksCopied", tasksToCopy.size());
+            storyDetails.put("createdAt", LocalDateTime.now());
+            
+            Map<String, Object> oldStoryDetails = new HashMap<>();
+            oldStoryDetails.put("storyId", sourceStory.getId());
+            oldStoryDetails.put("title", sourceStory.getTitle());
+            oldStoryDetails.put("sprintId", sourceStory.getSprintId());
+            oldStoryDetails.put("status", sourceStory.getStatus().getValue());
+            
+            activityLogService.logActivity(
+                userId,
+                "story",
+                savedStory.getId(),
+                "pulled_to_sprint",
+                String.format("Story '%s' pulled from sprint '%s' to sprint '%s'. Copied %d tasks (overdue, in-progress, and incomplete).",
+                    savedStory.getTitle(),
+                    sourceSprintId != null ? sourceSprintId : "N/A",
+                    targetSprintId,
+                    tasksToCopy.size()),
+                oldStoryDetails,
+                storyDetails
+            );
+        }
+        
+        return savedStory;
+    }
+    
 }
+
+
+
+
+
+

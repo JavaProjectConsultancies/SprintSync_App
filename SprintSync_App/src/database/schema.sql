@@ -24,7 +24,7 @@ CREATE TABLE domains (
 );
 
 -- User roles enum
-CREATE TYPE user_role AS ENUM ('admin', 'manager', 'developer', 'qa');
+CREATE TYPE user_role AS ENUM ('admin', 'manager', 'developer');
 
 -- Experience levels enum
 CREATE TYPE experience_level AS ENUM ('junior', 'mid', 'senior', 'lead');
@@ -137,6 +137,7 @@ CREATE TABLE stories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
     sprint_id UUID REFERENCES sprints(id) ON DELETE SET NULL,
+    parent_id UUID REFERENCES stories(id) ON DELETE SET NULL,
     title VARCHAR(255) NOT NULL,
     description TEXT,
     acceptance_criteria JSONB DEFAULT '[]',
@@ -525,6 +526,7 @@ CREATE INDEX idx_sprints_active ON sprints(is_active);
 -- Story indexes
 CREATE INDEX idx_stories_project ON stories(project_id);
 CREATE INDEX idx_stories_sprint ON stories(sprint_id);
+CREATE INDEX idx_stories_parent ON stories(parent_id);
 CREATE INDEX idx_stories_status ON stories(status);
 CREATE INDEX idx_stories_assignee ON stories(assignee_id);
 
@@ -561,22 +563,18 @@ CREATE INDEX idx_activity_logs_created ON activity_logs(created_at);
 -- =============================================
 
 -- Insert departments
-INSERT INTO departments (name, description) VALUES
-('VNIT', 'Technology and Innovation Department'),
-('Dinshaw', 'Financial Services Department'),
-('Hospy', 'Healthcare Solutions Department'),
-('Pharma', 'Pharmaceutical Research Department');
+INSERT INTO departments (id, name, description) VALUES
+('550e8400-e29b-41d4-a716-446655440010', 'ERP & Strategic Technology', 'ERP systems and strategic technology initiatives'),
+('550e8400-e29b-41d4-a716-446655440011', 'HIMS & Pharma ZIP', 'Hospital Information Management Systems and Pharma ZIP solutions'),
+('550e8400-e29b-41d4-a716-446655440012', 'Pharma Old', 'Legacy pharmaceutical systems and applications'),
+('550e8400-e29b-41d4-a716-446655440013', 'Infrastructure Management', 'IT infrastructure and system management'),
+('550e8400-e29b-41d4-a716-446655440014', 'Implementation', 'Project implementation and deployment services'),
+('550e8400-e29b-41d4-a716-446655440015', 'Administration', 'Administrative and management services');
 
 -- Insert domains
 INSERT INTO domains (name, description) VALUES
-('Angular', 'Frontend Development with Angular Framework'),
-('Java', 'Backend Development with Java Technologies'),
-('Maui', 'Cross-platform Mobile Development'),
-('Testing', 'Quality Assurance and Testing'),
-('Implementation', 'System Implementation and Deployment'),
-('Database', 'Database Design and Management'),
-('Marketing', 'Digital Marketing and Brand Management'),
-('HR', 'Human Resources and Talent Management');
+('development', 'Development and Engineering Domain'),
+('management', 'Management and Administration Domain');
 
 -- Insert available integrations
 INSERT INTO available_integrations (name, type, description) VALUES

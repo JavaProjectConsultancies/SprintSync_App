@@ -13,7 +13,7 @@ CREATE SCHEMA IF NOT EXISTS sprintsync;
 -- ENUMS
 -- =============================================
 
-CREATE TYPE user_role AS ENUM ('admin', 'manager', 'developer', 'qa');
+CREATE TYPE user_role AS ENUM ('admin', 'manager', 'developer');
 CREATE TYPE experience_level AS ENUM ('junior', 'mid', 'senior', 'lead');
 CREATE TYPE project_status AS ENUM ('planning', 'active', 'paused', 'completed', 'cancelled');
 CREATE TYPE project_priority AS ENUM ('low', 'medium', 'high', 'critical');

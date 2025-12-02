@@ -9,7 +9,7 @@ import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Card, CardContent } from './ui/card';
 import { Separator } from './ui/separator';
-import { Plus, X, Target, User, Flag, BookOpen, CheckCircle2, FileText, Star, Bug, Code, Search } from 'lucide-react';
+import { Plus, X, Target, User, Flag, BookOpen, CheckCircle2, FileText, Star, Bug, Code, Search, Paperclip, Link, Upload, Trash2, Eye } from 'lucide-react';
 import { storyTemplates, StoryTemplate, getStoriesByType } from '../data/storyTemplates';
 import { Epic } from '../types';
 
@@ -46,6 +46,10 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
   });
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [attachmentUrls, setAttachmentUrls] = useState<Array<{ url: string; name: string }>>([]);
+  const [attachmentUrl, setAttachmentUrl] = useState<string>('');
+  const [attachmentUrlName, setAttachmentUrlName] = useState<string>('');
 
   // Team members list (in real app, this would come from props or context)
   const teamMembers = [
@@ -94,14 +98,16 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
 
     const validCriteria = formData.acceptanceCriteria.filter(criteria => criteria.trim());
     
-    const newStory: Omit<Story, 'id'> = {
+    const newStory: Omit<Story, 'id'> & { attachments?: File[]; attachmentUrls?: Array<{ url: string; name: string }> } = {
       title: formData.title.trim(),
       description: formData.description.trim(),
       priority: formData.priority,
       points: formData.points,
       status: 'stories',
       assignee: formData.assignee,
-      acceptanceCriteria: validCriteria
+      acceptanceCriteria: validCriteria,
+      attachments: attachments.length > 0 ? attachments : undefined,
+      attachmentUrls: attachmentUrls.length > 0 ? attachmentUrls : undefined
     };
 
     onAddStory(newStory);
@@ -122,6 +128,63 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
       epicId: 'none'
     });
     setErrors({});
+    setAttachments([]);
+    setAttachmentUrls([]);
+    setAttachmentUrl('');
+    setAttachmentUrlName('');
+  };
+
+  // File upload handlers
+  const handleFileSelect = (files: FileList | null) => {
+    if (!files) return;
+    const fileArray = Array.from(files);
+    setAttachments(prev => [...prev, ...fileArray]);
+  };
+
+  const handleRemoveAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // URL handlers
+  const isValidUrl = (urlString: string): boolean => {
+    try {
+      const url = new URL(urlString);
+      return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
+
+  const handleAddUrl = () => {
+    if (!attachmentUrl.trim()) {
+      return;
+    }
+
+    if (!isValidUrl(attachmentUrl.trim())) {
+      setErrors(prev => ({ ...prev, attachmentUrl: 'Please enter a valid URL (must start with http:// or https://)' }));
+      return;
+    }
+
+    setAttachmentUrls(prev => [...prev, { url: attachmentUrl.trim(), name: attachmentUrlName.trim() || attachmentUrl.trim() }]);
+    setAttachmentUrl('');
+    setAttachmentUrlName('');
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors.attachmentUrl;
+      return newErrors;
+    });
+  };
+
+  const handleRemoveUrl = (index: number) => {
+    setAttachmentUrls(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
   const addAcceptanceCriteria = () => {
@@ -212,7 +275,7 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+      <DialogContent className="w-[75%] max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="flex-shrink-0 p-6 pb-4">
           <DialogTitle className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
@@ -231,10 +294,10 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
             className="h-full overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar scroll-smooth"
             style={{ maxHeight: 'calc(90vh - 160px)' }}
           >
-            <div className="space-y-6 py-2 pb-6">
+            <div className="space-y-8 py-4 pb-6">
             {/* Template Selection */}
             <Card>
-              <CardContent className="p-4 space-y-4">
+              <CardContent className="p-6 space-y-6">
                 <div className="flex items-center space-x-2 mb-3">
                   <FileText className="w-4 h-4 text-indigo-600" />
                   <h3 className="font-medium">Story Template</h3>
@@ -301,7 +364,7 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
 
             {/* Basic Information */}
             <Card>
-              <CardContent className="p-4 space-y-4">
+              <CardContent className="p-6 space-y-6">
                 <div className="flex items-center space-x-2 mb-3">
                   <BookOpen className="w-4 h-4 text-green-600" />
                   <h3 className="font-medium">Story Details</h3>
@@ -340,7 +403,7 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
                 </div>
 
                 {/* Priority and Points */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="priority">Priority</Label>
                     <Select 
@@ -407,7 +470,7 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
 
             {/* Assignment */}
             <Card>
-              <CardContent className="p-4 space-y-4">
+              <CardContent className="p-6 space-y-6">
                 <div className="flex items-center space-x-2 mb-3">
                   <User className="w-4 h-4 text-blue-600" />
                   <h3 className="font-medium">Assignment</h3>
@@ -451,7 +514,7 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
 
             {/* Acceptance Criteria */}
             <Card>
-              <CardContent className="p-4 space-y-4">
+              <CardContent className="p-6 space-y-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <CheckCircle2 className="w-4 h-4 text-purple-600" />
@@ -502,7 +565,7 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
             {/* Epic Association */}
             {availableEpics.length > 0 && (
               <Card>
-                <CardContent className="p-4 space-y-4">
+                <CardContent className="p-6 space-y-6">
                   <div className="flex items-center space-x-2 mb-3">
                     <Flag className="w-4 h-4 text-purple-600" />
                     <h3 className="font-medium">Epic Association</h3>
@@ -566,7 +629,7 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
             {/* Labels */}
             {formData.labels.length > 0 && (
               <Card>
-                <CardContent className="p-4 space-y-4">
+                <CardContent className="p-6 space-y-6">
                   <div className="flex items-center space-x-2 mb-3">
                     <Flag className="w-4 h-4 text-purple-600" />
                     <h3 className="font-medium">Labels</h3>
@@ -582,6 +645,176 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
                 </CardContent>
               </Card>
             )}
+
+            {/* Attachments */}
+            <Card>
+              <CardContent className="p-6 space-y-6">
+                <div className="flex items-center space-x-2 mb-3">
+                  <Paperclip className="w-4 h-4 text-blue-600" />
+                  <h3 className="font-medium">Attachments (Optional)</h3>
+                </div>
+
+                {/* File Upload Section */}
+                <div className="space-y-2">
+                  <Label htmlFor="file-upload-story">Upload File</Label>
+                  <div
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-blue-400 transition-colors cursor-pointer bg-gray-50"
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleFileSelect(e.dataTransfer.files);
+                    }}
+                    onClick={() => {
+                      const input = document.createElement('input');
+                      input.type = 'file';
+                      input.multiple = true;
+                      input.onchange = (e) => {
+                        const target = e.target as HTMLInputElement;
+                        if (target.files) handleFileSelect(target.files);
+                      };
+                      input.click();
+                    }}
+                  >
+                    <div className="text-center">
+                      <Paperclip className="w-6 h-6 mx-auto mb-2 text-gray-400" />
+                      <p className="text-sm text-gray-600">Drop files here or click to browse</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Separator */}
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">Or</span>
+                  </div>
+                </div>
+
+                {/* URL Input Section */}
+                <div className="space-y-2">
+                  <Label htmlFor="url-input-story">Add URL/Link</Label>
+                  <div className="space-y-2">
+                    <Input
+                      id="url-input-story"
+                      type="url"
+                      placeholder="https://example.com/document.pdf"
+                      value={attachmentUrl}
+                      onChange={(e) => setAttachmentUrl(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddUrl();
+                        }
+                      }}
+                    />
+                    <Input
+                      id="url-name-input-story"
+                      type="text"
+                      placeholder="Link name (optional)"
+                      value={attachmentUrlName}
+                      onChange={(e) => setAttachmentUrlName(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddUrl();
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAddUrl}
+                      disabled={!attachmentUrl.trim()}
+                      className="w-full"
+                    >
+                      <Link className="w-4 h-4 mr-2" />
+                      Add URL
+                    </Button>
+                  </div>
+                  {errors.attachmentUrl && <p className="text-sm text-red-600">{errors.attachmentUrl}</p>}
+                </div>
+
+                {/* Files List */}
+                {attachments.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Files</Label>
+                    {attachments.map((file, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
+                      >
+                        <div className="flex items-center space-x-3 flex-1 min-w-0">
+                          <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center flex-shrink-0">
+                            <FileText className="w-4 h-4 text-blue-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
+                            <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleRemoveAttachment(index)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* URLs List */}
+                {attachmentUrls.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Links</Label>
+                    {attachmentUrls.map((item, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 border border-green-200 rounded-lg hover:bg-green-50 bg-green-50"
+                      >
+                        <div className="flex items-center space-x-3 flex-1 min-w-0">
+                          <div className="w-8 h-8 bg-green-100 rounded flex items-center justify-center flex-shrink-0">
+                            <Link className="w-4 h-4 text-green-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
+                            <p className="text-xs text-gray-500 break-all line-clamp-1">{item.url}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => window.open(item.url, '_blank')}
+                            title="Open link"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleRemoveUrl(index)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Preview */}
             <Card>

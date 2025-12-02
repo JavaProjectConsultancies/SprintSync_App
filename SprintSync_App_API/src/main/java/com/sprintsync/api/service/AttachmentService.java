@@ -15,6 +15,7 @@ import java.util.List;
  * @author SprintSync Team
  */
 @Service
+@SuppressWarnings("null")
 public class AttachmentService {
 
     @Autowired
@@ -81,4 +82,9 @@ public class AttachmentService {
         return attachmentRepository.countByEntityTypeAndEntityId(entityType, entityId);
     }
 }
+
+
+
+
+
 

@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
  * @author Mayuresh G
  */
 @Service
+@SuppressWarnings("null")
 public class DashboardService {
 
     @Autowired
@@ -792,3 +793,9 @@ public class DashboardService {
         return statistics;
     }
 }
+
+
+
+
+
+

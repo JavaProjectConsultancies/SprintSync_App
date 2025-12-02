@@ -1,5 +1,6 @@
 import apiClient from '../client';
 import { Task } from '../../../types/api';
+import { emitProjectBudgetUpdated } from '../../../utils/projectBudgetEvents';
 
 const BASE_URL = '/tasks';
 
@@ -20,8 +21,11 @@ export const taskApiService = {
   updateTask: (id: string, task: Partial<Task>) => 
     apiClient.put<Task>(`${BASE_URL}/${id}`, task),
   
-  deleteTask: (id: string) => 
-    apiClient.delete<void>(`${BASE_URL}/${id}`),
+  deleteTask: async (id: string, projectId?: string) => {
+    const response = await apiClient.delete<void>(`${BASE_URL}/${id}`);
+    emitProjectBudgetUpdated(projectId, "task-deleted");
+    return response;
+  },
 
   // Story-specific operations
   getTasksByStory: (storyId: string, params?: any) => 

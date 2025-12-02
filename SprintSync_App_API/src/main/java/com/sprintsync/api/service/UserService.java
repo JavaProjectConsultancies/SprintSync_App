@@ -21,6 +21,8 @@ import java.util.Optional;
  */
 @Service
 @Transactional
+
+@SuppressWarnings("null")
 public class UserService {
 
     private final UserRepository userRepository;
@@ -124,6 +126,12 @@ public class UserService {
         }
         if (user.getSkills() != null) {
             existingUser.setSkills(user.getSkills());
+        }
+        if (user.getReportingManager() != null) {
+            existingUser.setReportingManager(user.getReportingManager());
+        }
+        if (user.getDateOfJoining() != null) {
+            existingUser.setDateOfJoining(user.getDateOfJoining());
         }
         if (user.getIsActive() != null) {
             existingUser.setIsActive(user.getIsActive());
@@ -361,3 +369,9 @@ public class UserService {
                 .filter(user -> user.getPasswordHash().equals(passwordHash) && user.getIsActive());
     }
 }
+
+
+
+
+
+

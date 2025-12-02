@@ -31,7 +31,7 @@ const DEMO_USERS: User[] = [
     role: 'admin',
     avatar: '/api/placeholder/40/40',
     assignedProjects: [],
-    department: 'IT',
+    department: 'Administration',
     domain: 'System Administration'
   },
   {
@@ -41,7 +41,7 @@ const DEMO_USERS: User[] = [
     role: 'admin',
     avatar: '/api/placeholder/40/40',
     assignedProjects: [],
-    department: 'IT',
+    department: 'Administration',
     domain: 'Database'
   },
 
@@ -53,7 +53,7 @@ const DEMO_USERS: User[] = [
     role: 'manager',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-1', 'proj-2'],
-    department: 'VNIT',
+    department: 'ERP & Strategic Technology',
     domain: 'Implementation'
   },
   {
@@ -63,7 +63,7 @@ const DEMO_USERS: User[] = [
     role: 'manager',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-3', 'proj-4'],
-    department: 'Dinshaw',
+    department: 'ERP & Strategic Technology',
     domain: 'Java'
   },
   {
@@ -73,7 +73,7 @@ const DEMO_USERS: User[] = [
     role: 'manager',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-5', 'proj-6'],
-    department: 'Hospy',
+    department: 'HIMS & Pharma ZIP',
     domain: 'Angular'
   },
   {
@@ -83,7 +83,7 @@ const DEMO_USERS: User[] = [
     role: 'manager',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-7', 'proj-8'],
-    department: 'Pharma',
+    department: 'Pharma Old',
     domain: 'Testing'
   },
 
@@ -95,7 +95,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-1', 'proj-3'],
-    department: 'VNIT',
+    department: 'ERP & Strategic Technology',
     domain: 'Angular'
   },
   {
@@ -105,7 +105,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-5', 'proj-6'],
-    department: 'Hospy',
+    department: 'HIMS & Pharma ZIP',
     domain: 'Angular'
   },
   {
@@ -115,7 +115,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-2', 'proj-4'],
-    department: 'Dinshaw',
+    department: 'ERP & Strategic Technology',
     domain: 'Angular'
   },
   {
@@ -125,7 +125,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-7', 'proj-8'],
-    department: 'Pharma',
+    department: 'Pharma Old',
     domain: 'Angular'
   },
 
@@ -137,7 +137,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-2', 'proj-4'],
-    department: 'Dinshaw',
+    department: 'ERP & Strategic Technology',
     domain: 'Java'
   },
   {
@@ -147,7 +147,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-1', 'proj-3'],
-    department: 'VNIT',
+    department: 'ERP & Strategic Technology',
     domain: 'Java'
   },
   {
@@ -157,7 +157,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-5', 'proj-7'],
-    department: 'Hospy',
+    department: 'HIMS & Pharma ZIP',
     domain: 'Java'
   },
   {
@@ -167,7 +167,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-6', 'proj-8'],
-    department: 'Pharma',
+    department: 'Pharma Old',
     domain: 'Java'
   },
 
@@ -179,7 +179,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-3', 'proj-6'],
-    department: 'Hospy',
+    department: 'HIMS & Pharma ZIP',
     domain: 'Maui'
   },
   {
@@ -189,7 +189,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-1', 'proj-5'],
-    department: 'VNIT',
+    department: 'ERP & Strategic Technology',
     domain: 'Maui'
   },
   {
@@ -199,7 +199,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-2', 'proj-7'],
-    department: 'Dinshaw',
+    department: 'ERP & Strategic Technology',
     domain: 'Maui'
   },
   {
@@ -209,7 +209,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-4', 'proj-8'],
-    department: 'Pharma',
+    department: 'Pharma Old',
     domain: 'Maui'
   },
 
@@ -221,7 +221,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-4', 'proj-7'],
-    department: 'Pharma',
+    department: 'Pharma Old',
     domain: 'Testing'
   },
   {
@@ -231,7 +231,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-1', 'proj-2'],
-    department: 'VNIT',
+    department: 'ERP & Strategic Technology',
     domain: 'Testing'
   },
   {
@@ -241,7 +241,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-3', 'proj-5'],
-    department: 'Dinshaw',
+    department: 'ERP & Strategic Technology',
     domain: 'Testing'
   },
   {
@@ -251,7 +251,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-6', 'proj-8'],
-    department: 'Hospy',
+    department: 'HIMS & Pharma ZIP',
     domain: 'Testing'
   },
 
@@ -263,7 +263,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-2', 'proj-8'],
-    department: 'Dinshaw',
+    department: 'ERP & Strategic Technology',
     domain: 'Implementation'
   },
   {
@@ -273,7 +273,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-1', 'proj-4'],
-    department: 'VNIT',
+    department: 'ERP & Strategic Technology',
     domain: 'Implementation'
   },
   {
@@ -283,7 +283,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-5', 'proj-7'],
-    department: 'Hospy',
+    department: 'HIMS & Pharma ZIP',
     domain: 'Implementation'
   },
   {
@@ -293,7 +293,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-3', 'proj-6'],
-    department: 'Pharma',
+    department: 'Pharma Old',
     domain: 'Implementation'
   },
 
@@ -305,7 +305,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-1', 'proj-5'],
-    department: 'VNIT',
+    department: 'ERP & Strategic Technology',
     domain: 'Database'
   },
   {
@@ -315,7 +315,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-2', 'proj-6'],
-    department: 'Dinshaw',
+    department: 'ERP & Strategic Technology',
     domain: 'Database'
   },
   {
@@ -325,7 +325,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-3', 'proj-7'],
-    department: 'Hospy',
+    department: 'HIMS & Pharma ZIP',
     domain: 'Database'
   },
   {
@@ -335,7 +335,7 @@ const DEMO_USERS: User[] = [
     role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-4', 'proj-8'],
-    department: 'Pharma',
+    department: 'Pharma Old',
     domain: 'Database'
   },
 
@@ -347,7 +347,7 @@ const DEMO_USERS: User[] = [
     role: 'designer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-1', 'proj-2'],
-    department: 'VNIT',
+    department: 'ERP & Strategic Technology',
     domain: 'Marketing'
   },
   {
@@ -357,7 +357,7 @@ const DEMO_USERS: User[] = [
     role: 'designer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-3', 'proj-4'],
-    department: 'Dinshaw',
+    department: 'ERP & Strategic Technology',
     domain: 'Marketing'
   },
   {
@@ -367,7 +367,7 @@ const DEMO_USERS: User[] = [
     role: 'designer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-5', 'proj-6'],
-    department: 'Hospy',
+    department: 'HIMS & Pharma ZIP',
     domain: 'Marketing'
   },
   {
@@ -377,7 +377,7 @@ const DEMO_USERS: User[] = [
     role: 'designer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-7', 'proj-8'],
-    department: 'Pharma',
+    department: 'Pharma Old',
     domain: 'Marketing'
   },
   {
@@ -387,7 +387,7 @@ const DEMO_USERS: User[] = [
     role: 'designer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-1', 'proj-5'],
-    department: 'VNIT',
+    department: 'ERP & Strategic Technology',
     domain: 'Marketing'
   },
   {
@@ -397,7 +397,7 @@ const DEMO_USERS: User[] = [
     role: 'designer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-2', 'proj-7'],
-    department: 'Dinshaw',
+    department: 'ERP & Strategic Technology',
     domain: 'Marketing'
   },
 
@@ -409,7 +409,7 @@ const DEMO_USERS: User[] = [
     role: 'designer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-7', 'proj-8'],
-    department: 'Pharma',
+    department: 'Pharma Old',
     domain: 'HR'
   },
   {
@@ -419,7 +419,7 @@ const DEMO_USERS: User[] = [
     role: 'designer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-1', 'proj-3'],
-    department: 'VNIT',
+    department: 'ERP & Strategic Technology',
     domain: 'HR'
   },
   {
@@ -429,7 +429,7 @@ const DEMO_USERS: User[] = [
     role: 'designer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-2', 'proj-6'],
-    department: 'Dinshaw',
+    department: 'ERP & Strategic Technology',
     domain: 'HR'
   },
   {
@@ -439,7 +439,7 @@ const DEMO_USERS: User[] = [
     role: 'designer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-4', 'proj-5'],
-    department: 'Hospy',
+    department: 'HIMS & Pharma ZIP',
     domain: 'HR'
   }
 ];
@@ -535,8 +535,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const canAccessProject = (projectId: string): boolean => {
     if (!user) return false;
     
-    // Admin, Manager, and QA can access all projects
-    if (user.role === 'admin' || user.role === 'manager' || user.role === 'qa') {
+    // Admin and Manager can access all projects
+    if (user.role === 'admin' || user.role === 'manager') {
       return true;
     }
     

@@ -16,6 +16,7 @@ import java.util.Optional;
  * @author Mayuresh G
  */
 @Service
+@SuppressWarnings("null")
 public class RequirementService {
 
     private final RequirementRepository requirementRepository;
@@ -147,3 +148,9 @@ public class RequirementService {
         return requirementRepository.countByProjectIdAndStatus(projectId, statusEnum);
     }
 }
+
+
+
+
+
+

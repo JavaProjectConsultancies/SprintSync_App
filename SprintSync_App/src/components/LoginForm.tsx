@@ -111,12 +111,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
     }
   };
 
-  const demoLogin = (role: 'admin' | 'manager' | 'developer' | 'qa') => {
+  const demoLogin = (role: 'admin' | 'manager' | 'developer') => {
     const demoCredentials = {
       admin: { email: 'admin@demo.com', password: 'admin123' },
       manager: { email: 'manager@demo.com', password: 'manager123' },
       developer: { email: 'developer@demo.com', password: 'dev123' },
-      qa: { email: 'qa@demo.com', password: 'qa123' },
     };
 
     setFormData(demoCredentials[role]);
@@ -211,55 +210,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
           </Button>
         </form>
 
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">
-              Or try demo accounts
-            </span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => demoLogin('admin')}
-            disabled={isSubmitting || isLoading}
-          >
-            <User className="mr-1 h-3 w-3" />
-            Admin
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => demoLogin('manager')}
-            disabled={isSubmitting || isLoading}
-          >
-            <User className="mr-1 h-3 w-3" />
-            Manager
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => demoLogin('developer')}
-            disabled={isSubmitting || isLoading}
-          >
-            <User className="mr-1 h-3 w-3" />
-            Developer
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => demoLogin('qa')}
-            disabled={isSubmitting || isLoading}
-          >
-            <User className="mr-1 h-3 w-3" />
-            QA
-          </Button>
-        </div>
 
         {/* Footer Link */}
         <div className="mt-4 text-center text-sm">

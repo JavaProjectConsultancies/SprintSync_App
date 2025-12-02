@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContextEnhanced';
 import LoginForm from './components/LoginForm';
 import { NavigationProvider, useNavigation } from './contexts/NavigationContext';
@@ -15,7 +15,7 @@ import AppSidebar from './components/AppSidebar';
 import NotificationDropdown from './components/NotificationDropdown';
 import { Toaster } from './components/ui/sonner';
 import { Brain, Sparkles, ChevronRight } from 'lucide-react';
-import sprintSyncLogo from 'figma:asset/aadf192e83d08c7cc03896c06b452017e84d04aa.png';
+import sprintSyncLogo from './assets/aadf192e83d08c7cc03896c06b452017e84d04aa.png';
 import PageTransition from './components/PageTransition';
 
 // Import page components
@@ -52,12 +52,16 @@ const ProtectedRoute: React.FC<{
   }
   
   // Check if user's role is in allowed roles
-  if (user && allowedRoles.includes(user.role)) {
-    return <>{children}</>;
+  if (user) {
+    const normalizedUserRole = (user.role || '').toLowerCase();
+    const normalizedAllowed = allowedRoles.map(r => (r || '').toLowerCase());
+    if (normalizedAllowed.includes(normalizedUserRole)) {
+      return <>{children}</>;
+    }
   }
   
   // If user doesn't have access, redirect to dashboard
-  return <Dashboard />;
+  return <Navigate to="/" replace state={{ from: location }} />;
 };
 
 const AppContent: React.FC = () => {
@@ -106,7 +110,7 @@ const AppContent: React.FC = () => {
       '/reports': { title: 'Reports', description: 'Performance metrics and analytics', icon: '📈' },
       '/profile': { title: 'Profile', description: 'Your account settings', icon: '👤' },
       '/admin-panel': { title: 'Admin Panel', description: 'System administration', icon: '⚙️' },
-      '/todo-list': { title: 'Todo List', description: 'Personal task management', icon: '✅' },
+      '/todo-list': { title: 'My Tasks', description: 'Personal task management', icon: '✅' },
       // '/api-demo': { title: 'API Demo', description: 'Interactive API integration showcase', icon: '🔌' },
       // '/api-status': { title: 'API Status', description: 'Monitor API health and connectivity', icon: '📡' },
       // '/api-test': { title: 'API Test', description: 'Test and validate API endpoints', icon: '🧪' }
@@ -122,7 +126,6 @@ const AppContent: React.FC = () => {
       admin: ['/', '/projects', '/team-allocation', '/reports', '/profile', '/admin-panel'],
       manager: ['/', '/projects', '/scrum', '/time-tracking', '/ai-insights', '/team-allocation', '/reports', '/profile', '/todo-list'],
       developer: ['/', '/projects', '/scrum', '/time-tracking', '/ai-insights', '/reports', '/profile', '/todo-list'], // Removed team-allocation for developers
-      qa: ['/', '/projects', '/scrum', '/time-tracking', '/ai-insights', '/team-allocation', '/reports', '/profile', '/todo-list'] // QA has manager-level access including team-allocation
     };
     
     return roleAccess[role]?.includes(path) || false;
@@ -363,65 +366,67 @@ const AppContent: React.FC = () => {
 
         {/* Enhanced Main Content */}
         <main className="flex-1 flex flex-col bg-gradient-to-br from-white via-green-50/30 to-cyan-50/30 min-h-0 relative">
-          <div className="flex-shrink-0 px-6 pt-6">
-            {/* Page Header */}
-            <div className="flex items-center justify-between mb-6">
-              <div className="space-y-1">
-                <div className="flex items-center space-x-3">
-                  <span className="text-2xl">{pageInfo.icon}</span>
-                  <h1 className="text-2xl font-semibold text-green-600">{pageInfo.title}</h1>
-                </div>
-                <p className="text-muted-foreground">{pageInfo.description}</p>
-              </div>
-              
-              {/* Quick Actions */}
-              <div className="hidden md:flex items-center space-x-2">
-                <div className="flex items-center space-x-2 text-xs text-muted-foreground bg-white/50 px-3 py-2 rounded-lg border">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span>Live Updates</span>
+          {location.pathname !== '/todo-list' && (
+            <div className="flex-shrink-0 px-6 pt-6"> 
+              {/* Page Header */}
+              <div className="flex items-center justify-between mb-6">
+                {/* Quick Actions */}
+                <div className="hidden md:flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 text-xs text-muted-foreground bg-white/50 px-3 py-2 rounded-lg border">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span>Live Updates</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Route Content - Uses remaining space */}
           <div className="flex-1 min-h-0 px-6 pb-6">
-                <PageTransition>
+            <PageTransition>
                   <Routes>
                     {/* Dashboard - accessible by all roles */}
                     <Route path="/" element={<Dashboard />} />
                     
-                    {/* Projects - accessible by all roles */}
-                    <Route path="/projects" element={<ProjectsPage />} />
-                    <Route path="/projects/:id" element={<ProjectDetailsPage />} />
+                    {/* Projects - accessible by admin, manager (not developers) */}
+                    <Route path="/projects" element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                        <ProjectsPage />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/projects/:id" element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                        <ProjectDetailsPage />
+                      </ProtectedRoute>
+                    } />
                     
                     {/* Backlog - accessible by all roles */}
                     <Route path="/backlog" element={<BacklogPage />} />
                     
-                    {/* Scrum Management - accessible by manager, developer, designer */}
+                    {/* Scrum Management - accessible by manager, developer */}
                     <Route path="/scrum" element={
-                      <ProtectedRoute allowedRoles={['manager', 'developer', 'qa']}>
+                      <ProtectedRoute allowedRoles={['manager', 'developer']}>
                         <ScrumPage />
                       </ProtectedRoute>
                     } />
                     
-                    {/* Time Tracking - accessible by manager, developer, designer */}
+                    {/* Time Tracking - accessible by manager, developer */}
                     <Route path="/time-tracking" element={
-                      <ProtectedRoute allowedRoles={['manager', 'developer', 'qa']}>
+                      <ProtectedRoute allowedRoles={['manager', 'developer']}>
                         <TimeTrackingPage />
                       </ProtectedRoute>
                     } />
                     
-                    {/* AI Insights - accessible by manager, developer, designer */}
+                    {/* AI Insights - accessible by manager, developer */}
                     <Route path="/ai-insights" element={
-                      <ProtectedRoute allowedRoles={['manager', 'developer', 'qa']}>
+                      <ProtectedRoute allowedRoles={['manager', 'developer']}>
                         <AIInsightsPage />
                       </ProtectedRoute>
                     } />
                     
-                    {/* Team Allocation - accessible by admin, manager, and qa (qa has manager-level access) */}
+                    {/* Team Allocation - accessible by admin, manager */}
                     <Route path="/team-allocation" element={
-                      <ProtectedRoute allowedRoles={['admin', 'manager', 'qa']}>
+                      <ProtectedRoute allowedRoles={['admin', 'manager']}>
                         <TeamAllocationPage />
                       </ProtectedRoute>
                     } />
@@ -439,26 +444,17 @@ const AppContent: React.FC = () => {
                       </ProtectedRoute>
                     } />
                     
-                    {/* Todo List - accessible by manager, developer, designer */}
+                    {/* Todo List - accessible by manager, developer */}
                     <Route path="/todo-list" element={
-                      <ProtectedRoute allowedRoles={['manager', 'developer', 'qa']}>
+                      <ProtectedRoute allowedRoles={['manager', 'developer']}>
                         <TodoListPage />
                       </ProtectedRoute>
                     } />
                     
-                    {/* API Demo - accessible by all roles */}
-                    {/* <Route path="/api-demo" element={<ApiIntegrationDemo />} /> */}
-                    
-                    {/* API Status - accessible by all roles */}
-                    {/* <Route path="/api-status" element={<ApiStatusChecker />} /> */}
-                    
-                    {/* API Test - accessible by all roles */}
-                    {/* <Route path="/api-test" element={<ApiTestComponent />} /> */}
-                    
                     {/* Catch-all route for preview and other unmatched paths */}
                     <Route path="*" element={<Dashboard />} />
                   </Routes>
-                </PageTransition>
+            </PageTransition>
           </div>
         </main>
       </SidebarInset>

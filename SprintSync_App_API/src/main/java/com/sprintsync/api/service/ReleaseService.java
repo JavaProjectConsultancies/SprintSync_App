@@ -22,6 +22,8 @@ import java.util.Optional;
  */
 @Service
 @Transactional
+
+@SuppressWarnings("null")
 public class ReleaseService {
 
     private final ReleaseRepository releaseRepository;
@@ -454,3 +456,9 @@ public class ReleaseService {
         return releaseRepository.saveAll(releases);
     }
 }
+
+
+
+
+
+

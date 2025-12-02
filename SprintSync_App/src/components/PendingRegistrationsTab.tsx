@@ -115,8 +115,11 @@ const PendingRegistrationsTab: React.FC<PendingRegistrationsTabProps> = ({ onRef
       avatarUrl: '',
       experience: normalizeExperienceValue(pendingReg.experience) || 'E1',
       hourlyRate: '',
+      ctc: '',
       availabilityPercentage: '100',
       skills: '',
+      reportingManager: '',
+      dateOfJoining: '',
       isActive: true
     };
   };

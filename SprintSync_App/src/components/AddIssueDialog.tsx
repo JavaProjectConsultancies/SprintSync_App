@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -11,7 +11,7 @@ import { Card, CardContent } from './ui/card';
 import { Separator } from './ui/separator';
 import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { CalendarIcon, CheckSquare, User, Flag, Target, Clock, Plus, X, Paperclip, Trash2, Loader2, AlertCircle } from 'lucide-react';
+import { CalendarIcon, CheckSquare, User, Flag, Target, Clock, Plus, X, Paperclip, Trash2, Loader2, AlertCircle, Link, Eye, FileText } from 'lucide-react';
 
 // Simple date formatter to replace date-fns
 const format = (date: Date, formatStr: string) => {
@@ -39,6 +39,7 @@ interface Story {
   points: number;
   status: 'stories' | 'todo' | 'inprogress' | 'qa' | 'done';
   assignee?: string;
+  projectId?: string; // For deriving projectId from story
 }
 
 interface Issue {
@@ -74,6 +75,9 @@ interface AddIssueDialogProps {
   defaultStoryId?: string;
   requiredStoryId?: string;
   users?: User[];
+  projectId?: string; // REQUIRED for filtering assignees by project
+  sprintStartDate?: string; // Sprint start date for date restrictions
+  sprintEndDate?: string; // Sprint end date for date restrictions
 }
 
 const AddIssueDialog: React.FC<AddIssueDialogProps> = ({ 
@@ -84,7 +88,10 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
   defaultStatus = 'todo',
   defaultStoryId,
   requiredStoryId,
-  users = []
+  users = [],
+  projectId,
+  sprintStartDate,
+  sprintEndDate
 }) => {
   const [formData, setFormData] = useState({
     title: '',
@@ -101,13 +108,96 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [attachments, setAttachments] = useState<File[]>([]);
+  const [attachmentUrls, setAttachmentUrls] = useState<Array<{ url: string; name: string }>>([]);
+  const [attachmentUrl, setAttachmentUrl] = useState<string>('');
+  const [attachmentUrlName, setAttachmentUrlName] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
+  
+  // State to control due date popover
+  const [isDueDatePopoverOpen, setIsDueDatePopoverOpen] = useState(false);
+  
+  // State for project team members
+  const [projectTeamMembers, setProjectTeamMembers] = useState<any[]>([]);
+  const [loadingTeamMembers, setLoadingTeamMembers] = useState(false);
+  
+  // Calculate effectiveProjectId - derive from selected story if not provided directly
+  const effectiveProjectId = useMemo(() => {
+    // First, try the projectId prop
+    if (projectId) {
+      return projectId;
+    }
+    // Then, try to get it from the currently selected story
+    const selectedStoryId = formData.storyId && formData.storyId !== 'none' ? formData.storyId : defaultStoryId;
+    if (selectedStoryId) {
+      const story = stories.find(s => s.id === selectedStoryId);
+      return story?.projectId;
+    }
+    return undefined;
+  }, [projectId, formData.storyId, defaultStoryId, stories]);
+  
+  // Fetch team members by project when projectId is provided
+  useEffect(() => {
+    const fetchProjectTeamMembers = async () => {
+      if (!effectiveProjectId) {
+        setProjectTeamMembers([]);
+        return;
+      }
 
-  // Use API users if provided, otherwise fall back to mock data
-  const teamMembers = users.length > 0 
-    ? users.map(user => {
-        // Handle different user name formats (name, firstName+lastName, or email)
-        const displayName = user.name || 
+      setLoadingTeamMembers(true);
+      try {
+        const { teamMemberApi } = await import('../services/api/entities/teamMemberApi');
+        const members = await teamMemberApi.getTeamMembersByProject(effectiveProjectId);
+        console.log(`[AddIssueDialog] Fetched ${members?.length || 0} team members for project ${effectiveProjectId}`, members);
+        setProjectTeamMembers(members || []);
+      } catch (error) {
+        console.error('Error fetching project team members:', error);
+        setProjectTeamMembers([]);
+      } finally {
+        setLoadingTeamMembers(false);
+      }
+    };
+
+    fetchProjectTeamMembers();
+  }, [effectiveProjectId]);
+
+  // Use project team members if projectId is provided, otherwise use provided users or fall back to mock data
+  const teamMembers = useMemo(() => {
+    // If effectiveProjectId is provided, ALWAYS use project team members (ignore users prop)
+    if (effectiveProjectId) {
+      console.log(`[AddIssueDialog] effectiveProjectId provided: ${effectiveProjectId}, loadingTeamMembers: ${loadingTeamMembers}, projectTeamMembers.length: ${projectTeamMembers.length}`);
+      
+      // If still loading, return empty array to prevent showing all users
+      if (loadingTeamMembers) {
+        console.log('[AddIssueDialog] Still loading team members, returning empty array');
+        return [];
+      }
+      
+      // Return project team members (even if empty array - this is correct behavior for filtering)
+      // This ensures we NEVER show all users when a project is available
+      const mappedMembers = projectTeamMembers.map(member => {
+        const displayName = member.name ||
+                           (member.firstName && member.lastName ? `${member.firstName} ${member.lastName}` : '') ||
+                           member.email?.split('@')[0].replace(/\./g, ' ') ||
+                           'Unknown User';
+        
+        return {
+          id: member.userId || member.id,
+          name: displayName,
+          avatar: '',
+          role: member.role || 'Team Member'
+        };
+      });
+      
+      console.log(`[AddIssueDialog] Returning ${mappedMembers.length} filtered team members for project ${effectiveProjectId}`);
+      return mappedMembers;
+    }
+    
+    // Only use provided users if NO projectId is available (no project context)
+    console.log(`[AddIssueDialog] No effectiveProjectId, using ${users.length} users from props or fallback`);
+    
+    if (users.length > 0) {
+      const mappedUsers = users.map(user => {
+        const displayName = user.name ||
                            (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : '') ||
                            user.email?.split('@')[0].replace(/\./g, ' ') ||
                            'Unknown User';
@@ -118,15 +208,23 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
           avatar: '',
           role: user.role || 'Team Member'
         };
-      })
-    : [
-        { id: '1', name: 'Arjun Patel', avatar: '', role: 'Senior Developer' },
-        { id: '2', name: 'Priya Sharma', avatar: '', role: 'UI/UX Designer' },
-        { id: '3', name: 'Sneha Reddy', avatar: '', role: 'QA Engineer' },
-        { id: '4', name: 'Rahul Kumar', avatar: '', role: 'DevOps Engineer' },
-        { id: '5', name: 'Vikram Singh', avatar: '', role: 'Full Stack Developer' },
-        { id: '6', name: 'Ananya Gupta', avatar: '', role: 'Product Manager' }
-      ];
+      });
+      
+      console.log(`[AddIssueDialog] Returning ${mappedUsers.length} users from props`);
+      return mappedUsers;
+    }
+    
+    // Fall back to mock data only if no users provided
+    console.log('[AddIssueDialog] No users provided, using mock data');
+    return [
+      { id: '1', name: 'Arjun Patel', avatar: '', role: 'Senior Developer' },
+      { id: '2', name: 'Priya Sharma', avatar: '', role: 'UI/UX Designer' },
+      { id: '3', name: 'Sneha Reddy', avatar: '', role: 'QA Engineer' },
+      { id: '4', name: 'Rahul Kumar', avatar: '', role: 'DevOps Engineer' },
+      { id: '5', name: 'Vikram Singh', avatar: '', role: 'Full Stack Developer' },
+      { id: '6', name: 'Ananya Gupta', avatar: '', role: 'Product Manager' }
+    ];
+  }, [effectiveProjectId, projectTeamMembers, users, loadingTeamMembers]);
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
@@ -169,7 +267,7 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
 
     const validSubtasks = formData.subtasks.filter(subtask => subtask.trim());
     
-    const newIssue: Omit<Issue, 'id'> & { attachments?: File[] } = {
+    const newIssue: Omit<Issue, 'id'> & { attachments?: File[]; attachmentUrls?: Array<{ url: string; name: string }> } = {
       title: formData.title.trim(),
       description: formData.description.trim(),
       storyId: formData.storyId === 'none' ? undefined : formData.storyId || undefined,
@@ -180,7 +278,8 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
       estimatedHours: formData.estimatedHours,
       subtasks: validSubtasks,
       progress: 0,
-      attachments: attachments.length > 0 ? attachments : undefined
+      attachments: attachments.length > 0 ? attachments : undefined,
+      attachmentUrls: attachmentUrls.length > 0 ? attachmentUrls : undefined
     };
 
     await onSubmit(newIssue);
@@ -203,6 +302,10 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
     });
     setErrors({});
     setAttachments([]);
+    setAttachmentUrls([]);
+    setAttachmentUrl('');
+    setAttachmentUrlName('');
+    setIsDueDatePopoverOpen(false);
   };
 
   // File upload handler
@@ -214,6 +317,40 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
 
   const handleRemoveAttachment = (index: number) => {
     setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // URL handlers
+  const isValidUrl = (urlString: string): boolean => {
+    try {
+      const url = new URL(urlString);
+      return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
+
+  const handleAddUrl = () => {
+    if (!attachmentUrl.trim()) {
+      return;
+    }
+
+    if (!isValidUrl(attachmentUrl.trim())) {
+      setErrors(prev => ({ ...prev, attachmentUrl: 'Please enter a valid URL (must start with http:// or https://)' }));
+      return;
+    }
+
+    setAttachmentUrls(prev => [...prev, { url: attachmentUrl.trim(), name: attachmentUrlName.trim() || attachmentUrl.trim() }]);
+    setAttachmentUrl('');
+    setAttachmentUrlName('');
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors.attachmentUrl;
+      return newErrors;
+    });
+  };
+
+  const handleRemoveUrl = (index: number) => {
+    setAttachmentUrls(prev => prev.filter((_, i) => i !== index));
   };
 
   const formatFileSize = (bytes: number) => {
@@ -313,7 +450,12 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
           background: #94a3b8;
         }
       `}</style>
-      <Dialog open={isOpen} onOpenChange={onClose}>
+      <Dialog open={isOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsDueDatePopoverOpen(false);
+          onClose();
+        }
+      }}>
         <DialogContent className="max-w-2xl max-h-[95vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center space-x-2">
@@ -425,7 +567,12 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                       disabled={!!requiredStoryId}
                     >
                       <SelectTrigger className={errors.storyId ? 'border-red-300' : ''}>
-                        <SelectValue placeholder="Select a user story..." />
+                        <SelectValue placeholder="Select a user story...">
+                          {formData.storyId && formData.storyId !== 'none' && (() => {
+                            const selected = stories.find(s => s.id === formData.storyId);
+                            return selected ? selected.title : 'Select a user story...';
+                          })()}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {!requiredStoryId && <SelectItem value="none">No story (Standalone issue)</SelectItem>}
@@ -567,7 +714,17 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        {teamMembers.map(member => (
+                        {loadingTeamMembers && effectiveProjectId ? (
+                          <div className="flex items-center justify-center p-4">
+                            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                            <span className="ml-2 text-sm text-muted-foreground">Loading team members...</span>
+                          </div>
+                        ) : teamMembers.length === 0 && effectiveProjectId ? (
+                          <div className="p-4 text-center text-sm text-muted-foreground">
+                            No team members found for this project
+                          </div>
+                        ) : (
+                          teamMembers.map(member => (
                           <SelectItem key={member.id} value={member.id}>
                             <div className="flex items-center space-x-3">
                               <Avatar className="h-6 w-6">
@@ -582,7 +739,8 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                               </div>
                             </div>
                           </SelectItem>
-                        ))}
+                        ))
+                        )}
                       </SelectContent>
                     </Select>
                     {errors.assignee && <p className="text-sm text-red-600">{errors.assignee}</p>}
@@ -594,7 +752,7 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                       <span>Due Date</span>
                       <span className="text-red-500">*</span>
                     </Label>
-                    <Popover>
+                    <Popover open={isDueDatePopoverOpen} onOpenChange={setIsDueDatePopoverOpen} modal={false}>
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
@@ -606,11 +764,47 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                           {formData.dueDate ? format(formData.dueDate, "PPP") : "Pick a date"}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
+                      <PopoverContent className="w-auto p-0 !z-[9999]" align="start" side="bottom" sideOffset={5} style={{ zIndex: 9999 }}>
                         <Calendar
                           mode="single"
                           selected={formData.dueDate}
-                          onSelect={(date) => setFormData(prev => ({ ...prev, dueDate: date }))}
+                          onSelect={(date) => {
+                            if (!date) {
+                              setFormData(prev => ({ ...prev, dueDate: undefined }));
+                              return;
+                            }
+                            
+                            // Normalize date to midnight in local timezone to prevent timezone shifts
+                            const normalizedDate = new Date(date);
+                            normalizedDate.setHours(0, 0, 0, 0);
+                            
+                            setFormData(prev => ({ ...prev, dueDate: normalizedDate }));
+                            setIsDueDatePopoverOpen(false);
+                            // Clear error when date is selected
+                            setErrors(prev => {
+                              const newErrors = { ...prev };
+                              delete newErrors.dueDate;
+                              return newErrors;
+                            });
+                          }}
+                          disabled={(date) => {
+                            const dateOnly = new Date(date);
+                            dateOnly.setHours(0, 0, 0, 0);
+                            
+                            // Check sprint date restrictions
+                            if (sprintStartDate && sprintEndDate) {
+                              const startDate = new Date(sprintStartDate);
+                              startDate.setHours(0, 0, 0, 0);
+                              const endDate = new Date(sprintEndDate);
+                              endDate.setHours(0, 0, 0, 0);
+                              
+                              // Disable dates outside sprint range
+                              if (dateOnly < startDate || dateOnly > endDate) {
+                                return true;
+                              }
+                            }
+                            return false;
+                          }}
                           initialFocus
                         />
                       </PopoverContent>
@@ -696,74 +890,120 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                   <h3 className="font-medium">Attachments (Optional)</h3>
                 </div>
 
-                {/* Upload Area */}
-                <div
-                  className="border-2 border-dashed border-gray-300 rounded-lg p-6 mb-4 hover:border-blue-400 transition-colors cursor-pointer bg-gray-50"
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  onDragLeave={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const files = e.dataTransfer.files;
-                    if (files.length > 0) {
-                      handleFileSelect(files);
-                    }
-                  }}
-                  onClick={() => {
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.multiple = true;
-                    input.onchange = (e) => {
-                      const target = e.target as HTMLInputElement;
-                      if (target.files && target.files.length > 0) {
-                        handleFileSelect(target.files);
+                {/* File Upload Section */}
+                <div className="space-y-2">
+                  <Label htmlFor="file-upload-issue">Upload File</Label>
+                  <div
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-blue-400 transition-colors cursor-pointer bg-gray-50"
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const files = e.dataTransfer.files;
+                      if (files.length > 0) {
+                        handleFileSelect(files);
                       }
-                    };
-                    input.click();
-                  }}
-                >
-                  <div className="text-center">
-                    <Paperclip className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                    <p className="text-sm text-gray-600 mb-1">
-                      Drop attachments here or select from your computer
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      Click to browse files or drag and drop
-                    </p>
+                    }}
+                    onClick={() => {
+                      const input = document.createElement('input');
+                      input.type = 'file';
+                      input.multiple = true;
+                      input.onchange = (e) => {
+                        const target = e.target as HTMLInputElement;
+                        if (target.files && target.files.length > 0) {
+                          handleFileSelect(target.files);
+                        }
+                      };
+                      input.click();
+                    }}
+                  >
+                    <div className="text-center">
+                      <Paperclip className="w-6 h-6 mx-auto mb-2 text-gray-400" />
+                      <p className="text-sm text-gray-600">Drop files here or click to browse</p>
+                    </div>
                   </div>
                 </div>
 
-                {/* Attachments List */}
+                {/* Separator */}
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">Or</span>
+                  </div>
+                </div>
+
+                {/* URL Input Section */}
+                <div className="space-y-2">
+                  <Label htmlFor="url-input-issue">Add URL/Link</Label>
+                  <div className="space-y-2">
+                    <Input
+                      id="url-input-issue"
+                      type="url"
+                      placeholder="https://example.com/document.pdf"
+                      value={attachmentUrl}
+                      onChange={(e) => setAttachmentUrl(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddUrl();
+                        }
+                      }}
+                    />
+                    <Input
+                      id="url-name-input-issue"
+                      type="text"
+                      placeholder="Link name (optional)"
+                      value={attachmentUrlName}
+                      onChange={(e) => setAttachmentUrlName(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddUrl();
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAddUrl}
+                      disabled={!attachmentUrl.trim()}
+                      className="w-full"
+                    >
+                      <Link className="w-4 h-4 mr-2" />
+                      Add URL
+                    </Button>
+                  </div>
+                  {errors.attachmentUrl && <p className="text-sm text-red-600">{errors.attachmentUrl}</p>}
+                </div>
+
+                {/* Files List */}
                 {attachments.length > 0 && (
                   <div className="space-y-2">
+                    <Label>Files</Label>
                     {attachments.map((file, index) => (
                       <div
                         key={index}
-                        className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                        className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
                       >
                         <div className="flex items-center space-x-3 flex-1 min-w-0">
                           <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center flex-shrink-0">
-                            <Paperclip className="w-4 h-4 text-blue-600" />
+                            <FileText className="w-4 h-4 text-blue-600" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">
-                              {file.name}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {formatFileSize(file.size)}
-                            </p>
+                            <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
+                            <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
                           </div>
                         </div>
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleRemoveAttachment(index);
@@ -771,6 +1011,48 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* URLs List */}
+                {attachmentUrls.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Links</Label>
+                    {attachmentUrls.map((item, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 border border-green-200 rounded-lg hover:bg-green-50 bg-green-50"
+                      >
+                        <div className="flex items-center space-x-3 flex-1 min-w-0">
+                          <div className="w-8 h-8 bg-green-100 rounded flex items-center justify-center flex-shrink-0">
+                            <Link className="w-4 h-4 text-green-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
+                            <p className="text-xs text-gray-500 break-all line-clamp-1">{item.url}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => window.open(item.url, '_blank')}
+                            title="Open link"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleRemoveUrl(index)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -857,7 +1139,7 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
             <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white">
+            <Button onClick={handleSubmit} className="bg-gradient-primary hover:opacity-90 text-white">
               Create Issue
             </Button>
           </DialogFooter>

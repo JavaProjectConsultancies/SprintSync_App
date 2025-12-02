@@ -48,7 +48,7 @@ import {
   Activity,
   TestTube
 } from 'lucide-react';
-import sprintSyncLogo from 'figma:asset/aadf192e83d08c7cc03896c06b452017e84d04aa.png';
+import sprintSyncLogo from '../assets/aadf192e83d08c7cc03896c06b452017e84d04aa.png';
 
 interface MenuItem {
   title: string;
@@ -62,6 +62,11 @@ interface MenuItem {
 const AppSidebar: React.FC = () => {
   const { user, logout, hasPermission } = useAuth();
   const { navigationState, navigateTo } = useNavigation();
+  
+  // Early return if user is not available (shouldn't happen, but safety check)
+  if (!user) {
+    return null;
+  }
   
   const allMenuItems: MenuItem[] = [
     {
@@ -104,7 +109,7 @@ const AppSidebar: React.FC = () => {
       icon: User,
       children: [
         { title: 'Profile', icon: User, id: 'profile' },
-        { title: 'Todo List', icon: CheckSquare, id: 'todo-list' },
+        { title: 'My Tasks', icon: CheckSquare, id: 'todo-list' },
       ]
     },
     {
@@ -166,12 +171,30 @@ const AppSidebar: React.FC = () => {
           ]
         },
       ];
-    } else if (userRole === 'manager' || userRole === 'qa') {
-      // Manager and QA have access to all sidebar widgets
+    } else if (userRole === 'manager') {
+      // Manager has access to all sidebar widgets
       return allMenuItems;
     } else {
-      // Developer has limited access (excluding admin panel)
-      return allMenuItems.filter(item => item.title !== 'ADMINISTRATION');
+      // Developer has limited access (excluding admin panel and projects)
+      return allMenuItems
+        .filter(item => item.title !== 'ADMINISTRATION')
+        .map(item => {
+          // Remove Projects from PROJECT MANAGEMENT section for developers
+          if (item.title === 'PROJECT MANAGEMENT' && item.children) {
+            return {
+              ...item,
+              children: item.children.filter(child => child.title !== 'Projects')
+            };
+          }
+          return item;
+        })
+        .filter(item => {
+          // Remove PROJECT MANAGEMENT section if it has no children after filtering
+          if (item.title === 'PROJECT MANAGEMENT' && item.children) {
+            return item.children.length > 0;
+          }
+          return true;
+        });
     }
   };
 

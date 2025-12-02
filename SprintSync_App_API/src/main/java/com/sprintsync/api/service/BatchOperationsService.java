@@ -15,6 +15,7 @@ import java.util.*;
  * @author Mayuresh G
  */
 @Service
+@SuppressWarnings("null")
 public class BatchOperationsService {
 
     @Autowired
@@ -610,3 +611,8 @@ public class BatchOperationsService {
         return result;
     }
 }
+
+
+
+
+

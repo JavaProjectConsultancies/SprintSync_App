@@ -78,6 +78,9 @@ public class Task extends BaseEntity {
     @Column(name = "labels", columnDefinition = "jsonb")
     private List<String> labels;
 
+    @Column(name = "is_pulled_from_backlog", nullable = true)
+    private Boolean isPulledFromBacklog = false;
+
     // Constructors
     public Task() {}
 
@@ -235,5 +238,13 @@ public class Task extends BaseEntity {
 
     public void setLabels(List<String> labels) {
         this.labels = labels;
+    }
+
+    public Boolean getIsPulledFromBacklog() {
+        return isPulledFromBacklog;
+    }
+
+    public void setIsPulledFromBacklog(Boolean isPulledFromBacklog) {
+        this.isPulledFromBacklog = isPulledFromBacklog;
     }
 }

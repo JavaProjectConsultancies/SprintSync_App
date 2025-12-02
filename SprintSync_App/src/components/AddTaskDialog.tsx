@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -11,7 +11,7 @@ import { Card, CardContent } from './ui/card';
 import { Separator } from './ui/separator';
 import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { CalendarIcon, CheckSquare, User, Flag, Target, Clock, Plus, X, FileText, Database, Code, Palette, Bug, Search, Paperclip, Trash2, Loader2 } from 'lucide-react';
+import { CalendarIcon, CheckSquare, User, Flag, Target, Clock, Plus, X, FileText, Database, Code, Palette, Bug, Search, Paperclip, Trash2, Loader2, Link, Eye } from 'lucide-react';
 import { taskTemplates, TaskTemplate, getTemplatesByType } from '../data/taskTemplates';
 
 // Simple date formatter to replace date-fns
@@ -40,6 +40,8 @@ interface Story {
   points: number;
   status: 'stories' | 'todo' | 'inprogress' | 'qa' | 'done';
   assignee?: string;
+  dueDate?: string;
+  projectId?: string;
 }
 
 interface Task {
@@ -74,6 +76,9 @@ interface AddTaskDialogProps {
   defaultStatus?: string;
   defaultStoryId?: string;
   users?: User[];
+  projectId?: string; // REQUIRED for filtering assignees by project
+  sprintStartDate?: string; // Sprint start date for date restrictions
+  sprintEndDate?: string; // Sprint end date for date restrictions
 }
 
 const AddTaskDialog: React.FC<AddTaskDialogProps> = ({ 
@@ -83,12 +88,15 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
   stories = [],
   defaultStatus = 'todo',
   defaultStoryId,
-  users = []
+  users = [],
+  projectId,
+  sprintStartDate,
+  sprintEndDate
 }) => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    storyId: defaultStoryId || 'none',
+    storyId: defaultStoryId || '',
     priority: 'medium' as 'high' | 'medium' | 'low',
     assignee: '',
     estimatedHours: 4,
@@ -99,13 +107,110 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
     labels: [] as string[]
   });
 
+  // State to control due date popover
+  const [isDueDatePopoverOpen, setIsDueDatePopoverOpen] = useState(false);
+  
+  // Calculate effectiveProjectId - derive from selected story if not provided directly
+  // MUST be defined before any useEffect that uses it
+  const effectiveProjectId = useMemo(() => {
+    // First, try the projectId prop
+    if (projectId) {
+      return projectId;
+    }
+    // Then, try to get it from the currently selected story
+    const selectedStoryId = formData.storyId && formData.storyId.trim() !== '' ? formData.storyId : defaultStoryId;
+    if (selectedStoryId) {
+      const story = stories.find(s => s.id === selectedStoryId);
+      return story?.projectId;
+    }
+    return undefined;
+  }, [projectId, formData.storyId, defaultStoryId, stories]);
+  
+  // Log for debugging
+  useEffect(() => {
+    if (isOpen) {
+      console.log('[AddTaskDialog] Dialog opened', {
+        projectId,
+        effectiveProjectId,
+        defaultStoryId,
+        hasStories: stories.length > 0,
+        usersPropLength: users.length
+      });
+    }
+  }, [isOpen, projectId, effectiveProjectId, defaultStoryId, stories.length, users.length]);
+
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [attachments, setAttachments] = useState<File[]>([]);
+  const [attachmentUrls, setAttachmentUrls] = useState<Array<{ url: string; name: string }>>([]);
+  const [attachmentUrl, setAttachmentUrl] = useState<string>('');
+  const [attachmentUrlName, setAttachmentUrlName] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
+  const [projectTeamMembers, setProjectTeamMembers] = useState<any[]>([]);
+  const [loadingTeamMembers, setLoadingTeamMembers] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Use API users if provided, otherwise fall back to mock data
-  const teamMembers = users.length > 0 
-    ? users.map(user => {
+  // Fetch team members by project when projectId is provided
+  useEffect(() => {
+    const fetchProjectTeamMembers = async () => {
+      if (!effectiveProjectId) {
+        setProjectTeamMembers([]);
+        return;
+      }
+
+      setLoadingTeamMembers(true);
+      try {
+        const { teamMemberApi } = await import('../services/api/entities/teamMemberApi');
+        const members = await teamMemberApi.getTeamMembersByProject(effectiveProjectId);
+        console.log(`[AddTaskDialog] Fetched ${members?.length || 0} team members for project ${effectiveProjectId}`, members);
+        setProjectTeamMembers(members || []);
+      } catch (error) {
+        console.error('Error fetching project team members:', error);
+        setProjectTeamMembers([]);
+      } finally {
+        setLoadingTeamMembers(false);
+      }
+    };
+
+    fetchProjectTeamMembers();
+  }, [effectiveProjectId]);
+
+  // Use project team members if projectId is provided, otherwise use provided users or fall back to mock data
+  const teamMembers = useMemo(() => {
+    // If effectiveProjectId is provided, use project team members
+    if (effectiveProjectId) {
+      console.log(`[AddTaskDialog] effectiveProjectId provided: ${effectiveProjectId}, loadingTeamMembers: ${loadingTeamMembers}, projectTeamMembers.length: ${projectTeamMembers.length}`);
+      
+      // If still loading, return empty array to prevent showing all users
+      if (loadingTeamMembers) {
+        console.log('[AddTaskDialog] Still loading team members, returning empty array');
+        return [];
+      }
+      
+      // Return project team members (even if empty array - this is correct behavior for filtering)
+      const mappedMembers = projectTeamMembers.map(member => {
+        const displayName = member.name || 
+                           (member.firstName && member.lastName ? `${member.firstName} ${member.lastName}` : '') ||
+                           member.email?.split('@')[0].replace(/\./g, ' ') ||
+                           'Unknown User';
+        
+        return {
+          id: member.userId || member.id,
+          name: displayName,
+          avatar: member.avatar || member.avatarUrl || '',
+          role: member.role || 'Team Member'
+        };
+      });
+      
+      console.log(`[AddTaskDialog] Returning ${mappedMembers.length} filtered team members for project ${effectiveProjectId}`);
+      return mappedMembers;
+    }
+    
+    // No projectId provided - use users from props
+    console.log(`[AddTaskDialog] No effectiveProjectId provided, using ${users.length} users from props or fallback`);
+    
+    // Use provided users
+    if (users.length > 0) {
+      const mappedUsers = users.map(user => {
         // Handle different user name formats (name, firstName+lastName, or email)
         const displayName = user.name || 
                            (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : '') ||
@@ -118,8 +223,15 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
           avatar: '',
           role: user.role || 'Team Member'
         };
-      })
-    : [
+      });
+      
+      console.log(`[AddTaskDialog] Returning ${mappedUsers.length} users from props`);
+      return mappedUsers;
+    }
+    
+    // Fall back to mock data only if no users provided
+    console.log('[AddTaskDialog] No users provided, using mock data');
+    return [
         { id: '1', name: 'Arjun Patel', avatar: '', role: 'Senior Developer' },
         { id: '2', name: 'Priya Sharma', avatar: '', role: 'UI/UX Designer' },
         { id: '3', name: 'Sneha Reddy', avatar: '', role: 'QA Engineer' },
@@ -127,6 +239,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
         { id: '5', name: 'Vikram Singh', avatar: '', role: 'Full Stack Developer' },
         { id: '6', name: 'Ananya Gupta', avatar: '', role: 'Product Manager' }
       ];
+  }, [effectiveProjectId, projectTeamMembers, users, loadingTeamMembers]);
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
@@ -143,12 +256,30 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
       newErrors.description = 'Task description is required';
     }
 
+    if (!formData.storyId || formData.storyId.trim() === '') {
+      newErrors.storyId = 'Please select a user story for this task';
+    }
+
     if (!formData.assignee) {
       newErrors.assignee = 'Please assign someone to this task';
     }
 
     if (!formData.dueDate) {
       newErrors.dueDate = 'Due date is required';
+    } else if (formData.storyId && formData.storyId.trim() !== '') {
+      // Validate that task due date is within story's due date
+      const selectedStory = stories.find(s => s.id === formData.storyId);
+      if (selectedStory && selectedStory.dueDate) {
+        const storyDueDate = new Date(selectedStory.dueDate);
+        const taskDueDate = formData.dueDate;
+        
+        // Task due date cannot be after story's due date
+        if (taskDueDate > storyDueDate) {
+          newErrors.dueDate = `Task due date cannot be after story's due date (${storyDueDate.toLocaleDateString()})`;
+        }
+        // Task due date cannot be before story's due date (optional - you can remove this if tasks can be before)
+        // For now, we'll allow tasks to be before the story due date, but not after
+      }
     }
 
     if (formData.estimatedHours < 0.5 || formData.estimatedHours > 40) {
@@ -159,35 +290,51 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
+  // Helper function to format date in local timezone (YYYY-MM-DD)
+  const formatDateLocal = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
-    const validSubtasks = formData.subtasks.filter(subtask => subtask.trim());
-    
-    const newTask: Omit<Task, 'id'> & { attachments?: File[] } = {
-      title: formData.title.trim(),
-      description: formData.description.trim(),
-      storyId: formData.storyId === 'none' ? undefined : formData.storyId || undefined,
-      priority: formData.priority,
-      assignee: formData.assignee,
-      status: formData.status,
-      dueDate: formData.dueDate ? format(formData.dueDate, 'dd/MM/yy') : '',
-      estimatedHours: formData.estimatedHours,
-      subtasks: validSubtasks,
-      progress: 0,
-      attachments: attachments.length > 0 ? attachments : undefined
-    };
+    setIsSubmitting(true);
+    try {
+      const validSubtasks = formData.subtasks.filter(subtask => subtask.trim());
+      
+      const newTask: Omit<Task, 'id'> & { attachments?: File[]; attachmentUrls?: Array<{ url: string; name: string }> } = {
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        storyId: formData.storyId && formData.storyId.trim() !== '' ? formData.storyId : undefined,
+        priority: formData.priority,
+        assignee: formData.assignee,
+        status: formData.status,
+        dueDate: formData.dueDate ? formatDateLocal(formData.dueDate) : '',
+        estimatedHours: formData.estimatedHours,
+        subtasks: validSubtasks,
+        progress: 0,
+        attachments: attachments.length > 0 ? attachments : undefined,
+        attachmentUrls: attachmentUrls.length > 0 ? attachmentUrls : undefined
+      };
 
-    await onSubmit(newTask);
-    handleReset();
-    onClose();
+      await onSubmit(newTask);
+      handleReset();
+      onClose();
+    } catch (error) {
+      console.error('Error creating task:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleReset = () => {
     setFormData({
       title: '',
       description: '',
-      storyId: defaultStoryId || 'none',
+      storyId: defaultStoryId || '',
       priority: 'medium',
       assignee: '',
       estimatedHours: 4,
@@ -199,6 +346,10 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
     });
     setErrors({});
     setAttachments([]);
+    setAttachmentUrls([]);
+    setAttachmentUrl('');
+    setAttachmentUrlName('');
+    setIsDueDatePopoverOpen(false);
   };
 
   // File upload handler
@@ -210,6 +361,40 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
 
   const handleRemoveAttachment = (index: number) => {
     setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // URL handlers
+  const isValidUrl = (urlString: string): boolean => {
+    try {
+      const url = new URL(urlString);
+      return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
+
+  const handleAddUrl = () => {
+    if (!attachmentUrl.trim()) {
+      return;
+    }
+
+    if (!isValidUrl(attachmentUrl.trim())) {
+      setErrors(prev => ({ ...prev, attachmentUrl: 'Please enter a valid URL (must start with http:// or https://)' }));
+      return;
+    }
+
+    setAttachmentUrls(prev => [...prev, { url: attachmentUrl.trim(), name: attachmentUrlName.trim() || attachmentUrl.trim() }]);
+    setAttachmentUrl('');
+    setAttachmentUrlName('');
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors.attachmentUrl;
+      return newErrors;
+    });
+  };
+
+  const handleRemoveUrl = (index: number) => {
+    setAttachmentUrls(prev => prev.filter((_, i) => i !== index));
   };
 
   const formatFileSize = (bytes: number) => {
@@ -259,7 +444,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
   };
 
   // Safe story lookup with null check
-  const selectedStory = formData.storyId !== 'none' && stories 
+  const selectedStory = formData.storyId && formData.storyId.trim() !== '' && stories 
     ? stories.find(story => story.id === formData.storyId) 
     : null;
 
@@ -283,10 +468,14 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
     }
   };
 
-  // Update formData when defaultStoryId changes
+  // Update formData when defaultStoryId changes or dialog opens
   useEffect(() => {
-    if (defaultStoryId && formData.storyId === 'none') {
+    if (isOpen && defaultStoryId) {
+      // Auto-select the story when dialog opens with a defaultStoryId
       setFormData(prev => ({ ...prev, storyId: defaultStoryId }));
+    } else if (isOpen && !defaultStoryId && formData.storyId) {
+      // Reset to empty if dialog opens without defaultStoryId and storyId is set
+      setFormData(prev => ({ ...prev, storyId: '' }));
     }
   }, [defaultStoryId, isOpen]);
 
@@ -358,7 +547,12 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
           background: #94a3b8;
         }
       `}</style>
-      <Dialog open={isOpen} onOpenChange={onClose}>
+      <Dialog open={isOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsDueDatePopoverOpen(false);
+        }
+        onClose();
+      }}>
         <DialogContent className="max-w-2xl max-h-[95vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center space-x-2">
@@ -514,16 +708,33 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="storyId">Link to User Story (Optional)</Label>
+                    <Label htmlFor="storyId" className="flex items-center space-x-1">
+                      <span>Link to User Story</span>
+                      <span className="text-red-500">*</span>
+                    </Label>
                     <Select 
                       value={formData.storyId} 
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, storyId: value }))}
+                      onValueChange={(value) => {
+                        setFormData(prev => ({ ...prev, storyId: value }));
+                        // Clear error when story is selected
+                        if (value && value.trim() !== '') {
+                          setErrors(prev => {
+                            const newErrors = { ...prev };
+                            delete newErrors.storyId;
+                            return newErrors;
+                          });
+                        }
+                      }}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a user story..." />
+                      <SelectTrigger className={errors.storyId ? 'border-red-300' : ''}>
+                        <SelectValue placeholder="Select a user story...">
+                          {formData.storyId && formData.storyId.trim() !== '' && (() => {
+                            const selected = stories.find(s => s.id === formData.storyId);
+                            return selected ? selected.title : 'Select a user story...';
+                          })()}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">No story (Standalone task)</SelectItem>
                         {stories.map(story => (
                           <SelectItem key={story.id} value={story.id}>
                             <div className="flex items-center space-x-2">
@@ -539,6 +750,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                         ))}
                       </SelectContent>
                     </Select>
+                    {errors.storyId && <p className="text-sm text-red-600">{errors.storyId}</p>}
                     
                     {selectedStory && (
                       <div className="mt-2 p-2 bg-green-50 rounded border-l-3 border-green-200">
@@ -656,7 +868,21 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        {teamMembers.map(member => (
+                        {loadingTeamMembers && effectiveProjectId ? (
+                          <div className="flex items-center justify-center p-4">
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                            <span className="text-sm text-muted-foreground">Loading team members...</span>
+                          </div>
+                        ) : teamMembers.length === 0 ? (
+                          <div className="p-4 text-center">
+                            <p className="text-sm text-muted-foreground">
+                              {effectiveProjectId 
+                                ? "No team members found for this project" 
+                                : "No users available"}
+                            </p>
+                          </div>
+                        ) : (
+                          teamMembers.map(member => (
                           <SelectItem key={member.id} value={member.id}>
                             <div className="flex items-center space-x-3">
                               <Avatar className="h-6 w-6">
@@ -671,7 +897,8 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                               </div>
                             </div>
                           </SelectItem>
-                        ))}
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                     {errors.assignee && <p className="text-sm text-red-600">{errors.assignee}</p>}
@@ -683,7 +910,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                       <span>Due Date</span>
                       <span className="text-red-500">*</span>
                     </Label>
-                    <Popover>
+                    <Popover open={isDueDatePopoverOpen} onOpenChange={setIsDueDatePopoverOpen} modal={false}>
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
@@ -695,11 +922,70 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                           {formData.dueDate ? format(formData.dueDate, "PPP") : "Pick a date"}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
+                      <PopoverContent className="w-auto p-0 !z-[9999]" align="start" side="bottom" sideOffset={5} style={{ zIndex: 9999 }}>
                         <Calendar
                           mode="single"
                           selected={formData.dueDate}
-                          onSelect={(date) => setFormData(prev => ({ ...prev, dueDate: date }))}
+                          onSelect={(date) => {
+                            if (!date) {
+                              setFormData(prev => ({ ...prev, dueDate: undefined }));
+                              return;
+                            }
+                            
+                            // Normalize date to midnight in local timezone to prevent timezone shifts
+                            const normalizedDate = new Date(date);
+                            normalizedDate.setHours(0, 0, 0, 0);
+                            
+                            // Validate date against story's due date before setting
+                            if (formData.storyId && formData.storyId.trim() !== '') {
+                              const selectedStory = stories.find(s => s.id === formData.storyId);
+                              if (selectedStory && selectedStory.dueDate) {
+                                const storyDueDate = new Date(selectedStory.dueDate);
+                                storyDueDate.setHours(0, 0, 0, 0);
+                                if (normalizedDate > storyDueDate) {
+                                  setErrors(prev => ({ ...prev, dueDate: `Task due date cannot be after story's due date (${storyDueDate.toLocaleDateString()})` }));
+                                  return;
+                                }
+                              }
+                            }
+                            setFormData(prev => ({ ...prev, dueDate: normalizedDate }));
+                            // Clear error if date is valid
+                            setErrors(prev => {
+                              const newErrors = { ...prev };
+                              delete newErrors.dueDate;
+                              return newErrors;
+                            });
+                          }}
+                          disabled={(date) => {
+                            const dateOnly = new Date(date);
+                            dateOnly.setHours(0, 0, 0, 0);
+                            
+                            // First, check sprint date restrictions
+                            if (sprintStartDate && sprintEndDate) {
+                              const startDate = new Date(sprintStartDate);
+                              startDate.setHours(0, 0, 0, 0);
+                              const endDate = new Date(sprintEndDate);
+                              endDate.setHours(0, 0, 0, 0);
+                              
+                              // Disable dates outside sprint range
+                              if (dateOnly < startDate || dateOnly > endDate) {
+                                return true;
+                              }
+                            }
+                            
+                            // Also disable dates after story's due date (if story has one)
+                            if (formData.storyId && formData.storyId.trim() !== '') {
+                              const selectedStory = stories.find(s => s.id === formData.storyId);
+                              if (selectedStory && selectedStory.dueDate) {
+                                const storyDueDate = new Date(selectedStory.dueDate);
+                                storyDueDate.setHours(23, 59, 59, 999); // End of day
+                                if (date > storyDueDate) {
+                                  return true;
+                                }
+                              }
+                            }
+                            return false;
+                          }}
                           initialFocus
                         />
                       </PopoverContent>
@@ -785,74 +1071,120 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                   <h3 className="font-medium">Attachments (Optional)</h3>
                 </div>
 
-                {/* Upload Area */}
-                <div
-                  className="border-2 border-dashed border-gray-300 rounded-lg p-6 mb-4 hover:border-blue-400 transition-colors cursor-pointer bg-gray-50"
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  onDragLeave={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const files = e.dataTransfer.files;
-                    if (files.length > 0) {
-                      handleFileSelect(files);
-                    }
-                  }}
-                  onClick={() => {
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.multiple = true;
-                    input.onchange = (e) => {
-                      const target = e.target as HTMLInputElement;
-                      if (target.files && target.files.length > 0) {
-                        handleFileSelect(target.files);
+                {/* File Upload Section */}
+                <div className="space-y-2">
+                  <Label htmlFor="file-upload-task">Upload File</Label>
+                  <div
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-blue-400 transition-colors cursor-pointer bg-gray-50"
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const files = e.dataTransfer.files;
+                      if (files.length > 0) {
+                        handleFileSelect(files);
                       }
-                    };
-                    input.click();
-                  }}
-                >
-                  <div className="text-center">
-                    <Paperclip className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                    <p className="text-sm text-gray-600 mb-1">
-                      Drop attachments here or select from your computer
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      Click to browse files or drag and drop
-                    </p>
+                    }}
+                    onClick={() => {
+                      const input = document.createElement('input');
+                      input.type = 'file';
+                      input.multiple = true;
+                      input.onchange = (e) => {
+                        const target = e.target as HTMLInputElement;
+                        if (target.files && target.files.length > 0) {
+                          handleFileSelect(target.files);
+                        }
+                      };
+                      input.click();
+                    }}
+                  >
+                    <div className="text-center">
+                      <Paperclip className="w-6 h-6 mx-auto mb-2 text-gray-400" />
+                      <p className="text-sm text-gray-600">Drop files here or click to browse</p>
+                    </div>
                   </div>
                 </div>
 
-                {/* Attachments List */}
+                {/* Separator */}
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">Or</span>
+                  </div>
+                </div>
+
+                {/* URL Input Section */}
+                <div className="space-y-2">
+                  <Label htmlFor="url-input-task">Add URL/Link</Label>
+                  <div className="space-y-2">
+                    <Input
+                      id="url-input-task"
+                      type="url"
+                      placeholder="https://example.com/document.pdf"
+                      value={attachmentUrl}
+                      onChange={(e) => setAttachmentUrl(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddUrl();
+                        }
+                      }}
+                    />
+                    <Input
+                      id="url-name-input-task"
+                      type="text"
+                      placeholder="Link name (optional)"
+                      value={attachmentUrlName}
+                      onChange={(e) => setAttachmentUrlName(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddUrl();
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAddUrl}
+                      disabled={!attachmentUrl.trim()}
+                      className="w-full"
+                    >
+                      <Link className="w-4 h-4 mr-2" />
+                      Add URL
+                    </Button>
+                  </div>
+                  {errors.attachmentUrl && <p className="text-sm text-red-600">{errors.attachmentUrl}</p>}
+                </div>
+
+                {/* Files List */}
                 {attachments.length > 0 && (
                   <div className="space-y-2">
+                    <Label>Files</Label>
                     {attachments.map((file, index) => (
                       <div
                         key={index}
-                        className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                        className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
                       >
                         <div className="flex items-center space-x-3 flex-1 min-w-0">
                           <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center flex-shrink-0">
-                            <Paperclip className="w-4 h-4 text-blue-600" />
+                            <FileText className="w-4 h-4 text-blue-600" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">
-                              {file.name}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {formatFileSize(file.size)}
-                            </p>
+                            <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
+                            <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
                           </div>
                         </div>
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleRemoveAttachment(index);
@@ -860,6 +1192,48 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* URLs List */}
+                {attachmentUrls.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Links</Label>
+                    {attachmentUrls.map((item, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 border border-green-200 rounded-lg hover:bg-green-50 bg-green-50"
+                      >
+                        <div className="flex items-center space-x-3 flex-1 min-w-0">
+                          <div className="w-8 h-8 bg-green-100 rounded flex items-center justify-center flex-shrink-0">
+                            <Link className="w-4 h-4 text-green-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
+                            <p className="text-xs text-gray-500 break-all line-clamp-1">{item.url}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => window.open(item.url, '_blank')}
+                            title="Open link"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleRemoveUrl(index)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -943,11 +1317,18 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
         <div className="flex-shrink-0">
           <Separator />
           <DialogFooter className="gap-2 pt-4">
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} className="bg-gradient-primary hover:opacity-90">
-              Create Task
+            <Button onClick={handleSubmit} className="bg-gradient-primary hover:opacity-90" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                'Create Task'
+              )}
             </Button>
           </DialogFooter>
         </div>

@@ -21,11 +21,13 @@ export interface User extends BaseEntity {
   ctc?: number;
   availabilityPercentage?: number;
   skills?: string;
+  reportingManager?: string;
+  dateOfJoining?: string;
   isActive: boolean;
   lastLogin?: string;
 }
 
-export type UserRole = 'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'QA' | 'TESTER' | 'ANALYST';
+export type UserRole = 'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'TESTER' | 'ANALYST';
 
 // Department entity
 export interface Department extends BaseEntity {
@@ -123,6 +125,8 @@ export interface Story extends BaseEntity {
   projectId: string;
   epicId?: string;
   sprintId?: string;
+  parentId?: string;
+  parentStoryTitle?: string; // Parent story title populated by backend
   releaseId?: string;
   assigneeId?: string;
   reporterId?: string;
@@ -131,8 +135,9 @@ export interface Story extends BaseEntity {
   status: StoryStatus;
   labels?: string[];
   orderIndex?: number;
-  estimatedHours?: number;
+  dueDate?: string; // Date in YYYY-MM-DD format
   actualHours?: number;
+  dueDate?: string;
   isActive: boolean;
 }
 
@@ -153,6 +158,7 @@ export interface Task extends BaseEntity {
   taskNumber?: number;
   dueDate?: string;
   labels?: string[];
+  isPulledFromBacklog?: boolean;
 }
 
 export type TaskStatus = 'TO_DO' | 'IN_PROGRESS' | 'QA_REVIEW' | 'DONE' | 'BLOCKED' | 'CANCELLED';
@@ -349,5 +355,6 @@ export interface Attachment {
   fileUrl: string;
   thumbnailUrl?: string;
   isPublic?: boolean;
+  attachmentType?: 'file' | 'url'; // 'file' for file uploads, 'url' for links
   createdAt: string;
 }

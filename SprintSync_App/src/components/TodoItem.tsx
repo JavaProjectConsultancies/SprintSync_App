@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Checkbox } from './ui/checkbox';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Trash2, Edit3, Save, X, Flag, Calendar, User } from 'lucide-react';
+import { Trash2, Edit3, Save, X, Flag, Calendar, User, ExternalLink } from 'lucide-react';
 import { TodoItem as TodoItemType } from '../types';
 
 interface TodoItemProps {
@@ -15,10 +16,20 @@ interface TodoItemProps {
 }
 
 const TodoItem: React.FC<TodoItemProps> = ({ item, onUpdate, onDelete }) => {
+  const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(item.text);
   const [editPriority, setEditPriority] = useState(item.priority);
   const [editCategory, setEditCategory] = useState(item.category);
+  
+  // Check if this is a task from the database (not a local todo)
+  const isTaskFromDatabase = !item.id.startsWith('local-');
+  
+  const handleViewTask = () => {
+    if (isTaskFromDatabase) {
+      navigate(`/scrum?taskId=${item.id}`);
+    }
+  };
 
   const handleSave = () => {
     onUpdate(item.id, {
@@ -179,22 +190,17 @@ const TodoItem: React.FC<TodoItemProps> = ({ item, onUpdate, onDelete }) => {
         {/* Actions */}
         {!isEditing && (
           <div className="flex-shrink-0 flex space-x-1">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setIsEditing(true)}
-              className="h-8 w-8 p-0 hover:bg-green-100"
-            >
-              <Edit3 className="w-3 h-3" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => onDelete(item.id)}
-              className="h-8 w-8 p-0 hover:bg-red-100 text-red-600"
-            >
-              <Trash2 className="w-3 h-3" />
-            </Button>
+            {isTaskFromDatabase && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleViewTask}
+                className="h-8 px-3 text-xs hover:bg-green-100 text-green-700 border-green-300"
+              >
+                <ExternalLink className="w-3 h-3 mr-1" />
+                Task
+              </Button>
+            )}
           </div>
         )}
       </div>

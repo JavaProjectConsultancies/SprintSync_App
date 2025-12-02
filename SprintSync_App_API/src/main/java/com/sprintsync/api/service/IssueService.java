@@ -20,6 +20,7 @@ import java.util.Optional;
  * @author SprintSync Team
  */
 @Service
+@SuppressWarnings("null")
 public class IssueService {
 
     @Autowired
@@ -279,4 +280,10 @@ public class IssueService {
         return null;
     }
 }
+
+
+
+
+
+
 

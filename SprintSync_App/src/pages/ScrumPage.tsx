@@ -76,7 +76,6 @@ import { toast } from "sonner";
 import {
   Search,
   Plus,
-  Calendar,
   Clock,
   Target,
   AlertTriangle,
@@ -120,9 +119,15 @@ import {
   MoreVertical,
   SortAsc,
   SortDesc,
+  Calculator,
+  CalendarIcon,
 } from "lucide-react";
 
 import { Checkbox } from "../components/ui/checkbox";
+
+import { Calendar } from "../components/ui/calendar";
+
+import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 
 // Import API hooks
 
@@ -143,6 +148,8 @@ import {
   useUpdateStoryStatus,
   useMoveStoryToSprint,
 } from "../hooks/api/useStories";
+
+import { storyApiService } from "../services/api/entities/storyApi";
 
 import {
   useTasksByStory,
@@ -166,6 +173,8 @@ import { timeEntryApiService } from "../services/api/entities/timeEntryApi";
 import { activityLogApiService } from "../services/api/entities/activityLogApi";
 
 import { attachmentApiService } from "../services/api/entities/attachmentApi";
+
+import { emitProjectBudgetUpdated } from "../utils/projectBudgetEvents";
 
 import { useRecentActivityByEntity } from "../hooks/api/useActivityLogs";
 
@@ -198,6 +207,14 @@ import AddIssueDialog from "../components/AddIssueDialog";
 import LaneConfigurationModal from "../components/LaneConfigurationModal";
 
 import EffortManager from "../components/EffortManager";
+
+import TaskDetailsFullDialog from "../components/TaskDetailsFullDialog";
+
+import LoadingSpinner from "../components/LoadingSpinner";
+
+// import CreateSprintDialog from "../components/CreateSprintDialog";
+
+// import TeamCapacityCalculator from "../components/TeamCapacityCalculator";
 
 import {
   useWorkflowLanesByProject,
@@ -233,6 +250,14 @@ const ScrumPage: React.FC = () => {
 
   const [selectedProject, setSelectedProject] = useState("");
 
+  const notifyProjectBudgetUpdate = useCallback(
+    (reason?: string) => {
+      if (!selectedProject) return;
+      emitProjectBudgetUpdated(selectedProject, reason);
+    },
+    [selectedProject],
+  );
+
   const projectInitializedRef = useRef(false);
 
   const [selectedSprint, setSelectedSprint] = useState("");
@@ -240,6 +265,10 @@ const ScrumPage: React.FC = () => {
   const [activeView, setActiveView] = useState("scrum-board");
 
   const [isSprintDialogOpen, setIsSprintDialogOpen] = useState(false);
+
+  // const [isCreateSprintDialogOpen, setIsCreateSprintDialogOpen] = useState(false);
+
+  // const [isCapacityCalculatorOpen, setIsCapacityCalculatorOpen] = useState(false);
 
   const [isAddStoryDialogOpen, setIsAddStoryDialogOpen] = useState(false);
 
@@ -252,12 +281,27 @@ const ScrumPage: React.FC = () => {
   >(null);
 
   const [isAddSubtaskDialogOpen, setIsAddSubtaskDialogOpen] = useState(false);
+  const [isEditSubtaskDialogOpen, setIsEditSubtaskDialogOpen] = useState(false);
+  const [selectedSubtaskForEdit, setSelectedSubtaskForEdit] = useState<Subtask | null>(null);
 
   const [selectedTaskForSubtask, setSelectedTaskForSubtask] =
     useState<Task | null>(null);
 
   const [selectedIssueForSubtask, setSelectedIssueForSubtask] =
     useState<Issue | null>(null);
+
+  // State for task logs/time entries
+  const [taskLogs, setTaskLogs] = useState<TimeEntry[]>([]);
+  const [loadingTaskLogs, setLoadingTaskLogs] = useState(false);
+  const [selectedLogForEdit, setSelectedLogForEdit] = useState<TimeEntry | null>(null);
+  const [isEditLogDialogOpen, setIsEditLogDialogOpen] = useState(false);
+  const [editLogData, setEditLogData] = useState({
+    hoursWorked: 0,
+    description: "",
+    workDate: new Date().toISOString().split("T")[0],
+    startTime: "",
+    endTime: "",
+  });
 
   const [isStoryDetailsOpen, setIsStoryDetailsOpen] = useState(false);
 
@@ -342,12 +386,18 @@ const ScrumPage: React.FC = () => {
     endDate: "",
   });
 
-  // Effort logging state (JIRA-style: log on subtasks)
+  // Effort logging state (JIRA-style: log on subtasks, tasks, and issues)
 
   const [isLogEffortDialogOpen, setIsLogEffortDialogOpen] = useState(false);
 
   const [selectedSubtaskForEffort, setSelectedSubtaskForEffort] =
     useState<Subtask | null>(null);
+
+  const [selectedTaskForEffort, setSelectedTaskForEffort] =
+    useState<Task | null>(null);
+
+  const [selectedIssueForEffort, setSelectedIssueForEffort] =
+    useState<Issue | null>(null);
 
   const [effortLog, setEffortLog] = useState({
     hours: 0,
@@ -392,6 +442,9 @@ const ScrumPage: React.FC = () => {
     useState(false);
   const [selectedBacklogTaskForEffort, setSelectedBacklogTaskForEffort] =
     useState<Task | null>(null);
+  const [isBacklogTaskDialogOpen, setIsBacklogTaskDialogOpen] = useState(false);
+  const [backlogTaskToView, setBacklogTaskToView] = useState<Task | null>(null);
+  const [selectedBacklogTasks, setSelectedBacklogTasks] = useState<string[]>([]);
 
   // Role-based permissions
 
@@ -401,11 +454,18 @@ const ScrumPage: React.FC = () => {
     user?.role?.toUpperCase() === "MANAGER" ||
     user?.role?.toUpperCase() === "QA";
 
-  const canAddTasks = canManageSprintsAndStories; // Only managers and QA can add tasks
+  // Only MANAGER can create stories, tasks, and issues
+  const isManager = user?.role?.toUpperCase() === "MANAGER";
+
+  // Only managers can add tasks and issues
+  const canAddTasks = isManager; // Only managers can create tasks and issues
 
   const canCreateBoards = canManageSprintsAndStories; // Only managers and QA can create boards
 
   const canLogEffort = true;
+
+  // Check if user is a developer (not MANAGER or QA)
+  const isDeveloper = user?.role?.toUpperCase() !== "MANAGER" && user?.role?.toUpperCase() !== "QA";
 
   // All users can create subtasks (checked individually where needed)
 
@@ -446,7 +506,7 @@ const ScrumPage: React.FC = () => {
 
     reporterId: "",
 
-    estimatedHours: undefined as number | undefined,
+    dueDate: undefined as string | undefined,
 
     labels: [] as string[],
   });
@@ -454,6 +514,9 @@ const ScrumPage: React.FC = () => {
   // Attachment state for new story
 
   const [storyAttachments, setStoryAttachments] = useState<File[]>([]);
+
+  // State to control due date popover
+  const [isDueDatePopoverOpen, setIsDueDatePopoverOpen] = useState(false);
 
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
 
@@ -493,6 +556,31 @@ const ScrumPage: React.FC = () => {
 
     fetchStoryAttachments();
   }, [selectedStoryForDetails?.id, isStoryDetailsOpen]);
+
+  // Fetch task logs when task details dialog opens
+  useEffect(() => {
+    const fetchTaskLogs = async () => {
+      if (selectedTaskForDetails?.id && isTaskDetailsOpen) {
+        setLoadingTaskLogs(true);
+        try {
+          const response = await timeEntryApiService.getTimeEntriesByTask(selectedTaskForDetails.id);
+          const logs = Array.isArray(response.data)
+            ? response.data
+            : (Array.isArray(response) ? response : []);
+          setTaskLogs(logs);
+        } catch (error) {
+          console.error("Error fetching task logs:", error);
+          setTaskLogs([]);
+        } finally {
+          setLoadingTaskLogs(false);
+        }
+      } else {
+        setTaskLogs([]);
+      }
+    };
+
+    fetchTaskLogs();
+  }, [selectedTaskForDetails?.id, isTaskDetailsOpen]);
 
   // Fetch parent story attachments when task details dialog opens
 
@@ -753,7 +841,7 @@ const ScrumPage: React.FC = () => {
 
       try {
         sessionStorage.removeItem("openProjectId");
-      } catch {}
+      } catch { }
 
       return;
     }
@@ -772,7 +860,7 @@ const ScrumPage: React.FC = () => {
 
         return;
       }
-    } catch {}
+    } catch { }
 
     // If no project specified anywhere, select first available project
 
@@ -795,7 +883,7 @@ const ScrumPage: React.FC = () => {
 
       try {
         sessionStorage.removeItem("openProjectId");
-      } catch {}
+      } catch { }
     }
   }, [projectFromQuery, selectedProject]);
 
@@ -1038,6 +1126,10 @@ const ScrumPage: React.FC = () => {
 
   const [usersLoading, setUsersLoading] = useState(false);
 
+  // Project team members for filtering assignees
+  const [projectTeamMembers, setProjectTeamMembers] = useState<any[]>([]);
+  const [projectTeamMembersLoading, setProjectTeamMembersLoading] = useState(false);
+
   // Function to fetch all tasks for all stories in the sprint
 
   // Use ref to track if we're currently fetching to prevent duplicate calls
@@ -1071,9 +1163,9 @@ const ScrumPage: React.FC = () => {
 
         const currentBacklogStories = selectedProject
           ? (Array.isArray(backlogStoriesData)
-              ? backlogStoriesData
-              : backlogStoriesData?.data || []
-            ).filter((s: Story) => s.status === "BACKLOG")
+            ? backlogStoriesData
+            : backlogStoriesData?.data || []
+          ).filter((s: Story) => s.status === "BACKLOG")
           : [];
 
         // Get all stories to fetch tasks from (sprint stories + backlog stories)
@@ -1306,7 +1398,7 @@ const ScrumPage: React.FC = () => {
 
         // Handle different response formats
         let usersArray: any[] = [];
-        
+
         if (Array.isArray(data)) {
           // Direct array response
           usersArray = data;
@@ -1321,7 +1413,7 @@ const ScrumPage: React.FC = () => {
           usersArray = [data];
         }
 
-        console.log(`[fetchUsers] Fetched ${usersArray.length} users. Sample user:`, 
+        console.log(`[fetchUsers] Fetched ${usersArray.length} users. Sample user:`,
           usersArray.length > 0 ? {
             id: usersArray[0].id,
             name: usersArray[0].name,
@@ -1339,7 +1431,7 @@ const ScrumPage: React.FC = () => {
             "Content-Type": "application/json",
           },
         });
-        
+
         if (fallbackResponse.ok) {
           const fallbackData = await fallbackResponse.json();
           const usersArray = Array.isArray(fallbackData)
@@ -1370,6 +1462,46 @@ const ScrumPage: React.FC = () => {
     }
   }, [users.length, usersLoading, fetchUsers]);
 
+  // Function to fetch project team members
+  const fetchProjectTeamMembers = useCallback(async () => {
+    if (!selectedProject) {
+      setProjectTeamMembers([]);
+      return;
+    }
+
+    setProjectTeamMembersLoading(true);
+    try {
+      const { teamMemberApi } = await import("../services/api/entities/teamMemberApi");
+      const members = await teamMemberApi.getTeamMembersByProject(selectedProject);
+      setProjectTeamMembers(members || []);
+    } catch (error) {
+      console.error("Error fetching project team members:", error);
+      setProjectTeamMembers([]);
+    } finally {
+      setProjectTeamMembersLoading(false);
+    }
+  }, [selectedProject]);
+
+  // Fetch project team members when project changes
+  useEffect(() => {
+    fetchProjectTeamMembers();
+  }, [fetchProjectTeamMembers]);
+
+  // Filter users to only show project team members for assignee/reporter selects
+  const availableUsersForAssignment = useMemo(() => {
+    if (!selectedProject || projectTeamMembers.length === 0) {
+      return users; // Fall back to all users if no project selected or no team members
+    }
+
+    // Map team members to user IDs
+    const teamMemberUserIds = new Set(
+      projectTeamMembers.map(member => member.userId || member.id)
+    );
+
+    // Filter users to only include those in the project team
+    return users.filter(user => teamMemberUserIds.has(user.id));
+  }, [selectedProject, projectTeamMembers, users]);
+
   // Extract data from API responses (only use data if valid project/sprint selected)
 
   // Note: useApi hook returns data directly (not wrapped in .data property)
@@ -1377,11 +1509,18 @@ const ScrumPage: React.FC = () => {
   // Memoize arrays to prevent infinite loops from new references on every render
 
   const sprints = useMemo(() => {
-    return selectedProject
+    const sprintsArray = selectedProject
       ? Array.isArray(sprintsData)
         ? sprintsData
         : sprintsData?.data || []
       : [];
+
+    // Sort sprints by startDate in descending order (newest first)
+    return sprintsArray.sort((a: any, b: any) => {
+      const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
+      const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
+      return dateB - dateA; // Descending order (newest first)
+    });
   }, [selectedProject, sprintsData]);
 
   const currentSprint = useMemo(() => {
@@ -1402,6 +1541,20 @@ const ScrumPage: React.FC = () => {
     return sprint;
   }, [sprints, selectedSprint, selectedProject]);
 
+  // Check if sprint has ended
+  const isSprintEnded = useMemo(() => {
+    if (!currentSprint || !currentSprint.endDate) {
+      return false;
+    }
+
+    const endDate = new Date(currentSprint.endDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time to start of day for accurate comparison
+    endDate.setHours(0, 0, 0, 0);
+
+    return endDate < today;
+  }, [currentSprint]);
+
   const sprintStories = useMemo(() => {
     // If no sprint is selected or no sprint exists for the project, return empty array
 
@@ -1419,25 +1572,27 @@ const ScrumPage: React.FC = () => {
 
     // Additional validation: ensure story's projectId matches selected project
 
+    // Filter stories - trust the API that useStoriesBySprint returns correct stories
+    // Only filter by project, not by sprintId (API should handle sprint filtering)
+    // This prevents issues where sprintId might be null or not yet updated in the response
     let filteredStories = stories.filter((story: Story) => {
       // Ensure story belongs to the selected project
-
       if (story.projectId !== selectedProject) {
         console.warn(
           `Story ${story.id} does not belong to project ${selectedProject}`,
         );
-
         return false;
       }
 
-      // Ensure story belongs to the selected sprint
-
-      if (story.sprintId !== selectedSprint) {
-        console.warn(
-          `Story ${story.id} does not belong to sprint ${selectedSprint}`,
+      // If sprintId is set, it should match - but don't filter out if it's null/undefined
+      // The API endpoint /stories/sprint/{sprintId} should only return stories for that sprint
+      if (story.sprintId && story.sprintId !== selectedSprint) {
+        // Log as debug info, not warning - this can happen during data synchronization
+        console.debug(
+          `Story ${story.id} has sprintId ${story.sprintId} but API returned it for sprint ${selectedSprint}. Including it as API is authoritative.`,
         );
-
-        return false;
+        // Don't filter out - trust the API. The sprintId might not be updated yet in the response
+        // but the story is in the sprint according to the backend. We'll verify and fix if needed.
       }
 
       return true;
@@ -1676,35 +1831,46 @@ const ScrumPage: React.FC = () => {
   const previousStoryIdsRef = useRef<string>("");
 
   useEffect(() => {
-    // Create a stable string representation of story IDs for comparison
+    // Only fetch if we have a selected sprint and project
+    if (!selectedSprint || !selectedProject) {
+      setAllTasks([]);
+      return;
+    }
 
+    // Create a stable string representation of story IDs for comparison
     const currentStoryIds = sprintStories
       .map((story: Story) => story.id)
       .sort()
       .join(",");
 
     // Only fetch if story IDs actually changed
-
-    if (currentStoryIds === previousStoryIdsRef.current) {
+    if (currentStoryIds === previousStoryIdsRef.current && currentStoryIds !== "") {
       return;
     }
 
     // Update ref before async operation
-
     previousStoryIdsRef.current = currentStoryIds;
 
-    // Only fetch if we have stories (sprint or backlog)
+    // Filter stories by project - trust the API that useStoriesBySprint returns correct stories
+    // Don't filter by sprintId too strictly - the API should handle that
+    const validSprintStories = sprintStories.filter(
+      (story: Story) => story.projectId === selectedProject
+    );
 
-    if (sprintStories.length > 0 || backlogStories.length > 0) {
-      fetchAllTasks(sprintStories, true); // Include backlog stories
+    // Only fetch if we have valid stories
+    if (validSprintStories.length > 0) {
+      console.log(`Fetching tasks for ${validSprintStories.length} stories in sprint ${selectedSprint} (project ${selectedProject})`);
+      fetchAllTasks(validSprintStories, false); // Don't include backlog stories here
+    } else if (sprintStories.length === 0 && backlogStories.length > 0) {
+      // If no sprint stories but we have backlog stories, fetch those
+      fetchAllTasks(backlogStories, true);
     } else {
       // Clear tasks if no stories
-
       setAllTasks([]);
     }
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sprintStories, backlogStories]); // Depend on both sprint and backlog stories
+  }, [selectedSprint, selectedProject, sprintStories, backlogStories]); // Depend on sprint/project and stories
 
   // Fetch users when component mounts
 
@@ -1712,49 +1878,92 @@ const ScrumPage: React.FC = () => {
     fetchUsers();
   }, [fetchUsers]);
 
-  // Add window focus listener to refresh tasks when user returns to the page
-
-  // This ensures tasks created from admin panel are visible
+  // Add window focus/visibility change listener to refresh tasks when user returns to the page
+  // This ensures tasks are visible after tab change or refresh
 
   useEffect(() => {
-    const handleFocus = () => {
-      // Refresh tasks when window gains focus (user returns from admin panel)
+    const handleVisibilityChange = () => {
+      // Refresh tasks when tab becomes visible (user returns to the page)
+      if (document.visibilityState === 'visible') {
+        if (
+          selectedProject &&
+          selectedSprint &&
+          (sprintStories.length > 0 || backlogStories.length > 0)
+        ) {
+          console.log("Tab became visible - refreshing tasks for sprint", selectedSprint);
 
-      if (
-        selectedProject &&
-        (sprintStories.length > 0 || backlogStories.length > 0)
-      ) {
-        console.log("Window focused - refreshing tasks");
+          // Filter stories by project (trust API for sprint filtering)
+          const validStories = sprintStories.filter(
+            (story: Story) => story.projectId === selectedProject
+          );
 
-        fetchAllTasks(sprintStories, true);
+          if (validStories.length > 0) {
+            fetchAllTasks(validStories, false);
+          } else if (backlogStories.length > 0) {
+            fetchAllTasks(backlogStories, true);
+          }
+        }
       }
     };
 
+    const handleFocus = () => {
+      // Also refresh on window focus
+      if (
+        selectedProject &&
+        selectedSprint &&
+        (sprintStories.length > 0 || backlogStories.length > 0)
+      ) {
+        console.log("Window focused - refreshing tasks for sprint", selectedSprint);
+
+        const validStories = sprintStories.filter(
+          (story: Story) => story.projectId === selectedProject
+        );
+
+        if (validStories.length > 0) {
+          fetchAllTasks(validStories, false);
+        } else if (backlogStories.length > 0) {
+          fetchAllTasks(backlogStories, true);
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("focus", handleFocus);
 
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", handleFocus);
     };
-  }, [selectedProject, sprintStories, backlogStories, fetchAllTasks]);
+  }, [selectedProject, selectedSprint, sprintStories, backlogStories, fetchAllTasks]);
 
   // Also refresh tasks periodically (every 30 seconds) to catch external changes
 
   useEffect(() => {
     if (
       !selectedProject ||
+      !selectedSprint ||
       (sprintStories.length === 0 && backlogStories.length === 0)
     ) {
       return;
     }
 
     const interval = setInterval(() => {
-      console.log("Periodic task refresh");
+      console.log("Periodic task refresh for sprint", selectedSprint);
 
-      fetchAllTasks(sprintStories, true);
+      // Filter stories by project (trust API for sprint filtering)
+      const validStories = sprintStories.filter(
+        (story: Story) => story.projectId === selectedProject
+      );
+
+      if (validStories.length > 0) {
+        fetchAllTasks(validStories, false);
+      } else if (backlogStories.length > 0) {
+        fetchAllTasks(backlogStories, true);
+      }
     }, 30000); // Refresh every 30 seconds
 
     return () => clearInterval(interval);
-  }, [selectedProject, sprintStories, backlogStories, fetchAllTasks]);
+  }, [selectedProject, selectedSprint, sprintStories, backlogStories, fetchAllTasks]);
 
   // Set initial project selection - Auto-select first ACTIVE project
 
@@ -2082,6 +2291,28 @@ const ScrumPage: React.FC = () => {
     return projectBacklogStories.filter((story) => selectedSet.has(story.id));
   }, [projectBacklogStories, selectedBacklogStoryIds]);
 
+  // Get stories from previous sprints (excluding current sprint)
+  const previousSprintStories = useMemo(() => {
+    if (!selectedProject || !selectedSprint) return [];
+
+    // Get all stories from sprints other than the current one
+    const allProjectStories = sprintStories.filter(
+      (story) => story.projectId === selectedProject && story.sprintId && story.sprintId !== selectedSprint
+    );
+
+    // Role-based filtering: Non-managers/admins see only stories with tasks assigned to them
+    if (!canManageSprintsAndStories && user) {
+      return allProjectStories.filter((story) => {
+        const hasUserTask = allTasks.some(
+          (task) => task.storyId === story.id && task.assigneeId === user.id,
+        );
+        return hasUserTask;
+      });
+    }
+
+    return allProjectStories;
+  }, [sprintStories, selectedProject, selectedSprint, canManageSprintsAndStories, user, allTasks]);
+
   const boardStories = useMemo(() => {
     if (storiesScope === "backlog") {
       return projectBacklogStories;
@@ -2136,25 +2367,188 @@ const ScrumPage: React.FC = () => {
   }, []);
 
   const handleConfirmPullSelectedStories = useCallback(async () => {
-    const selectedStories = projectBacklogStories.filter((story) =>
+    if (!selectedSprint) {
+      toast.error("Please select a sprint before pulling stories.");
+      setIsPullStoriesDialogOpen(false);
+      return;
+    }
+
+    if (!user?.id) {
+      toast.error("User information not available.");
+      setIsPullStoriesDialogOpen(false);
+      return;
+    }
+
+    // Get selected backlog stories (dialog now only shows backlog stories)
+    const selectedBacklogStories = projectBacklogStories.filter((story) =>
       pendingBacklogStoryIds.includes(story.id),
     );
 
-    setSelectedBacklogStoryIds(pendingBacklogStoryIds);
-    setStoriesScope("custom");
-
-    setIsPullStoriesDialogOpen(false);
-
-    if (selectedStories.length > 0) {
-      toast.success(
-        `Pulled ${selectedStories.length} backlog stor${selectedStories.length === 1 ? "y" : "ies"}.`,
-      );
-    } else {
-      toast.success(
-        "No backlog stories selected. Board will remain empty until stories are pulled.",
-      );
+    if (selectedBacklogStories.length === 0) {
+      toast.info("No stories selected.");
+      setIsPullStoriesDialogOpen(false);
+      return;
     }
-  }, [pendingBacklogStoryIds, projectBacklogStories]);
+
+    try {
+      const movedStories: Story[] = [];
+
+      // Handle backlog stories: move them to sprint (they already exist with tasks)
+      for (const story of selectedBacklogStories) {
+        try {
+          console.log(`Moving backlog story "${story.title}" (${story.id}) to sprint ${selectedSprint}`);
+
+          const response = await storyApiService.moveStoryToSprint(
+            story.id,
+            selectedSprint
+          );
+
+          if (response.data) {
+            const movedStory = response.data;
+
+            // Verify the sprintId was set correctly in the response
+            if (movedStory.sprintId !== selectedSprint) {
+              console.error(`CRITICAL: Story ${movedStory.id} sprintId mismatch after move. Expected: ${selectedSprint}, Got: ${movedStory.sprintId}`);
+              // Force set the sprintId in the local object
+              movedStory.sprintId = selectedSprint;
+
+              // Try to update the story again to fix the database
+              try {
+                const updateResponse = await storyApiService.updateStory(movedStory.id, {
+                  ...movedStory,
+                  sprintId: selectedSprint
+                });
+                if (updateResponse.data && updateResponse.data.sprintId === selectedSprint) {
+                  console.log(`Fixed sprintId for story ${movedStory.id} via update`);
+                  movedStory.sprintId = selectedSprint;
+                }
+              } catch (updateError) {
+                console.error(`Failed to fix sprintId for story ${movedStory.id}:`, updateError);
+              }
+            }
+
+            // Ensure sprintId is set before adding to array
+            movedStory.sprintId = selectedSprint;
+            movedStories.push(movedStory);
+
+            console.log(`Successfully moved backlog story "${story.title}" (${story.id}) to sprint ${selectedSprint}. Verified sprintId: ${movedStory.sprintId}`);
+          } else {
+            console.error(`No data returned when moving story ${story.id} to sprint ${selectedSprint}`);
+            toast.error(`Failed to move story "${story.title}" to sprint. No data returned.`);
+          }
+        } catch (error) {
+          console.error(`Error moving backlog story ${story.id} to sprint:`, error);
+          toast.error(`Failed to move story "${story.title}" to sprint. Please try again.`);
+        }
+      }
+
+      if (movedStories.length > 0) {
+        toast.success(
+          `Successfully pulled ${movedStories.length} stor${movedStories.length === 1 ? "y" : "ies"} from backlog to current sprint.`,
+        );
+
+        // Refetch backlog stories first to update the backlog list
+        if (refetchBacklogStories) {
+          await refetchBacklogStories();
+        }
+
+        // Wait for database to persist the changes
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Verify stories were moved correctly by fetching them directly from the API
+        console.log(`Verifying ${movedStories.length} moved stories have correct sprintId in database...`);
+        for (const movedStory of movedStories) {
+          try {
+            const verifyResponse = await storyApiService.getStoryById(movedStory.id);
+            if (verifyResponse.data) {
+              const verifiedStory = verifyResponse.data;
+              if (verifiedStory.sprintId !== selectedSprint) {
+                console.error(`VERIFICATION FAILED: Story ${movedStory.id} still has wrong sprintId. Expected: ${selectedSprint}, Got: ${verifiedStory.sprintId}`);
+                // Try to fix it one more time
+                await storyApiService.updateStory(movedStory.id, {
+                  ...verifiedStory,
+                  sprintId: selectedSprint
+                });
+                console.log(`Attempted to fix sprintId for story ${movedStory.id}`);
+              } else {
+                console.log(`Verified: Story ${movedStory.id} has correct sprintId: ${verifiedStory.sprintId}`);
+              }
+            }
+          } catch (verifyError) {
+            console.error(`Error verifying story ${movedStory.id}:`, verifyError);
+          }
+        }
+
+        // Refetch sprint stories to get updated list with correct sprintId
+        if (refetchSprintStories) {
+          await refetchSprintStories();
+        }
+
+        // Wait a moment for the refetch to complete and state to update
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Fetch tasks for all moved stories immediately
+        // Ensure moved stories have the correct sprintId set
+        const allStoriesToFetch = movedStories.map(s => ({ ...s, sprintId: selectedSprint }));
+
+        if (allStoriesToFetch.length > 0) {
+          console.log(`Fetching tasks for ${allStoriesToFetch.length} stories moved from backlog`);
+          await fetchAllTasks(allStoriesToFetch, false);
+        }
+
+        // Wait for database to fully persist, then do a complete refetch
+        // This ensures all tasks from all stories in the sprint are loaded
+        setTimeout(async () => {
+          // Refetch sprint stories again to ensure we have the latest data
+          if (refetchSprintStories) {
+            await refetchSprintStories();
+          }
+
+          // Wait for state to update
+          await new Promise(resolve => setTimeout(resolve, 300));
+
+          // Get the latest sprint stories from the hook data
+          // We need to fetch tasks for all stories in the sprint, not just the moved ones
+          if (selectedSprint && selectedProject) {
+            console.log(`Refetching all tasks for sprint ${selectedSprint}`);
+            try {
+              const sprintStoriesResponse = await storyApiService.getStoriesBySprint(selectedSprint);
+              let latestSprintStories: Story[] = [];
+
+              if (sprintStoriesResponse && sprintStoriesResponse.data) {
+                if (Array.isArray(sprintStoriesResponse.data)) {
+                  latestSprintStories = sprintStoriesResponse.data;
+                } else if (typeof sprintStoriesResponse.data === 'object' && 'data' in sprintStoriesResponse.data) {
+                  const responseData = sprintStoriesResponse.data as any;
+                  latestSprintStories = Array.isArray(responseData.data) ? responseData.data : [];
+                }
+              }
+
+              const filteredStories = latestSprintStories.filter(
+                (story: Story) => story.projectId === selectedProject && story.sprintId === selectedSprint
+              );
+
+              if (filteredStories.length > 0) {
+                console.log(`Fetching tasks for ${filteredStories.length} sprint stories after move`);
+                await fetchAllTasks(filteredStories, false);
+              }
+            } catch (error) {
+              console.error("Error fetching sprint stories for task refresh:", error);
+            }
+          }
+        }, 1000);
+      }
+
+      setSelectedBacklogStoryIds([]);
+      setPendingBacklogStoryIds([]);
+      setStoriesScope("sprint");
+      setIsPullStoriesDialogOpen(false);
+    } catch (error) {
+      console.error("Error pulling stories:", error);
+      toast.error("Failed to pull stories. Please try again.");
+      setIsPullStoriesDialogOpen(false);
+    }
+  }, [pendingBacklogStoryIds, projectBacklogStories, selectedSprint, selectedProject, user, refetchSprintStories, refetchBacklogStories, fetchAllTasks]);
 
   const handlePullStoriesDialogChange = useCallback(
     (open: boolean) => {
@@ -2311,9 +2705,28 @@ const ScrumPage: React.FC = () => {
         return mappedStatus === status;
       });
 
+      // Sort tasks: For "To Do" column, show user-assigned tasks first
+      const isTodoColumn = status === "todo" || status === "TO_DO" || status === "TODO" ||
+        mapTaskStatusToColumn("TO_DO") === status ||
+        (status && status.toLowerCase() === "todo");
+
+      if (isTodoColumn) {
+        filteredTasks.sort((a, b) => {
+          const aIsUserAssigned = user?.id && a.assigneeId === user.id;
+          const bIsUserAssigned = user?.id && b.assigneeId === user.id;
+
+          // User-assigned tasks come first
+          if (aIsUserAssigned && !bIsUserAssigned) return -1;
+          if (!aIsUserAssigned && bIsUserAssigned) return 1;
+
+          // If both are user-assigned or both are not, maintain original order
+          return 0;
+        });
+      }
+
       return filteredTasks;
     },
-    [allTasks, boardStories, workflowLanes, mapTaskStatusToColumn],
+    [allTasks, boardStories, workflowLanes, mapTaskStatusToColumn, user],
   );
 
   // Group tasks by their parent story (only from stories in current sprint)
@@ -2351,17 +2764,31 @@ const ScrumPage: React.FC = () => {
     );
 
     // Sort tasks by task number within each story group
+    // For "To Do" column, prioritize user-assigned tasks first
+
+    const isTodoColumn = status === "todo" || status === "TO_DO" || status === "TODO" ||
+      (status && status.toLowerCase() === "todo");
 
     Object.keys(grouped).forEach((storyTitle) => {
       grouped[storyTitle].tasks.sort((a, b) => {
-        const aNum = a.taskNumber || 0;
+        // For "To Do" column, user-assigned tasks come first
+        if (isTodoColumn && user?.id) {
+          const aIsUserAssigned = a.assigneeId === user.id;
+          const bIsUserAssigned = b.assigneeId === user.id;
 
+          if (aIsUserAssigned && !bIsUserAssigned) return -1;
+          if (!aIsUserAssigned && bIsUserAssigned) return 1;
+        }
+
+        // Then sort by task number
+        const aNum = a.taskNumber || 0;
         const bNum = b.taskNumber || 0;
 
         if (aNum !== bNum) {
           return aNum - bNum;
         }
 
+        // Finally by creation date
         return (
           new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
         );
@@ -2397,21 +2824,21 @@ const ScrumPage: React.FC = () => {
         if (u.id === normalizedId) return true;
         if (u.userId === normalizedId) return true;
         if (u.employeeId === normalizedId) return true;
-        
+
         // Case-insensitive ID match
         if (u.id && String(u.id).toLowerCase() === normalizedId.toLowerCase()) return true;
         if (u.userId && String(u.userId).toLowerCase() === normalizedId.toLowerCase()) return true;
         if (u.employeeId && String(u.employeeId).toLowerCase() === normalizedId.toLowerCase()) return true;
-        
+
         // Case-insensitive email match
         if (u.email && u.email.toLowerCase() === normalizedId.toLowerCase()) return true;
-        
+
         // Username match
         if (u.username && u.username === normalizedId) return true;
-        
+
         // Try matching with any ID field (case-insensitive)
         const userFields = [u.id, u.userId, u.employeeId].filter(Boolean);
-        return userFields.some(field => 
+        return userFields.some(field =>
           field && String(field).toLowerCase() === normalizedId.toLowerCase()
         );
       }
@@ -2447,15 +2874,15 @@ const ScrumPage: React.FC = () => {
 
     // If user not found, log for debugging
     if (normalizedId && normalizedId !== "Unassigned") {
-      console.warn(`[getUserName] User not found for ID: ${normalizedId}. Available users: ${users.length}. User IDs (first 10):`, 
-        users.slice(0, 10).map(u => ({ 
-          id: u.id, 
-          userId: u.userId, 
-          employeeId: u.employeeId, 
+      console.warn(`[getUserName] User not found for ID: ${normalizedId}. Available users: ${users.length}. User IDs (first 10):`,
+        users.slice(0, 10).map(u => ({
+          id: u.id,
+          userId: u.userId,
+          employeeId: u.employeeId,
           name: u.name,
-          email: u.email 
+          email: u.email
         })));
-      
+
       // Special logging for the specific user ID mentioned
       if (normalizedId === "USER000000000010" || normalizedId.toLowerCase() === "user000000000010") {
         console.error(`[getUserName] CRITICAL: User "USER000000000010" (test user) not found!`, {
@@ -2498,8 +2925,8 @@ const ScrumPage: React.FC = () => {
       acceptanceCriteria: storyData.acceptanceCriteria
         ? typeof storyData.acceptanceCriteria === "string"
           ? storyData.acceptanceCriteria
-              .split("\n")
-              .filter((line: string) => line.trim())
+            .split("\n")
+            .filter((line: string) => line.trim())
           : storyData.acceptanceCriteria
         : [],
 
@@ -2619,532 +3046,8 @@ const ScrumPage: React.FC = () => {
     }
   }, [backlogStories, fetchTasksForBacklogStories]);
 
-  // Filter stories: show all backlog stories (not just those with overdue tasks)
-  const filteredBacklogStories = useMemo(() => {
-    if (!backlogStoriesWithTasks || backlogStoriesWithTasks.length === 0) {
-      return [];
-    }
+  // Note: allBacklogStoriesForDisplay is declared later and used for backlog display
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Start with all backlog stories (not filtered by overdue tasks)
-    let filtered = backlogStoriesWithTasks;
-
-    // Apply additional filters
-    filtered = filtered.filter((story) => {
-      const matchesSearch =
-        story.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (story.description &&
-          story.description.toLowerCase().includes(searchTerm.toLowerCase()));
-
-      const matchesStatus =
-        backlogStatusFilter === "all" || story.status === backlogStatusFilter;
-
-      const priorityMap: { [key: string]: string } = {
-        critical: "CRITICAL",
-        high: "HIGH",
-        medium: "MEDIUM",
-        low: "LOW",
-      };
-      const matchesPriority =
-        backlogPriorityFilter === "all" ||
-        story.priority === priorityMap[backlogPriorityFilter];
-
-      const matchesAssignee =
-        backlogAssigneeFilter === "all" ||
-        story.assigneeId === backlogAssigneeFilter;
-
-      return (
-        matchesSearch && matchesStatus && matchesPriority && matchesAssignee
-      );
-    });
-
-    // Sort stories
-    filtered.sort((a, b) => {
-      let aValue, bValue;
-
-      switch (backlogSortBy) {
-        case "priority":
-          const priorityOrder = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
-          aValue = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
-          bValue = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
-          break;
-        case "storyPoints":
-          aValue = a.storyPoints || 0;
-          bValue = b.storyPoints || 0;
-          break;
-        case "dueDate":
-          // Use the earliest overdue task due date
-          const aTasks = a.tasks.filter(
-            (t) => t.dueDate && new Date(t.dueDate) < today,
-          );
-          const bTasks = b.tasks.filter(
-            (t) => t.dueDate && new Date(t.dueDate) < today,
-          );
-          aValue =
-            aTasks.length > 0
-              ? Math.min(...aTasks.map((t) => new Date(t.dueDate!).getTime()))
-              : Infinity;
-          bValue =
-            bTasks.length > 0
-              ? Math.min(...bTasks.map((t) => new Date(t.dueDate!).getTime()))
-              : Infinity;
-          break;
-        case "created":
-          aValue = new Date(a.createdAt).getTime();
-          bValue = new Date(b.createdAt).getTime();
-          break;
-        default:
-          aValue = a.title;
-          bValue = b.title;
-      }
-
-      if (backlogSortOrder === "asc") {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
-      }
-    });
-
-    return filtered;
-  }, [
-    backlogStoriesWithTasks,
-    searchTerm,
-    backlogStatusFilter,
-    backlogPriorityFilter,
-    backlogAssigneeFilter,
-    backlogSortBy,
-    backlogSortOrder,
-  ]);
-
-  // Convert filtered stories to tasks for display (flattening tasks from stories)
-  const backlogTasks = useMemo(() => {
-    const allTasks: Task[] = [];
-    filteredBacklogStories.forEach((story) => {
-      if (story.tasks && story.tasks.length > 0) {
-        // For non-managers/admins, tasks are already filtered in fetchTasksForBacklogStories
-        // For managers/admins, show all tasks
-        const tasksToAdd = !canManageSprintsAndStories && user
-          ? story.tasks.filter((task) => task.assigneeId === user.id)
-          : story.tasks;
-        allTasks.push(...tasksToAdd);
-      }
-    });
-    return allTasks;
-  }, [filteredBacklogStories, canManageSprintsAndStories, user]);
-
-  // Get all backlog stories (including those without tasks) for proper integration
-  const allBacklogStoriesForDisplay = useMemo(() => {
-    console.log("Computing allBacklogStoriesForDisplay:", {
-      backlogStoriesCount: backlogStories.length,
-      backlogStoriesWithTasksCount: backlogStoriesWithTasks.length,
-      selectedProject,
-    });
-
-    // Combine stories with tasks and stories without tasks
-    const storiesWithTasksMap = new Map(
-      backlogStoriesWithTasks.map((s) => [s.id, s]),
-    );
-    let allStories = backlogStories.map((story) => {
-      const storyWithTasks = storiesWithTasksMap.get(story.id);
-      return storyWithTasks || { ...story, tasks: [] };
-    });
-
-    // Role-based filtering: Non-managers/admins see only stories with tasks assigned to them
-    if (!canManageSprintsAndStories && user) {
-      allStories = allStories
-        .map((story) => ({
-          ...story,
-          tasks: story.tasks?.filter((task) => task.assigneeId === user.id) || [],
-        }))
-        .filter((story) => story.tasks.length > 0); // Only keep stories that have at least one user-assigned task
-    }
-
-    console.log("All stories after combining:", allStories.length);
-
-    // Apply filters
-    const filtered = allStories.filter((story) => {
-      const matchesSearch =
-        story.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (story.description &&
-          story.description.toLowerCase().includes(searchTerm.toLowerCase()));
-
-      const matchesStatus =
-        backlogStatusFilter === "all" || story.status === backlogStatusFilter;
-
-      const priorityMap: { [key: string]: string } = {
-        critical: "CRITICAL",
-        high: "HIGH",
-        medium: "MEDIUM",
-        low: "LOW",
-      };
-      const matchesPriority =
-        backlogPriorityFilter === "all" ||
-        story.priority === priorityMap[backlogPriorityFilter];
-
-      const matchesAssignee =
-        backlogAssigneeFilter === "all" ||
-        story.assigneeId === backlogAssigneeFilter;
-
-      return (
-        matchesSearch && matchesStatus && matchesPriority && matchesAssignee
-      );
-    });
-
-    console.log("Filtered stories:", filtered.length);
-
-    // Sort filtered stories
-    return filtered.sort((a, b) => {
-      let aValue, bValue;
-
-      switch (backlogSortBy) {
-        case "priority":
-          const priorityOrder = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
-          aValue = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
-          bValue = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
-          break;
-        case "storyPoints":
-          aValue = a.storyPoints || 0;
-          bValue = b.storyPoints || 0;
-          break;
-        case "dueDate":
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const aTasks =
-            a.tasks?.filter((t) => t.dueDate && new Date(t.dueDate) < today) ||
-            [];
-          const bTasks =
-            b.tasks?.filter((t) => t.dueDate && new Date(t.dueDate) < today) ||
-            [];
-          aValue =
-            aTasks.length > 0
-              ? Math.min(...aTasks.map((t) => new Date(t.dueDate!).getTime()))
-              : Infinity;
-          bValue =
-            bTasks.length > 0
-              ? Math.min(...bTasks.map((t) => new Date(t.dueDate!).getTime()))
-              : Infinity;
-          break;
-        case "created":
-          aValue = new Date(a.createdAt).getTime();
-          bValue = new Date(b.createdAt).getTime();
-          break;
-        default:
-          aValue = a.title;
-          bValue = b.title;
-      }
-
-      if (backlogSortOrder === "asc") {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
-      }
-    });
-  }, [
-    backlogStories,
-    backlogStoriesWithTasks,
-    searchTerm,
-    backlogStatusFilter,
-    backlogPriorityFilter,
-    backlogAssigneeFilter,
-    backlogSortBy,
-    backlogSortOrder,
-    canManageSprintsAndStories,
-    user,
-  ]);
-
-  // Helper functions for backlog page
-  const getBacklogStatusColor = (status: string) => {
-    switch (status?.toUpperCase()) {
-      case "BACKLOG":
-      case "TO_DO":
-      case "TODO":
-        return "bg-gray-100 text-gray-800";
-      case "SPRINT_READY":
-      case "IN_PROGRESS":
-        return "bg-yellow-100 text-yellow-800";
-      case "QA_REVIEW":
-      case "REVIEW":
-        return "bg-blue-100 text-blue-800";
-      case "DONE":
-        return "bg-green-100 text-green-800";
-      case "BLOCKED":
-        return "bg-red-100 text-red-800";
-      case "CANCELLED":
-        return "bg-gray-100 text-gray-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const getBacklogPriorityColor = (priority: string) => {
-    const p = priority?.toUpperCase();
-    switch (p) {
-      case "CRITICAL":
-        return "bg-red-100 text-red-800";
-      case "HIGH":
-        return "bg-orange-100 text-orange-800";
-      case "MEDIUM":
-        return "bg-yellow-100 text-yellow-800";
-      case "LOW":
-        return "bg-green-100 text-green-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const getBacklogStoryStatusColor = (status: string) => {
-    switch (status?.toUpperCase()) {
-      case "BACKLOG":
-        return "bg-gray-100 text-gray-800";
-      case "TODO":
-        return "bg-blue-100 text-blue-800";
-      case "IN_PROGRESS":
-        return "bg-yellow-100 text-yellow-800";
-      case "REVIEW":
-        return "bg-purple-100 text-purple-800";
-      case "DONE":
-        return "bg-green-100 text-green-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const formatBacklogDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-IN", {
-      day: "numeric",
-      month: "short",
-    });
-  };
-
-  const toggleBacklogStoryExpansion = (storyId: string) => {
-    setExpandedBacklogStories((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(storyId)) {
-        newSet.delete(storyId);
-      } else {
-        newSet.add(storyId);
-      }
-      return newSet;
-    });
-  };
-
-  const handleOpenBacklogEffortManager = (task: Task) => {
-    setSelectedBacklogTaskForEffort(task);
-    setIsBacklogEffortManagerOpen(true);
-  };
-
-  const handleLogBacklogEffort = (effortData: any) => {
-    setSelectedBacklogTaskForEffort(null);
-  };
-
-  // Story Card Component for Backlog
-  const BacklogStoryCard: React.FC<{ story: Story & { tasks: Task[] } }> = ({
-    story,
-  }) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const overdueTasks =
-      story.tasks?.filter((task) => {
-        if (!task.dueDate) return false;
-        const taskDueDate = new Date(task.dueDate);
-        taskDueDate.setHours(0, 0, 0, 0);
-        return (
-          taskDueDate < today &&
-          task.status !== "DONE" &&
-          task.status !== "CANCELLED"
-        );
-      }) || [];
-
-    const isExpanded = expandedBacklogStories.has(story.id);
-
-    return (
-      <Card className="mb-4">
-        <CardHeader
-          className="cursor-pointer hover:bg-muted/50 transition-colors"
-          onClick={() => toggleBacklogStoryExpansion(story.id)}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <ChevronDown
-                className={`w-4 h-4 text-muted-foreground transition-transform ${isExpanded ? "rotate-180" : ""}`}
-              />
-              <h3 className="font-semibold text-lg">{story.title}</h3>
-              <Badge
-                variant="outline"
-                className={`text-xs ${getBacklogStoryStatusColor(story.status)}`}
-              >
-                {story.status}
-              </Badge>
-            </div>
-          </div>
-        </CardHeader>
-        {isExpanded && (
-          <CardContent>
-            <div className="space-y-4">
-              {/* Story Info */}
-              {story.description && (
-                <p className="text-sm text-muted-foreground">
-                  {story.description}
-                </p>
-              )}
-              <div className="flex items-center space-x-4 text-sm">
-                <Badge
-                  variant="outline"
-                  className={`${getBacklogPriorityColor(story.priority)}`}
-                >
-                  <Flag className="w-3 h-3 mr-1" />
-                  {story.priority}
-                </Badge>
-                {story.storyPoints && (
-                  <div className="flex items-center space-x-1 text-muted-foreground">
-                    <Target className="w-4 h-4" />
-                    <span>{story.storyPoints} points</span>
-                  </div>
-                )}
-                {overdueTasks.length > 0 && (
-                  <Badge variant="destructive" className="text-xs">
-                    <AlertCircle className="w-3 h-3 mr-1" />
-                    {overdueTasks.length} overdue task
-                    {overdueTasks.length > 1 ? "s" : ""}
-                  </Badge>
-                )}
-              </div>
-
-              {/* Tasks */}
-              {story.tasks && story.tasks.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-medium">
-                      Tasks ({story.tasks.length})
-                    </h4>
-                    <div className="text-xs text-muted-foreground">
-                      {story.tasks.filter((t) => t.status === "DONE").length}{" "}
-                      completed
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    {story.tasks.map((task) => {
-                      const isOverdue =
-                        task.dueDate && new Date(task.dueDate) < today;
-                      const isIncomplete =
-                        task.status !== "DONE" && task.status !== "CANCELLED";
-                      const isOverdueAndIncomplete = isOverdue && isIncomplete;
-
-                      return (
-                        <Card
-                          key={task.id}
-                          className={`border-l-4 ${
-                            isOverdueAndIncomplete
-                              ? "border-l-red-500 bg-red-50"
-                              : task.status === "DONE"
-                                ? "border-l-green-500 bg-green-50"
-                                : "border-l-blue-500"
-                          }`}
-                        >
-                          <CardContent className="p-3">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center space-x-2 mb-1">
-                                  <h5 className="text-sm font-medium">
-                                    {task.title}
-                                  </h5>
-                                  <Badge
-                                    variant="outline"
-                                    className={`text-xs ${getBacklogStatusColor(task.status)}`}
-                                  >
-                                    {task.status?.replace("_", " ") || "TO_DO"}
-                                  </Badge>
-                                  {isOverdueAndIncomplete && (
-                                    <Badge
-                                      variant="destructive"
-                                      className="text-xs"
-                                    >
-                                      Overdue
-                                    </Badge>
-                                  )}
-                                </div>
-                                {task.description && (
-                                  <p className="text-xs text-muted-foreground mb-2">
-                                    {task.description}
-                                  </p>
-                                )}
-                                <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-                                  <Badge
-                                    variant="outline"
-                                    className={`${getBacklogPriorityColor(task.priority)}`}
-                                  >
-                                    {task.priority}
-                                  </Badge>
-                                  {task.dueDate && (
-                                    <div className="flex items-center space-x-1">
-                                      <Calendar className="w-3 h-3" />
-                                      <span
-                                        className={
-                                          isOverdue
-                                            ? "text-red-600 font-medium"
-                                            : ""
-                                        }
-                                      >
-                                        {formatBacklogDate(task.dueDate)}
-                                      </span>
-                                    </div>
-                                  )}
-                                  {task.estimatedHours && (
-                                    <div className="flex items-center space-x-1">
-                                      <Clock className="w-3 h-3" />
-                                      <span>{task.estimatedHours}h</span>
-                                    </div>
-                                  )}
-                                  {task.actualHours > 0 && (
-                                    <div className="flex items-center space-x-1">
-                                      <Target className="w-3 h-3" />
-                                      <span>{task.actualHours}h actual</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 w-6 p-0"
-                                  >
-                                    <MoreVertical className="w-3 h-3" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      handleOpenBacklogEffortManager(task)
-                                    }
-                                  >
-                                    <Clock className="w-4 h-4 mr-2" />
-                                    Manage Efforts
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem>
-                                    <Eye className="w-4 h-4 mr-2" />
-                                    View Details
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        )}
-      </Card>
-    );
-  };
 
   // Helper function to convert file to base64
 
@@ -3193,6 +3096,8 @@ const ScrumPage: React.FC = () => {
 
         thumbnailUrl: undefined,
 
+        attachmentType: 'file' as const,
+
         isPublic: true,
       });
     } catch (error) {
@@ -3202,9 +3107,40 @@ const ScrumPage: React.FC = () => {
     }
   };
 
+  // Helper function to create URL attachment
+  const createUrlAttachment = async (
+    url: string,
+    name: string,
+    entityType: string,
+    entityId: string,
+  ): Promise<void> => {
+    try {
+      await attachmentApiService.createAttachment({
+        uploadedBy: user?.id,
+        entityType,
+        entityId,
+        fileName: name,
+        fileSize: undefined,
+        fileType: 'url',
+        fileUrl: url,
+        attachmentType: 'url' as const,
+        isPublic: true,
+      });
+    } catch (error) {
+      console.error("Error creating URL attachment:", error);
+      throw error;
+    }
+  };
+
   // Story creation handler
 
   const handleCreateStory = async () => {
+    // Only managers can create stories
+    if (!isManager) {
+      toast.error("Only managers can create stories");
+      return;
+    }
+
     if (!selectedProject) {
       alert("Please select a project first");
 
@@ -3248,7 +3184,7 @@ const ScrumPage: React.FC = () => {
 
       reporterId: newStory.reporterId || null,
 
-      estimatedHours: newStory.estimatedHours || null,
+      dueDate: newStory.dueDate || null,
 
       labels: newStory.labels.length > 0 ? newStory.labels : null,
 
@@ -3308,12 +3244,17 @@ const ScrumPage: React.FC = () => {
 
       reporterId: "",
 
-      estimatedHours: undefined,
+      dueDate: undefined,
+
+      dueDate: undefined,
 
       labels: [],
     });
 
     setStoryAttachments([]);
+
+    // Reset popover state
+    setIsDueDatePopoverOpen(false);
 
     // Close dialog
 
@@ -3332,6 +3273,21 @@ const ScrumPage: React.FC = () => {
 
   const moveItem = useCallback(
     async (id: string, newStatus: string, itemType: string) => {
+      // Prevent developers from moving tasks/issues to Done column only
+      // Developers can add tasks to all other lanes including manager-created lanes
+      if (isDeveloper) {
+        if (newStatus === "done") {
+          toast.error("Developers cannot move tasks/issues to Done column");
+          return;
+        }
+        // Check if the status maps to DONE
+        const mappedStatus = mapColumnToTaskStatus(newStatus);
+        if (mappedStatus === "DONE") {
+          toast.error("Developers cannot move tasks/issues to Done column");
+          return;
+        }
+      }
+
       if (itemType === ItemTypes.TASK) {
         // Check if newStatus is a valid default status or a custom lane statusValue
 
@@ -3346,6 +3302,58 @@ const ScrumPage: React.FC = () => {
 
           const oldStatus = task?.status;
 
+          // Prevent non-managers from moving tasks from "In Progress" back to "To Do"
+          const isMovingFromInProgressToTodo =
+            (oldStatus === "IN_PROGRESS" || oldStatus === "in_progress") &&
+            (newStatus === "todo" || newStatus === "TO_DO" || newStatus === "TODO");
+
+          if (isMovingFromInProgressToTodo && !canManageSprintsAndStories) {
+            toast.error("Only managers can move tasks from In Progress back to To Do");
+            // Log blocked attempt
+            try {
+              await activityLogApiService.createActivityLog({
+                userId: user?.id || "",
+                entityType: "tasks",
+                entityId: id,
+                action: "status_change_blocked",
+                description: `Attempted to move task from ${oldStatus} to TODO (blocked - manager only)`,
+                oldValues: JSON.stringify({ status: oldStatus }),
+                newValues: JSON.stringify({ status: "TODO" }),
+                ipAddress: undefined,
+                userAgent: undefined,
+              });
+            } catch (error) {
+              console.error("Failed to log blocked activity:", error);
+            }
+            return;
+          }
+
+          // Prevent non-managers from moving tasks from "To Do" to "In Progress"
+          const isMovingFromTodoToInProgress =
+            (oldStatus === "TO_DO" || oldStatus === "TODO" || oldStatus === "todo" || oldStatus === "to_do") &&
+            (newStatus === "inprogress" || newStatus === "IN_PROGRESS" || newStatus === "in_progress");
+
+          if (isMovingFromTodoToInProgress && !canManageSprintsAndStories) {
+            toast.error("Only managers can move tasks from To Do to In Progress");
+            // Log blocked attempt
+            try {
+              await activityLogApiService.createActivityLog({
+                userId: user?.id || "",
+                entityType: "tasks",
+                entityId: id,
+                action: "status_change_blocked",
+                description: `Attempted to move task from ${oldStatus} to IN_PROGRESS (blocked - manager only)`,
+                oldValues: JSON.stringify({ status: oldStatus }),
+                newValues: JSON.stringify({ status: "IN_PROGRESS" }),
+                ipAddress: undefined,
+                userAgent: undefined,
+              });
+            } catch (error) {
+              console.error("Failed to log blocked activity:", error);
+            }
+            return;
+          }
+
           const mappedStatus = mapColumnToTaskStatus(newStatus);
 
           await updateTaskStatusMutate({
@@ -3354,26 +3362,27 @@ const ScrumPage: React.FC = () => {
             status: mappedStatus as any, // Allow custom status strings
           });
 
-          // Log activity
+          notifyProjectBudgetUpdate("task-status-updated");
 
+          // Log activity
           try {
+            const isMovingToInProgress = mappedStatus === "IN_PROGRESS" || mappedStatus === "in_progress";
+            const isMovingFromTodo = oldStatus === "TO_DO" || oldStatus === "TODO" || oldStatus === "todo" || oldStatus === "to_do";
+
+            let description = `Changed status from ${oldStatus} to ${mappedStatus}`;
+            if (isMovingFromTodo && isMovingToInProgress && canManageSprintsAndStories) {
+              description = `Manager moved task from To Do to In Progress`;
+            }
+
             await activityLogApiService.createActivityLog({
               userId: user?.id || "",
-
               entityType: "tasks",
-
               entityId: id,
-
               action: "status_changed",
-
-              description: `Changed status from ${oldStatus} to ${mappedStatus}`,
-
+              description: description,
               oldValues: JSON.stringify({ status: oldStatus }),
-
               newValues: JSON.stringify({ status: mappedStatus }),
-
               ipAddress: undefined, // Not tracking IP from frontend
-
               userAgent: undefined, // Not tracking user agent from frontend
             });
           } catch (error) {
@@ -3400,6 +3409,58 @@ const ScrumPage: React.FC = () => {
 
           const oldStatus = issue?.status;
 
+          // Prevent non-managers from moving issues from "In Progress" back to "To Do"
+          const isMovingFromInProgressToTodo =
+            (oldStatus === "IN_PROGRESS" || oldStatus === "in_progress") &&
+            (newStatus === "todo" || newStatus === "TO_DO" || newStatus === "TODO");
+
+          if (isMovingFromInProgressToTodo && !canManageSprintsAndStories) {
+            toast.error("Only managers can move issues from In Progress back to To Do");
+            // Log blocked attempt
+            try {
+              await activityLogApiService.createActivityLog({
+                userId: user?.id || "",
+                entityType: "issues",
+                entityId: id,
+                action: "status_change_blocked",
+                description: `Attempted to move issue from ${oldStatus} to TODO (blocked - manager only)`,
+                oldValues: JSON.stringify({ status: oldStatus }),
+                newValues: JSON.stringify({ status: "TODO" }),
+                ipAddress: undefined,
+                userAgent: undefined,
+              });
+            } catch (error) {
+              console.error("Failed to log blocked activity:", error);
+            }
+            return;
+          }
+
+          // Prevent non-managers from moving issues from "To Do" to "In Progress"
+          const isMovingFromTodoToInProgress =
+            (oldStatus === "TO_DO" || oldStatus === "TODO" || oldStatus === "todo" || oldStatus === "to_do") &&
+            (newStatus === "inprogress" || newStatus === "IN_PROGRESS" || newStatus === "in_progress");
+
+          if (isMovingFromTodoToInProgress && !canManageSprintsAndStories) {
+            toast.error("Only managers can move issues from To Do to In Progress");
+            // Log blocked attempt
+            try {
+              await activityLogApiService.createActivityLog({
+                userId: user?.id || "",
+                entityType: "issues",
+                entityId: id,
+                action: "status_change_blocked",
+                description: `Attempted to move issue from ${oldStatus} to IN_PROGRESS (blocked - manager only)`,
+                oldValues: JSON.stringify({ status: oldStatus }),
+                newValues: JSON.stringify({ status: "IN_PROGRESS" }),
+                ipAddress: undefined,
+                userAgent: undefined,
+              });
+            } catch (error) {
+              console.error("Failed to log blocked activity:", error);
+            }
+            return;
+          }
+
           const mappedStatus = mapColumnToTaskStatus(newStatus);
 
           await updateIssueStatusMutate({
@@ -3409,25 +3470,24 @@ const ScrumPage: React.FC = () => {
           });
 
           // Log activity
-
           try {
+            const isMovingToInProgress = mappedStatus === "IN_PROGRESS" || mappedStatus === "in_progress";
+            const isMovingFromTodo = oldStatus === "TO_DO" || oldStatus === "TODO" || oldStatus === "todo" || oldStatus === "to_do";
+
+            let description = `Changed issue status from ${oldStatus} to ${mappedStatus}`;
+            if (isMovingFromTodo && isMovingToInProgress && canManageSprintsAndStories) {
+              description = `Manager moved issue from To Do to In Progress`;
+            }
+
             await activityLogApiService.createActivityLog({
               userId: user?.id || "",
-
               entityType: "issues",
-
               entityId: id,
-
               action: "status_changed",
-
-              description: `Changed issue status from ${oldStatus} to ${mappedStatus}`,
-
+              description: description,
               oldValues: JSON.stringify({ status: oldStatus }),
-
               newValues: JSON.stringify({ status: mappedStatus }),
-
               ipAddress: undefined,
-
               userAgent: undefined,
             });
           } catch (error) {
@@ -3516,6 +3576,8 @@ const ScrumPage: React.FC = () => {
       allIssues,
       workflowLanes,
       user,
+      isDeveloper,
+      lanesAfterQA,
     ],
   );
 
@@ -3604,7 +3666,11 @@ const ScrumPage: React.FC = () => {
   // Add Story Handler
 
   const handleAddStory = async () => {
-    if (!canManageSprintsAndStories) return;
+    // Only managers can create stories
+    if (!isManager) {
+      toast.error("Only managers can create stories");
+      return;
+    }
 
     const createdStory = await createStoryMutate({
       projectId: selectedProject,
@@ -3733,8 +3799,8 @@ const ScrumPage: React.FC = () => {
             const maxOrder =
               lanesAfterInProgress.length > 0
                 ? Math.max(
-                    ...lanesAfterInProgress.map((l) => l.displayOrder || 0),
-                  )
+                  ...lanesAfterInProgress.map((l) => l.displayOrder || 0),
+                )
                 : 20;
 
             laneData.displayOrder = Math.min(maxOrder + 1, 29);
@@ -3997,9 +4063,9 @@ const ScrumPage: React.FC = () => {
   };
 
   const handleAddTask = async (taskDataFromDialog: any) => {
-    if (!canAddTasks) {
-      toast.error("Only Managers and QA can create tasks");
-
+    // Only managers can create tasks
+    if (!isManager) {
+      toast.error("Only managers can create tasks");
       return;
     }
 
@@ -4030,7 +4096,7 @@ const ScrumPage: React.FC = () => {
               emailUser?.toLowerCase() === assigneeValue.toLowerCase() ||
               u.name === assigneeValue ||
               `${u.name || ""} Manager`.toLowerCase() ===
-                assigneeValue.toLowerCase()
+              assigneeValue.toLowerCase()
             );
           });
 
@@ -4066,8 +4132,16 @@ const ScrumPage: React.FC = () => {
         done: "DONE",
       };
 
+      const requestedStatus = taskDataFromDialog.status?.toLowerCase() || "todo";
+
+      // Prevent developers from creating tasks with Done status
+      if (isDeveloper && (requestedStatus === "done" || statusMap[requestedStatus] === "DONE")) {
+        toast.error("Developers cannot add tasks to Done column. Please select another status.");
+        return;
+      }
+
       const apiStatus =
-        statusMap[taskDataFromDialog.status?.toLowerCase() || "todo"] ||
+        statusMap[requestedStatus] ||
         "TO_DO";
 
       // Map due date format (dd/MM/yy) to ISO string
@@ -4131,21 +4205,34 @@ const ScrumPage: React.FC = () => {
 
       if (response && response.data) {
         // Upload attachments if any
+        const hasFiles = taskDataFromDialog.attachments && taskDataFromDialog.attachments.length > 0;
+        const hasUrls = taskDataFromDialog.attachmentUrls && taskDataFromDialog.attachmentUrls.length > 0;
 
-        if (
-          taskDataFromDialog.attachments &&
-          taskDataFromDialog.attachments.length > 0
-        ) {
+        if (hasFiles || hasUrls) {
           try {
-            const uploadPromises = taskDataFromDialog.attachments.map(
-              (file: File) =>
-                uploadFileAndCreateAttachment(file, "task", response.data.id),
-            );
+            const uploadPromises: Promise<void>[] = [];
+
+            // Upload files
+            if (hasFiles) {
+              uploadPromises.push(...taskDataFromDialog.attachments.map(
+                (file: File) =>
+                  uploadFileAndCreateAttachment(file, "task", response.data.id),
+              ));
+            }
+
+            // Create URL attachments
+            if (hasUrls) {
+              uploadPromises.push(...taskDataFromDialog.attachmentUrls.map(
+                (item: { url: string; name: string }) =>
+                  createUrlAttachment(item.url, item.name, "task", response.data.id),
+              ));
+            }
 
             await Promise.all(uploadPromises);
 
+            const totalAttachments = (taskDataFromDialog.attachments?.length || 0) + (taskDataFromDialog.attachmentUrls?.length || 0);
             toast.success(
-              `Task created with ${taskDataFromDialog.attachments.length} attachment(s)`,
+              `Task created with ${totalAttachments} attachment(s)`,
             );
           } catch (error) {
             console.error("Error uploading attachments:", error);
@@ -4168,9 +4255,9 @@ const ScrumPage: React.FC = () => {
   // Add Issue Handler - Similar to handleAddTask
 
   const handleAddIssue = async (issueDataFromDialog: any) => {
-    if (!canAddTasks) {
-      toast.error("Only Managers and QA can create issues");
-
+    // Only managers can create issues
+    if (!isManager) {
+      toast.error("Only managers can create issues");
       return;
     }
 
@@ -4211,7 +4298,7 @@ const ScrumPage: React.FC = () => {
               emailUser?.toLowerCase() === assigneeValue.toLowerCase() ||
               u.name === assigneeValue ||
               `${u.name || ""} Manager`.toLowerCase() ===
-                assigneeValue.toLowerCase()
+              assigneeValue.toLowerCase()
             );
           });
 
@@ -4247,8 +4334,16 @@ const ScrumPage: React.FC = () => {
         done: "DONE",
       };
 
+      const requestedStatus = issueDataFromDialog.status?.toLowerCase() || "todo";
+
+      // Prevent developers from creating issues with Done status
+      if (isDeveloper && (requestedStatus === "done" || statusMap[requestedStatus] === "DONE")) {
+        toast.error("Developers cannot add issues to Done column. Please select another status.");
+        return;
+      }
+
       const apiStatus =
-        statusMap[issueDataFromDialog.status?.toLowerCase() || "todo"] ||
+        statusMap[requestedStatus] ||
         "TO_DO";
 
       // Map due date format (dd/MM/yy) to ISO string
@@ -4413,21 +4508,34 @@ const ScrumPage: React.FC = () => {
         }
 
         // Upload attachments if any
+        const hasFiles = issueDataFromDialog.attachments && issueDataFromDialog.attachments.length > 0;
+        const hasUrls = issueDataFromDialog.attachmentUrls && issueDataFromDialog.attachmentUrls.length > 0;
 
-        if (
-          issueDataFromDialog.attachments &&
-          issueDataFromDialog.attachments.length > 0
-        ) {
+        if (hasFiles || hasUrls) {
           try {
-            const uploadPromises = issueDataFromDialog.attachments.map(
-              (file: File) =>
-                uploadFileAndCreateAttachment(file, "issue", createdIssueId),
-            );
+            const uploadPromises: Promise<void>[] = [];
+
+            // Upload files
+            if (hasFiles) {
+              uploadPromises.push(...issueDataFromDialog.attachments.map(
+                (file: File) =>
+                  uploadFileAndCreateAttachment(file, "issue", createdIssueId),
+              ));
+            }
+
+            // Create URL attachments
+            if (hasUrls) {
+              uploadPromises.push(...issueDataFromDialog.attachmentUrls.map(
+                (item: { url: string; name: string }) =>
+                  createUrlAttachment(item.url, item.name, "issue", createdIssueId),
+              ));
+            }
 
             await Promise.all(uploadPromises);
 
+            const totalAttachments = (issueDataFromDialog.attachments?.length || 0) + (issueDataFromDialog.attachmentUrls?.length || 0);
             toast.success(
-              `Issue created with ${issueDataFromDialog.attachments.length} attachment(s)`,
+              `Issue created with ${totalAttachments} attachment(s)`,
             );
           } catch (error) {
             console.error("Error uploading attachments:", error);
@@ -4531,6 +4639,93 @@ const ScrumPage: React.FC = () => {
       toast.error("Please select a task or issue");
 
       return;
+    }
+
+    // Validation: Check subtask category limits and hours
+    if (selectedTaskForSubtask) {
+      // Get all existing subtasks for this task
+      const existingSubtasks = allSubtasks.filter(
+        (st) => st.taskId === selectedTaskForSubtask.id
+      );
+
+      // Check category limits: Max 2 Major, Max 1 Other
+      const category = newSubtask.category || "";
+      if (category === "Major") {
+        const majorCount = existingSubtasks.filter(
+          (st) => st.category === "Major"
+        ).length;
+        if (majorCount >= 2) {
+          toast.error("Maximum 2 Major subtasks allowed per task");
+          return;
+        }
+      } else if (category === "Other") {
+        const otherCount = existingSubtasks.filter(
+          (st) => st.category === "Other"
+        ).length;
+        if (otherCount >= 1) {
+          toast.error("Maximum 1 Other subtask allowed per task");
+          return;
+        }
+      }
+
+      // Check total hours: Sum of all subtask hours must not exceed task hours
+      const taskEstimatedHours = selectedTaskForSubtask.estimatedHours || 0;
+      if (taskEstimatedHours > 0) {
+        const existingSubtaskHours = existingSubtasks.reduce(
+          (sum, st) => sum + (st.estimatedHours || 0),
+          0
+        );
+        const newSubtaskHours = newSubtask.estimatedHours || 0;
+        const totalSubtaskHours = existingSubtaskHours + newSubtaskHours;
+
+        if (totalSubtaskHours > taskEstimatedHours) {
+          toast.error(
+            `Total subtask hours (${totalSubtaskHours}h) cannot exceed task hours (${taskEstimatedHours}h). Please reduce subtask hours.`
+          );
+          return;
+        }
+      }
+    } else if (selectedIssueForSubtask) {
+      // Similar validation for issues
+      const existingSubtasks = allSubtasks.filter(
+        (st) => st.issueId === selectedIssueForSubtask.id
+      );
+
+      const category = newSubtask.category || "";
+      if (category === "Major") {
+        const majorCount = existingSubtasks.filter(
+          (st) => st.category === "Major"
+        ).length;
+        if (majorCount >= 2) {
+          toast.error("Maximum 2 Major subtasks allowed per issue");
+          return;
+        }
+      } else if (category === "Other") {
+        const otherCount = existingSubtasks.filter(
+          (st) => st.category === "Other"
+        ).length;
+        if (otherCount >= 1) {
+          toast.error("Maximum 1 Other subtask allowed per issue");
+          return;
+        }
+      }
+
+      const issueEstimatedHours = selectedIssueForSubtask.estimatedHours || 0;
+      if (issueEstimatedHours > 0) {
+        const existingSubtaskHours = existingSubtasks.reduce(
+          (sum, st) => sum + (st.estimatedHours || 0),
+          0
+        );
+        const newSubtaskHours = newSubtask.estimatedHours || 0;
+        const totalSubtaskHours = existingSubtaskHours + newSubtaskHours;
+
+        if (totalSubtaskHours > issueEstimatedHours) {
+          toast.error(
+            `Total subtask hours (${totalSubtaskHours}h) cannot exceed issue hours (${issueEstimatedHours}h). Please reduce subtask hours.`
+          );
+          return;
+        }
+      }
     }
 
     setIsCreatingSubtask(true);
@@ -4696,6 +4891,336 @@ const ScrumPage: React.FC = () => {
     }
   };
 
+  // Edit Subtask Handler
+  const handleEditSubtask = async () => {
+    if (!selectedSubtaskForEdit || !newSubtask.title.trim()) {
+      toast.error("Please enter a subtask title");
+      return;
+    }
+
+    // Validation: Check subtask category limits and hours
+    if (selectedSubtaskForEdit.taskId) {
+      // Get all existing subtasks for this task (excluding the one being edited)
+      const existingSubtasks = allSubtasks.filter(
+        (st) => st.taskId === selectedSubtaskForEdit.taskId && st.id !== selectedSubtaskForEdit.id
+      );
+
+      // Find the parent task
+      const parentTask = allTasks.find(
+        (t) => t.id === selectedSubtaskForEdit.taskId
+      );
+
+      if (parentTask) {
+        // Check category limits: Max 2 Major, Max 1 Other
+        const category = newSubtask.category || "";
+        if (category === "Major") {
+          const majorCount = existingSubtasks.filter(
+            (st) => st.category === "Major"
+          ).length;
+          // Only check if the category is being changed to Major
+          if (selectedSubtaskForEdit.category !== "Major" && majorCount >= 2) {
+            toast.error("Maximum 2 Major subtasks allowed per task");
+            return;
+          }
+        } else if (category === "Other") {
+          const otherCount = existingSubtasks.filter(
+            (st) => st.category === "Other"
+          ).length;
+          // Only check if the category is being changed to Other
+          if (selectedSubtaskForEdit.category !== "Other" && otherCount >= 1) {
+            toast.error("Maximum 1 Other subtask allowed per task");
+            return;
+          }
+        }
+
+        // Check total hours: Sum of all subtask hours must not exceed task hours
+        const taskEstimatedHours = parentTask.estimatedHours || 0;
+        if (taskEstimatedHours > 0) {
+          const existingSubtaskHours = existingSubtasks.reduce(
+            (sum, st) => sum + (st.estimatedHours || 0),
+            0
+          );
+          const editedSubtaskHours = newSubtask.estimatedHours || 0;
+          const totalSubtaskHours = existingSubtaskHours + editedSubtaskHours;
+
+          if (totalSubtaskHours > taskEstimatedHours) {
+            toast.error(
+              `Total subtask hours (${totalSubtaskHours}h) cannot exceed task hours (${taskEstimatedHours}h). Please reduce subtask hours.`
+            );
+            return;
+          }
+        }
+      }
+    } else if (selectedSubtaskForEdit.issueId) {
+      // Similar validation for issues
+      const existingSubtasks = allSubtasks.filter(
+        (st) => st.issueId === selectedSubtaskForEdit.issueId && st.id !== selectedSubtaskForEdit.id
+      );
+
+      const parentIssue = allIssues.find(
+        (i) => i.id === selectedSubtaskForEdit.issueId
+      );
+
+      if (parentIssue) {
+        const category = newSubtask.category || "";
+        if (category === "Major") {
+          const majorCount = existingSubtasks.filter(
+            (st) => st.category === "Major"
+          ).length;
+          if (selectedSubtaskForEdit.category !== "Major" && majorCount >= 2) {
+            toast.error("Maximum 2 Major subtasks allowed per issue");
+            return;
+          }
+        } else if (category === "Other") {
+          const otherCount = existingSubtasks.filter(
+            (st) => st.category === "Other"
+          ).length;
+          if (selectedSubtaskForEdit.category !== "Other" && otherCount >= 1) {
+            toast.error("Maximum 1 Other subtask allowed per issue");
+            return;
+          }
+        }
+
+        const issueEstimatedHours = parentIssue.estimatedHours || 0;
+        if (issueEstimatedHours > 0) {
+          const existingSubtaskHours = existingSubtasks.reduce(
+            (sum, st) => sum + (st.estimatedHours || 0),
+            0
+          );
+          const editedSubtaskHours = newSubtask.estimatedHours || 0;
+          const totalSubtaskHours = existingSubtaskHours + editedSubtaskHours;
+
+          if (totalSubtaskHours > issueEstimatedHours) {
+            toast.error(
+              `Total subtask hours (${totalSubtaskHours}h) cannot exceed issue hours (${issueEstimatedHours}h). Please reduce subtask hours.`
+            );
+            return;
+          }
+        }
+      }
+    }
+
+    setIsCreatingSubtask(true);
+
+    try {
+      // Format due date if provided
+      let formattedDueDate: string | undefined = undefined;
+      if (newSubtask.dueDate) {
+        try {
+          const date = new Date(newSubtask.dueDate);
+          if (!isNaN(date.getTime())) {
+            formattedDueDate = date.toISOString().split("T")[0];
+          }
+        } catch (e) {
+          console.error("Error formatting due date:", e);
+        }
+      }
+
+      const subtaskData = {
+        title: newSubtask.title,
+        description: newSubtask.description,
+        assigneeId: newSubtask.assigneeId || undefined,
+        estimatedHours: newSubtask.estimatedHours,
+        dueDate: formattedDueDate,
+        category: newSubtask.category || undefined,
+      };
+
+      // Update subtask in database via API
+      console.log("Updating subtask in database:", {
+        id: selectedSubtaskForEdit.id,
+        data: subtaskData
+      });
+
+      const updateResponse = await subtaskApiService.updateSubtask(selectedSubtaskForEdit.id, subtaskData);
+
+      // Verify the update was successful
+      if (!updateResponse) {
+        throw new Error("No response received from server");
+      }
+
+      if (!updateResponse.success) {
+        throw new Error(updateResponse.message || "Failed to update subtask in database");
+      }
+
+      if (!updateResponse.data) {
+        throw new Error("Update response missing data");
+      }
+
+      console.log("Subtask updated successfully in database:", updateResponse.data);
+
+      // Update local state immediately with the updated subtask from database
+      setAllSubtasks((prev) =>
+        prev.map((st) =>
+          st.id === selectedSubtaskForEdit.id
+            ? { ...st, ...updateResponse.data }
+            : st
+        )
+      );
+
+      // Log activity for subtask update
+      try {
+        if (selectedSubtaskForEdit.taskId) {
+          await activityLogApiService.createActivityLog({
+            userId: user?.id || "",
+            entityType: "tasks",
+            entityId: selectedSubtaskForEdit.taskId,
+            action: "subtask_updated",
+            description: `Updated subtask "${newSubtask.title}"`,
+            oldValues: JSON.stringify(selectedSubtaskForEdit),
+            newValues: JSON.stringify(subtaskData),
+            ipAddress: undefined,
+            userAgent: undefined,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to log activity:", error);
+      }
+
+      toast.success("Subtask updated successfully");
+
+      // Refresh tasks to update subtasks
+      if (sprintStories.length > 0) {
+        fetchAllTasks(sprintStories, true);
+      }
+
+      // Manually refetch subtasks for the specific task
+      if (selectedSubtaskForEdit.taskId) {
+        try {
+          const response = await subtaskApiService.getSubtasksByTask(
+            selectedSubtaskForEdit.taskId,
+          );
+          setAllSubtasks((prev) => {
+            const otherSubtasks = prev.filter(
+              (st) => st.taskId !== selectedSubtaskForEdit.taskId,
+            );
+            return [...otherSubtasks, ...response.data];
+          });
+        } catch (error) {
+          console.error("Failed to refetch subtasks:", error);
+        }
+      }
+
+      // Reset form and close dialog
+      setNewSubtask({
+        title: "",
+        description: "",
+        taskId: "",
+        assigneeId: "",
+        estimatedHours: 0,
+        category: "",
+        dueDate: "",
+      });
+
+      setIsEditSubtaskDialogOpen(false);
+      setSelectedSubtaskForEdit(null);
+    } catch (error: any) {
+      console.error("Error updating subtask:", error);
+      toast.error(
+        error?.message || "Failed to update subtask. Please try again.",
+      );
+    } finally {
+      setIsCreatingSubtask(false);
+    }
+  };
+
+  // Edit Time Entry Handler
+  const handleEditTimeEntry = async () => {
+    if (!selectedLogForEdit || !editLogData.hoursWorked || editLogData.hoursWorked <= 0) {
+      toast.error("Please enter valid hours");
+      return;
+    }
+
+    try {
+      // Ensure description is not empty (required field)
+      if (!editLogData.description || editLogData.description.trim() === "") {
+        toast.error("Description is required");
+        return;
+      }
+
+      // Build update data with all required fields from the original entry
+      // The backend expects the full TimeEntry object, so we need to preserve all required fields
+      const updateData: Partial<TimeEntry> = {
+        // Preserve all required fields from the original entry
+        userId: selectedLogForEdit.userId,
+        entryType: selectedLogForEdit.entryType || 'development',
+        isBillable: selectedLogForEdit.isBillable !== undefined ? selectedLogForEdit.isBillable : true,
+        // Update fields
+        hoursWorked: editLogData.hoursWorked,
+        description: editLogData.description.trim(),
+        workDate: editLogData.workDate,
+        // Optional fields - preserve if they exist, or set to undefined if empty
+        startTime: editLogData.startTime && editLogData.startTime.trim() !== "" ? editLogData.startTime : undefined,
+        endTime: editLogData.endTime && editLogData.endTime.trim() !== "" ? editLogData.endTime : undefined,
+        // Preserve optional IDs if they exist
+        projectId: selectedLogForEdit.projectId || undefined,
+        storyId: selectedLogForEdit.storyId || undefined,
+        taskId: selectedLogForEdit.taskId || undefined,
+        subtaskId: selectedLogForEdit.subtaskId || undefined,
+      };
+
+      console.log("Updating time entry in database:", {
+        id: selectedLogForEdit.id,
+        data: updateData
+      });
+
+      const updateResponse = await timeEntryApiService.updateTimeEntry(selectedLogForEdit.id, updateData);
+
+      notifyProjectBudgetUpdate("time-entry-updated");
+
+      if (!updateResponse || !updateResponse.success) {
+        throw new Error(updateResponse?.message || "Failed to update time entry in database");
+      }
+
+      console.log("Time entry updated successfully in database:", updateResponse.data);
+
+      // Update local state
+      setTaskLogs((prev) =>
+        prev.map((log) =>
+          log.id === selectedLogForEdit.id
+            ? { ...log, ...updateResponse.data }
+            : log
+        )
+      );
+
+      // Log activity
+      try {
+        if (selectedLogForEdit.taskId) {
+          await activityLogApiService.createActivityLog({
+            userId: user?.id || "",
+            entityType: "tasks",
+            entityId: selectedLogForEdit.taskId,
+            action: "time_entry_updated",
+            description: `Updated time entry: ${editLogData.hoursWorked}h`,
+            oldValues: JSON.stringify(selectedLogForEdit),
+            newValues: JSON.stringify(updateData),
+            ipAddress: undefined,
+            userAgent: undefined,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to log activity:", error);
+      }
+
+      toast.success("Time entry updated successfully");
+
+      // Reset form and close dialog
+      setEditLogData({
+        hoursWorked: 0,
+        description: "",
+        workDate: new Date().toISOString().split("T")[0],
+        startTime: "",
+        endTime: "",
+      });
+      setIsEditLogDialogOpen(false);
+      setSelectedLogForEdit(null);
+    } catch (error: any) {
+      console.error("Error updating time entry:", error);
+      toast.error(
+        error?.message || "Failed to update time entry. Please try again.",
+      );
+    }
+  };
+
   // Issue Activity Log Component
 
   const IssueActivityLog: React.FC<{ issueId: string }> = ({ issueId }) => {
@@ -4812,10 +5337,10 @@ const ScrumPage: React.FC = () => {
                           <AvatarFallback className="bg-red-100 text-red-800 text-xs">
                             {log.userId
                               ? getUserName(log.userId)
-                                  .split(" ")
-                                  .map((n) => n[0])
-                                  .join("")
-                                  .toUpperCase()
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")
+                                .toUpperCase()
                               : "SYS"}
                           </AvatarFallback>
                         </Avatar>
@@ -4840,9 +5365,9 @@ const ScrumPage: React.FC = () => {
                           {typeof log.newValues === "string"
                             ? log.newValues.substring(0, 200)
                             : JSON.stringify(log.newValues, null, 2).substring(
-                                0,
-                                200,
-                              )}
+                              0,
+                              200,
+                            )}
 
                           {(typeof log.newValues === "string"
                             ? log.newValues.length
@@ -4977,10 +5502,10 @@ const ScrumPage: React.FC = () => {
                           <AvatarFallback className="bg-blue-100 text-blue-800 text-xs">
                             {log.userId
                               ? getUserName(log.userId)
-                                  .split(" ")
-                                  .map((n) => n[0])
-                                  .join("")
-                                  .toUpperCase()
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")
+                                .toUpperCase()
                               : "SYS"}
                           </AvatarFallback>
                         </Avatar>
@@ -5005,9 +5530,9 @@ const ScrumPage: React.FC = () => {
                           {typeof log.newValues === "string"
                             ? log.newValues.substring(0, 200)
                             : JSON.stringify(log.newValues, null, 2).substring(
-                                0,
-                                200,
-                              )}
+                              0,
+                              200,
+                            )}
 
                           {(typeof log.newValues === "string"
                             ? log.newValues.length
@@ -5017,400 +5542,10 @@ const ScrumPage: React.FC = () => {
                       </div>
                     )}
                   </div>
-
-                  {/* Epic Template Dialog */}
-
-                  <Dialog
-                    open={isEpicTemplateDialogOpen}
-                    onOpenChange={setIsEpicTemplateDialogOpen}
-                  >
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Select Epic Template</DialogTitle>
-
-                        <DialogDescription>
-                          Choose a template to create an epic for this project.
-                        </DialogDescription>
-                      </DialogHeader>
-
-                      <div className="space-y-2">
-                        {[
-                          {
-                            id: "tpl-auth",
-                            title: "User Authentication",
-                            summary: "Implement secure login/registration",
-                            priority: "HIGH",
-                            status: "PLANNING",
-                          },
-
-                          {
-                            id: "tpl-payments",
-                            title: "Payment Gateway Integration",
-                            summary: "Integrate multiple payment providers",
-                            priority: "CRITICAL",
-                            status: "PLANNING",
-                          },
-
-                          {
-                            id: "tpl-dashboard",
-                            title: "Analytics Dashboard",
-                            summary: "Interactive charts and KPIs",
-                            priority: "MEDIUM",
-                            status: "PLANNING",
-                          },
-                        ].map((tpl) => (
-                          <Card
-                            key={tpl.id}
-                            className="cursor-pointer hover:shadow"
-                            onClick={async () => {
-                              if (!selectedProject) {
-                                toast.error("Select a project first");
-                                return;
-                              }
-
-                              try {
-                                const payload: any = {
-                                  title: tpl.title,
-
-                                  description: tpl.summary,
-
-                                  summary: tpl.summary,
-
-                                  projectId: selectedProject,
-
-                                  status: tpl.status,
-
-                                  priority: tpl.priority,
-
-                                  owner: user?.id || "",
-
-                                  isActive: true,
-                                };
-
-                                const { epicApiService } = await import(
-                                  "../services/api/entities/epicApi"
-                                );
-
-                                await epicApiService.createEpic(payload);
-
-                                const list =
-                                  await epicApiService.getEpicsByProject(
-                                    selectedProject,
-                                  );
-
-                                setProjectEpics(
-                                  (list as any).data ??
-                                    (Array.isArray(list) ? list : []),
-                                );
-
-                                setIsEpicTemplateDialogOpen(false);
-
-                                toast.success("Epic created from template");
-                              } catch (e: any) {
-                                console.error(e);
-
-                                toast.error(
-                                  e?.message || "Failed to create epic",
-                                );
-                              }
-                            }}
-                          >
-                            <CardContent className="p-4">
-                              <div className="flex items-start justify-between">
-                                <div>
-                                  <h4 className="font-medium">{tpl.title}</h4>
-
-                                  <p className="text-sm text-muted-foreground">
-                                    {tpl.summary}
-                                  </p>
-                                </div>
-
-                                <Badge variant="outline" className="text-xs">
-                                  {tpl.priority.toString().toLowerCase()}
-                                </Badge>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-
-                  {/* Add Epic Dialog */}
-
-                  <Dialog
-                    open={isAddEpicDialogOpen}
-                    onOpenChange={setIsAddEpicDialogOpen}
-                  >
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Create Epic</DialogTitle>
-                      </DialogHeader>
-
-                      <div className="space-y-3">
-                        <div>
-                          <Label>Title</Label>
-
-                          <Input
-                            value={newEpic.title}
-                            onChange={(e) =>
-                              setNewEpic((prev) => ({
-                                ...prev,
-                                title: e.target.value,
-                              }))
-                            }
-                          />
-                        </div>
-
-                        <div>
-                          <Label>Description</Label>
-
-                          <Textarea
-                            value={newEpic.description}
-                            onChange={(e) =>
-                              setNewEpic((prev) => ({
-                                ...prev,
-                                description: e.target.value,
-                              }))
-                            }
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <Label>Priority</Label>
-
-                            <Select
-                              value={newEpic.priority}
-                              onValueChange={(v) =>
-                                setNewEpic((prev) => ({
-                                  ...prev,
-                                  priority: v as any,
-                                }))
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-
-                              <SelectContent>
-                                <SelectItem value="LOW">Low</SelectItem>
-
-                                <SelectItem value="MEDIUM">Medium</SelectItem>
-
-                                <SelectItem value="HIGH">High</SelectItem>
-
-                                <SelectItem value="CRITICAL">
-                                  Critical
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          <div>
-                            <Label>Status</Label>
-
-                            <Select
-                              value={newEpic.status}
-                              onValueChange={(v) =>
-                                setNewEpic((prev) => ({
-                                  ...prev,
-                                  status: v as any,
-                                }))
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-
-                              <SelectContent>
-                                <SelectItem value="PLANNING">
-                                  Planning
-                                </SelectItem>
-
-                                <SelectItem value="ACTIVE">Active</SelectItem>
-
-                                <SelectItem value="COMPLETED">
-                                  Completed
-                                </SelectItem>
-
-                                <SelectItem value="CANCELLED">
-                                  Cancelled
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      </div>
-
-                      <DialogFooter>
-                        <Button
-                          variant="outline"
-                          onClick={() => setIsAddEpicDialogOpen(false)}
-                        >
-                          Cancel
-                        </Button>
-
-                        <Button
-                          onClick={async () => {
-                            if (!selectedProject) {
-                              toast.error("Select a project first");
-                              return;
-                            }
-
-                            if (!newEpic.title.trim()) {
-                              toast.error("Title is required");
-                              return;
-                            }
-
-                            try {
-                              const payload: any = {
-                                title: newEpic.title,
-
-                                description: newEpic.description,
-
-                                projectId: selectedProject,
-
-                                status: newEpic.status,
-
-                                priority: newEpic.priority,
-
-                                owner: user?.id || "",
-
-                                isActive: true,
-                              };
-
-                              const { epicApiService } = await import(
-                                "../services/api/entities/epicApi"
-                              );
-
-                              await epicApiService.createEpic(payload);
-
-                              const list =
-                                await epicApiService.getEpicsByProject(
-                                  selectedProject,
-                                );
-
-                              setProjectEpics(
-                                (list as any).data ??
-                                  (Array.isArray(list) ? list : []),
-                              );
-
-                              setIsAddEpicDialogOpen(false);
-
-                              setNewEpic({
-                                title: "",
-                                description: "",
-                                priority: "MEDIUM",
-                                status: "PLANNING",
-                                startDate: "",
-                                endDate: "",
-                              });
-
-                              toast.success("Epic created");
-                            } catch (e: any) {
-                              console.error(e);
-
-                              toast.error(
-                                e?.message || "Failed to create epic",
-                              );
-                            }
-                          }}
-                        >
-                          Create
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
                 </div>
               ))}
             </div>
           )}
-        </div>
-
-        {/* Comments Section */}
-
-        <div className="space-y-3 pt-6 border-t border-gray-200">
-          <h3 className="text-sm font-semibold text-gray-900">Comments</h3>
-
-          <div className="flex items-start space-x-3">
-            <Avatar className="h-8 w-8">
-              <AvatarFallback className="bg-blue-100 text-blue-800 text-xs">
-                {user?.name
-                  ?.split(" ")
-                  .map((n) => n[0])
-                  .join("")
-                  .toUpperCase() || "U"}
-              </AvatarFallback>
-            </Avatar>
-
-            <div className="flex-1">
-              <Textarea
-                placeholder="Add a comment..."
-                value={taskComment}
-                onChange={(e) => setTaskComment(e.target.value)}
-                className="min-h-[80px] resize-none"
-              />
-
-              <div className="flex justify-between items-center mt-2">
-                <p className="text-xs text-gray-500">
-                  Pro tip: @ mention team members
-                </p>
-
-                <Button size="sm" disabled={!taskComment.trim()}>
-                  Comment
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Work Log Summary */}
-
-        <div className="space-y-3 pt-6 border-t border-gray-200">
-          <h3 className="text-sm font-semibold text-gray-900">
-            Work Log Summary
-          </h3>
-
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div>
-                <div className="text-lg font-semibold text-blue-600">
-                  {selectedTaskForDetails?.estimatedHours || 0}h
-                </div>
-
-                <div className="text-xs text-gray-600">Estimated</div>
-              </div>
-
-              <div>
-                <div className="text-lg font-semibold text-green-600">
-                  {selectedTaskForDetails?.actualHours || 0}h
-                </div>
-
-                <div className="text-xs text-gray-600">Logged</div>
-              </div>
-
-              <div>
-                <div className="text-lg font-semibold text-orange-600">
-                  {Math.max(
-                    0,
-                    (selectedTaskForDetails?.estimatedHours || 0) -
-                      (selectedTaskForDetails?.actualHours || 0),
-                  ).toFixed(1)}
-                  h
-                </div>
-
-                <div className="text-xs text-gray-600">Remaining</div>
-              </div>
-            </div>
-
-            <div className="mt-3 pt-3 border-t border-gray-200">
-              <p className="text-xs text-gray-600 text-center">
-                Work is logged on subtasks. See "Child Work Items" tab to log
-                work.
-              </p>
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -5509,6 +5644,41 @@ const ScrumPage: React.FC = () => {
           parentTask.id,
           totalSubtaskHours,
         );
+
+        notifyProjectBudgetUpdate("subtask-effort-logged");
+
+        // Update local state immediately for instant UI update
+        // Update subtask in allSubtasks
+        setAllSubtasks((prev) =>
+          prev.map((st) =>
+            st.id === selectedSubtaskForEffort.id
+              ? { ...st, actualHours: newSubtaskActualHours }
+              : st,
+          ),
+        );
+
+        // Update selectedSubtaskForEffort if it's still selected
+        setSelectedSubtaskForEffort((prev) =>
+          prev?.id === selectedSubtaskForEffort.id
+            ? { ...prev, actualHours: newSubtaskActualHours }
+            : prev,
+        );
+
+        // Update parent task in allTasks
+        setAllTasks((prev) =>
+          prev.map((task) =>
+            task.id === parentTask.id
+              ? { ...task, actualHours: totalSubtaskHours }
+              : task,
+          ),
+        );
+
+        // Update selectedTaskForDetails if it matches the parent task
+        setSelectedTaskForDetails((prev) =>
+          prev?.id === parentTask.id
+            ? { ...prev, actualHours: totalSubtaskHours }
+            : prev,
+        );
       }
 
       // Log activity for effort logging
@@ -5577,6 +5747,226 @@ const ScrumPage: React.FC = () => {
     }
   };
 
+  // Log Effort Handler for Tasks
+  const handleLogTaskEffort = async () => {
+    if (!selectedTaskForEffort || !effortLog.hours || effortLog.hours <= 0) {
+      toast.error("Please enter valid hours");
+      return;
+    }
+
+    if (!effortLog.description.trim()) {
+      toast.error("Please enter a description");
+      return;
+    }
+
+    if (!user?.id) {
+      toast.error("User not authenticated");
+      return;
+    }
+
+    try {
+      // Create time entry for the task
+      const timeEntryData = {
+        userId: user?.id || "",
+        projectId: selectedProject || undefined,
+        storyId: selectedTaskForEffort.storyId || undefined,
+        taskId: selectedTaskForEffort.id,
+        description: effortLog.description,
+        entryType: "development" as const,
+        hoursWorked: effortLog.hours,
+        workDate: effortLog.workDate,
+        startTime: effortLog.startTime && effortLog.startTime.trim() ? effortLog.startTime : undefined,
+        endTime: effortLog.endTime && effortLog.endTime.trim() ? effortLog.endTime : undefined,
+        isBillable: true,
+      };
+
+      console.log("Creating time entry for task with data:", timeEntryData);
+      await timeEntryApiService.createTimeEntry(timeEntryData);
+
+      // Update task actual hours
+      const newTaskActualHours = (selectedTaskForEffort.actualHours || 0) + effortLog.hours;
+      await taskApiService.updateTaskActualHours(selectedTaskForEffort.id, newTaskActualHours);
+
+      notifyProjectBudgetUpdate("task-effort-logged");
+
+      // Update local state immediately for instant UI update
+      setAllTasks((prev) =>
+        prev.map((task) =>
+          task.id === selectedTaskForEffort.id
+            ? { ...task, actualHours: newTaskActualHours }
+            : task,
+        ),
+      );
+
+      // Update selectedTaskForEffort if it's still selected
+      setSelectedTaskForEffort((prev) =>
+        prev?.id === selectedTaskForEffort.id
+          ? { ...prev, actualHours: newTaskActualHours }
+          : prev,
+      );
+
+      // Update selectedTaskForDetails if it matches the logged task
+      setSelectedTaskForDetails((prev) =>
+        prev?.id === selectedTaskForEffort.id
+          ? { ...prev, actualHours: newTaskActualHours }
+          : prev,
+      );
+
+      // Automatically move task to IN_PROGRESS if it's currently in TO_DO status
+      const currentStatus = selectedTaskForEffort.status?.toUpperCase() || "";
+      if (currentStatus === "TO_DO" || currentStatus === "TODO") {
+        try {
+          await updateTaskStatusMutate({
+            id: selectedTaskForEffort.id,
+            status: "IN_PROGRESS" as any,
+          });
+
+          // Log activity for status change
+          try {
+            await activityLogApiService.createActivityLog({
+              userId: user?.id || "",
+              entityType: "tasks",
+              entityId: selectedTaskForEffort.id,
+              action: "status_changed",
+              description: `Task automatically moved to IN_PROGRESS after logging effort`,
+              oldValues: JSON.stringify({ status: currentStatus }),
+              newValues: JSON.stringify({ status: "IN_PROGRESS" }),
+              ipAddress: undefined,
+              userAgent: undefined,
+            });
+          } catch (error) {
+            console.error("Failed to log activity for status change:", error);
+          }
+
+          toast.success("Task moved to In Progress automatically");
+        } catch (error) {
+          console.error("Failed to update task status to IN_PROGRESS:", error);
+          // Don't show error toast as the main operation (logging effort) succeeded
+        }
+      }
+
+      // Log activity for effort logging
+      try {
+        await activityLogApiService.createActivityLog({
+          userId: user?.id || "",
+          entityType: "tasks",
+          entityId: selectedTaskForEffort.id,
+          action: "effort_logged",
+          description: `Logged ${effortLog.hours}h on task "${selectedTaskForEffort.title}"`,
+          newValues: JSON.stringify({
+            hours: effortLog.hours,
+            description: effortLog.description,
+            workDate: effortLog.workDate,
+          }),
+          ipAddress: undefined,
+          userAgent: undefined,
+        });
+      } catch (error) {
+        console.error("Failed to log activity:", error);
+      }
+
+      toast.success(`Logged ${effortLog.hours}h effort on task successfully`);
+
+      // Refresh tasks
+      if (sprintStories.length > 0) {
+        fetchAllTasks(sprintStories, true);
+      }
+
+      setEffortLog({
+        hours: 0,
+        description: "",
+        workDate: new Date().toISOString().split("T")[0],
+        startTime: "",
+        endTime: "",
+      });
+
+      setIsLogEffortDialogOpen(false);
+      setSelectedTaskForEffort(null);
+    } catch (error) {
+      toast.error("Failed to log effort");
+      console.error("Error logging effort:", error);
+    }
+  };
+
+  // Log Effort Handler for Issues
+  const handleLogIssueEffort = async () => {
+    if (!selectedIssueForEffort || !effortLog.hours || effortLog.hours <= 0) {
+      toast.error("Please enter valid hours");
+      return;
+    }
+
+    if (!effortLog.description.trim()) {
+      toast.error("Please enter a description");
+      return;
+    }
+
+    if (!user?.id) {
+      toast.error("User not authenticated");
+      return;
+    }
+
+    try {
+      // Create time entry for the issue
+      const timeEntryData = {
+        userId: user?.id || "",
+        projectId: selectedProject || undefined,
+        storyId: selectedIssueForEffort.storyId || undefined,
+        issueId: selectedIssueForEffort.id,
+        description: effortLog.description,
+        entryType: "development" as const,
+        hoursWorked: effortLog.hours,
+        workDate: effortLog.workDate,
+        startTime: effortLog.startTime && effortLog.startTime.trim() ? effortLog.startTime : undefined,
+        endTime: effortLog.endTime && effortLog.endTime.trim() ? effortLog.endTime : undefined,
+        isBillable: true,
+      };
+
+      console.log("Creating time entry for issue with data:", timeEntryData);
+      await timeEntryApiService.createTimeEntry(timeEntryData);
+
+      // Log activity for effort logging
+      try {
+        await activityLogApiService.createActivityLog({
+          userId: user?.id || "",
+          entityType: "issues",
+          entityId: selectedIssueForEffort.id,
+          action: "effort_logged",
+          description: `Logged ${effortLog.hours}h on issue "${selectedIssueForEffort.title}"`,
+          newValues: JSON.stringify({
+            hours: effortLog.hours,
+            description: effortLog.description,
+            workDate: effortLog.workDate,
+          }),
+          ipAddress: undefined,
+          userAgent: undefined,
+        });
+      } catch (error) {
+        console.error("Failed to log activity:", error);
+      }
+
+      toast.success(`Logged ${effortLog.hours}h effort on issue successfully`);
+
+      // Refresh issues
+      if (sprintStories.length > 0) {
+        fetchAllTasks(sprintStories, true);
+      }
+
+      setEffortLog({
+        hours: 0,
+        description: "",
+        workDate: new Date().toISOString().split("T")[0],
+        startTime: "",
+        endTime: "",
+      });
+
+      setIsLogEffortDialogOpen(false);
+      setSelectedIssueForEffort(null);
+    } catch (error) {
+      toast.error("Failed to log effort");
+      console.error("Error logging effort:", error);
+    }
+  };
+
   // Draggable Story Component with Tasks
 
   const DraggableStory: React.FC<{ story: Story; index: number }> = ({
@@ -5587,6 +5977,8 @@ const ScrumPage: React.FC = () => {
       type: ItemTypes.STORY,
 
       item: { id: story.id, type: ItemTypes.STORY },
+
+      canDrag: !isSprintEnded, // Disable dragging when sprint has ended
 
       collect: (monitor) => ({
         isDragging: monitor.isDragging(),
@@ -5607,26 +5999,37 @@ const ScrumPage: React.FC = () => {
 
     const storyIssues = getIssuesForStory(story.id);
 
+    // Get assignee name
+    const assigneeName = story.assigneeId ? getUserName(story.assigneeId) : null;
+
+    // Get initials helper function
+    const getInitials = (name: string) => {
+      return name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
+    };
+
     return (
       <div className="mb-4">
         {/* Story Card - Each story in its own separate row */}
 
         <div
           ref={drag}
-          className={`transition-all cursor-move ${
-            isDragging ? "opacity-50 rotate-1 scale-105" : "hover:scale-[1.01]"
-          }`}
+          className={`transition-all cursor-move ${isDragging ? "opacity-50 rotate-1 scale-105" : "hover:scale-[1.01]"
+            }`}
         >
           <Card
-            className={`border-l-4 ${
-              story.priority === "CRITICAL"
-                ? "border-l-red-500 bg-red-50/30"
-                : story.priority === "HIGH"
-                  ? "border-l-orange-500 bg-orange-50/30"
-                  : story.priority === "MEDIUM"
-                    ? "border-l-blue-500 bg-blue-50/30"
-                    : "border-l-green-500 bg-green-50/30"
-            } hover:shadow-md transition-shadow rounded-lg overflow-hidden`}
+            className={`border-l-4 ${story.priority === "CRITICAL"
+              ? "border-l-red-500 bg-red-50/30"
+              : story.priority === "HIGH"
+                ? "border-l-orange-500 bg-orange-50/30"
+                : story.priority === "MEDIUM"
+                  ? "border-l-blue-500 bg-blue-50/30"
+                  : "border-l-green-500 bg-green-50/30"
+              } hover:shadow-md transition-shadow rounded-lg overflow-hidden`}
           >
             <CardContent className="p-4">
               {/* Story Header */}
@@ -5729,6 +6132,16 @@ const ScrumPage: React.FC = () => {
                       {storyIssues.length !== 1 ? "s" : ""}
                     </Badge>
                   )}
+
+                  {assigneeName && (
+                    <div className="flex items-center space-x-1">
+                      <Avatar className="h-5 w-5">
+                        <AvatarFallback className="text-xs bg-green-200 text-green-800">
+                          {getInitials(assigneeName)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center space-x-2 flex-shrink-0">
@@ -5750,7 +6163,8 @@ const ScrumPage: React.FC = () => {
 
                           setIsAddTaskDialogOpen(true);
                         }}
-                        title={`Add task to ${story.title}`}
+                        disabled={isSprintEnded}
+                        title={isSprintEnded ? "Cannot add tasks - Sprint has ended" : `Add task to ${story.title}`}
                       >
                         <Plus className="w-3 h-3 mr-1" />
                         Add Task
@@ -5767,7 +6181,8 @@ const ScrumPage: React.FC = () => {
 
                           setIsAddIssueDialogOpen(true);
                         }}
-                        title={`Add issue to ${story.title}`}
+                        disabled={isSprintEnded}
+                        title={isSprintEnded ? "Cannot add issues - Sprint has ended" : `Add issue to ${story.title}`}
                       >
                         <Plus className="w-3 h-3 mr-1" />
                         Add Issue
@@ -5806,6 +6221,8 @@ const ScrumPage: React.FC = () => {
 
       item: { id: issue.id, type: ItemTypes.ISSUE },
 
+      canDrag: !isSprintEnded, // Disable dragging when sprint has ended
+
       collect: (monitor) => ({
         isDragging: monitor.isDragging(),
       }),
@@ -5833,64 +6250,125 @@ const ScrumPage: React.FC = () => {
       setIsIssueDetailsOpen(true);
     };
 
+    // Get initials helper function
+    const getInitials = (name: string) => {
+      return name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
+    };
+
+    // Calculate estimated and actual hours for issues
+    const estimatedHours = issue.estimatedHours || 0;
+    const actualHours = issue.actualHours || 0;
+
     return (
       <div
         ref={drag}
-        className={`transition-all cursor-move ${
-          isDragging ? "opacity-50 rotate-1 scale-105" : "hover:scale-[1.01]"
-        }`}
+        className={`transition-all cursor-move ${isDragging ? "opacity-50 rotate-1 scale-105" : "hover:scale-[1.01]"
+          }`}
       >
         <Card
-          className={`border-l-4 ${
-            parentStory?.priority === "CRITICAL"
-              ? "border-l-red-600"
-              : parentStory?.priority === "HIGH"
-                ? "border-l-red-500"
-                : parentStory?.priority === "MEDIUM"
-                  ? "border-l-red-400"
-                  : "border-l-red-300"
-          } bg-red-50/30 hover:shadow-lg transition-all duration-200 rounded-lg overflow-hidden`}
+          className={`border-l-4 group ${parentStory?.priority === "CRITICAL"
+            ? "border-l-red-500"
+            : parentStory?.priority === "HIGH"
+              ? "border-l-orange-500"
+              : parentStory?.priority === "MEDIUM"
+                ? "border-l-blue-500"
+                : "border-l-green-500"
+            } bg-white hover:shadow-lg transition-all duration-200 rounded-lg overflow-hidden w-full aspect-square flex flex-col`}
         >
-          {/* Main Issue Section */}
-
-          <CardContent className="p-3 bg-gradient-to-r from-red-50/50 to-white">
-            {/* Issue Header with Number and Assignee */}
-
-            <div className="flex items-center justify-between mb-2">
-              <Badge
-                variant="secondary"
-                className="text-xs px-2 py-0.5 bg-red-100 text-red-700 font-medium"
-              >
-                I{issueNumber}
-              </Badge>
-
-              {assigneeName && (
+          <CardContent className="p-3 flex flex-col flex-1 justify-between">
+            {/* Top Row: Issue ID and Due Date */}
+            <div className="flex items-center justify-between mb-2 flex-shrink-0">
+              <span className="text-xs font-semibold text-red-600">
+                I#{issueNumber}
+              </span>
+              {issue.dueDate && (
                 <div className="flex items-center space-x-1">
-                  <User className="w-3 h-3 text-red-500" />
-
-                  <span
-                    className="text-xs text-red-600 truncate max-w-[100px]"
-                    title={assigneeName}
-                  >
-                    {assigneeName}
+                  <CalendarIcon className="w-3 h-3 text-red-500" />
+                  <span className="text-xs font-medium text-red-500">
+                    {new Date(issue.dueDate).getDate()}
                   </span>
                 </div>
               )}
             </div>
 
-            {/* Issue Name - Clickable */}
-
+            {/* Middle: Issue Title (can wrap) */}
             <h4
-              className="font-semibold text-sm leading-tight text-red-900 cursor-pointer hover:text-red-600 transition-colors"
+              className="text-xs font-medium text-gray-900 leading-tight cursor-pointer hover:text-red-600 transition-colors flex-1 mb-2 line-clamp-3"
               onClick={(e) => {
                 e.stopPropagation();
-
                 handleViewIssueDetails();
               }}
-              title="Click to view issue details"
+              title={issue.title}
             >
-              {issue.title}
+              {issue.title.length > 40 ? `${issue.title.substring(0, 40)}...` : issue.title}
             </h4>
+
+            {/* Bottom Row: Time and Assignee */}
+            <div className="flex items-center justify-between mt-auto flex-shrink-0">
+              {/* Time (left) - Format as HH:00 */}
+              <span className="text-xs font-medium text-gray-700">
+                {actualHours > 0
+                  ? `${Math.floor(actualHours)}:00`
+                  : estimatedHours > 0
+                    ? `${Math.floor(estimatedHours)}:00`
+                    : '0:00'}
+              </span>
+
+              {/* Assignee Initials (right) with dropdown menu */}
+              <div className="flex items-center space-x-1">
+                {assigneeName && (
+                  <span className="text-xs font-semibold text-gray-700">
+                    {getInitials(assigneeName)}
+                  </span>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 hover:opacity-100"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <MoreVertical className="w-3 h-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedIssueForEffort(issue);
+                        setEffortLog({
+                          hours: 0,
+                          description: "",
+                          workDate: new Date().toISOString().split("T")[0],
+                          startTime: "",
+                          endTime: "",
+                        });
+                        setIsLogEffortDialogOpen(true);
+                      }}
+                      disabled={isSprintEnded}
+                    >
+                      <Clock className="w-4 h-4 mr-2" />
+                      Log Work{isSprintEnded ? " (Sprint Ended)" : ""}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleViewIssueDetails();
+                      }}
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      View Details
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -5907,6 +6385,8 @@ const ScrumPage: React.FC = () => {
 
       item: { id: task.id, type: ItemTypes.TASK },
 
+      canDrag: !isSprintEnded, // Disable dragging when sprint has ended
+
       collect: (monitor) => ({
         isDragging: monitor.isDragging(),
       }),
@@ -5920,7 +6400,6 @@ const ScrumPage: React.FC = () => {
 
     const handleViewTaskDetails = () => {
       setSelectedTaskForDetails(task);
-
       setIsTaskDetailsOpen(true);
     };
 
@@ -5960,69 +6439,192 @@ const ScrumPage: React.FC = () => {
 
     const assigneeName = task.assigneeId ? getUserName(task.assigneeId) : null;
 
+    // Get initials helper function
+    const getInitials = (name: string) => {
+      return name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
+    };
+
     return (
       <div
         ref={drag}
-        className={`transition-all cursor-move ${
-          isDragging ? "opacity-50 rotate-1 scale-105" : "hover:scale-[1.01]"
-        }`}
+        className={`transition-all cursor-move ${isDragging ? "opacity-50 rotate-1 scale-105" : "hover:scale-[1.01]"
+          }`}
       >
         <Card
-          className={`border-l-4 ${
-            parentStory?.priority === "CRITICAL"
+          className={`border-l-4 group ${task.isPulledFromBacklog
+            ? "border-l-yellow-500"
+            : parentStory?.priority === "CRITICAL"
               ? "border-l-red-500"
               : parentStory?.priority === "HIGH"
                 ? "border-l-orange-500"
                 : parentStory?.priority === "MEDIUM"
                   ? "border-l-blue-500"
                   : "border-l-green-500"
-          } bg-white hover:shadow-lg transition-all duration-200 rounded-lg overflow-hidden`}
+            } bg-lime-200 hover:shadow-lg transition-all duration-200 rounded-lg overflow-hidden w-full aspect-square flex flex-col`}
         >
-          {/* Main Task Section - Simplified to show only name */}
-
-          <CardContent className="p-3 bg-gradient-to-r from-gray-50 to-white">
-            {/* Task Header with Number and Assignee */}
-
-            <div className="flex items-center justify-between mb-2">
-              <Badge
-                variant="secondary"
-                className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 font-medium"
-              >
-                T{taskNumber}
-              </Badge>
-
-              {assigneeName && (
+          <CardContent className="p-3 flex flex-col flex-1 justify-between">
+            {/* Top Row: Task ID and Due Date */}
+            <div className="flex items-center justify-between mb-2 flex-shrink-0">
+              <span className="text-xs font-semibold text-blue-600">
+                TK#{taskNumber}
+              </span>
+              {task.dueDate && (
                 <div className="flex items-center space-x-1">
-                  <User className="w-3 h-3 text-gray-500" />
-
-                  <span
-                    className="text-xs text-gray-600 truncate max-w-[100px]"
-                    title={assigneeName}
-                  >
-                    {assigneeName}
+                  <CalendarIcon className="w-3 h-3 text-red-500" />
+                  <span className="text-xs font-medium text-red-500">
+                    {new Date(task.dueDate).getDate()}
                   </span>
                 </div>
               )}
             </div>
 
-            {/* Task Name - Clickable */}
-
+            {/* Middle: Task Title (can wrap) */}
             <h4
-              className="font-semibold text-sm leading-tight text-gray-900 cursor-pointer hover:text-blue-600 transition-colors"
+              className="text-xs font-medium text-gray-900 leading-tight cursor-pointer hover:text-blue-600 transition-colors flex-1 mb-2 line-clamp-3"
               onClick={(e) => {
                 e.stopPropagation();
-
                 handleViewTaskDetails();
               }}
-              title="Click to view task details"
+              title={task.title}
             >
-              {task.title}
+              {task.title.length > 40 ? `${task.title.substring(0, 40)}...` : task.title}
             </h4>
+
+            {/* Bottom Row: Time and Assignee */}
+            <div className="flex items-center justify-between mt-auto flex-shrink-0">
+              {/* Time (left) - Format as HH:00 */}
+              <span className="text-xs font-medium text-gray-700">
+                {actualHours > 0
+                  ? `${Math.floor(actualHours)}:00`
+                  : estimatedHours > 0
+                    ? `${Math.floor(estimatedHours)}:00`
+                    : '0:00'}
+              </span>
+
+              {/* Assignee Initials (right) with dropdown menu */}
+              <div className="flex items-center space-x-1">
+                {assigneeName && (
+                  <span className="text-xs font-semibold text-gray-700">
+                    {getInitials(assigneeName)}
+                  </span>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 hover:opacity-100"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <MoreVertical className="w-3 h-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedTaskForEffort(task);
+                        setEffortLog({
+                          hours: 0,
+                          description: "",
+                          workDate: new Date().toISOString().split("T")[0],
+                          startTime: "",
+                          endTime: "",
+                        });
+                        setIsLogEffortDialogOpen(true);
+                      }}
+                      disabled={isSprintEnded}
+                    >
+                      <Clock className="w-4 h-4 mr-2" />
+                      Log Work{isSprintEnded ? " (Sprint Ended)" : ""}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleViewTaskDetails();
+                      }}
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      View Details
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
     );
   };
+
+  // Backlog helper functions (matching BacklogPage) - moved outside to prevent re-declaration
+  const getBacklogStatusColor = useCallback((status: string) => {
+    switch (status?.toUpperCase()) {
+      case 'BACKLOG':
+      case 'TO_DO':
+      case 'TODO': return 'bg-gray-100 text-gray-800';
+      case 'SPRINT_READY':
+      case 'IN_PROGRESS': return 'bg-yellow-100 text-yellow-800';
+      case 'QA_REVIEW':
+      case 'REVIEW': return 'bg-blue-100 text-blue-800';
+      case 'DONE': return 'bg-green-100 text-green-800';
+      case 'BLOCKED': return 'bg-red-100 text-red-800';
+      case 'CANCELLED': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  }, []);
+
+  const getBacklogPriorityColor = useCallback((priority: string) => {
+    const p = priority?.toUpperCase();
+    switch (p) {
+      case 'CRITICAL': return 'bg-red-100 text-red-800';
+      case 'HIGH': return 'bg-orange-100 text-orange-800';
+      case 'MEDIUM': return 'bg-yellow-100 text-yellow-800';
+      case 'LOW': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  }, []);
+
+  const getBacklogStoryStatusColor = useCallback((status: string) => {
+    switch (status?.toUpperCase()) {
+      case 'BACKLOG': return 'bg-gray-100 text-gray-800';
+      case 'TODO': return 'bg-blue-100 text-blue-800';
+      case 'IN_PROGRESS': return 'bg-yellow-100 text-yellow-800';
+      case 'REVIEW': return 'bg-purple-100 text-purple-800';
+      case 'DONE': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  }, []);
+
+  const formatBacklogDate = useCallback((dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short'
+    });
+  }, []);
+
+  const toggleBacklogStoryExpansion = useCallback((storyId: string) => {
+    setExpandedBacklogStories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(storyId)) {
+        newSet.delete(storyId);
+      } else {
+        newSet.add(storyId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  const getSprintNameForBacklog = useCallback((sprintId: string | undefined): string => {
+    if (!sprintId) return '';
+    const sprint = sprints.find((s: Sprint) => s.id === sprintId);
+    return sprint?.name || '';
+  }, [sprints]);
 
   // Drop Zone Component
 
@@ -6073,6 +6675,198 @@ const ScrumPage: React.FC = () => {
         <div className="flex-1 p-3 overflow-y-auto">{children}</div>
       </div>
     );
+  };
+
+  // Task-level filter predicate for backlog (matching BacklogPage)
+  const backlogTaskPassesFilters = useCallback((task: Task) => {
+    if (!task) return false;
+
+    const normalizeStatus = (s: any) =>
+      (s || '').toString().toUpperCase().replace(/[^A-Z]/g, '');
+
+    // Assignee filter
+    if (backlogAssigneeFilter !== 'all' && task.assigneeId !== backlogAssigneeFilter) {
+      return false;
+    }
+
+    // Status filter
+    if (backlogStatusFilter !== 'all') {
+      const taskStatusNorm = normalizeStatus(task.status);
+      const desiredStatusNorm = normalizeStatus(backlogStatusFilter);
+      if (taskStatusNorm !== desiredStatusNorm) {
+        return false;
+      }
+    }
+
+    // Priority filter
+    if (backlogPriorityFilter !== 'all') {
+      const priorityMap: { [key: string]: string } = {
+        'critical': 'CRITICAL',
+        'high': 'HIGH',
+        'medium': 'MEDIUM',
+        'low': 'LOW'
+      };
+      const desiredPriority = priorityMap[backlogPriorityFilter];
+      const taskPriority = (task.priority || '').toString().toUpperCase();
+      if (taskPriority !== desiredPriority) {
+        return false;
+      }
+    }
+
+    return true;
+  }, [backlogAssigneeFilter, backlogStatusFilter, backlogPriorityFilter]);
+
+  // Fetch tasks for backlog stories
+  useEffect(() => {
+    if (backlogStories && backlogStories.length > 0 && selectedProject) {
+      const fetchBacklogTasks = async () => {
+        setBacklogTasksLoading(true);
+        try {
+          const tasksPromises = backlogStories.map(async (story: Story) => {
+            try {
+              const response = await taskApiService.getTasksByStory(story.id);
+              const tasks = Array.isArray(response.data) ? response.data : (response.data?.content || []);
+              return { storyId: story.id, tasks };
+            } catch (error) {
+              console.error(`Error fetching tasks for story ${story.id}:`, error);
+              return { storyId: story.id, tasks: [] };
+            }
+          });
+
+          const results = await Promise.all(tasksPromises);
+          const storiesWithTasksData = backlogStories.map((story: Story) => {
+            const result = results.find(r => r.storyId === story.id);
+            return {
+              ...story,
+              tasks: result?.tasks || []
+            };
+          });
+
+          // Role-based filtering: Only managers see all tasks
+          let filteredStoriesWithTasks = storiesWithTasksData;
+          if (!isManager && user) {
+            filteredStoriesWithTasks = storiesWithTasksData.map((story) => ({
+              ...story,
+              tasks: (story.tasks || []).filter((t: Task) => t.assigneeId === user.id)
+            })).filter(story => (story.tasks || []).length > 0);
+          }
+
+          setBacklogStoriesWithTasks(filteredStoriesWithTasks);
+        } catch (error) {
+          console.error('Error fetching backlog tasks:', error);
+        } finally {
+          setBacklogTasksLoading(false);
+        }
+      };
+
+      fetchBacklogTasks();
+    } else {
+      setBacklogStoriesWithTasks([]);
+      setBacklogTasksLoading(false);
+    }
+  }, [backlogStories, selectedProject, isManager, user]);
+
+  // Filter and sort backlog stories (matching BacklogPage logic)
+  const allBacklogStoriesForDisplay = useMemo(() => {
+    if (!backlogStoriesWithTasks || backlogStoriesWithTasks.length === 0) {
+      return [];
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Keep stories that belong to a sprint and contain at least one task that passes filters
+    let filtered = backlogStoriesWithTasks.filter((story: Story & { tasks: Task[] }) => {
+      // Only show stories that belong to a sprint
+      if (!story.sprintId || story.sprintId.trim() === '') {
+        return false;
+      }
+
+      // Filter by selected sprint if one is selected
+      if (selectedSprint && story.sprintId !== selectedSprint) {
+        return false;
+      }
+
+      const tasksForStory = Array.isArray(story.tasks) ? story.tasks : [];
+
+      // If not manager, respect earlier rule of user assignment visibility
+      if (!isManager && user?.id) {
+        const hasAssigned = tasksForStory.some((t: Task) => t.assigneeId === user.id);
+        if (!hasAssigned) return false;
+      }
+
+      // Apply task-level filters; keep story only if any task matches
+      const anyVisibleTask = tasksForStory.some(backlogTaskPassesFilters);
+      return anyVisibleTask;
+    });
+
+    // Apply search filter
+    filtered = filtered.filter((story: Story & { tasks: Task[] }) => {
+      const matchesSearch = story.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (story.description && story.description.toLowerCase().includes(searchTerm.toLowerCase()));
+      return matchesSearch;
+    });
+
+    // Sort stories
+    filtered.sort((a, b) => {
+      let aValue: any, bValue: any;
+
+      switch (backlogSortBy) {
+        case 'priority':
+          const priorityOrder: { [key: string]: number } = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
+          aValue = priorityOrder[a.priority as string] || 0;
+          bValue = priorityOrder[b.priority as string] || 0;
+          break;
+        case 'storyPoints':
+          aValue = a.storyPoints || 0;
+          bValue = b.storyPoints || 0;
+          break;
+        case 'dueDate':
+          const aTasks = (a.tasks || []).filter((t: Task) => t.dueDate && new Date(t.dueDate) < today);
+          const bTasks = (b.tasks || []).filter((t: Task) => t.dueDate && new Date(t.dueDate) < today);
+          aValue = aTasks.length > 0 ? Math.min(...aTasks.map((t: Task) => new Date(t.dueDate!).getTime())) : Infinity;
+          bValue = bTasks.length > 0 ? Math.min(...bTasks.map((t: Task) => new Date(t.dueDate!).getTime())) : Infinity;
+          break;
+        case 'created':
+          aValue = new Date(a.createdAt).getTime();
+          bValue = new Date(b.createdAt).getTime();
+          break;
+        default:
+          aValue = a.title;
+          bValue = b.title;
+      }
+
+      if (backlogSortOrder === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
+
+    return filtered;
+  }, [backlogStoriesWithTasks, searchTerm, backlogStatusFilter, backlogPriorityFilter, backlogAssigneeFilter, backlogSortBy, backlogSortOrder, user?.id, isManager, backlogTaskPassesFilters, selectedSprint]);
+
+  // Flatten tasks from filtered stories for stats
+  const backlogTasks = useMemo(() => {
+    const allTasks: Task[] = [];
+    allBacklogStoriesForDisplay.forEach((story: Story & { tasks: Task[] }) => {
+      if (story.tasks && story.tasks.length > 0) {
+        const visibleTasks = story.tasks.filter(backlogTaskPassesFilters);
+        allTasks.push(...visibleTasks);
+      }
+    });
+    return allTasks;
+  }, [allBacklogStoriesForDisplay, backlogTaskPassesFilters]);
+
+  // Handler functions for backlog
+  const handleOpenBacklogEffortManager = (task: Task) => {
+    setSelectedBacklogTaskForEffort(task);
+    setIsBacklogEffortManagerOpen(true);
+  };
+
+  const handleLogBacklogEffort = async (effortData: any) => {
+    // Handle effort logging if needed
+    setSelectedBacklogTaskForEffort(null);
   };
 
   if (projectsLoading) {
@@ -6174,8 +6968,8 @@ const ScrumPage: React.FC = () => {
                       sprintsLoading
                         ? "Loading sprints..."
                         : sprints.filter(
-                              (s: Sprint) => s.projectId === selectedProject,
-                            ).length === 0
+                          (s: Sprint) => s.projectId === selectedProject,
+                        ).length === 0
                           ? "No sprints available"
                           : "Select Sprint"
                     }
@@ -6192,8 +6986,8 @@ const ScrumPage: React.FC = () => {
 
                     const projectSprints = selectedProject
                       ? sprints.filter(
-                          (s: Sprint) => s.projectId === selectedProject,
-                        )
+                        (s: Sprint) => s.projectId === selectedProject,
+                      )
                       : [];
 
                     if (projectSprints.length === 0) {
@@ -6383,64 +7177,6 @@ const ScrumPage: React.FC = () => {
               </TabsList>
             </div>
           </div>
-
-          {/* Sprint info */}
-
-          {currentSprint && activeView !== "backlog" && (
-            <Card className="bg-gradient-to-r from-green-50 to-cyan-50 border-green-200">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <div className="flex items-center space-x-2">
-                      <Badge className={getStatusColor(currentSprint.status)}>
-                        {currentSprint.status}
-                      </Badge>
-
-                      <span className="font-medium">{currentSprint.name}</span>
-                    </div>
-
-                    <p className="text-sm text-muted-foreground">
-                      {currentSprint.goal}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center space-x-4 text-sm">
-                    {(() => {
-                      const daysLeft = currentSprint.endDate
-                        ? Math.ceil(
-                            (new Date(currentSprint.endDate).getTime() -
-                              new Date().getTime()) /
-                              (1000 * 60 * 60 * 24),
-                          )
-                        : 0;
-
-                      return daysLeft > 0 ? (
-                        <div className="text-center">
-                          <div className="font-semibold text-green-600">
-                            {daysLeft}
-                          </div>
-
-                          <div className="text-xs text-muted-foreground">
-                            Days Left
-                          </div>
-                        </div>
-                      ) : null;
-                    })()}
-
-                    <div className="text-center">
-                      <div className="font-semibold text-blue-600">
-                        {currentSprint.velocityPoints || 0}
-                      </div>
-
-                      <div className="text-xs text-muted-foreground">
-                        Velocity Points
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
 
         <TabsContent value="backlog" className="mt-0 flex-1">
@@ -6454,8 +7190,44 @@ const ScrumPage: React.FC = () => {
                 <h1 className="text-2xl font-semibold">Product Backlog</h1>
 
                 <p className="text-muted-foreground">
-                  All project stories, sprints, and tasks
+                  {canManageSprintsAndStories ? 'All stories and tasks in sprints' : 'Stories where you are assigned to tasks'}
                 </p>
+              </div>
+
+              <div className="flex items-center space-x-3">
+                {/* Project Selector */}
+                <Select value={selectedProject || "all"} onValueChange={(value) => setSelectedProject(value === "all" ? "" : value)}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder={projectsLoading ? "Loading projects..." : "Select Project"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Projects</SelectItem>
+                    {projects?.map(project => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Sprint Selector */}
+                <Select
+                  value={selectedSprint || "all"}
+                  onValueChange={(value) => setSelectedSprint(value === "all" ? "" : value)}
+                  disabled={!selectedProject || sprintsLoading}
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder={sprintsLoading ? "Loading sprints..." : (!selectedProject ? "Select project first" : "Select Sprint")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Sprints</SelectItem>
+                    {sprints?.filter((s: Sprint) => s.projectId === selectedProject).map(sprint => (
+                      <SelectItem key={sprint.id} value={sprint.id}>
+                        {sprint.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -6463,10 +7235,10 @@ const ScrumPage: React.FC = () => {
 
             <Card>
               <CardContent className="p-4">
-                <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-x-8 lg:gap-x-10 flex-nowrap">
                   {/* Search */}
 
-                  <div className="relative flex-1 min-w-[200px]">
+                  <div className="relative flex-1 min-w-[260px] mr-6">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
 
                     <Input
@@ -6479,72 +7251,78 @@ const ScrumPage: React.FC = () => {
 
                   {/* Filters */}
 
-                  <Select
-                    value={backlogStatusFilter}
-                    onValueChange={setBacklogStatusFilter}
-                  >
-                    <SelectTrigger className="w-[140px]">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
+                  <div className="shrink-0 ml-6">
+                    <Select
+                      value={backlogStatusFilter}
+                      onValueChange={setBacklogStatusFilter}
+                    >
+                      <SelectTrigger className="w-[140px]">
+                        <SelectValue placeholder="Status" />
+                      </SelectTrigger>
 
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectContent>
+                        <SelectItem value="all">All Status</SelectItem>
 
-                      <SelectItem value="BACKLOG">Backlog</SelectItem>
+                        <SelectItem value="BACKLOG">Backlog</SelectItem>
 
-                      <SelectItem value="TODO">To Do</SelectItem>
+                        <SelectItem value="TODO">To Do</SelectItem>
 
-                      <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                        <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
 
-                      <SelectItem value="REVIEW">Review</SelectItem>
+                        <SelectItem value="REVIEW">Review</SelectItem>
 
-                      <SelectItem value="DONE">Done</SelectItem>
-                    </SelectContent>
-                  </Select>
+                        <SelectItem value="DONE">Done</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                  <Select
-                    value={backlogPriorityFilter}
-                    onValueChange={setBacklogPriorityFilter}
-                  >
-                    <SelectTrigger className="w-[120px]">
-                      <SelectValue placeholder="Priority" />
-                    </SelectTrigger>
+                  <div className="shrink-0 ml-6">
+                    <Select
+                      value={backlogPriorityFilter}
+                      onValueChange={setBacklogPriorityFilter}
+                    >
+                      <SelectTrigger className="w-[120px]">
+                        <SelectValue placeholder="Priority" />
+                      </SelectTrigger>
 
-                    <SelectContent>
-                      <SelectItem value="all">All Priority</SelectItem>
+                      <SelectContent>
+                        <SelectItem value="all">All Priority</SelectItem>
 
-                      <SelectItem value="critical">Critical</SelectItem>
+                        <SelectItem value="critical">Critical</SelectItem>
 
-                      <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
 
-                      <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
 
-                      <SelectItem value="low">Low</SelectItem>
-                    </SelectContent>
-                  </Select>
+                        <SelectItem value="low">Low</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                  <Select
-                    value={backlogAssigneeFilter}
-                    onValueChange={setBacklogAssigneeFilter}
-                  >
-                    <SelectTrigger className="w-[140px]">
-                      <SelectValue placeholder="Assignee" />
-                    </SelectTrigger>
+                  <div className="shrink-0 ml-6">
+                    <Select
+                      value={backlogAssigneeFilter}
+                      onValueChange={setBacklogAssigneeFilter}
+                    >
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder={usersLoading ? 'Loading assignees...' : (selectedProject ? 'Assignee (project)' : 'Assignee')} />
+                      </SelectTrigger>
 
-                    <SelectContent>
-                      <SelectItem value="all">All Assignees</SelectItem>
+                      <SelectContent>
+                        <SelectItem value="all">All Assignees</SelectItem>
 
-                      {users.map((user: any) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                        {users.map((user: any) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            {user.name || user.email || user.id}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
                   {/* Sort */}
 
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 ml-6">
                     <Select
                       value={backlogSortBy}
                       onValueChange={setBacklogSortBy}
@@ -6584,6 +7362,25 @@ const ScrumPage: React.FC = () => {
                         <SortDesc className="w-4 h-4" />
                       )}
                     </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSearchTerm('');
+                        setBacklogStatusFilter('all');
+                        setBacklogPriorityFilter('all');
+                        setBacklogAssigneeFilter('all');
+                        setBacklogSortBy('priority');
+                        setBacklogSortOrder('desc');
+                      }}
+                      disabled={!searchTerm && backlogStatusFilter === 'all' && backlogPriorityFilter === 'all' && backlogAssigneeFilter === 'all'}
+                      className="px-3 border-red-300 text-red-600 hover:text-red-700 hover:border-red-400 hover:bg-red-50 disabled:text-red-300 disabled:border-red-200"
+                      title="Clear all filters"
+                    >
+                      <X className="w-4 h-4 mr-1" />
+                      Clear
+                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -6591,92 +7388,45 @@ const ScrumPage: React.FC = () => {
 
             {/* Stats */}
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 lg:gap-8">
               <Card>
                 <CardContent className="p-4 text-center">
-                  <div className="text-2xl font-semibold text-blue-600">
-                    {allBacklogStoriesForDisplay.length}
-                  </div>
-
-                  <div className="text-sm text-muted-foreground">
-                    Total Backlog Stories
-                  </div>
+                  <div className="text-2xl font-semibold text-blue-600">{allBacklogStoriesForDisplay.length}</div>
+                  <div className="text-sm text-muted-foreground">{isManager ? 'All Stories' : 'My Assigned Stories'}</div>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardContent className="p-4 text-center">
                   <div className="text-2xl font-semibold text-red-600">
-                    {allBacklogStoriesForDisplay.reduce((count, story) => {
-                      if (!story.tasks) return count;
-
+                    {backlogTasks.filter(t => {
+                      if (!t.dueDate) return false;
                       const today = new Date();
-
                       today.setHours(0, 0, 0, 0);
-
-                      return (
-                        count +
-                        story.tasks.filter((t) => {
-                          if (!t.dueDate) return false;
-
-                          const taskDueDate = new Date(t.dueDate);
-
-                          taskDueDate.setHours(0, 0, 0, 0);
-
-                          return (
-                            taskDueDate < today &&
-                            t.status !== "DONE" &&
-                            t.status !== "CANCELLED"
-                          );
-                        }).length
-                      );
-                    }, 0)}
+                      const taskDueDate = new Date(t.dueDate);
+                      taskDueDate.setHours(0, 0, 0, 0);
+                      return taskDueDate < today && t.status !== 'DONE' && t.status !== 'CANCELLED';
+                    }).length}
                   </div>
-
-                  <div className="text-sm text-muted-foreground">
-                    Overdue Incomplete Tasks
-                  </div>
+                  <div className="text-sm text-muted-foreground">Overdue Incomplete Tasks</div>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardContent className="p-4 text-center">
                   <div className="text-2xl font-semibold text-yellow-600">
-                    {allBacklogStoriesForDisplay.reduce((count, story) => {
-                      if (!story.tasks) return count;
-
-                      return (
-                        count +
-                        story.tasks.filter(
-                          (t) =>
-                            t.status === "IN_PROGRESS" || t.status === "TO_DO",
-                        ).length
-                      );
-                    }, 0)}
+                    {backlogTasks.filter(t => t.status === 'IN_PROGRESS' || t.status === 'TO_DO').length}
                   </div>
-
-                  <div className="text-sm text-muted-foreground">
-                    Incomplete Tasks
-                  </div>
+                  <div className="text-sm text-muted-foreground">Incomplete Tasks</div>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardContent className="p-4 text-center">
                   <div className="text-2xl font-semibold text-green-600">
-                    {allBacklogStoriesForDisplay.reduce((count, story) => {
-                      if (!story.tasks) return count;
-
-                      return (
-                        count +
-                        story.tasks.filter((t) => t.status === "DONE").length
-                      );
-                    }, 0)}
+                    {backlogTasks.filter(t => t.status === 'DONE').length}
                   </div>
-
-                  <div className="text-sm text-muted-foreground">
-                    Completed Tasks
-                  </div>
+                  <div className="text-sm text-muted-foreground">Completed Tasks</div>
                 </CardContent>
               </Card>
             </div>
@@ -6684,348 +7434,342 @@ const ScrumPage: React.FC = () => {
             {/* Loading State */}
 
             {(backlogStoriesLoading || backlogTasksLoading) && (
-              <Card>
-                <CardContent className="p-12 text-center">
-                  <Loader2 className="w-8 h-8 mx-auto animate-spin text-primary" />
-
-                  <p className="text-sm text-muted-foreground mt-4">
-                    Loading stories and tasks...
-                  </p>
-                </CardContent>
-              </Card>
+              <LoadingSpinner message="Loading Backlog..." fullScreen />
             )}
 
             {/* Stories List */}
 
-            {!backlogStoriesLoading && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-medium">
-                    All Backlog Stories ({allBacklogStoriesForDisplay.length})
-                  </h3>
+            {!backlogStoriesLoading && !backlogTasksLoading && (
+              <>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-medium">
+                      {isManager ? 'All Stories' : 'Stories with My Assigned Tasks'} ({allBacklogStoriesForDisplay.length})
+                    </h3>
 
-                  <div className="flex items-center space-x-2">
-                    {allBacklogStoriesForDisplay.reduce(
-                      (sum, story) => sum + (story.storyPoints || 0),
-                      0,
-                    ) > 0 && (
-                      <Badge variant="secondary">
-                        Total:{" "}
-                        {allBacklogStoriesForDisplay.reduce(
-                          (sum, story) => sum + (story.storyPoints || 0),
-                          0,
-                        )}{" "}
-                        points
-                      </Badge>
-                    )}
+                    <div className="flex items-center space-x-2">
+                      {allBacklogStoriesForDisplay.reduce(
+                        (sum, story) => sum + (story.storyPoints || 0),
+                        0,
+                      ) > 0 && (
+                          <Badge variant="secondary">
+                            Total:{" "}
+                            {allBacklogStoriesForDisplay.reduce(
+                              (sum, story) => sum + (story.storyPoints || 0),
+                              0,
+                            )}{" "}
+                            points
+                          </Badge>
+                        )}
+                    </div>
                   </div>
-                </div>
 
-                {allBacklogStoriesForDisplay.length > 0 ? (
-                  <div className="space-y-4">
-                    {allBacklogStoriesForDisplay.map((story) => {
-                      // Get sprint info for this story
-                      const storySprint = story.sprintId
-                        ? sprints.find((s: Sprint) => s.id === story.sprintId)
-                        : null;
+                  {allBacklogStoriesForDisplay.length > 0 ? (
+                    <div className="space-y-4">
+                      {allBacklogStoriesForDisplay.map((story) => {
+                        // Get sprint info for this story
+                        const storySprint = story.sprintId
+                          ? sprints.find((s: Sprint) => s.id === story.sprintId)
+                          : null;
 
-                      return (
-                        <Card key={story.id} className="mb-4">
-                          <CardHeader
-                            className="cursor-pointer hover:bg-muted/50 transition-colors"
-                            onClick={() =>
-                              toggleBacklogStoryExpansion(story.id)
-                            }
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center space-x-2">
-                                <ChevronDown
-                                  className={`w-4 h-4 text-muted-foreground transition-transform ${expandedBacklogStories.has(story.id) ? "rotate-180" : ""}`}
-                                />
+                        return (
+                          <Card key={story.id} className="mb-4">
+                            <CardHeader
+                              className="cursor-pointer hover:bg-muted/50 transition-colors"
+                              onClick={() =>
+                                toggleBacklogStoryExpansion(story.id)
+                              }
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-2">
+                                  <ChevronDown
+                                    className={`w-4 h-4 text-muted-foreground transition-transform ${expandedBacklogStories.has(story.id) ? "rotate-180" : ""}`}
+                                  />
 
-                                <h3 className="font-semibold text-lg">
-                                  {story.title}
-                                </h3>
+                                  <h3 className="font-semibold text-lg">
+                                    {story.title}
+                                  </h3>
 
-                                <Badge
-                                  variant="outline"
-                                  className={`text-xs ${getBacklogStoryStatusColor(story.status)}`}
-                                >
-                                  {story.status}
-                                </Badge>
-
-                                {storySprint && (
                                   <Badge
                                     variant="outline"
-                                    className="text-xs bg-purple-100 text-purple-800"
+                                    className={`text-xs ${getBacklogStoryStatusColor(story.status)}`}
                                   >
-                                    Sprint: {storySprint.name}
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                          </CardHeader>
-
-                          {expandedBacklogStories.has(story.id) && (
-                            <CardContent>
-                              <div className="space-y-4">
-                                {/* Story Info */}
-
-                                {story.description && (
-                                  <p className="text-sm text-muted-foreground">
-                                    {story.description}
-                                  </p>
-                                )}
-
-                                <div className="flex items-center space-x-4 text-sm">
-                                  <Badge
-                                    variant="outline"
-                                    className={`${getBacklogPriorityColor(story.priority)}`}
-                                  >
-                                    <Flag className="w-3 h-3 mr-1" />
-
-                                    {story.priority}
+                                    {story.status}
                                   </Badge>
 
-                                  {story.storyPoints && (
-                                    <div className="flex items-center space-x-1 text-muted-foreground">
-                                      <Target className="w-4 h-4" />
-
-                                      <span>{story.storyPoints} points</span>
-                                    </div>
-                                  )}
-
-                                  {storySprint && (
-                                    <div className="flex items-center space-x-1 text-muted-foreground">
-                                      <Calendar className="w-4 h-4" />
-
-                                      <span>Sprint: {storySprint.name}</span>
-                                    </div>
-                                  )}
-
-                                  {story.tasks && story.tasks.length > 0 && (
-                                    <div className="flex items-center space-x-1 text-muted-foreground">
-                                      <CheckCircle2 className="w-4 h-4" />
-
-                                      <span>
-                                        {story.tasks.length} task
-                                        {story.tasks.length > 1 ? "s" : ""}
-                                      </span>
-                                    </div>
+                                  {story.sprintId && getSprintNameForBacklog(story.sprintId) && (
+                                    <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                      <GitBranch className="w-3 h-3 mr-1" />
+                                      {getSprintNameForBacklog(story.sprintId)}
+                                    </Badge>
                                   )}
                                 </div>
+                              </div>
+                            </CardHeader>
 
-                                {/* Tasks */}
+                            {expandedBacklogStories.has(story.id) && (
+                              <CardContent>
+                                <div className="space-y-4">
+                                  {/* Story Info */}
 
-                                {story.tasks && story.tasks.length > 0 ? (
-                                  <div className="space-y-2">
-                                    <div className="flex items-center justify-between">
-                                      <h4 className="text-sm font-medium">
-                                        Tasks ({story.tasks.length})
-                                      </h4>
+                                  {story.description && (
+                                    <p className="text-sm text-muted-foreground">
+                                      {story.description}
+                                    </p>
+                                  )}
 
-                                      <div className="text-xs text-muted-foreground">
-                                        {
-                                          story.tasks.filter(
-                                            (t) => t.status === "DONE",
-                                          ).length
-                                        }{" "}
-                                        completed
+                                  <div className="flex items-center space-x-4 text-sm">
+                                    <Badge
+                                      variant="outline"
+                                      className={`${getBacklogPriorityColor(story.priority)}`}
+                                    >
+                                      <Flag className="w-3 h-3 mr-1" />
+
+                                      {story.priority}
+                                    </Badge>
+
+                                    {story.storyPoints && (
+                                      <div className="flex items-center space-x-1 text-muted-foreground">
+                                        <Target className="w-4 h-4" />
+
+                                        <span>{story.storyPoints} points</span>
                                       </div>
-                                    </div>
+                                    )}
 
-                                    <div className="space-y-2">
-                                      {story.tasks.map((task) => {
-                                        const today = new Date();
+                                    {storySprint && (
+                                      <div className="flex items-center space-x-1 text-muted-foreground">
+                                        <CalendarIcon className="w-4 h-4" />
 
-                                        today.setHours(0, 0, 0, 0);
+                                        <span>Sprint: {storySprint.name}</span>
+                                      </div>
+                                    )}
 
-                                        const isOverdue =
-                                          task.dueDate &&
-                                          new Date(task.dueDate) < today;
+                                    {story.tasks && story.tasks.length > 0 && (
+                                      <div className="flex items-center space-x-1 text-muted-foreground">
+                                        <CheckCircle2 className="w-4 h-4" />
 
-                                        const isIncomplete =
-                                          task.status !== "DONE" &&
-                                          task.status !== "CANCELLED";
+                                        <span>
+                                          {story.tasks.length} task
+                                          {story.tasks.length > 1 ? "s" : ""}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
 
-                                        const isOverdueAndIncomplete =
-                                          isOverdue && isIncomplete;
+                                  {/* Tasks */}
 
-                                        return (
-                                          <Card
-                                            key={task.id}
-                                            className={`border-l-4 ${
-                                              isOverdueAndIncomplete
-                                                ? "border-l-red-500 bg-red-50"
-                                                : task.status === "DONE"
-                                                  ? "border-l-green-500 bg-green-50"
-                                                  : "border-l-blue-500"
-                                            }`}
-                                          >
-                                            <CardContent className="p-3">
-                                              <div className="flex items-start justify-between">
-                                                <div className="flex-1">
-                                                  <div className="flex items-center space-x-2 mb-1">
-                                                    <h5 className="text-sm font-medium">
-                                                      {task.title}
-                                                    </h5>
+                                  {(() => {
+                                    const visibleTasks = (story.tasks || []).filter(backlogTaskPassesFilters);
+                                    const overdueTasks = visibleTasks.filter((t: Task) => {
+                                      if (!t.dueDate) return false;
+                                      const taskDueDate = new Date(t.dueDate);
+                                      taskDueDate.setHours(0, 0, 0, 0);
+                                      const today = new Date();
+                                      today.setHours(0, 0, 0, 0);
+                                      return taskDueDate < today && t.status !== 'DONE' && t.status !== 'CANCELLED';
+                                    });
 
-                                                    <Badge
-                                                      variant="outline"
-                                                      className={`text-xs ${getBacklogStatusColor(task.status)}`}
-                                                    >
-                                                      {task.status?.replace(
-                                                        "_",
-                                                        " ",
-                                                      ) || "TO_DO"}
-                                                    </Badge>
+                                    return visibleTasks.length > 0 ? (
+                                      <div className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                          <h4 className="text-sm font-medium">Tasks ({visibleTasks.length})</h4>
+                                          <div className="text-xs text-muted-foreground">
+                                            {visibleTasks.filter((t: Task) => t.status === 'DONE').length} completed
+                                          </div>
+                                        </div>
 
-                                                    {isOverdueAndIncomplete && (
-                                                      <Badge
-                                                        variant="destructive"
-                                                        className="text-xs"
-                                                      >
-                                                        Overdue
-                                                      </Badge>
-                                                    )}
-                                                  </div>
+                                        {overdueTasks.length > 0 && (
+                                          <Badge variant="destructive" className="text-xs">
+                                            <AlertCircle className="w-3 h-3 mr-1" />
+                                            {overdueTasks.length} overdue task{overdueTasks.length > 1 ? 's' : ''}
+                                          </Badge>
+                                        )}
 
-                                                  {task.description && (
-                                                    <p className="text-xs text-muted-foreground mb-2">
-                                                      {task.description}
-                                                    </p>
-                                                  )}
+                                        <div className="space-y-2">
+                                          {visibleTasks.map((task: Task) => {
+                                            const today = new Date();
+                                            today.setHours(0, 0, 0, 0);
+                                            const isOverdue = task.dueDate && new Date(task.dueDate) < today;
+                                            const taskStatusUpper = task.status?.toUpperCase() || '';
+                                            const isTaskDoneStatus = taskStatusUpper === 'DONE';
+                                            const isTaskCancelled = taskStatusUpper === 'CANCELLED';
+                                            const isIncomplete = !isTaskDoneStatus && !isTaskCancelled;
+                                            const isOverdueAndIncomplete = isOverdue && isIncomplete;
+                                            const isDoneAfterDue = isTaskDoneStatus && isOverdue;
+                                            const isUserAssigned = user?.id && task.assigneeId === user.id;
+                                            const isDoneBeforeDue = isTaskDoneStatus && task.dueDate && new Date(task.dueDate) >= today;
 
-                                                  <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-                                                    <Badge
-                                                      variant="outline"
-                                                      className={`${getBacklogPriorityColor(task.priority)}`}
-                                                    >
-                                                      {task.priority}
-                                                    </Badge>
+                                            const assigneeName = task.assigneeId ? users.find((u: any) => u.id === task.assigneeId)?.name : null;
+                                            const assigneeLabel = assigneeName || (!task.assigneeId ? 'Unassigned' : usersLoading ? 'Loading...' : 'Unknown user');
 
-                                                    {task.dueDate && (
-                                                      <div className="flex items-center space-x-1">
-                                                        <Calendar className="w-3 h-3" />
+                                            return (
+                                              <Card
+                                                key={task.id}
+                                                className={`border-l-4 ${isOverdueAndIncomplete ? 'border-l-red-500 bg-red-50' :
+                                                  isDoneBeforeDue ? 'border-l-green-300 bg-green-50' :
+                                                    isTaskDoneStatus ? 'border-l-green-500 bg-green-50' :
+                                                      isUserAssigned ? 'border-l-purple-500 bg-purple-50' :
+                                                        'border-l-blue-500'
+                                                  }`}
+                                              >
+                                                <CardContent className="p-3">
+                                                  <div className="flex items-start justify-between">
+                                                    <div className="flex-1">
+                                                      <div className="flex items-center space-x-2 mb-1">
+                                                        <h5 className="text-sm font-medium">
+                                                          {task.title}
+                                                        </h5>
+                                                        <Badge variant="outline" className={`text-xs ${getBacklogStatusColor(task.status)}`}>
+                                                          {task.status?.replace('_', ' ') || 'TO_DO'}
+                                                        </Badge>
+                                                        {isOverdueAndIncomplete && (
+                                                          <Badge variant="destructive" className="text-xs">
+                                                            Overdue
+                                                          </Badge>
+                                                        )}
+                                                        {isDoneAfterDue && (
+                                                          <Badge variant="destructive" className="text-xs">
+                                                            Overdue
+                                                          </Badge>
+                                                        )}
+                                                      </div>
+                                                      {task.description && (
+                                                        <p className="text-xs text-muted-foreground mb-2">{task.description}</p>
+                                                      )}
+                                                      <div className="flex items-center space-x-4 text-xs text-muted-foreground">
+                                                        <Badge variant="outline" className={`${getBacklogPriorityColor(task.priority)}`}>
+                                                          {task.priority}
+                                                        </Badge>
+                                                        {task.dueDate && (
+                                                          <div className="flex items-center space-x-1">
+                                                            <CalendarIcon className={`w-3 h-3 ${isDoneBeforeDue ? 'text-green-400' : isOverdue ? 'text-red-600' : ''}`} />
+                                                            <span className={
+                                                              isDoneBeforeDue ? 'text-green-600 font-medium' :
+                                                                isOverdue ? 'text-red-600 font-medium' : ''
+                                                            }>
+                                                              {formatBacklogDate(task.dueDate)}
+                                                              {isDoneBeforeDue && ' (Completed Early)'}
+                                                            </span>
+                                                          </div>
+                                                        )}
+                                                        {task.estimatedHours && (
+                                                          <div className="flex items-center space-x-1">
+                                                            <Clock className="w-3 h-3" />
+                                                            <span>{task.estimatedHours}h</span>
+                                                          </div>
+                                                        )}
+                                                        {assigneeLabel && (
+                                                          <div className="flex items-center space-x-1">
+                                                            <User className="w-3 h-3" />
+                                                            <span className="font-bold text-black">
+                                                              {assigneeLabel}
+                                                            </span>
+                                                          </div>
+                                                        )}
+                                                        {task.actualHours > 0 && (
+                                                          <div className="flex items-center space-x-1">
+                                                            <Target className="w-3 h-3" />
+                                                            <span>{task.actualHours}h actual</span>
+                                                          </div>
+                                                        )}
+                                                      </div>
+                                                    </div>
 
-                                                        <span
-                                                          className={
-                                                            isOverdue
-                                                              ? "text-red-600 font-medium"
-                                                              : ""
+                                                    <DropdownMenu>
+                                                      <DropdownMenuTrigger asChild>
+                                                        <Button
+                                                          variant="ghost"
+                                                          size="sm"
+                                                          className="h-6 w-6 p-0"
+                                                        >
+                                                          <MoreVertical className="w-3 h-3" />
+                                                        </Button>
+                                                      </DropdownMenuTrigger>
+
+                                                      <DropdownMenuContent align="end">
+                                                        <DropdownMenuItem
+                                                          onClick={() =>
+                                                            handleOpenBacklogEffortManager(
+                                                              task,
+                                                            )
                                                           }
                                                         >
-                                                          {formatBacklogDate(
-                                                            task.dueDate,
-                                                          )}
-                                                        </span>
-                                                      </div>
-                                                    )}
+                                                          <Clock className="w-4 h-4 mr-2" />
+                                                          Manage Efforts
+                                                        </DropdownMenuItem>
 
-                                                    {task.estimatedHours && (
-                                                      <div className="flex items-center space-x-1">
-                                                        <Clock className="w-3 h-3" />
-
-                                                        <span>
-                                                          {task.estimatedHours}h
-                                                        </span>
-                                                      </div>
-                                                    )}
-
-                                                    {task.actualHours > 0 && (
-                                                      <div className="flex items-center space-x-1">
-                                                        <Target className="w-3 h-3" />
-
-                                                        <span>
-                                                          {task.actualHours}h
-                                                          actual
-                                                        </span>
-                                                      </div>
-                                                    )}
+                                                        <DropdownMenuItem
+                                                          onClick={() => {
+                                                            setBacklogTaskToView(task);
+                                                            setIsBacklogTaskDialogOpen(true);
+                                                          }}
+                                                        >
+                                                          <Eye className="w-4 h-4 mr-2" />
+                                                          View Tasks
+                                                        </DropdownMenuItem>
+                                                      </DropdownMenuContent>
+                                                    </DropdownMenu>
                                                   </div>
-                                                </div>
-
-                                                <DropdownMenu>
-                                                  <DropdownMenuTrigger asChild>
-                                                    <Button
-                                                      variant="ghost"
-                                                      size="sm"
-                                                      className="h-6 w-6 p-0"
-                                                    >
-                                                      <MoreVertical className="w-3 h-3" />
-                                                    </Button>
-                                                  </DropdownMenuTrigger>
-
-                                                  <DropdownMenuContent align="end">
-                                                    <DropdownMenuItem
-                                                      onClick={() =>
-                                                        handleOpenBacklogEffortManager(
-                                                          task,
-                                                        )
-                                                      }
-                                                    >
-                                                      <Clock className="w-4 h-4 mr-2" />
-                                                      Manage Efforts
-                                                    </DropdownMenuItem>
-
-                                                    <DropdownMenuItem>
-                                                      <Eye className="w-4 h-4 mr-2" />
-                                                      View Details
-                                                    </DropdownMenuItem>
-                                                  </DropdownMenuContent>
-                                                </DropdownMenu>
-                                              </div>
-                                            </CardContent>
-                                          </Card>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="text-sm text-muted-foreground">
-                                    No tasks assigned to this story yet.
-                                  </div>
-                                )}
-                              </div>
-                            </CardContent>
-                          )}
-                        </Card>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <Card>
-                    <CardContent className="p-12 text-center">
-                      <div className="text-muted-foreground space-y-2">
-                        <Target className="w-12 h-12 mx-auto opacity-50" />
-
-                        <p>No backlog stories found</p>
-
-                        <p className="text-sm">
-                          {selectedProject
-                            ? `No stories found for project. Total stories in data: ${backlogStories.length}, Stories with tasks: ${backlogStoriesWithTasks.length}. Try adjusting your search or filter criteria.`
-                            : "Please select a project to view stories."}
-                        </p>
-
-                        {selectedProject && backlogStories.length === 0 && (
-                          <p className="text-xs text-muted-foreground mt-2">
-                            Debug: backlogStoriesData has{" "}
-                            {Array.isArray(backlogStoriesData)
-                              ? backlogStoriesData.length
-                              : backlogStoriesData?.data?.length || 0}{" "}
-                            stories
+                                                </CardContent>
+                                              </Card>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="text-sm text-muted-foreground">
+                                        No tasks assigned to this story yet.
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
+                              </CardContent>
+                            )}
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <Card>
+                      <CardContent className="p-12 text-center">
+                        <div className="text-muted-foreground space-y-2">
+                          <Target className="w-12 h-12 mx-auto opacity-50" />
+                          <p>{isManager ? 'No stories found' : 'No stories with your assigned tasks found'}</p>
+                          <p className="text-sm">
+                            {selectedProject
+                              ? (isManager
+                                ? "No stories found for this project."
+                                : "You are not assigned to any tasks in stories for this project.")
+                              : "Please select a project to view stories."}
                           </p>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </>
             )}
           </div>
 
-          {/* Effort Manager */}
+          {/* Task View Dialog (View Details) - aligned with BacklogPage */}
+          <TaskDetailsFullDialog
+            open={isBacklogTaskDialogOpen}
+            onOpenChange={setIsBacklogTaskDialogOpen}
+            task={backlogTaskToView as any}
+            stories={allBacklogStoriesForDisplay as any}
+            resolveUserName={(id) => {
+              const foundUser = users.find((u: any) => u.id === id);
+              return foundUser?.name || id;
+            }}
+            formatDate={(dateString: string) => {
+              return new Date(dateString).toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'short'
+              });
+            }}
+          />
 
+          {/* Effort Manager */}
           <EffortManager
             open={isBacklogEffortManagerOpen}
             onOpenChange={setIsBacklogEffortManagerOpen}
@@ -7035,6 +7779,22 @@ const ScrumPage: React.FC = () => {
             allStories={[]}
           />
         </TabsContent>
+
+        {/* Add Story Button - Positioned above scrum board, below sprint section, on the right */}
+        {activeView === "scrum-board" && isManager && (
+          <div className="flex justify-end mb-4">
+            <Button
+              onClick={() => setIsAddStoryDialogOpen(true)}
+              className="bg-green-600 hover:bg-green-700 text-white"
+              size="default"
+              disabled={isSprintEnded}
+              title={isSprintEnded ? "Cannot add stories - Sprint has ended" : "Add a new story"}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Story
+            </Button>
+          </div>
+        )}
 
         <TabsContent value="scrum-board" className="mt-0 flex-1">
           {/* Story-Row Aligned Grid Scrum Board */}
@@ -7089,490 +7849,156 @@ const ScrumPage: React.FC = () => {
               </Card>
             </div>
           ) : (
-            <div className="relative border rounded-lg overflow-hidden bg-gradient-to-br from-white to-green-50/30">
-              {/* Fixed Column Headers */}
-
+            <div className="relative border rounded-lg bg-white shadow-sm">
               <div
-                className="sticky top-0 z-10 grid gap-0 bg-gray-100 border-b shadow-sm"
-                style={{
-                  // Use same grid template for all boards (default and custom) to match default board styling
-
-                  gridTemplateColumns: `minmax(200px, 1fr) repeat(${3 + lanesAfterInProgress.length + lanesAfterQA.length}, minmax(180px, 1fr)) minmax(180px, 1fr) minmax(150px, 1fr)`,
-                }}
+                className="overflow-auto"
+                style={{ maxHeight: "calc(100vh - 120px)" }}
               >
-                <div className="p-3 bg-green-100/80 border-r border-gray-200">
-                  <div className="flex items-center space-x-2">
-                    <BookOpen className="w-4 h-4 text-green-600" />
+                <div className="min-w-[1200px]">
+                  {/* Fixed Column Headers */}
 
-                    <span className="font-semibold text-sm">Stories</span>
+                  <div
+                    className="sticky top-0 z-10 grid gap-0 bg-gray-100 border-b shadow-sm"
+                    style={{
+                      // Fixed-width columns so the board can scroll horizontally when needed
+                      gridTemplateColumns: `300px repeat(${3 + lanesAfterInProgress.length + lanesAfterQA.length}, 260px) 260px`,
+                    }}
+                  >
+                    <div className="p-3 bg-green-100/80 border-r border-gray-200">
+                      <div className="flex items-center space-x-2">
+                        <BookOpen className="w-4 h-4 text-green-600" />
 
-                    <Badge variant="secondary" className="text-xs">
-                      {boardStories.length}
-                    </Badge>
+                        <span className="font-semibold text-sm">Stories</span>
 
-                    {canManageSprintsAndStories && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-2 text-xs font-medium flex items-center gap-1"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                            }}
-                          >
-                            <span>Pull Stories</span>
-
-                            <span className="text-[10px] uppercase text-muted-foreground">
-                              {storyScopeLabel}
-                            </span>
-
-                            <ChevronDown className="w-3 h-3" />
-                          </Button>
-                        </DropdownMenuTrigger>
-
-                        <DropdownMenuContent align="start" sideOffset={4}>
-                          <DropdownMenuLabel>Pull Stories</DropdownMenuLabel>
-
-                          <DropdownMenuLabel className="text-xs text-muted-foreground">
-                            Current: {storyScopeLabel}
-                          </DropdownMenuLabel>
-
-                          <DropdownMenuSeparator />
-
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setPendingBacklogStoryIds(
-                                selectedBacklogStoryIds,
-                              );
-
-                              setIsPullStoriesDialogOpen(true);
-
-                              refetchBacklogStories();
-                            }}
-                          >
-                            <GitBranch className="w-4 h-4 mr-2" />
-                            Select Backlog Stories...
-                          </DropdownMenuItem>
-
-                          <DropdownMenuSeparator />
-
-                          <DropdownMenuItem
-                            onClick={() => handlePullStories("sprint")}
-                            disabled={!selectedSprint}
-                            className={
-                              storiesScope === "sprint"
-                                ? "font-semibold text-green-700"
-                                : ""
-                            }
-                          >
-                            <Download className="w-4 h-4 mr-2" />
-                            Sprint Stories
-                          </DropdownMenuItem>
-
-                          <DropdownMenuItem
-                            onClick={() => handlePullStories("backlog")}
-                            className={
-                              storiesScope === "backlog"
-                                ? "font-semibold text-purple-700"
-                                : ""
-                            }
-                          >
-                            <Layers3 className="w-4 h-4 mr-2" />
-                            Backlog Stories
-                          </DropdownMenuItem>
-
-                          <DropdownMenuSeparator />
-
-                          <DropdownMenuItem
-                            onClick={() => handlePullStories("all")}
-                            disabled={!selectedSprint}
-                            className={
-                              storiesScope === "all"
-                                ? "font-semibold text-blue-700"
-                                : ""
-                            }
-                          >
-                            <GitBranch className="w-4 h-4 mr-2" />
-                            Sprint + Backlog
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </div>
-                </div>
-
-                <div className="p-3 bg-blue-100/80 border-r border-gray-200">
-                  <div className="flex items-center space-x-2">
-                    <Timer className="w-4 h-4 text-blue-600" />
-
-                    <span className="font-semibold text-sm">To Do</span>
-
-                    <Badge variant="secondary" className="text-xs">
-                      {getTasksByStatus("todo").length}
-                    </Badge>
-                  </div>
-                </div>
-
-                {/* Default In Progress Column */}
-
-                <div className="p-3 bg-orange-100/80 border-r border-gray-200 min-w-[180px]">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center space-x-2 min-w-0">
-                      <PlayCircle className="w-4 h-4 text-orange-600 flex-shrink-0" />
-
-                      <span className="font-semibold text-sm whitespace-nowrap">
-                        In Progress
-                      </span>
-
-                      <Badge
-                        variant="secondary"
-                        className="text-xs flex-shrink-0"
-                      >
-                        {getTasksByStatus("inprogress").length}
-                      </Badge>
-                    </div>
-
-                    {canManageSprintsAndStories && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 hover:bg-orange-200 flex-shrink-0"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                            }}
-                          >
-                            <MoreHorizontal className="w-4 h-4 text-orange-600" />
-                          </Button>
-                        </DropdownMenuTrigger>
-
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.preventDefault();
-
-                              e.stopPropagation();
-
-                              console.log("Add Lane clicked from In Progress");
-
-                              handleOpenLaneConfigForStatus("inprogress");
-                            }}
-                          >
-                            <Settings className="w-4 h-4 mr-2" />
-                            Add Lane
-                          </DropdownMenuItem>
-
-                          <DropdownMenuSeparator />
-
-                          <DropdownMenuItem
-                            onClick={() => {
-                              const lane = workflowLanes.find(
-                                (l) =>
-                                  l.statusValue
-                                    ?.toLowerCase()
-                                    .includes("in_progress") ||
-                                  l.statusValue
-                                    ?.toLowerCase()
-                                    .includes("inprogress"),
-                              );
-
-                              if (lane?.id) {
-                                handleDeleteWorkflowLane(lane.id);
-                              }
-                            }}
-                            className="text-red-600"
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Delete Lane
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </div>
-                </div>
-
-                {/* Render Custom Lanes After In Progress (before QA) */}
-
-                {lanesAfterInProgress.map((lane) => {
-                  const tasksInLane = getTasksByStatus(lane.statusValue);
-
-                  const laneColor = lane.color || "#3B82F6";
-
-                  // Convert hex color to RGB for background opacity
-
-                  const hexToRgb = (hex: string) => {
-                    const result =
-                      /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-
-                    return result
-                      ? {
-                          r: parseInt(result[1], 16),
-
-                          g: parseInt(result[2], 16),
-
-                          b: parseInt(result[3], 16),
-                        }
-                      : { r: 59, g: 130, b: 246 };
-                  };
-
-                  const rgb = hexToRgb(laneColor);
-
-                  const bgColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)`;
-
-                  const borderColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`;
-
-                  return (
-                    <div
-                      key={lane.id}
-                      className="p-3 border-r border-gray-200 min-w-[180px]"
-                      style={{
-                        backgroundColor: bgColor,
-
-                        borderRightColor: borderColor,
-                      }}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center space-x-2 min-w-0">
-                          <div
-                            className="w-4 h-4 rounded-full border-2 border-white shadow-sm flex-shrink-0"
-                            style={{ backgroundColor: laneColor }}
-                          />
-
-                          <span
-                            className="font-semibold text-sm whitespace-nowrap"
-                            style={{ color: laneColor }}
-                          >
-                            {lane.title}
-                          </span>
-
-                          <Badge
-                            variant="secondary"
-                            className="text-xs flex-shrink-0"
-                          >
-                            {tasksInLane.length}
-                          </Badge>
-
-                          {lane.wipLimitEnabled && lane.wipLimit && (
-                            <Badge
-                              variant={
-                                tasksInLane.length > lane.wipLimit
-                                  ? "destructive"
-                                  : "secondary"
-                              }
-                              className="text-xs flex-shrink-0"
-                            >
-                              WIP: {tasksInLane.length}/{lane.wipLimit}
-                            </Badge>
-                          )}
-                        </div>
+                        <Badge variant="secondary" className="text-xs">
+                          {boardStories.length}
+                        </Badge>
 
                         {canManageSprintsAndStories && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
-                                variant="ghost"
+                                variant="outline"
                                 size="sm"
-                                className="h-6 w-6 p-0 flex-shrink-0"
-                                style={{ color: laneColor }}
+                                className="h-7 px-2 text-xs font-medium flex items-center gap-1"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                 }}
                               >
-                                <MoreHorizontal className="w-4 h-4" />
+                                <span>Pull Stories</span>
+
+                                <span className="text-[10px] uppercase text-muted-foreground">
+                                  {storyScopeLabel}
+                                </span>
+
+                                <ChevronDown className="w-3 h-3" />
                               </Button>
                             </DropdownMenuTrigger>
 
-                            <DropdownMenuContent align="end">
+                            <DropdownMenuContent align="start" sideOffset={4}>
+                              <DropdownMenuLabel>Pull Stories</DropdownMenuLabel>
+
+                              <DropdownMenuLabel className="text-xs text-muted-foreground">
+                                Current: {storyScopeLabel}
+                              </DropdownMenuLabel>
+
+                              <DropdownMenuSeparator />
+
+                              {/* Pull from Backlog - Only for Managers */}
+                              {canManageSprintsAndStories && (
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setPendingBacklogStoryIds(
+                                      selectedBacklogStoryIds,
+                                    );
+
+                                    setIsPullStoriesDialogOpen(true);
+
+                                    refetchSprintStories();
+                                    refetchBacklogStories();
+                                  }}
+                                >
+                                  <GitBranch className="w-4 h-4 mr-2" />
+                                  Pull from Backlog...
+                                </DropdownMenuItem>
+                              )}
+
+                              <DropdownMenuSeparator />
+
                               <DropdownMenuItem
-                                onClick={() => handleOpenLaneConfig(lane)}
+                                onClick={() => handlePullStories("sprint")}
+                                disabled={!selectedSprint}
+                                className={
+                                  storiesScope === "sprint"
+                                    ? "font-semibold text-green-700"
+                                    : ""
+                                }
                               >
-                                <Settings className="w-4 h-4 mr-2" />
-                                Configure Lane
+                                <Download className="w-4 h-4 mr-2" />
+                                Sprint Stories
+                              </DropdownMenuItem>
+
+                              <DropdownMenuItem
+                                onClick={() => handlePullStories("backlog")}
+                                className={
+                                  storiesScope === "backlog"
+                                    ? "font-semibold text-purple-700"
+                                    : ""
+                                }
+                              >
+                                <Layers3 className="w-4 h-4 mr-2" />
+                                Backlog Stories
                               </DropdownMenuItem>
 
                               <DropdownMenuSeparator />
 
                               <DropdownMenuItem
-                                onClick={() =>
-                                  handleDeleteWorkflowLane(lane.id)
+                                onClick={() => handlePullStories("all")}
+                                disabled={!selectedSprint}
+                                className={
+                                  storiesScope === "all"
+                                    ? "font-semibold text-blue-700"
+                                    : ""
                                 }
-                                className="text-red-600"
                               >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Delete Lane
+                                <GitBranch className="w-4 h-4 mr-2" />
+                                Sprint + Backlog
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         )}
                       </div>
-
-                      {lane.objective && (
-                        <p className="text-xs text-gray-600 mt-1 line-clamp-1 truncate">
-                          {lane.objective}
-                        </p>
-                      )}
                     </div>
-                  );
-                })}
 
-                {/* QA Column - Show for all boards (default and custom) to match default board styling */}
+                    <div className="p-3 bg-blue-100/80 border-r border-gray-200 min-w-[240px]">
+                      <div className="flex items-center space-x-2">
+                        <Timer className="w-4 h-4 text-blue-600" />
 
-                <>
-                  <div className="p-3 bg-purple-100/80 border-r border-gray-200 min-w-[180px]">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center space-x-2 min-w-0">
-                        <Shield className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                        <span className="font-semibold text-sm">To Do</span>
 
-                        <span className="font-semibold text-sm whitespace-nowrap">
-                          QA
-                        </span>
-
-                        <Badge
-                          variant="secondary"
-                          className="text-xs flex-shrink-0"
-                        >
-                          {getTasksByStatus("qa").length}
+                        <Badge variant="secondary" className="text-xs">
+                          {getTasksByStatus("todo").length}
                         </Badge>
                       </div>
-
-                      {canManageSprintsAndStories && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 hover:bg-purple-200 flex-shrink-0"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                              }}
-                            >
-                              <MoreHorizontal className="w-4 h-4 text-purple-600" />
-                            </Button>
-                          </DropdownMenuTrigger>
-
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.preventDefault();
-
-                                e.stopPropagation();
-
-                                console.log("Add Lane clicked from QA");
-
-                                handleOpenLaneConfigForStatus("qa");
-                              }}
-                            >
-                              <Settings className="w-4 h-4 mr-2" />
-                              Add Lane
-                            </DropdownMenuItem>
-
-                            <DropdownMenuSeparator />
-
-                            <DropdownMenuItem
-                              onClick={() => {
-                                const lane = workflowLanes.find(
-                                  (l) =>
-                                    l.statusValue
-                                      ?.toLowerCase()
-                                      .includes("qa") ||
-                                    l.statusValue
-                                      ?.toLowerCase()
-                                      .includes("review"),
-                                );
-
-                                if (lane?.id) {
-                                  handleDeleteWorkflowLane(lane.id);
-                                }
-                              }}
-                              className="text-red-600"
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete Lane
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
                     </div>
-                  </div>
 
-                  {/* Render Custom Lanes After QA (before Done) - Show for all boards */}
-                </>
+                    {/* Default In Progress Column */}
 
-                {/* Render Custom Lanes After QA (before Done) - Show for all boards to match default board styling */}
-
-                {lanesAfterQA.map((lane) => {
-                  const tasksInLane = getTasksByStatus(lane.statusValue);
-
-                  const laneColor = lane.color || "#3B82F6";
-
-                  // Convert hex color to RGB for background opacity
-
-                  const hexToRgb = (hex: string) => {
-                    const result =
-                      /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-
-                    return result
-                      ? {
-                          r: parseInt(result[1], 16),
-
-                          g: parseInt(result[2], 16),
-
-                          b: parseInt(result[3], 16),
-                        }
-                      : { r: 59, g: 130, b: 246 };
-                  };
-
-                  const rgb = hexToRgb(laneColor);
-
-                  const bgColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)`;
-
-                  const borderColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`;
-
-                  return (
-                    <div
-                      key={lane.id}
-                      className="p-3 border-r border-gray-200 min-w-[180px]"
-                      style={{
-                        backgroundColor: bgColor,
-
-                        borderRightColor: borderColor,
-                      }}
-                    >
+                    <div className="p-3 bg-orange-100/80 border-r border-gray-200 min-w-[240px]">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center space-x-2 min-w-0">
-                          <div
-                            className="w-4 h-4 rounded-full border-2 border-white shadow-sm flex-shrink-0"
-                            style={{ backgroundColor: laneColor }}
-                          />
+                          <PlayCircle className="w-4 h-4 text-orange-600 flex-shrink-0" />
 
-                          <span
-                            className="font-semibold text-sm whitespace-nowrap"
-                            style={{ color: laneColor }}
-                          >
-                            {lane.title}
+                          <span className="font-semibold text-sm whitespace-nowrap">
+                            In Progress
                           </span>
 
                           <Badge
                             variant="secondary"
                             className="text-xs flex-shrink-0"
                           >
-                            {tasksInLane.length}
+                            {getTasksByStatus("inprogress").length}
                           </Badge>
-
-                          {lane.wipLimitEnabled && lane.wipLimit && (
-                            <Badge
-                              variant={
-                                tasksInLane.length > lane.wipLimit
-                                  ? "destructive"
-                                  : "secondary"
-                              }
-                              className="text-xs flex-shrink-0"
-                            >
-                              WIP: {tasksInLane.length}/{lane.wipLimit}
-                            </Badge>
-                          )}
                         </div>
 
                         {canManageSprintsAndStories && (
@@ -7581,30 +8007,49 @@ const ScrumPage: React.FC = () => {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-6 w-6 p-0 flex-shrink-0"
-                                style={{ color: laneColor }}
+                                className="h-6 w-6 p-0 hover:bg-orange-200 flex-shrink-0"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                 }}
                               >
-                                <MoreHorizontal className="w-4 h-4" />
+                                <MoreHorizontal className="w-4 h-4 text-orange-600" />
                               </Button>
                             </DropdownMenuTrigger>
 
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem
-                                onClick={() => handleOpenLaneConfig(lane)}
+                                onClick={(e) => {
+                                  e.preventDefault();
+
+                                  e.stopPropagation();
+
+                                  console.log("Add Lane clicked from In Progress");
+
+                                  handleOpenLaneConfigForStatus("inprogress");
+                                }}
                               >
                                 <Settings className="w-4 h-4 mr-2" />
-                                Configure Lane
+                                Add Lane
                               </DropdownMenuItem>
 
                               <DropdownMenuSeparator />
 
                               <DropdownMenuItem
-                                onClick={() =>
-                                  handleDeleteWorkflowLane(lane.id)
-                                }
+                                onClick={() => {
+                                  const lane = workflowLanes.find(
+                                    (l) =>
+                                      l.statusValue
+                                        ?.toLowerCase()
+                                        .includes("in_progress") ||
+                                      l.statusValue
+                                        ?.toLowerCase()
+                                        .includes("inprogress"),
+                                  );
+
+                                  if (lane?.id) {
+                                    handleDeleteWorkflowLane(lane.id);
+                                  }
+                                }}
                                 className="text-red-600"
                               >
                                 <Trash2 className="w-4 h-4 mr-2" />
@@ -7614,417 +8059,798 @@ const ScrumPage: React.FC = () => {
                           </DropdownMenu>
                         )}
                       </div>
-
-                      {lane.objective && (
-                        <p className="text-xs text-gray-600 mt-1 line-clamp-1 truncate">
-                          {lane.objective}
-                        </p>
-                      )}
                     </div>
-                  );
-                })}
 
-                <div className="p-3 bg-emerald-100/80 border-r border-gray-200 min-w-[180px]">
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    {/* Render Custom Lanes After In Progress (before QA) */}
 
-                    <span className="font-semibold text-sm">Done</span>
+                    {lanesAfterInProgress.map((lane) => {
+                      const tasksInLane = getTasksByStatus(lane.statusValue);
 
-                    <Badge variant="secondary" className="text-xs">
-                      {getTasksByStatus("done").length}
-                    </Badge>
-                  </div>
-                </div>
+                      const laneColor = lane.color || "#3B82F6";
 
-                <div className="p-3 bg-gray-100/80 flex items-center justify-center">
-                  {canManageSprintsAndStories && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs border-dashed"
-                      onClick={() => setIsAddStoryDialogOpen(true)}
-                    >
-                      <Plus className="w-3 h-3 mr-1" />
-                      Add Story
-                    </Button>
-                  )}
-                </div>
-              </div>
+                      // Convert hex color to RGB for background opacity
 
-              {/* Story Rows Content */}
+                      const hexToRgb = (hex: string) => {
+                        const result =
+                          /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
 
-              <div className="w-full h-[calc(100vh-350px)] overflow-y-auto">
-                {boardStories.length === 0 ? (
-                  <div className="flex items-center justify-center py-12">
-                    <div className="text-center">
-                      <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                        return result
+                          ? {
+                            r: parseInt(result[1], 16),
 
-                      <h3 className="font-medium text-gray-600 mb-2">
-                        No stories in this view
-                      </h3>
+                            g: parseInt(result[2], 16),
 
-                      <p className="text-sm text-gray-500">
-                        Add stories or change the pull scope to see the grid
-                        layout
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  boardStories.map((story, storyIndex) => {
-                    // Get tasks for this story by status
+                            b: parseInt(result[3], 16),
+                          }
+                          : { r: 59, g: 130, b: 246 };
+                      };
 
-                    // Backend returns: to_do, in_progress, qa_review, done, blocked, cancelled
+                      const rgb = hexToRgb(laneColor);
 
-                    const todoTasks = allTasks.filter(
-                      (task) =>
-                        task.storyId === story.id &&
-                        (task.status === "to_do" ||
-                          task.status === "TO_DO" ||
-                          task.status === "todo" ||
-                          task.status === "TODO"),
-                    );
+                      const bgColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)`;
 
-                    const inProgressTasks = allTasks.filter(
-                      (task) =>
-                        task.storyId === story.id &&
-                        (task.status === "in_progress" ||
-                          task.status === "IN_PROGRESS" ||
-                          task.status === "inprogress" ||
-                          task.status === "INPROGRESS"),
-                    );
-
-                    const qaTasks = allTasks.filter(
-                      (task) =>
-                        task.storyId === story.id &&
-                        (task.status === "qa_review" ||
-                          task.status === "QA_REVIEW" ||
-                          task.status === "qa" ||
-                          task.status === "QA"),
-                    );
-
-                    const doneTasks = allTasks.filter(
-                      (task) =>
-                        task.storyId === story.id &&
-                        (task.status === "done" || task.status === "DONE"),
-                    );
-
-                    // Get issues for this story by status (same status mapping as tasks)
-
-                    const todoIssues = allIssues.filter(
-                      (issue) =>
-                        issue.storyId === story.id &&
-                        (issue.status === "to_do" ||
-                          issue.status === "TO_DO" ||
-                          issue.status === "todo" ||
-                          issue.status === "TODO"),
-                    );
-
-                    const inProgressIssues = allIssues.filter(
-                      (issue) =>
-                        issue.storyId === story.id &&
-                        (issue.status === "in_progress" ||
-                          issue.status === "IN_PROGRESS" ||
-                          issue.status === "inprogress" ||
-                          issue.status === "INPROGRESS"),
-                    );
-
-                    const qaIssues = allIssues.filter(
-                      (issue) =>
-                        issue.storyId === story.id &&
-                        (issue.status === "qa_review" ||
-                          issue.status === "QA_REVIEW" ||
-                          issue.status === "qa" ||
-                          issue.status === "QA"),
-                    );
-
-                    const doneIssues = allIssues.filter(
-                      (issue) =>
-                        issue.storyId === story.id &&
-                        (issue.status === "done" || issue.status === "DONE"),
-                    );
-
-                    const maxTaskCount = Math.max(
-                      todoTasks.length + todoIssues.length,
-
-                      inProgressTasks.length + inProgressIssues.length,
-
-                      qaTasks.length + qaIssues.length,
-
-                      doneTasks.length + doneIssues.length,
-
-                      1,
-                    );
-
-                    // Debug logging
-
-                    console.log(`Story ${story.id} (${story.title}):`, {
-                      allTasksCount: allTasks.length,
-
-                      storyTasks: allTasks.filter(
-                        (t) => t.storyId === story.id,
-                      ),
-
-                      todoTasks: todoTasks.length,
-
-                      inProgressTasks: inProgressTasks.length,
-
-                      qaTasks: qaTasks.length,
-
-                      doneTasks: doneTasks.length,
-
-                      allTaskStatuses: allTasks.map((t) => ({
-                        id: t.id,
-                        storyId: t.storyId,
-                        status: t.status,
-                        statusType: typeof t.status,
-                      })),
-                    });
-
-                    // Drop zone component for each cell (displays both tasks and issues)
-
-                    const TaskDropZone: React.FC<{
-                      status: string;
-                      tasks: Task[];
-                      issues: Issue[];
-                      bgClass: string;
-                      style?: React.CSSProperties;
-                    }> = ({ status, tasks, issues, bgClass, style }) => {
-                      const [{ isOver }, drop] = useDrop(() => ({
-                        accept: [ItemTypes.TASK, ItemTypes.ISSUE],
-
-                        drop: (item: { id: string; type: string }) => {
-                          moveItem(item.id, status, item.type);
-                        },
-
-                        collect: (monitor) => ({
-                          isOver: monitor.isOver(),
-                        }),
-                      }));
+                      const borderColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`;
 
                       return (
                         <div
-                          ref={drop}
-                          className={`p-3 border-r border-gray-200 ${bgClass} ${isOver ? "bg-blue-100 ring-2 ring-blue-400 ring-inset" : ""} transition-all`}
-                          style={style}
+                          key={lane.id}
+                          className="p-3 border-r border-gray-200 min-w-[240px]"
+                          style={{
+                            backgroundColor: bgColor,
+
+                            borderRightColor: borderColor,
+                          }}
                         >
-                          <div className="space-y-2 min-h-[80px]">
-                            {tasks.map((task, taskIndex) => (
-                              <DraggableTask
-                                key={task.id}
-                                task={task}
-                                index={taskIndex}
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center space-x-2 min-w-0">
+                              <div
+                                className="w-4 h-4 rounded-full border-2 border-white shadow-sm flex-shrink-0"
+                                style={{ backgroundColor: laneColor }}
                               />
-                            ))}
 
-                            {issues.map((issue, issueIndex) => (
-                              <DraggableIssue
-                                key={issue.id}
-                                issue={issue}
-                                index={issueIndex}
-                              />
-                            ))}
+                              <span
+                                className="font-semibold text-sm whitespace-nowrap"
+                                style={{ color: laneColor }}
+                              >
+                                {lane.title}
+                              </span>
 
-                            {tasks.length === 0 &&
-                              issues.length === 0 &&
-                              !isOver && (
-                                <div className="text-center py-6 text-gray-300 text-xs">
-                                  Drop here
-                                </div>
+                              <Badge
+                                variant="secondary"
+                                className="text-xs flex-shrink-0"
+                              >
+                                {tasksInLane.length}
+                              </Badge>
+
+                              {lane.wipLimitEnabled && lane.wipLimit && (
+                                <Badge
+                                  variant={
+                                    tasksInLane.length > lane.wipLimit
+                                      ? "destructive"
+                                      : "secondary"
+                                  }
+                                  className="text-xs flex-shrink-0"
+                                >
+                                  WIP: {tasksInLane.length}/{lane.wipLimit}
+                                </Badge>
                               )}
+                            </div>
+
+                            {canManageSprintsAndStories && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 flex-shrink-0"
+                                    style={{ color: laneColor }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                    }}
+                                  >
+                                    <MoreHorizontal className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    onClick={() => handleOpenLaneConfig(lane)}
+                                  >
+                                    <Settings className="w-4 h-4 mr-2" />
+                                    Configure Lane
+                                  </DropdownMenuItem>
+
+                                  <DropdownMenuSeparator />
+
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      handleDeleteWorkflowLane(lane.id)
+                                    }
+                                    className="text-red-600"
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Delete Lane
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
                           </div>
+
+                          {lane.objective && (
+                            <p className="text-xs text-gray-600 mt-1 line-clamp-1 truncate">
+                              {lane.objective}
+                            </p>
+                          )}
                         </div>
                       );
-                    };
+                    })}
 
-                    // Helper to get tasks for a custom lane
+                    {/* QA Column - Show for all boards (default and custom) to match default board styling */}
 
-                    const getTasksForLane = (statusValue: string) => {
-                      return allTasks.filter((task) => {
-                        if (task.storyId !== story.id) return false;
+                    <>
+                      <div className="p-3 bg-purple-100/80 border-r border-gray-200 min-w-[240px]">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center space-x-2 min-w-0">
+                            <Shield className="w-4 h-4 text-purple-600 flex-shrink-0" />
 
-                        // Check if task status directly matches the lane's statusValue
+                            <span className="font-semibold text-sm whitespace-nowrap">
+                              QA
+                            </span>
 
-                        if (task.status === statusValue) return true;
+                            <Badge
+                              variant="secondary"
+                              className="text-xs flex-shrink-0"
+                            >
+                              {getTasksByStatus("qa").length}
+                            </Badge>
+                          </div>
 
-                        // Also check mapped status
+                          {canManageSprintsAndStories && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 hover:bg-purple-200 flex-shrink-0"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                  }}
+                                >
+                                  <MoreHorizontal className="w-4 h-4 text-purple-600" />
+                                </Button>
+                              </DropdownMenuTrigger>
 
-                        const mappedColumn = mapTaskStatusToColumn(task.status);
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.preventDefault();
 
-                        return mappedColumn === statusValue;
-                      });
-                    };
+                                    e.stopPropagation();
 
-                    // Helper to get issues for a custom lane
+                                    console.log("Add Lane clicked from QA");
 
-                    const getIssuesForLane = (statusValue: string) => {
-                      return allIssues.filter((issue) => {
-                        if (issue.storyId !== story.id) return false;
+                                    handleOpenLaneConfigForStatus("qa");
+                                  }}
+                                >
+                                  <Settings className="w-4 h-4 mr-2" />
+                                  Add Lane
+                                </DropdownMenuItem>
 
-                        // Check if issue status directly matches the lane's statusValue
+                                <DropdownMenuSeparator />
 
-                        if (issue.status === statusValue) return true;
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    const lane = workflowLanes.find(
+                                      (l) =>
+                                        l.statusValue
+                                          ?.toLowerCase()
+                                          .includes("qa") ||
+                                        l.statusValue
+                                          ?.toLowerCase()
+                                          .includes("review"),
+                                    );
 
-                        // Also check mapped status
+                                    if (lane?.id) {
+                                      handleDeleteWorkflowLane(lane.id);
+                                    }
+                                  }}
+                                  className="text-red-600"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Delete Lane
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </div>
+                      </div>
 
-                        const mappedColumn = mapTaskStatusToColumn(
-                          issue.status,
+                      {/* Render Custom Lanes After QA (before Done) - Show for all boards */}
+                    </>
+
+                    {/* Render Custom Lanes After QA (before Done) - Show for all boards to match default board styling */}
+
+                    {lanesAfterQA.map((lane) => {
+                      const tasksInLane = getTasksByStatus(lane.statusValue);
+
+                      const laneColor = lane.color || "#3B82F6";
+
+                      // Convert hex color to RGB for background opacity
+
+                      const hexToRgb = (hex: string) => {
+                        const result =
+                          /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+
+                        return result
+                          ? {
+                            r: parseInt(result[1], 16),
+
+                            g: parseInt(result[2], 16),
+
+                            b: parseInt(result[3], 16),
+                          }
+                          : { r: 59, g: 130, b: 246 };
+                      };
+
+                      const rgb = hexToRgb(laneColor);
+
+                      const bgColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)`;
+
+                      const borderColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`;
+
+                      return (
+                        <div
+                          key={lane.id}
+                          className="p-3 border-r border-gray-200 min-w-[240px]"
+                          style={{
+                            backgroundColor: bgColor,
+
+                            borderRightColor: borderColor,
+                          }}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center space-x-2 min-w-0">
+                              <div
+                                className="w-4 h-4 rounded-full border-2 border-white shadow-sm flex-shrink-0"
+                                style={{ backgroundColor: laneColor }}
+                              />
+
+                              <span
+                                className="font-semibold text-sm whitespace-nowrap"
+                                style={{ color: laneColor }}
+                              >
+                                {lane.title}
+                              </span>
+
+                              <Badge
+                                variant="secondary"
+                                className="text-xs flex-shrink-0"
+                              >
+                                {tasksInLane.length}
+                              </Badge>
+
+                              {lane.wipLimitEnabled && lane.wipLimit && (
+                                <Badge
+                                  variant={
+                                    tasksInLane.length > lane.wipLimit
+                                      ? "destructive"
+                                      : "secondary"
+                                  }
+                                  className="text-xs flex-shrink-0"
+                                >
+                                  WIP: {tasksInLane.length}/{lane.wipLimit}
+                                </Badge>
+                              )}
+                            </div>
+
+                            {canManageSprintsAndStories && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 flex-shrink-0"
+                                    style={{ color: laneColor }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                    }}
+                                  >
+                                    <MoreHorizontal className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    onClick={() => handleOpenLaneConfig(lane)}
+                                  >
+                                    <Settings className="w-4 h-4 mr-2" />
+                                    Configure Lane
+                                  </DropdownMenuItem>
+
+                                  <DropdownMenuSeparator />
+
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      handleDeleteWorkflowLane(lane.id)
+                                    }
+                                    className="text-red-600"
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Delete Lane
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </div>
+
+                          {lane.objective && (
+                            <p className="text-xs text-gray-600 mt-1 line-clamp-1 truncate">
+                              {lane.objective}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    <div className="p-3 bg-emerald-100/80 border-r border-gray-200 min-w-[240px]">
+                      <div className="flex items-center space-x-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+
+                        <span className="font-semibold text-sm">Done</span>
+
+                        <Badge variant="secondary" className="text-xs">
+                          {getTasksByStatus("done").length}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Story Rows Content */}
+
+                  <div className="w-full h-[calc(100vh-240px)]">
+                    {boardStories.length === 0 ? (
+                      <div className="flex items-center justify-center py-12">
+                        <div className="text-center">
+                          <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+
+                          <h3 className="font-medium text-gray-600 mb-2">
+                            No stories in this view
+                          </h3>
+
+                          <p className="text-sm text-gray-500">
+                            Add stories or change the pull scope to see the grid
+                            layout
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      boardStories.map((story, storyIndex) => {
+                        // Get tasks for this story by status
+
+                        // Backend returns: to_do, in_progress, qa_review, done, blocked, cancelled
+
+                        const todoTasks = allTasks.filter(
+                          (task) =>
+                            task.storyId === story.id &&
+                            (task.status === "to_do" ||
+                              task.status === "TO_DO" ||
+                              task.status === "todo" ||
+                              task.status === "TODO"),
                         );
 
-                        return mappedColumn === statusValue;
-                      });
-                    };
+                        const inProgressTasks = allTasks.filter(
+                          (task) =>
+                            task.storyId === story.id &&
+                            (task.status === "in_progress" ||
+                              task.status === "IN_PROGRESS" ||
+                              task.status === "inprogress" ||
+                              task.status === "INPROGRESS"),
+                        );
 
-                    return (
-                      <div
-                        key={story.id}
-                        className={`grid gap-0 border-b border-gray-200 ${storyIndex % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}
-                        style={{
-                          // Use same grid template for all boards (default and custom) to match default board styling
+                        const qaTasks = allTasks.filter(
+                          (task) =>
+                            task.storyId === story.id &&
+                            (task.status === "qa_review" ||
+                              task.status === "QA_REVIEW" ||
+                              task.status === "qa" ||
+                              task.status === "QA"),
+                        );
 
-                          gridTemplateColumns: `minmax(200px, 1fr) repeat(${3 + lanesAfterInProgress.length + lanesAfterQA.length}, minmax(180px, 1fr)) minmax(180px, 1fr) minmax(150px, 1fr)`,
-                        }}
-                      >
-                        {/* Story Column */}
+                        const doneTasks = allTasks.filter(
+                          (task) =>
+                            task.storyId === story.id &&
+                            (task.status === "done" || task.status === "DONE"),
+                        );
 
-                        <div
-                          className="p-4 border-r border-gray-200 bg-green-50/20"
-                          style={{ minHeight: `${maxTaskCount * 120}px` }}
-                        >
-                          <DraggableStory story={story} index={storyIndex} />
-                        </div>
+                        // Get issues for this story by status (same status mapping as tasks)
 
-                        {/* To Do Column */}
+                        const todoIssues = allIssues.filter(
+                          (issue) =>
+                            issue.storyId === story.id &&
+                            (issue.status === "to_do" ||
+                              issue.status === "TO_DO" ||
+                              issue.status === "todo" ||
+                              issue.status === "TODO"),
+                        );
 
-                        <TaskDropZone
-                          status="todo"
-                          tasks={todoTasks}
-                          issues={todoIssues}
-                          bgClass="bg-blue-50/10"
-                          style={{ minWidth: "180px" }}
-                        />
+                        const inProgressIssues = allIssues.filter(
+                          (issue) =>
+                            issue.storyId === story.id &&
+                            (issue.status === "in_progress" ||
+                              issue.status === "IN_PROGRESS" ||
+                              issue.status === "inprogress" ||
+                              issue.status === "INPROGRESS"),
+                        );
 
-                        {/* In Progress Column */}
+                        const qaIssues = allIssues.filter(
+                          (issue) =>
+                            issue.storyId === story.id &&
+                            (issue.status === "qa_review" ||
+                              issue.status === "QA_REVIEW" ||
+                              issue.status === "qa" ||
+                              issue.status === "QA"),
+                        );
 
-                        <TaskDropZone
-                          status="inprogress"
-                          tasks={inProgressTasks}
-                          issues={inProgressIssues}
-                          bgClass="bg-orange-50/10"
-                          style={{ minWidth: "180px" }}
-                        />
+                        const doneIssues = allIssues.filter(
+                          (issue) =>
+                            issue.storyId === story.id &&
+                            (issue.status === "done" || issue.status === "DONE"),
+                        );
 
-                        {/* Render custom lanes after In Progress */}
+                        const maxTaskCount = Math.max(
+                          todoTasks.length + todoIssues.length,
 
-                        {lanesAfterInProgress.map((lane) => {
-                          const laneTasks = getTasksForLane(lane.statusValue);
+                          inProgressTasks.length + inProgressIssues.length,
 
-                          const laneIssues = getIssuesForLane(lane.statusValue);
+                          qaTasks.length + qaIssues.length,
 
-                          const laneColor = lane.color || "#3B82F6";
+                          doneTasks.length + doneIssues.length,
 
-                          const hexToRgb = (hex: string) => {
-                            const result =
-                              /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(
-                                hex,
-                              );
+                          1,
+                        );
 
-                            return result
-                              ? {
-                                  r: parseInt(result[1], 16),
+                        // Debug logging
 
-                                  g: parseInt(result[2], 16),
+                        console.log(`Story ${story.id} (${story.title}):`, {
+                          allTasksCount: allTasks.length,
 
-                                  b: parseInt(result[3], 16),
+                          storyTasks: allTasks.filter(
+                            (t) => t.storyId === story.id,
+                          ),
+
+                          todoTasks: todoTasks.length,
+
+                          inProgressTasks: inProgressTasks.length,
+
+                          qaTasks: qaTasks.length,
+
+                          doneTasks: doneTasks.length,
+
+                          allTaskStatuses: allTasks.map((t) => ({
+                            id: t.id,
+                            storyId: t.storyId,
+                            status: t.status,
+                            statusType: typeof t.status,
+                          })),
+                        });
+
+                        // Drop zone component for each cell (displays both tasks and issues)
+
+                        const TaskDropZone: React.FC<{
+                          status: string;
+                          tasks: Task[];
+                          issues: Issue[];
+                          bgClass: string;
+                          style?: React.CSSProperties;
+                        }> = ({ status, tasks, issues, bgClass, style }) => {
+                          // Disable drop for developers on Done column only
+                          // Developers can add tasks to all other lanes including manager-created lanes
+                          const isDoneColumn = status === "done";
+                          // Check if the status maps to DONE
+                          const mappedStatus = mapColumnToTaskStatus(status);
+                          const isDoneStatus = isDoneColumn || mappedStatus === "DONE";
+                          const canDropForDeveloper = !(isDeveloper && isDoneStatus);
+
+                          // Check if trying to drop from "In Progress" to "To Do" (only managers allowed)
+                          const isTodoColumn = status === "todo" || status === "TO_DO" || status === "TODO" ||
+                            (status && status.toLowerCase() === "todo");
+
+                          // Check if trying to drop to "In Progress" column
+                          const isInProgressColumn = status === "inprogress" || status === "IN_PROGRESS" || status === "in_progress" ||
+                            (status && status.toLowerCase() === "inprogress");
+
+                          const canDropForManager = (item: { id: string; type: string } | null) => {
+                            if (!item || canManageSprintsAndStories) {
+                              return true; // Allow if user is manager
+                            }
+
+                            // Check if trying to drop from "In Progress" to "To Do" (only managers allowed)
+                            if (isTodoColumn) {
+                              if (item.type === ItemTypes.TASK) {
+                                const task = allTasks.find((t) => t.id === item.id);
+                                const taskStatus = task?.status?.toUpperCase() || "";
+                                if (taskStatus === "IN_PROGRESS" || taskStatus === "in_progress".toUpperCase()) {
+                                  return false; // Prevent non-managers from dropping
                                 }
-                              : { r: 59, g: 130, b: 246 };
+                              } else if (item.type === ItemTypes.ISSUE) {
+                                const issue = allIssues.find((i) => i.id === item.id);
+                                const issueStatus = issue?.status?.toUpperCase() || "";
+                                if (issueStatus === "IN_PROGRESS" || issueStatus === "in_progress".toUpperCase()) {
+                                  return false; // Prevent non-managers from dropping
+                                }
+                              }
+                            }
+
+                            // Check if trying to drop from "To Do" to "In Progress" (only managers allowed)
+                            if (isInProgressColumn) {
+                              if (item.type === ItemTypes.TASK) {
+                                const task = allTasks.find((t) => t.id === item.id);
+                                const taskStatus = task?.status?.toUpperCase() || "";
+                                if (taskStatus === "TO_DO" || taskStatus === "TODO" || taskStatus === "todo".toUpperCase() || taskStatus === "to_do".toUpperCase()) {
+                                  return false; // Prevent non-managers from dropping
+                                }
+                              } else if (item.type === ItemTypes.ISSUE) {
+                                const issue = allIssues.find((i) => i.id === item.id);
+                                const issueStatus = issue?.status?.toUpperCase() || "";
+                                if (issueStatus === "TO_DO" || issueStatus === "TODO" || issueStatus === "todo".toUpperCase() || issueStatus === "to_do".toUpperCase()) {
+                                  return false; // Prevent non-managers from dropping
+                                }
+                              }
+                            }
+
+                            return true;
                           };
 
-                          const rgb = hexToRgb(laneColor);
+                          const [{ isOver }, drop] = useDrop(() => ({
+                            accept: [ItemTypes.TASK, ItemTypes.ISSUE],
 
-                          const bgColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.05)`;
+                            drop: (item: { id: string; type: string }) => {
+                              if (canDropForDeveloper && canDropForManager(item)) {
+                                moveItem(item.id, status, item.type);
+                              }
+                            },
+
+                            canDrop: (item: { id: string; type: string }) => {
+                              return canDropForDeveloper && canDropForManager(item);
+                            },
+
+                            collect: (monitor) => ({
+                              isOver: monitor.isOver() && canDropForDeveloper && canDropForManager(monitor.getItem()),
+                            }),
+                          }));
 
                           return (
-                            <TaskDropZone
-                              key={lane.id}
-                              status={lane.statusValue}
-                              tasks={laneTasks}
-                              issues={laneIssues}
-                              bgClass=""
-                              style={{
-                                backgroundColor: bgColor,
-                                minWidth: "180px",
-                              }}
-                            />
+                            <div
+                              ref={drop}
+                              className={`p-3 border-r border-gray-200 ${bgClass} ${isOver ? "bg-blue-100 ring-2 ring-blue-400 ring-inset" : ""} transition-all`}
+                              style={style}
+                              title={
+                                !canDropForDeveloper
+                                  ? "Developers cannot move items to Done column"
+                                  : isTodoColumn && !canManageSprintsAndStories
+                                    ? "Only managers can move items from In Progress back to To Do"
+                                    : isInProgressColumn && !canManageSprintsAndStories
+                                      ? "Only managers can move items from To Do to In Progress"
+                                      : undefined
+                              }
+                            >
+                              <div className="grid grid-cols-2 gap-2 min-h-[80px]">
+                                {tasks.map((task, taskIndex) => (
+                                  <DraggableTask
+                                    key={task.id}
+                                    task={task}
+                                    index={taskIndex}
+                                  />
+                                ))}
+
+                                {issues.map((issue, issueIndex) => (
+                                  <DraggableIssue
+                                    key={issue.id}
+                                    issue={issue}
+                                    index={issueIndex}
+                                  />
+                                ))}
+
+                                {tasks.length === 0 &&
+                                  issues.length === 0 &&
+                                  !isOver && (
+                                    <div className="col-span-2 text-center py-6 text-gray-300 text-xs">
+                                      Drop here
+                                    </div>
+                                  )}
+                              </div>
+                            </div>
                           );
-                        })}
+                        };
 
-                        {/* QA Column - Show for all boards (default and custom) to match default board styling */}
+                        // Helper to get tasks for a custom lane
 
-                        <TaskDropZone
-                          status="qa"
-                          tasks={qaTasks}
-                          issues={qaIssues}
-                          bgClass="bg-purple-50/10"
-                          style={{ minWidth: "180px" }}
-                        />
+                        const getTasksForLane = (statusValue: string) => {
+                          return allTasks.filter((task) => {
+                            if (task.storyId !== story.id) return false;
 
-                        {/* Render custom lanes after QA - Show for all boards to match default board styling */}
+                            // Check if task status directly matches the lane's statusValue
 
-                        {lanesAfterQA.map((lane) => {
-                          const laneTasks = getTasksForLane(lane.statusValue);
+                            if (task.status === statusValue) return true;
 
-                          const laneIssues = getIssuesForLane(lane.statusValue);
+                            // Also check mapped status
 
-                          const laneColor = lane.color || "#3B82F6";
+                            const mappedColumn = mapTaskStatusToColumn(task.status);
 
-                          const hexToRgb = (hex: string) => {
-                            const result =
-                              /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(
-                                hex,
+                            return mappedColumn === statusValue;
+                          });
+                        };
+
+                        // Helper to get issues for a custom lane
+
+                        const getIssuesForLane = (statusValue: string) => {
+                          return allIssues.filter((issue) => {
+                            if (issue.storyId !== story.id) return false;
+
+                            // Check if issue status directly matches the lane's statusValue
+
+                            if (issue.status === statusValue) return true;
+
+                            // Also check mapped status
+
+                            const mappedColumn = mapTaskStatusToColumn(
+                              issue.status,
+                            );
+
+                            return mappedColumn === statusValue;
+                          });
+                        };
+
+                        return (
+                          <div
+                            key={story.id}
+                            className="grid gap-0 border-b border-gray-200 bg-white"
+                            style={{
+                              // Match header layout with fixed-width columns for consistent scrolling
+                              gridTemplateColumns: `300px repeat(${3 + lanesAfterInProgress.length + lanesAfterQA.length}, 260px) 260px`,
+                            }}
+                          >
+                            {/* Story Column */}
+
+                            <div
+                              className="p-4 border-r border-gray-200 bg-green-50/20"
+                              style={{ minHeight: "280px" }}
+                            >
+                              <DraggableStory story={story} index={storyIndex} />
+                            </div>
+
+                            {/* To Do Column */}
+
+                            <TaskDropZone
+                              status="todo"
+                              tasks={todoTasks}
+                              issues={todoIssues}
+                              bgClass="bg-blue-50/10"
+                              style={{ minWidth: "260px" }}
+                            />
+
+                            {/* In Progress Column */}
+
+                            <TaskDropZone
+                              status="inprogress"
+                              tasks={inProgressTasks}
+                              issues={inProgressIssues}
+                              bgClass="bg-orange-50/10"
+                              style={{ minWidth: "260px" }}
+                            />
+
+                            {/* Render custom lanes after In Progress */}
+
+                            {lanesAfterInProgress.map((lane) => {
+                              const laneTasks = getTasksForLane(lane.statusValue);
+
+                              const laneIssues = getIssuesForLane(lane.statusValue);
+
+                              const laneColor = lane.color || "#3B82F6";
+
+                              const hexToRgb = (hex: string) => {
+                                const result =
+                                  /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(
+                                    hex,
+                                  );
+
+                                return result
+                                  ? {
+                                    r: parseInt(result[1], 16),
+
+                                    g: parseInt(result[2], 16),
+
+                                    b: parseInt(result[3], 16),
+                                  }
+                                  : { r: 59, g: 130, b: 246 };
+                              };
+
+                              const rgb = hexToRgb(laneColor);
+
+                              const bgColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.05)`;
+
+                              return (
+                                <TaskDropZone
+                                  key={lane.id}
+                                  status={lane.statusValue}
+                                  tasks={laneTasks}
+                                  issues={laneIssues}
+                                  bgClass=""
+                                  style={{
+                                    backgroundColor: bgColor,
+                                    minWidth: "260px",
+                                  }}
+                                />
                               );
+                            })}
 
-                            return result
-                              ? {
-                                  r: parseInt(result[1], 16),
+                            {/* QA Column - Show for all boards (default and custom) to match default board styling */}
 
-                                  g: parseInt(result[2], 16),
-
-                                  b: parseInt(result[3], 16),
-                                }
-                              : { r: 59, g: 130, b: 246 };
-                          };
-
-                          const rgb = hexToRgb(laneColor);
-
-                          const bgColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.05)`;
-
-                          return (
                             <TaskDropZone
-                              key={lane.id}
-                              status={lane.statusValue}
-                              tasks={laneTasks}
-                              issues={laneIssues}
-                              bgClass=""
-                              style={{
-                                backgroundColor: bgColor,
-                                minWidth: "180px",
-                              }}
+                              status="qa"
+                              tasks={qaTasks}
+                              issues={qaIssues}
+                              bgClass="bg-purple-50/10"
+                              style={{ minWidth: "260px" }}
                             />
-                          );
-                        })}
 
-                        {/* Done Column */}
+                            {/* Render custom lanes after QA - Show for all boards to match default board styling */}
 
-                        <TaskDropZone
-                          status="done"
-                          tasks={doneTasks}
-                          issues={doneIssues}
-                          bgClass="bg-emerald-50/10"
-                          style={{ minWidth: "180px" }}
-                        />
+                            {lanesAfterQA.map((lane) => {
+                              const laneTasks = getTasksForLane(lane.statusValue);
 
-                        {/* Actions Column */}
+                              const laneIssues = getIssuesForLane(lane.statusValue);
 
+                              const laneColor = lane.color || "#3B82F6";
+
+                              const hexToRgb = (hex: string) => {
+                                const result =
+                                  /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(
+                                    hex,
+                                  );
+
+                                return result
+                                  ? {
+                                    r: parseInt(result[1], 16),
+
+                                    g: parseInt(result[2], 16),
+
+                                    b: parseInt(result[3], 16),
+                                  }
+                                  : { r: 59, g: 130, b: 246 };
+                              };
+
+                              const rgb = hexToRgb(laneColor);
+
+                              const bgColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.05)`;
+
+                              return (
+                                <TaskDropZone
+                                  key={lane.id}
+                                  status={lane.statusValue}
+                                  tasks={laneTasks}
+                                  issues={laneIssues}
+                                  bgClass=""
+                                  style={{
+                                    backgroundColor: bgColor,
+                                    minWidth: "260px",
+                                  }}
+                                />
+                              );
+                            })}
+
+                            {/* Done Column */}
+
+                            <TaskDropZone
+                              status="done"
+                              tasks={doneTasks}
+                              issues={doneIssues}
+                              bgClass="bg-emerald-50/10"
+                              style={{ minWidth: "260px" }}
+                            />
+
+                            {/* Actions Column - Commented out */}
+                            {/* 
                         <div className="p-3 bg-gray-50/30 border-r-0">
                           <div className="sticky top-16 space-y-2">
                             <Button
@@ -8077,10 +8903,13 @@ const ScrumPage: React.FC = () => {
                             )}
                           </div>
                         </div>
-                      </div>
-                    );
-                  })
-                )}
+                        */}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -8182,14 +9011,6 @@ const ScrumPage: React.FC = () => {
                           >
                             <Eye className="w-4 h-4 text-blue-600" />
                           </Button>
-
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setSelectedSprint(sprint.id)}
-                          >
-                            Select
-                          </Button>
                         </div>
                       </div>
 
@@ -8202,10 +9023,10 @@ const ScrumPage: React.FC = () => {
                           <div className="text-lg font-semibold text-green-600">
                             {sprint.endDate
                               ? Math.ceil(
-                                  (new Date(sprint.endDate).getTime() -
-                                    new Date().getTime()) /
-                                    (1000 * 60 * 60 * 24),
-                                )
+                                (new Date(sprint.endDate).getTime() -
+                                  new Date().getTime()) /
+                                (1000 * 60 * 60 * 24),
+                              )
                               : 0}
                           </div>
 
@@ -8279,10 +9100,10 @@ const ScrumPage: React.FC = () => {
               const sprintLengthDays =
                 currentSprint.startDate && currentSprint.endDate
                   ? Math.ceil(
-                      (new Date(currentSprint.endDate).getTime() -
-                        new Date(currentSprint.startDate).getTime()) /
-                        (1000 * 60 * 60 * 24),
-                    )
+                    (new Date(currentSprint.endDate).getTime() -
+                      new Date(currentSprint.startDate).getTime()) /
+                    (1000 * 60 * 60 * 24),
+                  )
                   : 14;
 
               const teamCapacity = currentSprint.capacityHours || undefined;
@@ -8337,146 +9158,153 @@ const ScrumPage: React.FC = () => {
           )}
         </TabsContent>
 
-        {/* Pull Specific Backlog Stories Dialog */}
+        {/* Pull Stories from Backlog Dialog - Only for Managers */}
+        {canManageSprintsAndStories && (
+          <Dialog
+            open={isPullStoriesDialogOpen}
+            onOpenChange={handlePullStoriesDialogChange}
+          >
+            <DialogContent
+              className="!w-[80vw] !h-[75vh] !max-w-[80vw] !max-h-[75vh] overflow-y-auto !translate-y-[-50%] !min-w-[80vw]"
+              style={{ width: '80vw', maxWidth: '80vw', minWidth: '80vw' }}
+            >
+              <DialogHeader>
+                <DialogTitle>Pull Stories from Backlog</DialogTitle>
+                <DialogDescription>
+                  Select stories from the project backlog to pull into the current sprint.
+                  Selected stories will be moved to the current sprint with all their tasks.
+                </DialogDescription>
+              </DialogHeader>
 
-        <Dialog
-          open={isPullStoriesDialogOpen}
-          onOpenChange={handlePullStoriesDialogChange}
-        >
-          <DialogContent className="max-w-xl">
-            <DialogHeader>
-              <DialogTitle>Select Backlog Stories to Pull</DialogTitle>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <span>
+                    {projectBacklogStories.length} stor
+                    {projectBacklogStories.length === 1 ? "y" : "ies"} available in backlog
+                  </span>
 
-              <DialogDescription>
-                Choose backlog stories to surface alongside sprint stories on
-                this board.
-              </DialogDescription>
-            </DialogHeader>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                    onClick={() => {
+                      if (
+                        pendingBacklogStoryIds.length ===
+                        projectBacklogStories.length
+                      ) {
+                        setPendingBacklogStoryIds([]);
+                      } else {
+                        setPendingBacklogStoryIds(
+                          projectBacklogStories.map((story) => story.id),
+                        );
+                      }
+                    }}
+                    disabled={projectBacklogStories.length === 0}
+                  >
+                    {pendingBacklogStoryIds.length ===
+                      projectBacklogStories.length &&
+                      projectBacklogStories.length > 0
+                      ? "Clear all"
+                      : "Select all"}
+                  </Button>
+                </div>
 
-            <div className="space-y-4">
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>
-                  {projectBacklogStories.length} backlog stor
-                  {projectBacklogStories.length === 1 ? "y" : "ies"} available
-                </span>
+                <div className="max-h-80 overflow-y-auto rounded-md border">
+                  {projectBacklogStories.length === 0 ? (
+                    <div className="py-10 px-4 text-center text-sm text-muted-foreground">
+                      No stories available in the backlog for this project.
+                    </div>
+                  ) : (
+                    <div className="divide-y">
+                      {projectBacklogStories.map((story) => {
+                        const checked = pendingBacklogStoryIds.includes(story.id);
+
+                        return (
+                          <label
+                            key={story.id}
+                            className="flex items-start gap-3 px-4 py-3 hover:bg-muted/60 cursor-pointer"
+                          >
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={() =>
+                                handleTogglePendingBacklogStory(story.id)
+                              }
+                              className="mt-1"
+                            />
+
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium text-sm text-foreground line-clamp-1">
+                                  {story.title || story.name}
+                                </span>
+
+                                {typeof story.storyPoints === "number" && (
+                                  <Badge
+                                    variant="secondary"
+                                    className="ml-2 text-xs flex-shrink-0"
+                                  >
+                                    {story.storyPoints} pts
+                                  </Badge>
+                                )}
+                              </div>
+
+                              <div className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                                {story.description
+                                  ? story.description
+                                  : "No description provided."}
+                              </div>
+
+                              <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                                <span className="uppercase tracking-wide">
+                                  Status: {story.status || "BACKLOG"}
+                                </span>
+
+                                {story.priority && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px]"
+                                  >
+                                    {story.priority}
+                                  </Badge>
+                                )}
+
+                                {story.assigneeName && (
+                                  <span>Assignee: {story.assigneeName}</span>
+                                )}
+
+                                {story.epicName && (
+                                  <span>Epic: {story.epicName}</span>
+                                )}
+                              </div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <DialogFooter className="mt-6">
+                <Button
+                  variant="outline"
+                  onClick={() => handlePullStoriesDialogChange(false)}
+                >
+                  Cancel
+                </Button>
 
                 <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2"
-                  onClick={() => {
-                    if (
-                      pendingBacklogStoryIds.length ===
-                      projectBacklogStories.length
-                    ) {
-                      setPendingBacklogStoryIds([]);
-                    } else {
-                      setPendingBacklogStoryIds(
-                        projectBacklogStories.map((story) => story.id),
-                      );
-                    }
-                  }}
-                  disabled={projectBacklogStories.length === 0}
+                  onClick={handleConfirmPullSelectedStories}
+                  disabled={projectBacklogStories.length === 0 || pendingBacklogStoryIds.length === 0}
                 >
-                  {pendingBacklogStoryIds.length ===
-                    projectBacklogStories.length &&
-                  projectBacklogStories.length > 0
-                    ? "Clear all"
-                    : "Select all"}
+                  {pendingBacklogStoryIds.length > 0
+                    ? `Pull ${pendingBacklogStoryIds.length} stor${pendingBacklogStoryIds.length === 1 ? "y" : "ies"}`
+                    : "Select stories"}
                 </Button>
-              </div>
-
-              <div className="max-h-80 overflow-y-auto rounded-md border">
-                {projectBacklogStories.length === 0 ? (
-                  <div className="py-10 px-4 text-center text-sm text-muted-foreground">
-                    No backlog stories are available for this project.
-                  </div>
-                ) : (
-                  <div className="divide-y">
-                    {projectBacklogStories.map((story) => {
-                      const checked = pendingBacklogStoryIds.includes(story.id);
-
-                      return (
-                        <label
-                          key={story.id}
-                          className="flex items-start gap-3 px-4 py-3 hover:bg-muted/60 cursor-pointer"
-                        >
-                          <Checkbox
-                            checked={checked}
-                            onCheckedChange={() =>
-                              handleTogglePendingBacklogStory(story.id)
-                            }
-                            className="mt-1"
-                          />
-
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium text-sm text-foreground line-clamp-1">
-                                {story.title || story.name}
-                              </span>
-
-                              {typeof story.storyPoints === "number" && (
-                                <Badge
-                                  variant="secondary"
-                                  className="ml-2 text-xs flex-shrink-0"
-                                >
-                                  {story.storyPoints} pts
-                                </Badge>
-                              )}
-                            </div>
-
-                            <div className="mt-1 text-xs text-muted-foreground line-clamp-2">
-                              {story.description
-                                ? story.description
-                                : "No description provided."}
-                            </div>
-
-                            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                              <span className="uppercase tracking-wide">
-                                Status: {story.status || "BACKLOG"}
-                              </span>
-
-                              {story.priority && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-[10px]"
-                                >
-                                  {story.priority}
-                                </Badge>
-                              )}
-
-                              {story.assigneeName && (
-                                <span>Assignee: {story.assigneeName}</span>
-                              )}
-                            </div>
-                          </div>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <DialogFooter className="mt-6">
-              <Button
-                variant="outline"
-                onClick={() => handlePullStoriesDialogChange(false)}
-              >
-                Cancel
-              </Button>
-
-              <Button
-                onClick={handleConfirmPullSelectedStories}
-                disabled={projectBacklogStories.length === 0}
-              >
-                {pendingBacklogStoryIds.length > 0
-                  ? `Pull ${pendingBacklogStoryIds.length} stor${pendingBacklogStoryIds.length === 1 ? "y" : "ies"}`
-                  : "Clear selections"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
 
         {/* Create Sprint Dialog */}
 
@@ -8490,8 +9318,8 @@ const ScrumPage: React.FC = () => {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4">
-              <div>
+            <div className="space-y-6 py-4">
+              <div className="space-y-2">
                 <Label htmlFor="sprint-name">Sprint Name</Label>
 
                 <Input
@@ -8504,7 +9332,7 @@ const ScrumPage: React.FC = () => {
                 />
               </div>
 
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="sprint-goal">Sprint Goal</Label>
 
                 <Textarea
@@ -8519,7 +9347,7 @@ const ScrumPage: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="start-date">Start Date</Label>
 
                   <Input
@@ -8535,7 +9363,7 @@ const ScrumPage: React.FC = () => {
                   />
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="end-date">End Date</Label>
 
                   <Input
@@ -8552,21 +9380,35 @@ const ScrumPage: React.FC = () => {
                 </div>
               </div>
 
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="capacity">Team Capacity (hours)</Label>
 
-                <Input
-                  id="capacity"
-                  type="number"
-                  value={newSprint.capacityHours}
-                  onChange={(e) =>
-                    setNewSprint((prev) => ({
-                      ...prev,
-                      capacityHours: e.target.value,
-                    }))
-                  }
-                  placeholder="160"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="capacity"
+                    type="number"
+                    value={newSprint.capacityHours}
+                    onChange={(e) =>
+                      setNewSprint((prev) => ({
+                        ...prev,
+                        capacityHours: e.target.value,
+                      }))
+                    }
+                    placeholder="160"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsCapacityCalculatorOpen(true)}
+                    className="whitespace-nowrap"
+                  >
+                    <Calculator className="w-4 h-4 mr-2" />
+                    Calculate
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Use the calculator to automatically calculate team capacity based on team size, allocation, and availability.
+                </p>
               </div>
             </div>
 
@@ -8601,7 +9443,7 @@ const ScrumPage: React.FC = () => {
           open={isAddStoryDialogOpen}
           onOpenChange={setIsAddStoryDialogOpen}
         >
-          <DialogContent className="max-w-lg">
+          <DialogContent className="w-[75%] max-w-4xl">
             <DialogHeader>
               <DialogTitle>Add User Story</DialogTitle>
 
@@ -8610,8 +9452,8 @@ const ScrumPage: React.FC = () => {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4">
-              <div>
+            <div className="space-y-6 py-4">
+              <div className="space-y-2">
                 <Label htmlFor="story-title">Title</Label>
 
                 <Input
@@ -8624,7 +9466,7 @@ const ScrumPage: React.FC = () => {
                 />
               </div>
 
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="story-description">Description</Label>
 
                 <Textarea
@@ -8641,7 +9483,7 @@ const ScrumPage: React.FC = () => {
                 />
               </div>
 
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="story-acceptance">Acceptance Criteria</Label>
 
                 <Textarea
@@ -8658,8 +9500,8 @@ const ScrumPage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
                   <Label htmlFor="story-points">Story Points</Label>
 
                   <Input
@@ -8676,7 +9518,7 @@ const ScrumPage: React.FC = () => {
                   />
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="story-priority">Priority</Label>
 
                   <Select
@@ -8825,6 +9667,23 @@ const ScrumPage: React.FC = () => {
                           : "Unassigned"}
                       </p>
                     </div>
+
+                    <div>
+                      <h4 className="font-medium mb-2 flex items-center space-x-2">
+                        <CalendarDays className="w-4 h-4 text-blue-600" />
+                        <span>Due Date</span>
+                      </h4>
+
+                      <p className="text-sm bg-gray-50 p-2 rounded">
+                        {selectedStoryForDetails.dueDate
+                          ? new Date(selectedStoryForDetails.dueDate).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })
+                          : "No due date set"}
+                      </p>
+                    </div>
                   </div>
 
                   {/* Attachments Section */}
@@ -8930,9 +9789,15 @@ const ScrumPage: React.FC = () => {
 
         <Dialog
           open={isAddStoryDialogOpen}
-          onOpenChange={setIsAddStoryDialogOpen}
+          onOpenChange={(open) => {
+            setIsAddStoryDialogOpen(open);
+            if (!open) {
+              // Reset popover state when dialog closes
+              setIsDueDatePopoverOpen(false);
+            }
+          }}
         >
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-[75%] max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create New Story</DialogTitle>
 
@@ -8941,10 +9806,10 @@ const ScrumPage: React.FC = () => {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4">
+            <div className="space-y-6 py-4">
               {/* Title */}
 
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="story-title">Title *</Label>
 
                 <Input
@@ -8959,7 +9824,7 @@ const ScrumPage: React.FC = () => {
 
               {/* Description */}
 
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="story-description">Description</Label>
 
                 <Textarea
@@ -8978,7 +9843,7 @@ const ScrumPage: React.FC = () => {
 
               {/* Acceptance Criteria */}
 
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="acceptance-criteria">Acceptance Criteria</Label>
 
                 <Textarea
@@ -9001,8 +9866,8 @@ const ScrumPage: React.FC = () => {
 
               {/* Row 1: Priority, Story Points, Status */}
 
-              <div className="grid grid-cols-3 gap-4">
-                <div>
+              <div className="grid grid-cols-3 gap-6">
+                <div className="space-y-2">
                   <Label htmlFor="story-priority">Priority *</Label>
 
                   <Select
@@ -9027,7 +9892,7 @@ const ScrumPage: React.FC = () => {
                   </Select>
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="story-points">Story Points</Label>
 
                   <Input
@@ -9040,32 +9905,56 @@ const ScrumPage: React.FC = () => {
                         storyPoints: parseInt(e.target.value) || 0,
                       }))
                     }
+                    onFocus={(e) => e.target.select()}
                     placeholder="0"
                   />
                 </div>
 
-                <div>
-                  <Label htmlFor="estimated-hours">Estimated Hours</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="due-date">Due Date</Label>
 
-                  <Input
-                    id="estimated-hours"
-                    type="number"
-                    value={newStory.estimatedHours || ""}
-                    onChange={(e) =>
-                      setNewStory((prev) => ({
-                        ...prev,
-                        estimatedHours: parseFloat(e.target.value) || undefined,
-                      }))
-                    }
-                    placeholder="0"
-                  />
+                  <Popover open={isDueDatePopoverOpen} onOpenChange={setIsDueDatePopoverOpen} modal={false}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        id="due-date"
+                        variant="outline"
+                        className={`w-full justify-start text-left font-normal ${!newStory.dueDate ? "text-muted-foreground" : ""
+                          }`}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {newStory.dueDate ? (
+                          typeof newStory.dueDate === 'string'
+                            ? new Date(newStory.dueDate).toLocaleDateString()
+                            : newStory.dueDate.toLocaleDateString()
+                        ) : (
+                          <span>Pick a date</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 !z-[9999]" align="start" side="bottom" sideOffset={5} style={{ zIndex: 9999 }}>
+                      <Calendar
+                        mode="single"
+                        selected={typeof newStory.dueDate === 'string' ? new Date(newStory.dueDate) : newStory.dueDate}
+                        onSelect={(date) => {
+                          if (date) {
+                            setNewStory((prev) => ({
+                              ...prev,
+                              dueDate: date.toISOString().split('T')[0],
+                            }));
+                            setIsDueDatePopoverOpen(false);
+                          }
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
 
               {/* Row 2: Sprint, Epic, Release */}
 
-              <div className="grid grid-cols-3 gap-4">
-                <div>
+              <div className="grid grid-cols-3 gap-6">
+                <div className="space-y-2">
                   <Label htmlFor="story-sprint">Sprint *</Label>
 
                   <Select
@@ -9095,7 +9984,7 @@ const ScrumPage: React.FC = () => {
                   </Select>
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="story-epic">Epic</Label>
 
                   <Select
@@ -9123,7 +10012,7 @@ const ScrumPage: React.FC = () => {
                   </Select>
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="story-release">Release</Label>
 
                   <Select
@@ -9154,8 +10043,8 @@ const ScrumPage: React.FC = () => {
 
               {/* Row 3: Assignee, Reporter */}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
                   <Label htmlFor="story-assignee">Assignee</Label>
 
                   <Select
@@ -9174,7 +10063,7 @@ const ScrumPage: React.FC = () => {
                     <SelectContent>
                       <SelectItem value="UNASSIGNED">Unassigned</SelectItem>
 
-                      {users.map((user) => (
+                      {availableUsersForAssignment.map((user) => (
                         <SelectItem key={user.id} value={user.id}>
                           {user.name}
                         </SelectItem>
@@ -9183,7 +10072,7 @@ const ScrumPage: React.FC = () => {
                   </Select>
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="story-reporter">Reporter</Label>
 
                   <Select
@@ -9202,7 +10091,7 @@ const ScrumPage: React.FC = () => {
                     <SelectContent>
                       <SelectItem value="NO_REPORTER">No Reporter</SelectItem>
 
-                      {users.map((user) => (
+                      {availableUsersForAssignment.map((user) => (
                         <SelectItem key={user.id} value={user.id}>
                           {user.name}
                         </SelectItem>
@@ -9214,7 +10103,7 @@ const ScrumPage: React.FC = () => {
 
               {/* Labels */}
 
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="story-labels">Labels</Label>
 
                 <Input
@@ -9421,16 +10310,16 @@ const ScrumPage: React.FC = () => {
                       <p className="text-sm bg-gray-50 p-2 rounded">
                         {selectedSprintForDetails.startDate
                           ? new Date(
-                              selectedSprintForDetails.startDate,
-                            ).toLocaleDateString("en-US", {
-                              weekday: "long",
+                            selectedSprintForDetails.startDate,
+                          ).toLocaleDateString("en-US", {
+                            weekday: "long",
 
-                              year: "numeric",
+                            year: "numeric",
 
-                              month: "long",
+                            month: "long",
 
-                              day: "numeric",
-                            })
+                            day: "numeric",
+                          })
                           : "Not set"}
                       </p>
                     </div>
@@ -9441,16 +10330,16 @@ const ScrumPage: React.FC = () => {
                       <p className="text-sm bg-gray-50 p-2 rounded">
                         {selectedSprintForDetails.endDate
                           ? new Date(
-                              selectedSprintForDetails.endDate,
-                            ).toLocaleDateString("en-US", {
-                              weekday: "long",
+                            selectedSprintForDetails.endDate,
+                          ).toLocaleDateString("en-US", {
+                            weekday: "long",
 
-                              year: "numeric",
+                            year: "numeric",
 
-                              month: "long",
+                            month: "long",
 
-                              day: "numeric",
-                            })
+                            day: "numeric",
+                          })
                           : "Not set"}
                       </p>
                     </div>
@@ -9471,7 +10360,7 @@ const ScrumPage: React.FC = () => {
                               new Date(
                                 selectedSprintForDetails.startDate,
                               ).getTime()) /
-                              (1000 * 60 * 60 * 24),
+                            (1000 * 60 * 60 * 24),
                           )}{" "}
                           days
                         </p>
@@ -9529,7 +10418,7 @@ const ScrumPage: React.FC = () => {
                                     selectedSprintForDetails.endDate,
                                   ).getTime() -
                                     new Date().getTime()) /
-                                    (1000 * 60 * 60 * 24),
+                                  (1000 * 60 * 60 * 24),
                                 ) < 0
                                   ? "text-red-600 font-semibold"
                                   : "text-green-600 font-semibold"
@@ -9540,7 +10429,7 @@ const ScrumPage: React.FC = () => {
                                   selectedSprintForDetails.endDate,
                                 ).getTime() -
                                   new Date().getTime()) /
-                                  (1000 * 60 * 60 * 24),
+                                (1000 * 60 * 60 * 24),
                               )}{" "}
                               days
                             </span>
@@ -9562,7 +10451,7 @@ const ScrumPage: React.FC = () => {
                                     new Date(
                                       selectedSprintForDetails.startDate,
                                     ).getTime())) *
-                                  100,
+                                100,
                               ),
                             )}
                             className="h-2"
@@ -9685,14 +10574,14 @@ const ScrumPage: React.FC = () => {
                       <p className="text-sm bg-gray-50 p-2 rounded">
                         {selectedTaskForDetails.dueDate
                           ? new Date(
-                              selectedTaskForDetails.dueDate,
-                            ).toLocaleDateString("en-US", {
-                              year: "numeric",
+                            selectedTaskForDetails.dueDate,
+                          ).toLocaleDateString("en-US", {
+                            year: "numeric",
 
-                              month: "long",
+                            month: "long",
 
-                              day: "numeric",
-                            })
+                            day: "numeric",
+                          })
                           : "No due date"}
                       </p>
                     </div>
@@ -9721,13 +10610,12 @@ const ScrumPage: React.FC = () => {
                       <h4 className="font-medium mb-2">Remaining</h4>
 
                       <p
-                        className={`text-lg font-semibold ${
-                          (selectedTaskForDetails.estimatedHours || 0) -
-                            (selectedTaskForDetails.actualHours || 0) <
+                        className={`text-lg font-semibold ${(selectedTaskForDetails.estimatedHours || 0) -
+                          (selectedTaskForDetails.actualHours || 0) <
                           0
-                            ? "text-red-600"
-                            : "text-orange-600"
-                        }`}
+                          ? "text-red-600"
+                          : "text-orange-600"
+                          }`}
                       >
                         {(selectedTaskForDetails.estimatedHours || 0) -
                           (selectedTaskForDetails.actualHours || 0)}
@@ -9752,7 +10640,7 @@ const ScrumPage: React.FC = () => {
                                 ((selectedTaskForDetails.actualHours || 0) /
                                   selectedTaskForDetails.estimatedHours) *
                                   100 >
-                                100
+                                  100
                                   ? "text-red-600 font-semibold"
                                   : "text-green-600 font-semibold"
                               }
@@ -9760,7 +10648,7 @@ const ScrumPage: React.FC = () => {
                               {Math.round(
                                 ((selectedTaskForDetails.actualHours || 0) /
                                   selectedTaskForDetails.estimatedHours) *
-                                  100,
+                                100,
                               )}
                               %
                             </span>
@@ -9771,7 +10659,7 @@ const ScrumPage: React.FC = () => {
                               100,
                               ((selectedTaskForDetails.actualHours || 0) /
                                 selectedTaskForDetails.estimatedHours) *
-                                100,
+                              100,
                             )}
                             className="h-2"
                           />
@@ -9933,6 +10821,10 @@ const ScrumPage: React.FC = () => {
                   <SelectContent>
                     <SelectItem value="NONE">None</SelectItem>
 
+                    <SelectItem value="Major">Major</SelectItem>
+
+                    <SelectItem value="Other">Other</SelectItem>
+
                     <SelectItem value="Development">Development</SelectItem>
 
                     <SelectItem value="Documentation">Documentation</SelectItem>
@@ -9994,7 +10886,333 @@ const ScrumPage: React.FC = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Log Effort Dialog (JIRA-style: on subtasks) */}
+        {/* Edit Subtask Dialog */}
+        <Dialog
+          open={isEditSubtaskDialogOpen}
+          onOpenChange={(open) => {
+            setIsEditSubtaskDialogOpen(open);
+            if (!open) {
+              setSelectedSubtaskForEdit(null);
+              setNewSubtask({
+                title: "",
+                description: "",
+                taskId: "",
+                assigneeId: "",
+                estimatedHours: 0,
+                category: "",
+                dueDate: "",
+              });
+            }
+          }}
+        >
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Edit Subtask</DialogTitle>
+              <DialogDescription>
+                Update subtask: {selectedSubtaskForEdit?.title}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-subtask-title">Subtask Title</Label>
+                <Input
+                  id="edit-subtask-title"
+                  value={newSubtask.title}
+                  onChange={(e) =>
+                    setNewSubtask((prev) => ({
+                      ...prev,
+                      title: e.target.value,
+                    }))
+                  }
+                  placeholder="e.g., Implement validation logic"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-subtask-description">Description</Label>
+                <Textarea
+                  id="edit-subtask-description"
+                  value={newSubtask.description}
+                  onChange={(e) =>
+                    setNewSubtask((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                  placeholder="Detailed description of the subtask..."
+                  rows={3}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-subtask-hours">Estimated Hours</Label>
+                <Input
+                  id="edit-subtask-hours"
+                  type="number"
+                  value={newSubtask.estimatedHours}
+                  onChange={(e) =>
+                    setNewSubtask((prev) => ({
+                      ...prev,
+                      estimatedHours: parseInt(e.target.value) || 0,
+                    }))
+                  }
+                  placeholder="2"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-subtask-assignee">Assignee</Label>
+                <Select
+                  value={newSubtask.assigneeId}
+                  onValueChange={(value) =>
+                    setNewSubtask((prev) => ({
+                      ...prev,
+                      assigneeId: value === "UNASSIGNED" ? "" : value,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select assignee" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="UNASSIGNED">Unassigned</SelectItem>
+                    {users.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        <div className="flex items-center space-x-2">
+                          <Avatar className="w-4 h-4">
+                            <AvatarFallback className="text-xs">
+                              {getInitials(user.name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span>{user.name}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-subtask-category">Category</Label>
+                <Select
+                  value={newSubtask.category}
+                  onValueChange={(value) =>
+                    setNewSubtask((prev) => ({
+                      ...prev,
+                      category: value === "NONE" ? "" : value,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="NONE">None</SelectItem>
+                    <SelectItem value="Major">Major</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                    <SelectItem value="Development">Development</SelectItem>
+                    <SelectItem value="Documentation">Documentation</SelectItem>
+                    <SelectItem value="Idle">Idle</SelectItem>
+                    <SelectItem value="Learning">Learning</SelectItem>
+                    <SelectItem value="Meeting">Meeting</SelectItem>
+                    <SelectItem value="Support">Support</SelectItem>
+                    <SelectItem value="Testing">Testing</SelectItem>
+                    <SelectItem value="Training">Training</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-subtask-due-date">Due Date</Label>
+                <Input
+                  id="edit-subtask-due-date"
+                  type="date"
+                  value={newSubtask.dueDate}
+                  onChange={(e) =>
+                    setNewSubtask((prev) => ({
+                      ...prev,
+                      dueDate: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="flex space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsEditSubtaskDialogOpen(false);
+                  setSelectedSubtaskForEdit(null);
+                  setNewSubtask({
+                    title: "",
+                    description: "",
+                    taskId: "",
+                    assigneeId: "",
+                    estimatedHours: 0,
+                    category: "",
+                    dueDate: "",
+                  });
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleEditSubtask}
+                disabled={isCreatingSubtask || !newSubtask.title.trim()}
+              >
+                {isCreatingSubtask ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  "Update Subtask"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Time Entry Dialog */}
+        <Dialog
+          open={isEditLogDialogOpen}
+          onOpenChange={(open) => {
+            setIsEditLogDialogOpen(open);
+            if (!open) {
+              setSelectedLogForEdit(null);
+              setEditLogData({
+                hoursWorked: 0,
+                description: "",
+                workDate: new Date().toISOString().split("T")[0],
+                startTime: "",
+                endTime: "",
+              });
+            }
+          }}
+        >
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Edit Time Entry</DialogTitle>
+              <DialogDescription>
+                Update time log entry
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-log-hours">Hours Worked</Label>
+                <Input
+                  id="edit-log-hours"
+                  type="number"
+                  step="0.25"
+                  min="0"
+                  value={editLogData.hoursWorked}
+                  onChange={(e) =>
+                    setEditLogData((prev) => ({
+                      ...prev,
+                      hoursWorked: parseFloat(e.target.value) || 0,
+                    }))
+                  }
+                  placeholder="2.5"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-log-description">Description</Label>
+                <Textarea
+                  id="edit-log-description"
+                  value={editLogData.description}
+                  onChange={(e) =>
+                    setEditLogData((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                  placeholder="What did you work on?"
+                  rows={3}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-log-date">Work Date</Label>
+                <Input
+                  id="edit-log-date"
+                  type="date"
+                  value={editLogData.workDate}
+                  onChange={(e) =>
+                    setEditLogData((prev) => ({
+                      ...prev,
+                      workDate: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-log-start-time">
+                    Start Time (Optional)
+                  </Label>
+                  <Input
+                    id="edit-log-start-time"
+                    type="time"
+                    value={editLogData.startTime}
+                    onChange={(e) =>
+                      setEditLogData((prev) => ({
+                        ...prev,
+                        startTime: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="edit-log-end-time">End Time (Optional)</Label>
+                  <Input
+                    id="edit-log-end-time"
+                    type="time"
+                    value={editLogData.endTime}
+                    onChange={(e) =>
+                      setEditLogData((prev) => ({
+                        ...prev,
+                        endTime: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="flex space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsEditLogDialogOpen(false);
+                  setSelectedLogForEdit(null);
+                  setEditLogData({
+                    hoursWorked: 0,
+                    description: "",
+                    workDate: new Date().toISOString().split("T")[0],
+                    startTime: "",
+                    endTime: "",
+                  });
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleEditTimeEntry}
+                disabled={!editLogData.hoursWorked || editLogData.hoursWorked <= 0}
+              >
+                Update Entry
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Log Effort Dialog (JIRA-style: on subtasks, tasks, and issues) */}
 
         <Dialog
           open={isLogEffortDialogOpen}
@@ -10005,7 +11223,9 @@ const ScrumPage: React.FC = () => {
               <DialogTitle>Log Work</DialogTitle>
 
               <DialogDescription>
-                Log time spent on subtask: {selectedSubtaskForEffort?.title}
+                {selectedSubtaskForEffort && `Log time spent on subtask: ${selectedSubtaskForEffort.title}`}
+                {selectedTaskForEffort && `Log time spent on task: ${selectedTaskForEffort.title}`}
+                {selectedIssueForEffort && `Log time spent on issue: ${selectedIssueForEffort.title}`}
               </DialogDescription>
             </DialogHeader>
 
@@ -10106,8 +11326,7 @@ const ScrumPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Current Time Stats (Subtask) */}
-
+              {/* Current Time Stats */}
               {selectedSubtaskForEffort && (
                 <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
                   <h4 className="font-medium text-sm mb-2 text-purple-900">
@@ -10150,6 +11369,70 @@ const ScrumPage: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {selectedTaskForEffort && (
+                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                  <h4 className="font-medium text-sm mb-2 text-blue-900">
+                    Task Time Stats
+                  </h4>
+
+                  <div className="grid grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <div className="text-gray-600">Estimated</div>
+
+                      <div className="font-semibold text-blue-700">
+                        {selectedTaskForEffort.estimatedHours || 0}h
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-gray-600">Logged</div>
+
+                      <div className="font-semibold text-green-700">
+                        {selectedTaskForEffort.actualHours || 0}h
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-gray-600">After Log</div>
+
+                      <div className="font-semibold text-orange-700">
+                        {(
+                          (selectedTaskForEffort.actualHours || 0) +
+                          effortLog.hours
+                        ).toFixed(1)}
+                        h
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedIssueForEffort && (
+                <div className="bg-red-50 p-3 rounded-lg border border-red-200">
+                  <h4 className="font-medium text-sm mb-2 text-red-900">
+                    Issue Time Stats
+                  </h4>
+
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <div className="text-gray-600">Logged</div>
+
+                      <div className="font-semibold text-green-700">
+                        {effortLog.hours}h
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-gray-600">After Log</div>
+
+                      <div className="font-semibold text-orange-700">
+                        {effortLog.hours.toFixed(1)}h
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <DialogFooter className="flex space-x-2">
@@ -10159,6 +11442,8 @@ const ScrumPage: React.FC = () => {
                   setIsLogEffortDialogOpen(false);
 
                   setSelectedSubtaskForEffort(null);
+                  setSelectedTaskForEffort(null);
+                  setSelectedIssueForEffort(null);
 
                   setEffortLog({
                     hours: 0,
@@ -10177,7 +11462,15 @@ const ScrumPage: React.FC = () => {
               </Button>
 
               <Button
-                onClick={handleLogEffort}
+                onClick={() => {
+                  if (selectedSubtaskForEffort) {
+                    handleLogEffort();
+                  } else if (selectedTaskForEffort) {
+                    handleLogTaskEffort();
+                  } else if (selectedIssueForEffort) {
+                    handleLogIssueEffort();
+                  }
+                }}
                 disabled={
                   !effortLog.hours ||
                   effortLog.hours <= 0 ||
@@ -10194,19 +11487,19 @@ const ScrumPage: React.FC = () => {
         {/* JIRA-Style Task Details Modal */}
 
         <Dialog open={isTaskDetailsOpen} onOpenChange={setIsTaskDetailsOpen}>
-          <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden p-0">
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden p-0 flex flex-col">
             <DialogTitle className="sr-only">
               Task Details: {selectedTaskForDetails?.title || "Task"}
             </DialogTitle>
 
             {selectedTaskForDetails && (
-              <div className="flex h-full">
+              <div className="flex flex-1 min-h-0 overflow-hidden">
                 {/* Main Content Area (Left Panel) */}
 
-                <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
                   {/* Header */}
 
-                  <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50">
+                  <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50 flex-shrink-0">
                     <div className="flex items-center space-x-4">
                       <div className="flex items-center space-x-2">
                         <Badge
@@ -10233,47 +11526,30 @@ const ScrumPage: React.FC = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0 hover:bg-purple-100"
+                        className="h-8 px-2 hover:bg-blue-100"
                         onClick={(e) => {
                           e.stopPropagation();
-
-                          setSelectedTaskForSubtask(selectedTaskForDetails);
-
-                          setNewSubtask((prev) => ({
-                            ...prev,
-                            taskId: selectedTaskForDetails.id,
-                            assigneeId: selectedTaskForDetails.assigneeId || "",
-                          }));
-
-                          setIsAddSubtaskDialogOpen(true);
+                          setSelectedTaskForEffort(selectedTaskForDetails);
+                          setEffortLog({
+                            hours: 0,
+                            description: "",
+                            workDate: new Date().toISOString().split("T")[0],
+                            startTime: "",
+                            endTime: "",
+                          });
+                          setIsLogEffortDialogOpen(true);
                         }}
-                        title="Add subtask"
+                        title="Log work on this task"
                       >
-                        <Layers3 className="w-4 h-4 text-purple-600" />
-                      </Button>
-
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                        <Eye className="w-4 h-4" />
-                      </Button>
-
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </Button>
-
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => setIsTaskDetailsOpen(false)}
-                      >
-                        <X className="w-4 h-4" />
+                        <Clock className="w-4 h-4 mr-1 text-blue-600" />
+                        Log
                       </Button>
                     </div>
                   </div>
 
                   {/* Task Title */}
 
-                  <div className="p-6 border-b border-gray-200">
+                  <div className="p-6 border-b border-gray-200 flex-shrink-0">
                     <h2 className="text-xl font-semibold text-gray-900 mb-2">
                       {selectedTaskForDetails.title}
                     </h2>
@@ -10307,13 +11583,13 @@ const ScrumPage: React.FC = () => {
 
                   {/* Content Tabs */}
 
-                  <div className="flex-1 overflow-hidden">
+                  <div className="flex-1 overflow-hidden flex flex-col min-h-0">
                     <Tabs
                       value={taskDetailsTab}
                       onValueChange={(value) => setTaskDetailsTab(value as any)}
-                      className="h-full flex flex-col"
+                      className="h-full flex flex-col min-h-0"
                     >
-                      <TabsList className="mx-6 mt-4">
+                      <TabsList className="mx-6 mt-4 flex-shrink-0">
                         <TabsTrigger value="details">Details</TabsTrigger>
 
                         <TabsTrigger value="activities">Activities</TabsTrigger>
@@ -10329,8 +11605,119 @@ const ScrumPage: React.FC = () => {
 
                       <TabsContent
                         value="details"
-                        className="flex-1 overflow-auto p-6 space-y-6"
+                        className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100"
+                        style={{ maxHeight: 'calc(90vh - 200px)' }}
                       >
+                        {/* Task Logs Section */}
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                            Time Logs
+                          </h3>
+                          {loadingTaskLogs ? (
+                            <div className="flex items-center justify-center py-8">
+                              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                              <span className="ml-2 text-sm text-gray-600">
+                                Loading logs...
+                              </span>
+                            </div>
+                          ) : taskLogs.length > 0 ? (
+                            <div className="space-y-2">
+                              {taskLogs.map((log) => (
+                                <div
+                                  key={log.id}
+                                  className="bg-gray-50 border border-gray-200 rounded-lg p-3 hover:bg-gray-100 transition-colors group"
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <div className="flex items-center space-x-2 mb-1">
+                                        <Clock className="w-4 h-4 text-blue-600" />
+                                        <span className="text-sm font-medium text-gray-900">
+                                          {log.hoursWorked}h logged
+                                        </span>
+                                        {log.workDate && (
+                                          <span className="text-xs text-gray-500">
+                                            on {new Date(log.workDate).toLocaleDateString("en-GB", {
+                                              day: "numeric",
+                                              month: "short",
+                                              year: "numeric",
+                                            })}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {log.description && (
+                                        <p className="text-sm text-gray-700 mt-1">
+                                          {log.description}
+                                        </p>
+                                      )}
+                                      <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500">
+                                        {log.userId && (
+                                          <div className="flex items-center space-x-1">
+                                            <User className="w-3 h-3" />
+                                            <span>{getUserName(log.userId)}</span>
+                                          </div>
+                                        )}
+                                        {log.startTime && log.endTime && (
+                                          <div className="flex items-center space-x-1">
+                                            <Timer className="w-3 h-3" />
+                                            <span>
+                                              {log.startTime} - {log.endTime}
+                                            </span>
+                                          </div>
+                                        )}
+                                        {log.entryType && (
+                                          <Badge variant="outline" className="text-xs">
+                                            {log.entryType}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {/* Edit Button */}
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 px-2 text-xs hover:bg-blue-100 opacity-0 group-hover:opacity-100 transition-opacity ml-2"
+                                      onClick={() => {
+                                        setSelectedLogForEdit(log);
+                                        // Format workDate properly (handle both date string and Date object)
+                                        let workDateStr = "";
+                                        if (log.workDate) {
+                                          if (typeof log.workDate === 'string') {
+                                            workDateStr = log.workDate.split('T')[0];
+                                          } else {
+                                            workDateStr = new Date(log.workDate).toISOString().split("T")[0];
+                                          }
+                                        } else {
+                                          workDateStr = new Date().toISOString().split("T")[0];
+                                        }
+
+                                        setEditLogData({
+                                          hoursWorked: log.hoursWorked || 0,
+                                          description: log.description || "",
+                                          workDate: workDateStr,
+                                          startTime: log.startTime || "",
+                                          endTime: log.endTime || "",
+                                        });
+                                        setIsEditLogDialogOpen(true);
+                                      }}
+                                      title="Edit log entry"
+                                    >
+                                      <Edit3 className="w-3 h-3 mr-1 text-blue-600" />
+                                      Edit
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-center py-6 text-gray-500 border border-gray-200 rounded-lg bg-gray-50">
+                              <Clock className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                              <p className="text-sm">No time logs recorded yet</p>
+                              <p className="text-xs text-gray-400 mt-1">
+                                Log time spent on this task to track your work
+                              </p>
+                            </div>
+                          )}
+                        </div>
                         {/* Description */}
 
                         <div>
@@ -10355,7 +11742,7 @@ const ScrumPage: React.FC = () => {
 
                         {selectedTaskForDetails.acceptanceCriteria &&
                           selectedTaskForDetails.acceptanceCriteria.length >
-                            0 && (
+                          0 && (
                             <div>
                               <h3 className="text-sm font-semibold text-gray-900 mb-2">
                                 Acceptance Criteria
@@ -10600,12 +11987,12 @@ const ScrumPage: React.FC = () => {
                                 getSubtasksForTask(selectedTaskForDetails.id)
                                   .length > 0
                                   ? (getSubtasksForTask(
+                                    selectedTaskForDetails.id,
+                                  ).filter((st) => st.isCompleted).length /
+                                    getSubtasksForTask(
                                       selectedTaskForDetails.id,
-                                    ).filter((st) => st.isCompleted).length /
-                                      getSubtasksForTask(
-                                        selectedTaskForDetails.id,
-                                      ).length) *
-                                    100
+                                    ).length) *
+                                  100
                                   : 0
                               }
                               className="w-20 h-2"
@@ -10644,11 +12031,10 @@ const ScrumPage: React.FC = () => {
                                     {/* Checkbox */}
 
                                     <CheckSquare
-                                      className={`w-4 h-4 cursor-pointer hover:scale-110 transition-transform flex-shrink-0 ${
-                                        subtask.isCompleted
-                                          ? "text-green-500"
-                                          : "text-gray-400 hover:text-green-400"
-                                      }`}
+                                      className={`w-4 h-4 cursor-pointer hover:scale-110 transition-transform flex-shrink-0 ${subtask.isCompleted
+                                        ? "text-green-500"
+                                        : "text-gray-400 hover:text-green-400"
+                                        }`}
                                       onClick={async (e) => {
                                         e.stopPropagation();
 
@@ -10668,10 +12054,10 @@ const ScrumPage: React.FC = () => {
                                             prev.map((st) =>
                                               st.id === subtask.id
                                                 ? {
-                                                    ...st,
-                                                    isCompleted:
-                                                      !st.isCompleted,
-                                                  }
+                                                  ...st,
+                                                  isCompleted:
+                                                    !st.isCompleted,
+                                                }
                                                 : st,
                                             ),
                                           );
@@ -10723,8 +12109,8 @@ const ScrumPage: React.FC = () => {
                                           <span className="truncate max-w-20">
                                             {subtask.assigneeId
                                               ? getUserName(
-                                                  subtask.assigneeId,
-                                                ).split(" ")[0]
+                                                subtask.assigneeId,
+                                              ).split(" ")[0]
                                               : "Unassigned"}
                                           </span>
                                         </div>
@@ -10764,6 +12150,30 @@ const ScrumPage: React.FC = () => {
                                   {/* Action Buttons */}
 
                                   <div className="flex items-center space-x-2 flex-shrink-0">
+                                    {/* Edit Button */}
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 px-2 text-xs hover:bg-blue-100 opacity-0 group-hover:opacity-100 transition-opacity"
+                                      onClick={() => {
+                                        setSelectedSubtaskForEdit(subtask);
+                                        setNewSubtask({
+                                          title: subtask.title || "",
+                                          description: subtask.description || "",
+                                          taskId: subtask.taskId || "",
+                                          assigneeId: subtask.assigneeId || "",
+                                          estimatedHours: subtask.estimatedHours || 0,
+                                          category: subtask.category || "",
+                                          dueDate: subtask.dueDate ? subtask.dueDate.split('T')[0] : "",
+                                        });
+                                        setIsEditSubtaskDialogOpen(true);
+                                      }}
+                                      title="Edit subtask"
+                                    >
+                                      <Edit3 className="w-3 h-3 mr-1 text-blue-600" />
+                                      Edit
+                                    </Button>
+
                                     {/* Log Work Button */}
 
                                     <Button
@@ -10797,7 +12207,7 @@ const ScrumPage: React.FC = () => {
                                           100,
                                           ((subtask.actualHours || 0) /
                                             (subtask.estimatedHours || 1)) *
-                                            100,
+                                          100,
                                         ).toFixed(0)}
                                         %
                                       </span>
@@ -10808,7 +12218,7 @@ const ScrumPage: React.FC = () => {
                                         100,
                                         ((subtask.actualHours || 0) /
                                           (subtask.estimatedHours || 1)) *
-                                          100,
+                                        100,
                                       )}
                                       className="h-1.5"
                                     />
@@ -10820,16 +12230,16 @@ const ScrumPage: React.FC = () => {
 
                           {getSubtasksForTask(selectedTaskForDetails.id)
                             .length === 0 && (
-                            <div className="text-center py-8 text-gray-500">
-                              <Layers3 className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                              <div className="text-center py-8 text-gray-500">
+                                <Layers3 className="w-8 h-8 mx-auto mb-2 text-gray-400" />
 
-                              <p className="text-sm">No subtasks yet</p>
+                                <p className="text-sm">No subtasks yet</p>
 
-                              <p className="text-xs text-gray-400 mt-1">
-                                Use the "Add Subtask" button above to create one
-                              </p>
-                            </div>
-                          )}
+                                <p className="text-xs text-gray-400 mt-1">
+                                  Use the "Add Subtask" button above to create one
+                                </p>
+                              </div>
+                            )}
                         </div>
                       </TabsContent>
 
@@ -10855,12 +12265,12 @@ const ScrumPage: React.FC = () => {
                               <div className="text-sm text-gray-700">
                                 {selectedTaskForDetails.dueDate
                                   ? new Date(
-                                      selectedTaskForDetails.dueDate,
-                                    ).toLocaleDateString("en-GB", {
-                                      day: "numeric",
-                                      month: "short",
-                                      year: "numeric",
-                                    })
+                                    selectedTaskForDetails.dueDate,
+                                  ).toLocaleDateString("en-GB", {
+                                    day: "numeric",
+                                    month: "short",
+                                    year: "numeric",
+                                  })
                                   : "No due date set"}
                               </div>
                             </div>
@@ -10868,41 +12278,41 @@ const ScrumPage: React.FC = () => {
                             {getSubtasksForTask(
                               selectedTaskForDetails.id,
                             ).filter((st) => st.dueDate).length > 0 && (
-                              <div>
-                                <h4 className="text-xs font-semibold text-gray-700 mb-2">
-                                  Subtask Due Dates
-                                </h4>
+                                <div>
+                                  <h4 className="text-xs font-semibold text-gray-700 mb-2">
+                                    Subtask Due Dates
+                                  </h4>
 
-                                <div className="space-y-2">
-                                  {getSubtasksForTask(selectedTaskForDetails.id)
-                                    .filter((st) => st.dueDate)
-                                    .map((subtask) => (
-                                      <div
-                                        key={subtask.id}
-                                        className="bg-white border border-gray-200 rounded-lg p-3"
-                                      >
-                                        <div className="flex items-center justify-between">
-                                          <span className="text-sm text-gray-900">
-                                            {subtask.title}
-                                          </span>
+                                  <div className="space-y-2">
+                                    {getSubtasksForTask(selectedTaskForDetails.id)
+                                      .filter((st) => st.dueDate)
+                                      .map((subtask) => (
+                                        <div
+                                          key={subtask.id}
+                                          className="bg-white border border-gray-200 rounded-lg p-3"
+                                        >
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-sm text-gray-900">
+                                              {subtask.title}
+                                            </span>
 
-                                          <span className="text-xs text-gray-600">
-                                            {subtask.dueDate
-                                              ? new Date(
+                                            <span className="text-xs text-gray-600">
+                                              {subtask.dueDate
+                                                ? new Date(
                                                   subtask.dueDate,
                                                 ).toLocaleDateString("en-GB", {
                                                   day: "numeric",
                                                   month: "short",
                                                   year: "numeric",
                                                 })
-                                              : ""}
-                                          </span>
+                                                : ""}
+                                            </span>
+                                          </div>
                                         </div>
-                                      </div>
-                                    ))}
+                                      ))}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
+                              )}
                           </div>
                         </div>
                       </TabsContent>
@@ -10936,12 +12346,12 @@ const ScrumPage: React.FC = () => {
 
                 <div className="w-80 border-l border-gray-200 bg-gray-50 overflow-auto">
                   <div className="p-6 space-y-6">
-                    {/* Subtask Details Section (Replacing Effort Details) */}
+                    {/* Task Details Section (Replacing Effort Details) */}
 
                     <div>
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-sm font-semibold text-gray-900">
-                          Subtask Details
+                          Task Details
                         </h3>
                       </div>
 
@@ -10979,11 +12389,11 @@ const ScrumPage: React.FC = () => {
                             value={
                               selectedTaskForDetails.estimatedHours > 0
                                 ? Math.min(
-                                    100,
-                                    ((selectedTaskForDetails.actualHours || 0) /
-                                      selectedTaskForDetails.estimatedHours) *
-                                      100,
-                                  )
+                                  100,
+                                  ((selectedTaskForDetails.actualHours || 0) /
+                                    selectedTaskForDetails.estimatedHours) *
+                                  100,
+                                )
                                 : 0
                             }
                             className="h-2 bg-green-100"
@@ -11002,7 +12412,7 @@ const ScrumPage: React.FC = () => {
                               {Math.max(
                                 0,
                                 (selectedTaskForDetails.estimatedHours || 0) -
-                                  (selectedTaskForDetails.actualHours || 0),
+                                (selectedTaskForDetails.actualHours || 0),
                               )}
                               h
                             </span>
@@ -11012,17 +12422,17 @@ const ScrumPage: React.FC = () => {
                             value={
                               selectedTaskForDetails.estimatedHours > 0
                                 ? Math.min(
-                                    100,
-                                    (Math.max(
-                                      0,
-                                      (selectedTaskForDetails.estimatedHours ||
-                                        0) -
-                                        (selectedTaskForDetails.actualHours ||
-                                          0),
-                                    ) /
-                                      selectedTaskForDetails.estimatedHours) *
-                                      100,
-                                  )
+                                  100,
+                                  (Math.max(
+                                    0,
+                                    (selectedTaskForDetails.estimatedHours ||
+                                      0) -
+                                    (selectedTaskForDetails.actualHours ||
+                                      0),
+                                  ) /
+                                    selectedTaskForDetails.estimatedHours) *
+                                  100,
+                                )
                                 : 0
                             }
                             className="h-2 bg-gray-100"
@@ -11102,13 +12512,11 @@ const ScrumPage: React.FC = () => {
                           </label>
 
                           <div className="flex items-center space-x-2 text-sm text-gray-700">
-                            <Calendar className="w-4 h-4" />
-
                             <span>
                               {selectedTaskForDetails.dueDate
                                 ? new Date(
-                                    selectedTaskForDetails.dueDate,
-                                  ).toLocaleDateString()
+                                  selectedTaskForDetails.dueDate,
+                                ).toLocaleDateString()
                                 : "No due date"}
                             </span>
                           </div>
@@ -11123,7 +12531,7 @@ const ScrumPage: React.FC = () => {
 
                           <div className="flex flex-wrap gap-1">
                             {selectedTaskForDetails.labels &&
-                            selectedTaskForDetails.labels.length > 0 ? (
+                              selectedTaskForDetails.labels.length > 0 ? (
                               selectedTaskForDetails.labels.map(
                                 (label, index) => (
                                   <Badge
@@ -11154,9 +12562,13 @@ const ScrumPage: React.FC = () => {
                             <BookOpen className="w-4 h-4 text-gray-400" />
 
                             <span className="text-sm text-blue-600 cursor-pointer hover:underline">
-                              {sprintStories.find(
-                                (s) => s.id === selectedTaskForDetails.storyId,
-                              )?.title || "Unknown Story"}
+                              {(() => {
+                                const story = sprintStories.find(
+                                  (s) => s.id === selectedTaskForDetails.storyId,
+                                );
+                                // Use parentStoryTitle from API if available, otherwise find in sprintStories
+                                return story?.parentStoryTitle || story?.title || "Unknown Story";
+                              })()}
                             </span>
                           </div>
                         </div>
@@ -11192,19 +12604,19 @@ const ScrumPage: React.FC = () => {
       {/* JIRA-Style Issue Details Modal */}
 
       <Dialog open={isIssueDetailsOpen} onOpenChange={setIsIssueDetailsOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden p-0">
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden p-0 flex flex-col">
           <DialogTitle className="sr-only">
             Issue Details: {selectedIssueForDetails?.title || "Issue"}
           </DialogTitle>
 
           {selectedIssueForDetails && (
-            <div className="flex h-full">
+            <div className="flex flex-1 min-h-0 overflow-hidden">
               {/* Main Content Area (Left Panel) */}
 
-              <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex-1 flex flex-col overflow-hidden min-h-0">
                 {/* Header */}
 
-                <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-red-50">
+                <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-red-50 flex-shrink-0">
                   <div className="flex items-center space-x-4">
                     <div className="flex items-center space-x-2">
                       <Badge
@@ -11223,28 +12635,33 @@ const ScrumPage: React.FC = () => {
                   </div>
 
                   <div className="flex items-center space-x-2">
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                      <Eye className="w-4 h-4" />
-                    </Button>
-
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                      <MoreHorizontal className="w-4 h-4" />
-                    </Button>
-
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-8 w-8 p-0"
-                      onClick={() => setIsIssueDetailsOpen(false)}
+                      className="h-8 px-2 hover:bg-red-100"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedIssueForEffort(selectedIssueForDetails);
+                        setEffortLog({
+                          hours: 0,
+                          description: "",
+                          workDate: new Date().toISOString().split("T")[0],
+                          startTime: "",
+                          endTime: "",
+                        });
+                        setIsLogEffortDialogOpen(true);
+                      }}
+                      title="Log work on this issue"
                     >
-                      <X className="w-4 h-4" />
+                      <Clock className="w-4 h-4 mr-1 text-red-600" />
+                      Log
                     </Button>
                   </div>
                 </div>
 
                 {/* Issue Title */}
 
-                <div className="p-6 border-b border-gray-200">
+                <div className="p-6 border-b border-gray-200 flex-shrink-0">
                   <h2 className="text-xl font-semibold text-gray-900 mb-2">
                     {selectedIssueForDetails.title}
                   </h2>
@@ -11278,13 +12695,13 @@ const ScrumPage: React.FC = () => {
 
                 {/* Content Tabs */}
 
-                <div className="flex-1 overflow-hidden">
+                <div className="flex-1 overflow-hidden flex flex-col min-h-0">
                   <Tabs
                     value={issueDetailsTab}
                     onValueChange={(value) => setIssueDetailsTab(value as any)}
-                    className="h-full flex flex-col"
+                    className="h-full flex flex-col min-h-0"
                   >
-                    <TabsList className="mx-6 mt-4">
+                    <TabsList className="mx-6 mt-4 flex-shrink-0">
                       <TabsTrigger value="details">Details</TabsTrigger>
 
                       <TabsTrigger value="activities">Activities</TabsTrigger>
@@ -11300,7 +12717,8 @@ const ScrumPage: React.FC = () => {
 
                     <TabsContent
                       value="details"
-                      className="flex-1 overflow-auto p-6 space-y-6"
+                      className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100"
+                      style={{ maxHeight: 'calc(90vh - 200px)' }}
                     >
                       {/* Description */}
 
@@ -11357,32 +12775,32 @@ const ScrumPage: React.FC = () => {
 
                           {(issueAttachments.length > 0 ||
                             parentStoryAttachments.length > 0) && (
-                            <div className="flex items-center space-x-2">
-                              {issueAttachments.length > 0 && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-xs bg-red-50 text-red-700 border-red-200"
-                                >
-                                  <AlertCircle className="w-3 h-3 mr-1" />
-                                  Issue ({issueAttachments.length})
-                                </Badge>
-                              )}
+                              <div className="flex items-center space-x-2">
+                                {issueAttachments.length > 0 && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs bg-red-50 text-red-700 border-red-200"
+                                  >
+                                    <AlertCircle className="w-3 h-3 mr-1" />
+                                    Issue ({issueAttachments.length})
+                                  </Badge>
+                                )}
 
-                              {parentStoryAttachments.length > 0 && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-xs bg-blue-50 text-blue-700 border-blue-200"
-                                >
-                                  <BookOpen className="w-3 h-3 mr-1" />
-                                  Story ({parentStoryAttachments.length})
-                                </Badge>
-                              )}
-                            </div>
-                          )}
+                                {parentStoryAttachments.length > 0 && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs bg-blue-50 text-blue-700 border-blue-200"
+                                  >
+                                    <BookOpen className="w-3 h-3 mr-1" />
+                                    Story ({parentStoryAttachments.length})
+                                  </Badge>
+                                )}
+                              </div>
+                            )}
                         </div>
 
                         {loadingIssueAttachments ||
-                        loadingParentStoryAttachments ? (
+                          loadingParentStoryAttachments ? (
                           <div className="flex items-center justify-center py-8">
                             <Loader2 className="w-6 h-6 animate-spin text-primary" />
 
@@ -11736,9 +13154,9 @@ const ScrumPage: React.FC = () => {
                                         prev.map((st) =>
                                           st.id === subtask.id
                                             ? {
-                                                ...st,
-                                                isCompleted: checked as boolean,
-                                              }
+                                              ...st,
+                                              isCompleted: checked as boolean,
+                                            }
                                             : st,
                                         ),
                                       );
@@ -11836,7 +13254,7 @@ const ScrumPage: React.FC = () => {
                                             100,
                                             ((subtask.actualHours || 0) /
                                               (subtask.estimatedHours || 1)) *
-                                              100,
+                                            100,
                                           ).toFixed(0)}
                                           %
                                         </span>
@@ -11847,7 +13265,7 @@ const ScrumPage: React.FC = () => {
                                           100,
                                           ((subtask.actualHours || 0) /
                                             (subtask.estimatedHours || 1)) *
-                                            100,
+                                          100,
                                         )}
                                         className="h-1.5"
                                       />
@@ -11883,12 +13301,12 @@ const ScrumPage: React.FC = () => {
                             <div className="text-sm text-gray-700">
                               {selectedIssueForDetails.dueDate
                                 ? new Date(
-                                    selectedIssueForDetails.dueDate,
-                                  ).toLocaleDateString("en-GB", {
-                                    day: "numeric",
-                                    month: "short",
-                                    year: "numeric",
-                                  })
+                                  selectedIssueForDetails.dueDate,
+                                ).toLocaleDateString("en-GB", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                })
                                 : "No due date set"}
                             </div>
                           </div>
@@ -11924,7 +13342,7 @@ const ScrumPage: React.FC = () => {
 
               <div className="w-80 border-l border-gray-200 bg-gray-50 overflow-auto">
                 <div className="p-6 space-y-6">
-                  {/* Subtask Details Section */}
+                  {/* Task Details Section */}
 
                   <div>
                     <div className="flex items-center justify-between mb-4">
@@ -11967,11 +13385,11 @@ const ScrumPage: React.FC = () => {
                           value={
                             selectedIssueForDetails.estimatedHours > 0
                               ? Math.min(
-                                  100,
-                                  ((selectedIssueForDetails.actualHours || 0) /
-                                    selectedIssueForDetails.estimatedHours) *
-                                    100,
-                                )
+                                100,
+                                ((selectedIssueForDetails.actualHours || 0) /
+                                  selectedIssueForDetails.estimatedHours) *
+                                100,
+                              )
                               : 0
                           }
                           className="h-2 bg-green-100"
@@ -11990,7 +13408,7 @@ const ScrumPage: React.FC = () => {
                             {Math.max(
                               0,
                               (selectedIssueForDetails.estimatedHours || 0) -
-                                (selectedIssueForDetails.actualHours || 0),
+                              (selectedIssueForDetails.actualHours || 0),
                             )}
                             h
                           </span>
@@ -12000,17 +13418,17 @@ const ScrumPage: React.FC = () => {
                           value={
                             selectedIssueForDetails.estimatedHours > 0
                               ? Math.min(
-                                  100,
-                                  (Math.max(
-                                    0,
-                                    (selectedIssueForDetails.estimatedHours ||
-                                      0) -
-                                      (selectedIssueForDetails.actualHours ||
-                                        0),
-                                  ) /
-                                    selectedIssueForDetails.estimatedHours) *
-                                    100,
-                                )
+                                100,
+                                (Math.max(
+                                  0,
+                                  (selectedIssueForDetails.estimatedHours ||
+                                    0) -
+                                  (selectedIssueForDetails.actualHours ||
+                                    0),
+                                ) /
+                                  selectedIssueForDetails.estimatedHours) *
+                                100,
+                              )
                               : 0
                           }
                           className="h-2 bg-gray-100"
@@ -12093,8 +13511,8 @@ const ScrumPage: React.FC = () => {
                           <span>
                             {selectedIssueForDetails.dueDate
                               ? new Date(
-                                  selectedIssueForDetails.dueDate,
-                                ).toLocaleDateString()
+                                selectedIssueForDetails.dueDate,
+                              ).toLocaleDateString()
                               : "No due date"}
                           </span>
                         </div>
@@ -12109,7 +13527,7 @@ const ScrumPage: React.FC = () => {
 
                         <div className="flex flex-wrap gap-1">
                           {selectedIssueForDetails.labels &&
-                          selectedIssueForDetails.labels.length > 0 ? (
+                            selectedIssueForDetails.labels.length > 0 ? (
                             selectedIssueForDetails.labels.map(
                               (label, index) => (
                                 <Badge
@@ -12140,9 +13558,13 @@ const ScrumPage: React.FC = () => {
                           <BookOpen className="w-4 h-4 text-gray-400" />
 
                           <span className="text-sm text-red-600 cursor-pointer hover:underline">
-                            {sprintStories.find(
-                              (s) => s.id === selectedIssueForDetails.storyId,
-                            )?.title || "Unknown Story"}
+                            {(() => {
+                              const story = sprintStories.find(
+                                (s) => s.id === selectedIssueForDetails.storyId,
+                              );
+                              // Use parentStoryTitle from API if available, otherwise find in sprintStories
+                              return story?.parentStoryTitle || story?.title || "Unknown Story";
+                            })()}
                           </span>
                         </div>
                       </div>
@@ -12207,11 +13629,11 @@ const ScrumPage: React.FC = () => {
                   : story.status?.toLowerCase()?.includes("done")
                     ? "done"
                     : ("stories" as
-                        | "stories"
-                        | "todo"
-                        | "inprogress"
-                        | "qa"
-                        | "done"),
+                      | "stories"
+                      | "todo"
+                      | "inprogress"
+                      | "qa"
+                      | "done"),
 
           assignee: undefined,
         }))}
@@ -12268,13 +13690,14 @@ const ScrumPage: React.FC = () => {
                   : story.status?.toLowerCase()?.includes("done")
                     ? "done"
                     : ("stories" as
-                        | "stories"
-                        | "todo"
-                        | "inprogress"
-                        | "qa"
-                        | "done"),
+                      | "stories"
+                      | "todo"
+                      | "inprogress"
+                      | "qa"
+                      | "done"),
 
           assignee: undefined,
+          dueDate: story.dueDate || undefined,
         }))}
         defaultStatus={newTask.storyId ? "todo" : "todo"}
         defaultStoryId={newTask.storyId || undefined}
@@ -12365,6 +13788,448 @@ const ScrumPage: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Epic Template Dialog */}
+
+      <Dialog
+        open={isEpicTemplateDialogOpen}
+        onOpenChange={setIsEpicTemplateDialogOpen}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select Epic Template</DialogTitle>
+
+            <DialogDescription>
+              Choose a template to create an epic for this project.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            {[
+              {
+                id: "tpl-auth",
+                title: "User Authentication",
+                summary: "Implement secure login/registration",
+                priority: "HIGH",
+                status: "PLANNING",
+              },
+
+              {
+                id: "tpl-payments",
+                title: "Payment Gateway Integration",
+                summary: "Integrate multiple payment providers",
+                priority: "CRITICAL",
+                status: "PLANNING",
+              },
+
+              {
+                id: "tpl-dashboard",
+                title: "Analytics Dashboard",
+                summary: "Interactive charts and KPIs",
+                priority: "MEDIUM",
+                status: "PLANNING",
+              },
+            ].map((tpl) => (
+              <Card
+                key={tpl.id}
+                className="cursor-pointer hover:shadow"
+                onClick={async () => {
+                  if (!selectedProject) {
+                    toast.error("Select a project first");
+                    return;
+                  }
+
+                  try {
+                    const payload: any = {
+                      title: tpl.title,
+
+                      description: tpl.summary,
+
+                      summary: tpl.summary,
+
+                      projectId: selectedProject,
+
+                      status: tpl.status,
+
+                      priority: tpl.priority,
+
+                      owner: user?.id || "",
+
+                      isActive: true,
+                    };
+
+                    const { epicApiService } = await import(
+                      "../services/api/entities/epicApi"
+                    );
+
+                    await epicApiService.createEpic(payload);
+
+                    const list =
+                      await epicApiService.getEpicsByProject(
+                        selectedProject,
+                      );
+
+                    setProjectEpics(
+                      (list as any).data ??
+                      (Array.isArray(list) ? list : []),
+                    );
+
+                    setIsEpicTemplateDialogOpen(false);
+
+                    toast.success("Epic created from template");
+                  } catch (e: any) {
+                    console.error(e);
+
+                    toast.error(
+                      e?.message || "Failed to create epic",
+                    );
+                  }
+                }}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h4 className="font-medium">{tpl.title}</h4>
+
+                      <p className="text-sm text-muted-foreground">
+                        {tpl.summary}
+                      </p>
+                    </div>
+
+                    <Badge variant="outline" className="text-xs">
+                      {tpl.priority.toString().toLowerCase()}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Epic Dialog */}
+
+      <Dialog
+        open={isAddEpicDialogOpen}
+        onOpenChange={setIsAddEpicDialogOpen}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Epic</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div>
+              <Label>Title</Label>
+
+              <Input
+                value={newEpic.title}
+                onChange={(e) =>
+                  setNewEpic((prev) => ({
+                    ...prev,
+                    title: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div>
+              <Label>Description</Label>
+
+              <Textarea
+                value={newEpic.description}
+                onChange={(e) =>
+                  setNewEpic((prev) => ({
+                    ...prev,
+                    description: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Priority</Label>
+
+                <Select
+                  value={newEpic.priority}
+                  onValueChange={(v) =>
+                    setNewEpic((prev) => ({
+                      ...prev,
+                      priority: v as any,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    <SelectItem value="LOW">Low</SelectItem>
+
+                    <SelectItem value="MEDIUM">Medium</SelectItem>
+
+                    <SelectItem value="HIGH">High</SelectItem>
+
+                    <SelectItem value="CRITICAL">
+                      Critical
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>Status</Label>
+
+                <Select
+                  value={newEpic.status}
+                  onValueChange={(v) =>
+                    setNewEpic((prev) => ({
+                      ...prev,
+                      status: v as any,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    <SelectItem value="PLANNING">
+                      Planning
+                    </SelectItem>
+
+                    <SelectItem value="ACTIVE">Active</SelectItem>
+
+                    <SelectItem value="COMPLETED">
+                      Completed
+                    </SelectItem>
+
+                    <SelectItem value="CANCELLED">
+                      Cancelled
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsAddEpicDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              onClick={async () => {
+                if (!selectedProject) {
+                  toast.error("Select a project first");
+                  return;
+                }
+
+                if (!newEpic.title.trim()) {
+                  toast.error("Title is required");
+                  return;
+                }
+
+                try {
+                  const payload: any = {
+                    title: newEpic.title,
+
+                    description: newEpic.description,
+
+                    projectId: selectedProject,
+
+                    status: newEpic.status,
+
+                    priority: newEpic.priority,
+
+                    owner: user?.id || "",
+
+                    isActive: true,
+                  };
+
+                  const { epicApiService } = await import(
+                    "../services/api/entities/epicApi"
+                  );
+
+                  await epicApiService.createEpic(payload);
+
+                  const list =
+                    await epicApiService.getEpicsByProject(
+                      selectedProject,
+                    );
+
+                  setProjectEpics(
+                    (list as any).data ??
+                    (Array.isArray(list) ? list : []),
+                  );
+
+                  setIsAddEpicDialogOpen(false);
+
+                  setNewEpic({
+                    title: "",
+                    description: "",
+                    priority: "MEDIUM",
+                    status: "PLANNING",
+                    startDate: "",
+                    endDate: "",
+                  });
+
+                  toast.success("Epic created");
+                } catch (e: any) {
+                  console.error(e);
+
+                  toast.error(
+                    e?.message || "Failed to create epic",
+                  );
+                }
+              }}
+            >
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Sprint Dialog */}
+      {/* <CreateSprintDialog
+        open={isCreateSprintDialogOpen}
+        onOpenChange={setIsCreateSprintDialogOpen}
+        onSubmit={async (sprint) => {
+          try {
+            await createSprintMutate(sprint);
+            toast.success("Sprint created successfully");
+            if (refetchSprints) {
+              await refetchSprints();
+            }
+          } catch (error: any) {
+            console.error("Error creating sprint:", error);
+            toast.error(error?.message || "Failed to create sprint");
+          }
+        }}
+        projectId={selectedProject}
+      /> */}
+
+      {/* Team Capacity Calculator */}
+      {/* <TeamCapacityCalculator
+        open={isCapacityCalculatorOpen}
+        onOpenChange={setIsCapacityCalculatorOpen}
+        onCalculate={(capacity) => {
+          setNewSprint((prev) => ({
+            ...prev,
+            capacityHours: capacity.toFixed(0),
+          }));
+        }}
+        initialCapacity={newSprint.capacityHours ? parseInt(newSprint.capacityHours) : undefined}
+      /> */}
+
+      {/* Add Task Dialog */}
+      <AddTaskDialog
+        isOpen={isAddTaskDialogOpen}
+        onClose={() => {
+          setIsAddTaskDialogOpen(false);
+          // Reset storyId when dialog closes
+          setNewTask((prev) => ({
+            ...prev,
+            storyId: "",
+          }));
+        }}
+        projectId={selectedProject}
+        onSubmit={async (taskData) => {
+          try {
+            const storyId = taskData.storyId === 'none' ? undefined : taskData.storyId;
+            if (!storyId) {
+              toast.error("Story is required");
+              return;
+            }
+
+            // Map frontend status to backend enum format
+            const mapTaskStatus = (status: string): string => {
+              const statusUpper = status.toUpperCase();
+              switch (statusUpper) {
+                case 'TODO':
+                  return 'TO_DO';
+                case 'INPROGRESS':
+                  return 'IN_PROGRESS';
+                case 'QA':
+                case 'QA_REVIEW':
+                  return 'QA_REVIEW';
+                case 'DONE':
+                  return 'DONE';
+                case 'BLOCKED':
+                  return 'BLOCKED';
+                case 'CANCELLED':
+                  return 'CANCELLED';
+                default:
+                  return 'TO_DO'; // Default fallback
+              }
+            };
+
+            const taskPayload: any = {
+              title: taskData.title,
+              description: taskData.description,
+              storyId: storyId,
+              priority: taskData.priority.toUpperCase(),
+              assigneeId: taskData.assignee,
+              status: mapTaskStatus(taskData.status),
+              dueDate: taskData.dueDate || undefined,
+              estimatedHours: taskData.estimatedHours,
+            };
+
+            await createTaskMutate(taskPayload);
+            toast.success("Task created successfully");
+            setIsAddTaskDialogOpen(false);
+
+            // Reset storyId after successful creation
+            setNewTask((prev) => ({
+              ...prev,
+              storyId: "",
+            }));
+
+            // Refresh tasks
+            if (sprintStories.length > 0) {
+              fetchAllTasks(sprintStories, false);
+            }
+          } catch (error: any) {
+            console.error("Error creating task:", error);
+            toast.error(error?.message || "Failed to create task");
+          }
+        }}
+        stories={sprintStories.map((story) => ({
+          id: story.id,
+          title: story.title,
+          priority: (story.priority?.toLowerCase() || "medium") as
+            | "high"
+            | "medium"
+            | "low",
+          points: story.storyPoints || 0,
+          status: story.status?.toLowerCase()?.includes("backlog")
+            ? "stories"
+            : story.status?.toLowerCase()?.includes("todo")
+              ? "todo"
+              : story.status?.toLowerCase()?.includes("progress")
+                ? "inprogress"
+                : story.status?.toLowerCase()?.includes("review")
+                  ? "qa"
+                  : story.status?.toLowerCase()?.includes("done")
+                    ? "done"
+                    : ("stories" as
+                      | "stories"
+                      | "todo"
+                      | "inprogress"
+                      | "qa"
+                      | "done"),
+          assignee: undefined,
+          dueDate: story.dueDate || undefined,
+          projectId: story.projectId,
+        }))}
+        defaultStoryId={newTask.storyId || undefined}
+        projectId={selectedProject}
+        users={users}
+      />
     </DndProvider>
   );
 };

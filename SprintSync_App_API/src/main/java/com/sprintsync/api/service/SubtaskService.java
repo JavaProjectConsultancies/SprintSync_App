@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
  * @author Mayuresh G
  */
 @Service
+@SuppressWarnings("null")
 public class SubtaskService {
 
     @Autowired
@@ -401,3 +402,9 @@ public class SubtaskService {
         return Collections.emptyList();
     }
 }
+
+
+
+
+
+

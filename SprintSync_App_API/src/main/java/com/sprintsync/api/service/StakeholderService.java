@@ -15,6 +15,7 @@ import java.util.Optional;
  * @author Mayuresh G
  */
 @Service
+@SuppressWarnings("null")
 public class StakeholderService {
 
     private final StakeholderRepository stakeholderRepository;
@@ -110,3 +111,9 @@ public class StakeholderService {
         return stakeholderRepository.countByProjectId(projectId);
     }
 }
+
+
+
+
+
+

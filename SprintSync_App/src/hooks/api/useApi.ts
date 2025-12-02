@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ApiResponse, ApiError } from '../../services/api';
 
 // Generic API hook for handling async operations
@@ -11,11 +11,17 @@ export function useApi<T>(
   const [loading, setLoading] = useState(immediate);
   const [error, setError] = useState<ApiError | null>(null);
 
+  // Use useRef to store the latest apiCall to avoid stale closures
+  const apiCallRef = useRef(apiCall);
+  useEffect(() => {
+    apiCallRef.current = apiCall;
+  }, [apiCall]);
+
   const execute = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await apiCall();
+      const response = await apiCallRef.current();
       setData(response.data);
     } catch (err) {
       setError(err as ApiError);

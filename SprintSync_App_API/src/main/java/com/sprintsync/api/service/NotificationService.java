@@ -17,6 +17,7 @@ import java.util.Optional;
  * @author SprintSync
  */
 @Service
+@SuppressWarnings("null")
 public class NotificationService {
 
     @Autowired
@@ -139,4 +140,10 @@ public class NotificationService {
         notificationRepository.deleteById(notificationId);
     }
 }
+
+
+
+
+
+
 

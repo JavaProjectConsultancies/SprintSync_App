@@ -22,8 +22,14 @@ export function useUsers(params?: PaginationParams) {
 
 export function useUser(id: string) {
   return useApi(
-    () => userApiService.getUserById(id),
-    [id]
+    () => {
+      if (!id || id.trim() === '') {
+        return Promise.resolve({ data: null, status: 200, success: true, message: 'No user ID provided' } as any);
+      }
+      return userApiService.getUserById(id);
+    },
+    [id],
+    !!id && id.trim() !== '' // Only execute immediately if we have a valid ID
   );
 }
 

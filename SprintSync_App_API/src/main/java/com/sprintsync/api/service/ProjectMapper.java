@@ -15,7 +15,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +30,7 @@ import java.util.stream.Collectors;
  * Service for mapping between Project entity and ProjectDto
  */
 @Service
+@SuppressWarnings("null")
 public class ProjectMapper {
 
     private static final Logger logger = LoggerFactory.getLogger(ProjectMapper.class);
@@ -111,7 +115,8 @@ public class ProjectMapper {
 
         // Convert BigDecimal to String for frontend
         dto.setBudget(project.getBudget() != null ? project.getBudget().toString() : "0");
-        dto.setSpent(project.getSpent() != null ? project.getSpent().toString() : "0");
+        BigDecimal recalculatedSpend = calculateCompletedTaskSpend(project);
+        dto.setSpent(recalculatedSpend.toPlainString());
 
         // Get department name instead of ID
         if (project.getDepartmentId() != null) {
@@ -145,6 +150,100 @@ public class ProjectMapper {
         }
 
         return dto;
+    }
+
+    /**
+     * Recalculate project spend based on completed (Done lane) tasks.
+     * This derives the payable amount per user (actual hours * hourly rate) and sums it.
+     */
+    private BigDecimal calculateCompletedTaskSpend(Project project) {
+        if (project == null || project.getId() == null) {
+            return BigDecimal.ZERO;
+        }
+
+        try {
+            List<Object[]> timeEntryRows = taskRepository.sumTimeEntryHoursByAssigneeForProject(project.getId());
+            List<Object[]> manualRows = taskRepository.sumManualTaskHoursWithoutTimeEntries(project.getId());
+
+            if ((timeEntryRows == null || timeEntryRows.isEmpty()) &&
+                (manualRows == null || manualRows.isEmpty())) {
+                return project.getSpent() != null ? project.getSpent() : BigDecimal.ZERO;
+            }
+
+            Map<String, BigDecimal> hoursByAssignee = new HashMap<>();
+            mergeHours(rowsToStream(timeEntryRows), hoursByAssignee);
+            mergeHours(rowsToStream(manualRows), hoursByAssignee);
+
+            if (hoursByAssignee.isEmpty()) {
+                return project.getSpent() != null ? project.getSpent() : BigDecimal.ZERO;
+            }
+
+            Set<String> assigneeIds = hoursByAssignee.keySet();
+            Map<String, BigDecimal> hourlyRates = userRepository.findAllById(assigneeIds).stream()
+                .collect(Collectors.toMap(
+                    com.sprintsync.api.entity.User::getId,
+                    user -> user.getHourlyRate() != null ? user.getHourlyRate() : BigDecimal.ZERO
+                ));
+
+            BigDecimal total = BigDecimal.ZERO;
+            for (Map.Entry<String, BigDecimal> entry : hoursByAssignee.entrySet()) {
+                BigDecimal hourlyRate = hourlyRates.getOrDefault(entry.getKey(), BigDecimal.ZERO);
+                if (hourlyRate.signum() <= 0 || entry.getValue().signum() <= 0) {
+                    continue;
+                }
+                total = total.add(entry.getValue().multiply(hourlyRate));
+            }
+
+            if (total.signum() <= 0) {
+                return BigDecimal.ZERO;
+            }
+
+            return total.setScale(2, RoundingMode.HALF_UP);
+        } catch (Exception ex) {
+            logger.warn("Failed to recalculate spend for project {}: {}", project.getId(), ex.getMessage());
+            return project.getSpent() != null ? project.getSpent() : BigDecimal.ZERO;
+        }
+    }
+
+    private void mergeHours(java.util.stream.Stream<Object[]> stream, Map<String, BigDecimal> accumulator) {
+        if (stream == null) {
+            return;
+        }
+        stream.forEach(row -> {
+            if (row == null || row.length < 2) {
+                return;
+            }
+            String assigneeId = (String) row[0];
+            if (assigneeId == null) {
+                return;
+            }
+            BigDecimal hours = toBigDecimal(row[1]);
+            if (hours.signum() <= 0) {
+                return;
+            }
+            accumulator.merge(assigneeId, hours, BigDecimal::add);
+        });
+    }
+
+    private java.util.stream.Stream<Object[]> rowsToStream(List<Object[]> rows) {
+        return rows == null ? java.util.stream.Stream.empty() : rows.stream();
+    }
+
+    private BigDecimal toBigDecimal(Object value) {
+        if (value == null) {
+            return BigDecimal.ZERO;
+        }
+        if (value instanceof BigDecimal) {
+            return (BigDecimal) value;
+        }
+        if (value instanceof Number) {
+            return BigDecimal.valueOf(((Number) value).doubleValue());
+        }
+        try {
+            return new BigDecimal(value.toString());
+        } catch (NumberFormatException ex) {
+            return BigDecimal.ZERO;
+        }
     }
 
     /**
@@ -718,3 +817,9 @@ public class ProjectMapper {
     }
 
 }
+
+
+
+
+
+

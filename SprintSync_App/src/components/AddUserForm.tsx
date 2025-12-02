@@ -30,7 +30,8 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
-  IndianRupee
+  IndianRupee,
+  Calendar
 } from 'lucide-react';
 import EnhancedScrollToTopButton from './EnhancedScrollToTopButton';
 import { useCreateUser, useUpdateUser } from '../hooks/api/useUsers';
@@ -65,6 +66,8 @@ interface FormData {
   ctc: string;
   availabilityPercentage: string;
   skills: string;
+  reportingManager: string;
+  dateOfJoining: string;
   isActive: boolean;
 }
 
@@ -83,6 +86,8 @@ interface FormErrors {
   ctc?: string;
   availabilityPercentage?: string;
   skills?: string;
+  reportingManager?: string;
+  dateOfJoining?: string;
 }
 
 const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, initialData, pendingRegistrationId }) => {
@@ -101,6 +106,8 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
     ctc: '',
     availabilityPercentage: '100',
     skills: '',
+    reportingManager: '',
+    dateOfJoining: '',
     isActive: true
   });
 
@@ -120,6 +127,19 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
 
   const departments = Array.isArray(departmentsData) ? departmentsData : [];
   const domains = Array.isArray(domainsData) ? domainsData : [];
+  const maxJoiningDate = new Date().toISOString().split('T')[0];
+
+  const normalizeDateInputValue = (value?: string) => {
+    if (!value) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return value;
+    }
+    const parsed = new Date(value);
+    if (isNaN(parsed.getTime())) {
+      return '';
+    }
+    return parsed.toISOString().split('T')[0];
+  };
 
   // Reset form when dialog opens/closes
   useEffect(() => {
@@ -139,6 +159,8 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
         ctc: initialData?.ctc || '',
         availabilityPercentage: initialData?.availabilityPercentage || '100',
         skills: initialData?.skills || '',
+        reportingManager: initialData?.reportingManager || '',
+        dateOfJoining: normalizeDateInputValue(initialData?.dateOfJoining),
         isActive: initialData?.isActive !== undefined ? initialData.isActive : true
       });
       setErrors({});
@@ -259,6 +281,24 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
       newErrors.skills = 'Skills description must be less than 1000 characters';
     }
 
+    if (formData.reportingManager) {
+      const trimmed = formData.reportingManager.trim();
+      if (trimmed.length < 2) {
+        newErrors.reportingManager = 'Reporting manager name must have at least 2 characters';
+      } else if (trimmed.length > 100) {
+        newErrors.reportingManager = 'Reporting manager name must be less than 100 characters';
+      }
+    }
+
+    if (formData.dateOfJoining) {
+      const timestamp = Date.parse(formData.dateOfJoining);
+      if (isNaN(timestamp)) {
+        newErrors.dateOfJoining = 'Please select a valid date';
+      } else if (timestamp > Date.now()) {
+        newErrors.dateOfJoining = 'Date of joining cannot be in the future';
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -338,7 +378,9 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
         hourlyRate: formData.hourlyRate ? parseFloat(formData.hourlyRate) : undefined,
         ctc: formData.ctc ? parseFloat(formData.ctc) : undefined,
         availabilityPercentage: parseInt(formData.availabilityPercentage) || 100,
-        skills: formData.skills.trim() ? JSON.stringify(formData.skills.split(',').map(s => s.trim())) : undefined
+        skills: formData.skills.trim() ? JSON.stringify(formData.skills.split(',').map(s => s.trim())) : undefined,
+        reportingManager: formData.reportingManager.trim() || undefined,
+        dateOfJoining: formData.dateOfJoining || undefined
       };
 
       // If approving from pending registration
@@ -399,6 +441,8 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
         ctc: '',
         availabilityPercentage: '100',
         skills: '',
+        reportingManager: '',
+        dateOfJoining: '',
         isActive: true
       });
       setErrors({});
@@ -429,14 +473,17 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
       email: '',
       password: '',
       confirmPassword: '',
-      role: 'DEVELOPER',
+      role: 'developer',
       departmentId: 'none',
       domainId: 'none',
       avatarUrl: '',
       experience: 'E1',
       hourlyRate: '',
+      ctc: '',
       availabilityPercentage: '100',
       skills: '',
+      reportingManager: '',
+      dateOfJoining: '',
       isActive: true
     });
     setErrors({});
@@ -635,7 +682,6 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                       <SelectItem value="admin">Admin</SelectItem>
                       <SelectItem value="manager">Manager</SelectItem>
                       <SelectItem value="developer">Developer</SelectItem>
-                      <SelectItem value="qa">QA</SelectItem>
                     </SelectContent>
                   </Select>
                   {errors.role && (
@@ -736,6 +782,68 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                 </div>
               </div>
             </div>
+
+          {/* Reporting & Joining Section */}
+          <div className="space-y-3">
+            <div className="add-user-section-header flex items-center gap-2">
+              <Calendar className="add-user-section-icon text-emerald-600" />
+              <h3>Reporting & Joining</h3>
+            </div>
+
+            <div className="add-user-form-grid">
+              {/* Reporting Manager */}
+              <div className="add-user-form-field space-y-2">
+                <Label htmlFor="reportingManager" className="text-sm font-semibold text-gray-700">
+                  Reporting Manager
+                </Label>
+                <Input
+                  id="reportingManager"
+                  value={formData.reportingManager}
+                  onChange={(e) => handleInputChange('reportingManager', e.target.value)}
+                  className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
+                    errors.reportingManager ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                  }`}
+                  placeholder="Enter reporting manager name"
+                  maxLength={100}
+                />
+                {errors.reportingManager && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="w-4 h-4" />
+                    {errors.reportingManager}
+                  </p>
+                )}
+                <p className="text-xs text-gray-500">
+                  This will be stored as plain text to reference who the user reports to.
+                </p>
+              </div>
+
+              {/* Date of Joining */}
+              <div className="add-user-form-field space-y-2">
+                <Label htmlFor="dateOfJoining" className="text-sm font-semibold text-gray-700">
+                  Date of Joining
+                </Label>
+                <Input
+                  id="dateOfJoining"
+                  type="date"
+                  value={formData.dateOfJoining}
+                  onChange={(e) => handleInputChange('dateOfJoining', e.target.value)}
+                  className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
+                    errors.dateOfJoining ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                  }`}
+                  max={maxJoiningDate}
+                />
+                {errors.dateOfJoining && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="w-4 h-4" />
+                    {errors.dateOfJoining}
+                  </p>
+                )}
+                <p className="text-xs text-gray-500">
+                  Pick the onboarding date using the calendar picker; it will sync with the database.
+                </p>
+              </div>
+            </div>
+          </div>
 
             {/* Professional Details Section */}
             <div className="space-y-3">

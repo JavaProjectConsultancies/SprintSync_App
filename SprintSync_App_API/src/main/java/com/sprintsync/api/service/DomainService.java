@@ -18,6 +18,7 @@ import java.util.Optional;
  * @author Mayuresh G
  */
 @Service
+@SuppressWarnings("null")
 public class DomainService {
 
     private final DomainRepository domainRepository;
@@ -215,3 +216,9 @@ public class DomainService {
     //     return domainRepository.countByIsActive(isActive);
     // }
 }
+
+
+
+
+
+

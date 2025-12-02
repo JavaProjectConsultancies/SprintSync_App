@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -16,11 +16,16 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useProjectById } from '../hooks/api/useProjectById';
 import { useRequirements } from '../hooks/api/useRequirements';
 import { useTeamMembers } from '../hooks/api/useTeamMembers';
+import { useProjectActivities } from '../hooks/api/useActivityLogs';
 import EpicManager from '../components/EpicManager';
 import TeamManager from '../components/TeamManager';
 import { useAuth } from '../contexts/AuthContextEnhanced';
 import { attachmentApiService } from '../services/api';
+import { epicApiService } from '../services/api/entities/epicApi';
 import { toast } from 'sonner';
+import { Epic as ApiEpic } from '../types/api';
+import { Epic, EpicStatus } from '../types';
+import { subscribeToProjectBudgetUpdates } from '../utils/projectBudgetEvents';
 import { 
   ArrowLeft,
   Calendar,
@@ -69,6 +74,58 @@ interface Risk {
   owner: string;
 }
 
+// Helper function to convert API Epic to local Epic format
+const convertApiEpicToLocal = (apiEpic: ApiEpic): Epic => {
+  const mapApiStatusToLocal = (status: string): EpicStatus => {
+    switch (status) {
+      case 'PLANNING': return 'planning';
+      case 'ACTIVE': return 'in-progress';
+      case 'COMPLETED': return 'completed';
+      case 'CANCELLED': return 'cancelled';
+      default: return 'planning';
+    }
+  };
+
+  const mapApiPriorityToLocal = (priority: string): 'low' | 'medium' | 'high' | 'critical' => {
+    switch (priority) {
+      case 'LOW': return 'low';
+      case 'MEDIUM': return 'medium';
+      case 'HIGH': return 'high';
+      case 'CRITICAL': return 'critical';
+      default: return 'medium';
+    }
+  };
+
+  return {
+    id: apiEpic.id,
+    projectId: apiEpic.projectId,
+    title: apiEpic.title,
+    description: apiEpic.description || '',
+    summary: apiEpic.summary || '',
+    priority: mapApiPriorityToLocal(apiEpic.priority),
+    status: mapApiStatusToLocal(apiEpic.status),
+    assigneeId: apiEpic.assigneeId,
+    owner: apiEpic.owner,
+    startDate: apiEpic.startDate || new Date().toISOString(),
+    endDate: apiEpic.endDate || new Date().toISOString(),
+    progress: apiEpic.progress || 0,
+    storyPoints: apiEpic.storyPoints || 0,
+    completedStoryPoints: 0,
+    linkedMilestones: [],
+    linkedStories: [],
+    labels: [],
+    components: [],
+    theme: apiEpic.theme || '',
+    businessValue: apiEpic.businessValue || '',
+    acceptanceCriteria: [],
+    risks: [],
+    dependencies: [],
+    createdAt: apiEpic.createdAt,
+    updatedAt: apiEpic.updatedAt,
+    completedAt: undefined
+  };
+};
+
 const ProjectDetailsPage = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const { id } = useParams<{ id: string }>();
@@ -77,6 +134,20 @@ const ProjectDetailsPage = () => {
   
   // Fetch real project data from API
   const { project, loading, error, refetch } = useProjectById(id || '');
+
+  useEffect(() => {
+    if (!id) {
+      return;
+    }
+    const unsubscribe = subscribeToProjectBudgetUpdates(({ projectId }) => {
+      if (!projectId || projectId === id) {
+        refetch();
+      }
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [id, refetch]);
   
   // Fetch requirements for the project
   const { requirements, createRequirement, loading: requirementsLoading } = useRequirements(id || '');
@@ -90,10 +161,19 @@ const ProjectDetailsPage = () => {
     refreshTeamMembers 
   } = useTeamMembers(id || '');
   
+  // Fetch all project-related activity logs (includes project creation and all activities)
+  const { 
+    activityLogs, 
+    loading: activityLogsLoading, 
+    error: activityLogsError,
+    refetch: refetchActivities
+  } = useProjectActivities(id || '', 30); // Last 30 days
+  
   // Local state for epics to handle real-time updates
   const [localEpics, setLocalEpics] = useState<any[]>([]);
   const [localRequirements, setLocalRequirements] = useState<any[]>([]);
   const [isAddRequirementDialogOpen, setIsAddRequirementDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<'requirement' | 'attachment'>('attachment');
   
   // Team management state
   const [isTeamManagerOpen, setIsTeamManagerOpen] = useState(false);
@@ -103,6 +183,8 @@ const ProjectDetailsPage = () => {
   const [attachments, setAttachments] = useState<any[]>([]);
   const [isLoadingAttachments, setIsLoadingAttachments] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [attachmentUrl, setAttachmentUrl] = useState<string>('');
+  const [attachmentUrlName, setAttachmentUrlName] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
   
   // Requirement form state
@@ -114,12 +196,51 @@ const ProjectDetailsPage = () => {
     acceptanceCriteria: ''
   });
   
-  // Update local epics when project data changes
-  useEffect(() => {
-    if (project?.epics) {
-      setLocalEpics(project.epics);
+  // Function to fetch epics from API
+  const fetchEpicsFromApi = useCallback(async () => {
+    if (!id) return;
+    try {
+      const response = await epicApiService.getEpicsByProject(id);
+      // Handle different response structures
+      let epicsData: ApiEpic[] = [];
+      if (response.data) {
+        if (Array.isArray(response.data)) {
+          epicsData = response.data;
+        } else if (Array.isArray((response.data as any).content)) {
+          epicsData = (response.data as any).content;
+        } else if (Array.isArray((response.data as any).data)) {
+          epicsData = (response.data as any).data;
+        }
+      }
+      
+      if (epicsData.length > 0) {
+        const convertedEpics = epicsData.map(convertApiEpicToLocal);
+        // Deduplicate epics by ID to prevent duplicates
+        const uniqueEpics = convertedEpics.reduce((acc, epic) => {
+          if (!acc.find(e => e.id === epic.id)) {
+            acc.push(epic);
+          }
+          return acc;
+        }, [] as Epic[]);
+        setLocalEpics(uniqueEpics);
+      } else {
+        // If no epics returned, only clear if we don't have any local epics
+        // This prevents clearing newly added epics before API is updated
+        setLocalEpics(prev => prev.length === 0 ? [] : prev);
+      }
+    } catch (error) {
+      console.error('Error fetching epics:', error);
+      // Don't show error toast on every refresh, just log it
+      // toast.error('Failed to refresh epics');
     }
-  }, [project?.epics]);
+  }, [id]);
+
+  // Fetch epics on mount and when project ID changes
+  useEffect(() => {
+    if (id) {
+      fetchEpicsFromApi();
+    }
+  }, [id, fetchEpicsFromApi]); // Fetch epics directly from API, not from project.epics to avoid duplicates
 
   // Update local requirements when API data changes
   useEffect(() => {
@@ -175,38 +296,62 @@ const ProjectDetailsPage = () => {
     }
   };
 
-  // Handle file upload
+  // Validate URL format
+  const isValidUrl = (urlString: string): boolean => {
+    try {
+      const url = new URL(urlString);
+      return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
+
+  // Handle file upload or URL submission
   const handleUploadFile = async () => {
-    if (!selectedFile || !id || !user) {
-      toast.error('Please select a file');
+    if (!id || !user) {
+      toast.error('Project ID or user not found');
+      return;
+    }
+
+    // Check if uploading a file or URL
+    const isUrlUpload = attachmentUrl.trim().length > 0;
+    const isFileUpload = selectedFile !== null;
+
+    if (!isFileUpload && !isUrlUpload) {
+      toast.error('Please select a file or enter a URL');
       return;
     }
 
     try {
       setIsUploading(true);
 
-      // Read file as base64 for now (in production, use proper file storage)
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64Data = reader.result as string;
-        
-        // Create attachment record
+      if (isUrlUpload) {
+        // Validate URL
+        if (!isValidUrl(attachmentUrl.trim())) {
+          toast.error('Please enter a valid URL (must start with http:// or https://)');
+          setIsUploading(false);
+          return;
+        }
+
+        // Create URL attachment record
         const attachmentData = {
           uploadedBy: user.id,
           entityType: 'project',
           entityId: id,
-          fileName: selectedFile.name,
-          fileSize: selectedFile.size,
-          fileType: selectedFile.type,
-          fileUrl: base64Data, // Store as base64, in production use proper storage URL
+          fileName: attachmentUrlName.trim() || attachmentUrl.trim(),
+          fileSize: undefined,
+          fileType: 'url',
+          fileUrl: attachmentUrl.trim(),
+          attachmentType: 'url' as const,
           isPublic: false
         };
 
         const response = await attachmentApiService.createAttachment(attachmentData);
         
         if (response.success) {
-          toast.success('File uploaded successfully');
-          setSelectedFile(null);
+          toast.success('URL added successfully');
+          setAttachmentUrl('');
+          setAttachmentUrlName('');
           
           // Reload attachments
           const refreshResponse = await attachmentApiService.getAttachmentsByEntity('project', id);
@@ -214,14 +359,48 @@ const ProjectDetailsPage = () => {
             setAttachments(refreshResponse.data);
           }
         } else {
-          toast.error('Failed to upload file');
+          toast.error('Failed to add URL');
         }
-      };
-      
-      reader.readAsDataURL(selectedFile);
+      } else if (isFileUpload && selectedFile) {
+        // Read file as base64 for now (in production, use proper file storage)
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const base64Data = reader.result as string;
+          
+          // Create file attachment record
+          const attachmentData = {
+            uploadedBy: user.id,
+            entityType: 'project',
+            entityId: id,
+            fileName: selectedFile.name,
+            fileSize: selectedFile.size,
+            fileType: selectedFile.type,
+            fileUrl: base64Data, // Store as base64, in production use proper storage URL
+            attachmentType: 'file' as const,
+            isPublic: false
+          };
+
+          const response = await attachmentApiService.createAttachment(attachmentData);
+          
+          if (response.success) {
+            toast.success('File uploaded successfully');
+            setSelectedFile(null);
+            
+            // Reload attachments
+            const refreshResponse = await attachmentApiService.getAttachmentsByEntity('project', id);
+            if (refreshResponse.data) {
+              setAttachments(refreshResponse.data);
+            }
+          } else {
+            toast.error('Failed to upload file');
+          }
+        };
+        
+        reader.readAsDataURL(selectedFile);
+      }
     } catch (error) {
-      console.error('Error uploading file:', error);
-      toast.error('Failed to upload file. Please try again.');
+      console.error('Error uploading attachment:', error);
+      toast.error('Failed to upload attachment. Please try again.');
     } finally {
       setIsUploading(false);
     }
@@ -260,6 +439,143 @@ const ProjectDetailsPage = () => {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
+
+  // Format time ago
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) return 'just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
+    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 604800)} weeks ago`;
+    return date.toLocaleDateString();
+  };
+
+  // Format activity message with detailed information
+  const formatActivityMessage = (activityLog: any) => {
+    const action = (activityLog.action || '').toLowerCase();
+    const description = activityLog.description || '';
+    const entityType = activityLog.entityType || '';
+    
+    // If description exists, use it
+    if (description) {
+      return description;
+    }
+    
+    // Format action to readable text
+    const formattedAction = action
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (l: string) => l.toUpperCase());
+    
+    // Parse JSON values
+    let newVals: any = null;
+    let oldVals: any = null;
+    try {
+      if (activityLog.newValues) {
+        newVals = typeof activityLog.newValues === 'string' 
+          ? JSON.parse(activityLog.newValues) 
+          : activityLog.newValues;
+      }
+      if (activityLog.oldValues) {
+        oldVals = typeof activityLog.oldValues === 'string' 
+          ? JSON.parse(activityLog.oldValues) 
+          : activityLog.oldValues;
+      }
+    } catch (e) {
+      // Ignore parsing errors
+    }
+    
+    // Project creation
+    if (entityType === 'project' && action === 'created') {
+      const projectName = newVals?.name || newVals?.title || 'the project';
+      return `created project "${projectName}"`;
+    }
+    
+    // Story creation
+    if (entityType === 'story' && action === 'created') {
+      const storyTitle = newVals?.title || newVals?.name || 'a story';
+      return `created story "${storyTitle}"`;
+    }
+    
+    // Task creation
+    if (entityType === 'task' && action === 'created') {
+      const taskTitle = newVals?.title || newVals?.name || 'a task';
+      return `created task "${taskTitle}"`;
+    }
+    
+    // Epic creation
+    if (entityType === 'epic' && action === 'created') {
+      const epicTitle = newVals?.title || newVals?.name || 'an epic';
+      return `created epic "${epicTitle}"`;
+    }
+    
+    // Assignment changes
+    if (action.includes('assign') || action === 'assigned') {
+      const oldAssignee = oldVals?.assigneeId || oldVals?.assignedTo || oldVals?.assignee;
+      const newAssignee = newVals?.assigneeId || newVals?.assignedTo || newVals?.assignee;
+      const entityName = newVals?.title || newVals?.name || oldVals?.title || oldVals?.name || entityType;
+      
+      if (newAssignee && !oldAssignee) {
+        return `assigned "${entityName}" to user ${newAssignee}`;
+      } else if (newAssignee && oldAssignee && newAssignee !== oldAssignee) {
+        return `reassigned "${entityName}" from user ${oldAssignee} to user ${newAssignee}`;
+      } else if (oldAssignee && !newAssignee) {
+        return `unassigned "${entityName}" from user ${oldAssignee}`;
+      }
+    }
+    
+    // Team member addition
+    if (entityType === 'project_team_member' && (action === 'created' || action === 'added')) {
+      const userName = newVals?.userName || newVals?.name || newVals?.userId || 'a team member';
+      const role = newVals?.role || '';
+      if (role) {
+        return `added ${userName} as ${role} to the project`;
+      }
+      return `added ${userName} to the project team`;
+    }
+    
+    // Status changes
+    if (action.includes('status') || (oldVals?.status && newVals?.status && oldVals.status !== newVals.status)) {
+      const entityName = newVals?.title || newVals?.name || oldVals?.title || oldVals?.name || entityType;
+      const oldStatus = oldVals?.status || '';
+      const newStatus = newVals?.status || '';
+      if (oldStatus && newStatus) {
+        return `changed status of "${entityName}" from ${oldStatus} to ${newStatus}`;
+      } else if (newStatus) {
+        return `set status of "${entityName}" to ${newStatus}`;
+      }
+    }
+    
+    // Priority changes
+    if (action.includes('priority') || (oldVals?.priority && newVals?.priority && oldVals.priority !== newVals.priority)) {
+      const entityName = newVals?.title || newVals?.name || oldVals?.title || oldVals?.name || entityType;
+      const oldPriority = oldVals?.priority || '';
+      const newPriority = newVals?.priority || '';
+      if (oldPriority && newPriority) {
+        return `changed priority of "${entityName}" from ${oldPriority} to ${newPriority}`;
+      }
+    }
+    
+    // General updates
+    if (action === 'updated' || action === 'update') {
+      const entityName = newVals?.title || newVals?.name || oldVals?.title || oldVals?.name || entityType;
+      return `updated ${entityType} "${entityName}"`;
+    }
+    
+    // Try to extract entity name
+    const entityName = newVals?.title || newVals?.name || oldVals?.title || oldVals?.name || '';
+    
+    if (entityName) {
+      return `${formattedAction} "${entityName}"`;
+    } else if (entityType && entityType !== 'project') {
+      return `${formattedAction} ${entityType}`;
+    }
+    
+    return formattedAction;
   };
 
   // Loading state
@@ -592,6 +908,7 @@ const ProjectDetailsPage = () => {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="epics">Epics</TabsTrigger>
           <TabsTrigger value="requirements">Requirements</TabsTrigger>
+          <TabsTrigger value="attachments">Attachments</TabsTrigger>
           <TabsTrigger value="milestones">Milestones</TabsTrigger>
           <TabsTrigger value="team">Team</TabsTrigger>
           <TabsTrigger value="stakeholders">Stakeholders</TabsTrigger>
@@ -768,29 +1085,47 @@ const ProjectDetailsPage = () => {
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-64">
-                <div className="space-y-4">
-                  {[
-                    { user: 'Priya Mehta', action: 'completed', target: 'User Authentication API', time: '2 hours ago' },
-                    { user: 'Sneha Patel', action: 'updated', target: 'Product Listing Design', time: '4 hours ago' },
-                    { user: 'Aman Singh', action: 'reported bug in', target: 'Shopping Cart Component', time: '6 hours ago' },
-                    { user: 'Rohit Kumar', action: 'started working on', target: 'Database Optimization', time: '1 day ago' },
-                    { user: 'Ritu Sharma', action: 'deployed', target: 'Staging Environment', time: '1 day ago' }
-                  ].map((activity, index) => (
-                    <div key={index} className="flex items-start space-x-3">
-                      <Avatar className="w-6 h-6">
-                        <AvatarFallback className="text-xs bg-gradient-to-br from-green-100 to-cyan-100">
-                          {activity.user.split(' ').map(n => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 text-sm">
-                        <span className="font-medium">{activity.user}</span>
-                        <span className="mx-1">{activity.action}</span>
-                        <span className="text-blue-600">{activity.target}</span>
-                        <div className="text-xs text-muted-foreground mt-1">{activity.time}</div>
-                      </div>
+                {activityLogsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                  </div>
+                ) : activityLogsError ? (
+                  <div className="flex items-center justify-center py-8 text-red-500 text-sm">
+                    <p>Failed to load activity logs</p>
+                  </div>
+                ) : !activityLogs || activityLogs.length === 0 ? (
+                  <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
+                    <div className="text-center">
+                      <p>No recent activity</p>
+                      <p className="text-xs mt-1">Activity logs will appear here when actions are performed on this project</p>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {activityLogs.map((activityLog) => {
+                      const userName = activityLog.userId || 'Unknown User';
+                      const userInitials = userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
+                      const activityMessage = formatActivityMessage(activityLog);
+                      
+                      return (
+                        <div key={activityLog.id} className="flex items-start space-x-3">
+                          <Avatar className="w-6 h-6">
+                            <AvatarFallback className="text-xs bg-gradient-to-br from-green-100 to-cyan-100">
+                              {userInitials}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 text-sm">
+                            <span className="font-medium">{userName}</span>
+                            <span className="mx-1 text-muted-foreground">{activityMessage}</span>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {formatTimeAgo(activityLog.createdAt)}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </ScrollArea>
             </CardContent>
           </Card>
@@ -805,7 +1140,7 @@ const ProjectDetailsPage = () => {
               </div>
               <div className="text-right">
                 <div className="text-2xl font-bold text-orange-600">
-                  {project.epics?.length || 0}
+                  {localEpics.length || 0}
                 </div>
                 <div className="text-sm text-orange-500">Total Epics</div>
               </div>
@@ -815,26 +1150,45 @@ const ProjectDetailsPage = () => {
             epics={localEpics}
             projectId={id || ''}
             currentUserId={user?.id || ''}
-            onAddEpic={(epic) => {
+            onAddEpic={async (epic) => {
               console.log('Adding epic:', epic);
               // Add the new epic to local state immediately for real-time update
-              setLocalEpics(prev => [...prev, epic]);
-              // Optionally refresh the full project data from API
-              setTimeout(() => refetch(), 1000);
+              setLocalEpics(prev => {
+                // Check if epic already exists to avoid duplicates
+                const exists = prev.some(e => e.id === epic.id);
+                if (exists) {
+                  return prev; // Don't add duplicate
+                }
+                return [...prev, epic];
+              });
+              // Refresh activities to show the new epic creation
+              setTimeout(() => {
+                refetch();
+                refetchActivities();
+                fetchEpicsFromApi();
+              }, 500);
             }}
-            onUpdateEpic={(epic) => {
+            onUpdateEpic={async (epic) => {
               console.log('Updating epic:', epic);
               // Update the epic in local state
               setLocalEpics(prev => prev.map(e => e.id === epic.id ? epic : e));
-              // Optionally refresh the full project data from API
-              setTimeout(() => refetch(), 1000);
+              // Refresh activities to show the epic update
+              setTimeout(() => {
+                refetch();
+                refetchActivities();
+                fetchEpicsFromApi();
+              }, 500);
             }}
-            onDeleteEpic={(epicId) => {
+            onDeleteEpic={async (epicId) => {
               console.log('Deleting epic:', epicId);
-              // Remove the epic from local state
+              // Remove the epic from local state immediately for real-time update
               setLocalEpics(prev => prev.filter(e => e.id !== epicId));
-              // Optionally refresh the full project data from API
-              setTimeout(() => refetch(), 1000);
+              // Refresh activities to show the epic deletion
+              setTimeout(() => {
+                refetch();
+                refetchActivities();
+                fetchEpicsFromApi();
+              }, 500);
             }}
           />
         </TabsContent>
@@ -843,19 +1197,135 @@ const ProjectDetailsPage = () => {
           <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-6 border border-blue-200 mb-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-xl font-semibold text-blue-800">Project Attachments</h3>
-                <p className="text-blue-600 mt-1">Upload and manage project files</p>
+                <h3 className="text-xl font-semibold text-blue-800">Project Requirements</h3>
+                <p className="text-blue-600 mt-1">Manage functional and non-functional requirements for this project</p>
               </div>
               <div className="flex items-center space-x-4">
                 <div className="text-right">
-                  <div className="text-2xl font-bold text-blue-600">{attachments?.length || 0}</div>
-                  <div className="text-sm text-blue-500">Total Attachments</div>
+                  <div className="text-2xl font-bold text-blue-600">{localRequirements?.length || 0}</div>
+                  <div className="text-sm text-blue-500">Total Requirements</div>
                 </div>
                 <Button 
                   variant="outline" 
                   size="sm" 
                   className="bg-white hover:bg-blue-50"
-                  onClick={() => setIsAddRequirementDialogOpen(true)}
+                  onClick={() => {
+                    setDialogMode('requirement');
+                    setRequirementForm({
+                      title: '',
+                      description: '',
+                      priority: 'medium',
+                      type: 'functional',
+                      acceptanceCriteria: ''
+                    });
+                    setIsAddRequirementDialogOpen(true);
+                  }}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Requirement
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {requirementsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Loading requirements...</p>
+              </div>
+            </div>
+          ) : localRequirements.length === 0 ? (
+            <Card>
+              <CardContent className="py-12">
+                <div className="text-center">
+                  <Target className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-muted-foreground">No requirements defined yet</p>
+                  <p className="text-sm text-muted-foreground mt-2">Add your first requirement to get started</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {localRequirements.map((requirement: any) => (
+                <Card key={requirement.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <h4 className="font-medium text-sm">{requirement.title}</h4>
+                          <Badge variant="outline" className={getPriorityColor(requirement.priority || 'medium')}>
+                            {requirement.priority?.toUpperCase() || 'MEDIUM'}
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            {requirement.type || 'functional'}
+                          </Badge>
+                        </div>
+                        {requirement.description && (
+                          <p className="text-sm text-muted-foreground">{requirement.description}</p>
+                        )}
+                        {requirement.acceptanceCriteria && (
+                          <div className="mt-2">
+                            <p className="text-xs font-medium text-muted-foreground mb-1">Acceptance Criteria:</p>
+                            <p className="text-sm">{requirement.acceptanceCriteria}</p>
+                          </div>
+                        )}
+                        <div className="flex items-center space-x-4 text-xs text-muted-foreground mt-2">
+                          {requirement.status && (
+                            <Badge variant="outline" className={getStatusColor(requirement.status)}>
+                              {requirement.status}
+                            </Badge>
+                          )}
+                          {requirement.createdAt && (
+                            <span>Created: {formatDate(requirement.createdAt)}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2 ml-4">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0"
+                          onClick={() => {
+                            // TODO: Implement edit requirement
+                            toast.info('Edit requirement functionality coming soon');
+                          }}
+                          title="Edit requirement"
+                        >
+                          <Settings className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="attachments" className="space-y-6">
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-6 border border-green-200 mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-semibold text-green-800">Project Attachments</h3>
+                <p className="text-green-600 mt-1">Upload files and add URLs/links to this project</p>
+              </div>
+              <div className="flex items-center space-x-4">
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-green-600">{attachments?.length || 0}</div>
+                  <div className="text-sm text-green-500">Total Attachments</div>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="bg-white hover:bg-green-50"
+                  onClick={() => {
+                    setDialogMode('attachment');
+                    setSelectedFile(null);
+                    setAttachmentUrl('');
+                    setAttachmentUrlName('');
+                    setIsAddRequirementDialogOpen(true);
+                  }}
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Add Attachment
@@ -867,7 +1337,7 @@ const ProjectDetailsPage = () => {
           {isLoadingAttachments ? (
             <div className="flex items-center justify-center py-12">
               <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-4"></div>
                 <p className="text-muted-foreground">Loading attachments...</p>
               </div>
             </div>
@@ -883,52 +1353,69 @@ const ProjectDetailsPage = () => {
             </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {attachments.map((attachment: any) => (
-                <Card key={attachment.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3 flex-1 min-w-0">
-                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <FileText className="w-5 h-5 text-blue-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate" title={attachment.fileName}>
-                            {attachment.fileName}
-                          </p>
-                          {attachment.fileSize && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {formatFileSize(attachment.fileSize)}
+              {attachments.map((attachment: any) => {
+                const isUrl = attachment.attachmentType === 'url' || (!attachment.attachmentType && attachment.fileType === 'url');
+                return (
+                  <Card key={attachment.id} className="hover:shadow-md transition-shadow">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                            isUrl ? 'bg-green-100' : 'bg-blue-100'
+                          }`}>
+                            {isUrl ? (
+                              <Link className="w-5 h-5 text-green-600" />
+                            ) : (
+                              <FileText className="w-5 h-5 text-blue-600" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate" title={attachment.fileName}>
+                              {attachment.fileName}
                             </p>
-                          )}
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {new Date(attachment.createdAt).toLocaleDateString()}
-                          </p>
+                            {isUrl ? (
+                              <p className="text-xs text-muted-foreground mt-1 break-all line-clamp-2" title={attachment.fileUrl}>
+                                {attachment.fileUrl}
+                              </p>
+                            ) : attachment.fileSize ? (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {formatFileSize(attachment.fileSize)}
+                              </p>
+                            ) : null}
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {new Date(attachment.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => window.open(attachment.fileUrl, '_blank')}
+                            title={isUrl ? "Open link" : "View file"}
+                          >
+                            {isUrl ? (
+                              <Link className="w-4 h-4" />
+                            ) : (
+                              <Eye className="w-4 h-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleDeleteFile(attachment.id)}
+                            title="Delete attachment"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex flex-col gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0"
-                          onClick={() => window.open(attachment.fileUrl, '_blank')}
-                          title="View file"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => handleDeleteFile(attachment.id)}
-                          title="Delete file"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>
@@ -1393,66 +1880,258 @@ const ProjectDetailsPage = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Add Attachment Dialog */}
+      {/* Add Requirement/Attachment Dialog */}
       <Dialog open={isAddRequirementDialogOpen} onOpenChange={setIsAddRequirementDialogOpen}>
         <DialogContent 
-          className="max-w-[90vw] w-[90vw] h-[90vh] max-h-[90vh] flex flex-col"
-          style={{ width: '90vw', height: '90vh', maxWidth: '90vw', maxHeight: '90vh' }}
+          className={`max-w-[90vw] w-[90vw] ${dialogMode === 'attachment' ? 'h-[90vh] max-h-[90vh]' : 'max-h-[80vh]'} flex flex-col`}
+          style={{ width: '90vw', maxWidth: '90vw', ...(dialogMode === 'attachment' ? { height: '90vh', maxHeight: '90vh' } : { maxHeight: '80vh' }) }}
         >
           <DialogHeader>
-            <DialogTitle className="text-xl">Upload Attachment</DialogTitle>
+            <DialogTitle className="text-xl">
+              {dialogMode === 'requirement' ? 'Add Requirement' : 'Add Attachment'}
+            </DialogTitle>
             <DialogDescription className="text-base">
-              Upload files to attach to this project. All file types are supported.
+              {dialogMode === 'requirement' 
+                ? 'Create a new functional or non-functional requirement for this project.'
+                : 'Upload files or add URLs to attach to this project. All file types are supported.'}
             </DialogDescription>
           </DialogHeader>
           
-          <div className="flex-1 space-y-4 overflow-y-auto">
-            <div className="space-y-2">
-              <Label htmlFor="file-upload">Select File</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="file-upload"
-                  type="file"
-                  onChange={handleFileChange}
-                  className="cursor-pointer"
-                />
-              </div>
-              {selectedFile && (
-                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-blue-600" />
-                      <div>
-                        <p className="text-sm font-medium">{selectedFile.name}</p>
-                        <p className="text-xs text-muted-foreground">{formatFileSize(selectedFile.size)}</p>
-                      </div>
-                    </div>
+          <div className="flex-1 space-y-6 overflow-y-auto">
+            {dialogMode === 'requirement' ? (
+              /* Requirement Form */
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="requirement-title">Title *</Label>
+                  <Input
+                    id="requirement-title"
+                    placeholder="Enter requirement title"
+                    value={requirementForm.title}
+                    onChange={(e) => setRequirementForm(prev => ({ ...prev, title: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="requirement-description">Description</Label>
+                  <Textarea
+                    id="requirement-description"
+                    placeholder="Enter requirement description"
+                    value={requirementForm.description}
+                    onChange={(e) => setRequirementForm(prev => ({ ...prev, description: e.target.value }))}
+                    rows={4}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="requirement-type">Type</Label>
+                    <Select
+                      value={requirementForm.type}
+                      onValueChange={(value) => setRequirementForm(prev => ({ ...prev, type: value as any }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="functional">Functional</SelectItem>
+                        <SelectItem value="non-functional">Non-Functional</SelectItem>
+                        <SelectItem value="technical">Technical</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="requirement-priority">Priority</Label>
+                    <Select
+                      value={requirementForm.priority}
+                      onValueChange={(value) => setRequirementForm(prev => ({ ...prev, priority: value as any }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="low">Low</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-              )}
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="requirement-acceptance">Acceptance Criteria</Label>
+                  <Textarea
+                    id="requirement-acceptance"
+                    placeholder="Enter acceptance criteria"
+                    value={requirementForm.acceptanceCriteria}
+                    onChange={(e) => setRequirementForm(prev => ({ ...prev, acceptanceCriteria: e.target.value }))}
+                    rows={3}
+                  />
+                </div>
+              </div>
+            ) : (
+              /* Attachment Form */
+              <>
+                {/* File Upload Section */}
+                <div className="space-y-2">
+                  <Label htmlFor="file-upload">Upload File</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="file-upload"
+                      type="file"
+                      onChange={handleFileChange}
+                      className="cursor-pointer"
+                    />
+                  </div>
+                  {selectedFile && (
+                    <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-blue-600" />
+                          <div>
+                            <p className="text-sm font-medium">{selectedFile.name}</p>
+                            <p className="text-xs text-muted-foreground">{formatFileSize(selectedFile.size)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Separator */}
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">Or</span>
+                  </div>
+                </div>
+
+                {/* URL Input Section */}
+                <div className="space-y-2">
+                  <Label htmlFor="url-input">Add URL/Link</Label>
+                  <div className="space-y-2">
+                    <Input
+                      id="url-input"
+                      type="url"
+                      placeholder="https://example.com/document.pdf"
+                      value={attachmentUrl}
+                      onChange={(e) => setAttachmentUrl(e.target.value)}
+                      className="w-full"
+                    />
+                    <Input
+                      id="url-name-input"
+                      type="text"
+                      placeholder="Link name (optional)"
+                      value={attachmentUrlName}
+                      onChange={(e) => setAttachmentUrlName(e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+                  {attachmentUrl && (
+                    <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                      <div className="flex items-center gap-2">
+                        <Link className="w-4 h-4 text-green-600" />
+                        <div>
+                          <p className="text-sm font-medium">{attachmentUrlName || attachmentUrl}</p>
+                          <p className="text-xs text-muted-foreground break-all">{attachmentUrl}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
           
           <DialogFooter className="flex-shrink-0">
             <Button variant="outline" onClick={() => {
               setIsAddRequirementDialogOpen(false);
               setSelectedFile(null);
+              setAttachmentUrl('');
+              setAttachmentUrlName('');
+              setRequirementForm({
+                title: '',
+                description: '',
+                priority: 'medium',
+                type: 'functional',
+                acceptanceCriteria: ''
+              });
             }}>
               Cancel
             </Button>
-            <Button onClick={handleUploadFile} disabled={!selectedFile || isUploading}>
-              {isUploading ? (
-                <>
-                  <Upload className="w-4 h-4 mr-2 animate-pulse" />
-                  Uploading...
-                </>
-              ) : (
-                <>
-                  <Upload className="w-4 h-4 mr-2" />
-                  Upload File
-                </>
-              )}
-            </Button>
+            {dialogMode === 'requirement' ? (
+              <Button 
+                onClick={async () => {
+                  if (!requirementForm.title.trim()) {
+                    toast.error('Please enter a requirement title');
+                    return;
+                  }
+                  if (!id) {
+                    toast.error('Project ID not found');
+                    return;
+                  }
+                  try {
+                    const newRequirement = await createRequirement({
+                      projectId: id,
+                      title: requirementForm.title,
+                      description: requirementForm.description || undefined,
+                      type: requirementForm.type.toUpperCase() as any,
+                      priority: requirementForm.priority.toUpperCase() as any,
+                      acceptanceCriteria: requirementForm.acceptanceCriteria || undefined
+                    });
+                    if (newRequirement) {
+                      toast.success('Requirement created successfully');
+                      setLocalRequirements(prev => [...prev, newRequirement]);
+                      setIsAddRequirementDialogOpen(false);
+                      setRequirementForm({
+                        title: '',
+                        description: '',
+                        priority: 'medium',
+                        type: 'functional',
+                        acceptanceCriteria: ''
+                      });
+                    }
+                  } catch (error) {
+                    console.error('Error creating requirement:', error);
+                    toast.error('Failed to create requirement');
+                  }
+                }}
+                disabled={!requirementForm.title.trim() || requirementsLoading}
+              >
+                {requirementsLoading ? (
+                  <>
+                    <Plus className="w-4 h-4 mr-2 animate-pulse" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create Requirement
+                  </>
+                )}
+              </Button>
+            ) : (
+              <Button onClick={handleUploadFile} disabled={(!selectedFile && !attachmentUrl.trim()) || isUploading}>
+                {isUploading ? (
+                  <>
+                    <Upload className="w-4 h-4 mr-2 animate-pulse" />
+                    {selectedFile ? 'Uploading...' : 'Adding...'}
+                  </>
+                ) : (
+                  <>
+                    {selectedFile ? (
+                      <>
+                        <Upload className="w-4 h-4 mr-2" />
+                        Upload File
+                      </>
+                    ) : (
+                      <>
+                        <Link className="w-4 h-4 mr-2" />
+                        Add URL
+                      </>
+                    )}
+                  </>
+                )}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

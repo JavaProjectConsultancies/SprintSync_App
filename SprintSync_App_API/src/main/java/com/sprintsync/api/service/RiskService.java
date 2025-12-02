@@ -16,6 +16,7 @@ import java.util.Optional;
  * @author Mayuresh G
  */
 @Service
+@SuppressWarnings("null")
 public class RiskService {
 
     private final RiskRepository riskRepository;
@@ -135,3 +136,9 @@ public class RiskService {
         return riskRepository.countByProjectIdAndStatus(projectId, statusEnum);
     }
 }
+
+
+
+
+
+
