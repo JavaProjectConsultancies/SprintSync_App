@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+// TypeScript: explicit types for all function parameters below
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -69,6 +70,7 @@ import { useAuth } from '../contexts/AuthContextEnhanced';
 import { useProjects, useUsers, useDepartments, useDomains, useEpics, useReleases, useSprints, useStories, useTasks } from '../hooks/api';
 import { apiClient } from '../services/api/client';
 import { projectApiService } from '../services/api/entities/projectApi';
+import { sprintApiService } from '../services/api/entities/sprintApi';
 import { attachmentApiService } from '../services/api';
 import { toast } from 'sonner';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -598,10 +600,10 @@ const ProjectsPage: React.FC = () => {
     ...project,
     teamMembers: Array.isArray((project as any).teamMembers) ? (project as any).teamMembers : [],
     // Normalize API fields to local format
-    progress: project.progressPercentage ?? 0,
-    completedSprints: 0, // TODO: Add sprint tracking
-    sprints: 0, // TODO: Add sprint tracking
-    department: project.departmentId ?? ''
+    progress: (project as any).progressPercentage ?? (project as any).progress ?? 0,
+    completedSprints: (project as any).completedSprints ?? 0,
+    sprints: (project as any).totalSprints ?? 0,
+    department: (project as any).departmentId ?? (project as any).department ?? ''
   }));
 
   const selectedProjectId = selectedProject?.id;
@@ -698,7 +700,7 @@ const ProjectsPage: React.FC = () => {
   const handleTemplateChange = (templateId: string) => {
     const template = projectTemplates.find(t => t.id === templateId);
     if (template) {
-      setNewProject(prev => ({
+  setNewProject((prev: typeof newProject) => ({
         ...prev,
         template: templateId,
         projectType: templateId,
@@ -747,8 +749,8 @@ const ProjectsPage: React.FC = () => {
       console.log('Team Lead Selection Debug:', {
         teamLead: newProject.teamLead,
         teamLeadType: typeof newProject.teamLead,
-        selectedUser: apiUsers?.find(u => u.id === newProject.teamLead),
-        allUsers: apiUsers?.map(u => ({ id: u.id, name: u.name, role: u.role }))
+  selectedUser: apiUsers?.find((u: any) => u.id === newProject.teamLead),
+  allUsers: apiUsers?.map((u: any) => ({ id: u.id, name: u.name, role: u.role }))
       });
       
       // Validate that team lead is selected and exists
@@ -759,7 +761,7 @@ const ProjectsPage: React.FC = () => {
       }
       
       // Verify the selected team lead exists in the users list
-      const selectedTeamLeadUser = apiUsers?.find(u => u.id === newProject.teamLead);
+  const selectedTeamLeadUser = apiUsers?.find((u: any) => u.id === newProject.teamLead);
       if (!selectedTeamLeadUser) {
         console.error('Selected team lead not found in users list:', newProject.teamLead);
         alert(`Error: Selected team lead (${newProject.teamLead}) not found. Please select a valid team lead.`);
@@ -787,7 +789,7 @@ const ProjectsPage: React.FC = () => {
         spent: '0',
         
         // Requirements
-        requirements: newProject.requirements.map(req => {
+    requirements: newProject.requirements.map((req: any) => {
           // Normalize requirement type: backend expects "functional", "non-functional", "technical"
           let reqType = req.type?.toLowerCase() || 'functional';
           // Convert common variations to backend format
@@ -826,7 +828,7 @@ const ProjectsPage: React.FC = () => {
         }),
 
         // Risks
-        risks: newProject.risks.map(risk => ({
+    risks: newProject.risks.map((risk: any) => ({
           title: risk.title,
           description: risk.description || '',
           probability: risk.probability?.toLowerCase(),
@@ -837,7 +839,7 @@ const ProjectsPage: React.FC = () => {
         })),
 
         // Stakeholders
-        stakeholders: newProject.stakeholders.map(stakeholder => ({
+    stakeholders: newProject.stakeholders.map((stakeholder: any) => ({
           name: stakeholder.name,
           role: stakeholder.role,
           email: stakeholder.email || '',
@@ -847,11 +849,11 @@ const ProjectsPage: React.FC = () => {
         // Team Members - Include the selected team lead if not already in the list
         teamMembers: (() => {
           const existingTeamMembers = newProject.teamMembers || [];
-          const teamLeadInList = existingTeamMembers.find(m => (m.id || m.name) === newProject.teamLead);
+          const teamLeadInList = existingTeamMembers.find((m: any) => (m.id || m.name) === newProject.teamLead);
           
           // If team lead is not in the list, add them
           if (newProject.teamLead && !teamLeadInList) {
-            const teamLeadUser = apiUsers?.find(u => u.id === newProject.teamLead);
+            const teamLeadUser = apiUsers?.find((u: any) => u.id === newProject.teamLead);
             if (teamLeadUser) {
               return [
                 {
@@ -862,7 +864,7 @@ const ProjectsPage: React.FC = () => {
                   startDate: '',
                   endDate: ''
                 },
-                ...existingTeamMembers.map(member => ({
+                ...existingTeamMembers.map((member: any) => ({
                   userId: member.id || member.name,
                   role: member.role,
                   isTeamLead: member.isTeamLead || false,
@@ -875,7 +877,7 @@ const ProjectsPage: React.FC = () => {
           }
           
           // If team lead is already in list, ensure isTeamLead is set correctly
-          return existingTeamMembers.map(member => ({
+          return existingTeamMembers.map((member: any) => ({
             userId: member.id || member.name,
             role: member.role,
             isTeamLead: (member.id || member.name) === newProject.teamLead || member.isTeamLead || false,
@@ -886,7 +888,7 @@ const ProjectsPage: React.FC = () => {
         })(),
 
         // Epics
-        epics: newProject.epics.map(epic => ({
+    epics: newProject.epics.map((epic: any) => ({
           title: epic.title || epic.name,
           description: epic.description || '',
           summary: epic.summary || '',
@@ -903,7 +905,7 @@ const ProjectsPage: React.FC = () => {
         })),
 
         // Releases
-        releases: newProject.releases.map(release => ({
+    releases: newProject.releases.map((release: any) => ({
           name: release.name,
           description: release.description || '',
           version: release.version || '1.0.0',
@@ -929,7 +931,7 @@ const ProjectsPage: React.FC = () => {
       console.log('Sending comprehensive project data:', comprehensiveProjectData);
       console.log('Team Lead being sent:', {
         managerId: comprehensiveProjectData.managerId,
-        teamMembersWithLead: comprehensiveProjectData.teamMembers?.filter(tm => tm.isTeamLead),
+  teamMembersWithLead: comprehensiveProjectData.teamMembers?.filter((tm: any) => tm.isTeamLead),
         totalTeamMembers: comprehensiveProjectData.teamMembers?.length || 0
       });
 
@@ -1178,7 +1180,7 @@ const ProjectsPage: React.FC = () => {
       
       console.log('Adding epic:', newEpic);
       
-      setNewProject(prev => {
+  setNewProject((prev: typeof newProject) => {
         const updatedProject = {
           ...prev,
           epics: [...prev.epics, newEpic]
@@ -1200,9 +1202,9 @@ const ProjectsPage: React.FC = () => {
   };
 
   const removeEpic = (index: number) => {
-      setNewProject(prev => ({
+  setNewProject((prev: typeof newProject) => ({
         ...prev,
-      epics: prev.epics.filter((_, i) => i !== index)
+  epics: prev.epics.filter((_: any, i: number) => i !== index)
     }));
   };
 
@@ -1236,7 +1238,7 @@ const ProjectsPage: React.FC = () => {
 
   const saveRelease = () => {
     if (currentRelease.name.trim()) {
-      setNewProject(prev => ({
+  setNewProject((prev: typeof newProject) => ({
         ...prev,
         releases: [...prev.releases, {
           id: `release-${Date.now()}`,
@@ -1285,9 +1287,9 @@ const ProjectsPage: React.FC = () => {
   };
 
   const removeRelease = (index: number) => {
-    setNewProject(prev => ({
+  setNewProject((prev: typeof newProject) => ({
       ...prev,
-      releases: prev.releases.filter((_, i) => i !== index)
+  releases: prev.releases.filter((_: any, i: number) => i !== index)
     }));
   };
 
@@ -1307,7 +1309,7 @@ const ProjectsPage: React.FC = () => {
 
   const saveRisk = () => {
     if (currentRisk.title.trim()) {
-      setNewProject(prev => ({
+  setNewProject((prev: typeof newProject) => ({
         ...prev,
         risks: [...prev.risks, {
           id: `risk-${Date.now()}`,
@@ -1334,9 +1336,9 @@ const ProjectsPage: React.FC = () => {
   };
 
   const removeRisk = (index: number) => {
-    setNewProject(prev => ({
+  setNewProject((prev: typeof newProject) => ({
       ...prev,
-      risks: prev.risks.filter((_, i) => i !== index)
+  risks: prev.risks.filter((_: any, i: number) => i !== index)
     }));
   };
 
@@ -1344,7 +1346,7 @@ const ProjectsPage: React.FC = () => {
   const addRequirement = () => {
     if (newRequirement.trim()) {
       setHasUserAddedRequirements(true); // Mark that user has added requirements
-      setNewProject(prev => ({
+  setNewProject((prev: typeof newProject) => ({
         ...prev,
         requirements: [...prev.requirements, {
           id: `req-${Date.now()}`,
@@ -1364,8 +1366,8 @@ const ProjectsPage: React.FC = () => {
 
   // Remove Requirement
   const removeRequirement = (index: number) => {
-    setNewProject(prev => {
-      const newRequirements = prev.requirements.filter((_, i) => i !== index);
+  setNewProject((prev: typeof newProject) => {
+  const newRequirements = prev.requirements.filter((_: any, i: number) => i !== index);
       // If no requirements left, reset the flag so template can populate defaults
       if (newRequirements.length === 0) {
         setHasUserAddedRequirements(false);
@@ -1400,7 +1402,7 @@ const ProjectsPage: React.FC = () => {
         const base64Data = reader.result as string;
         
         // Add to pending attachments
-        setPendingAttachments(prev => [...prev, {
+    setPendingAttachments((prev: typeof pendingAttachments) => [...prev, {
           file: selectedFile,
           name: selectedFile.name,
           size: selectedFile.size,
@@ -1423,7 +1425,7 @@ const ProjectsPage: React.FC = () => {
 
   const handleDeletePendingFile = (index: number) => {
     if (confirm('Are you sure you want to remove this file?')) {
-      setPendingAttachments(prev => prev.filter((_, i) => i !== index));
+    setPendingAttachments((prev: typeof pendingAttachments) => prev.filter((_: any, i: number) => i !== index));
       toast.success('File removed successfully');
     }
   };
@@ -1449,7 +1451,7 @@ const ProjectsPage: React.FC = () => {
 
   const saveStakeholder = () => {
     if (currentStakeholder.name.trim()) {
-      setNewProject(prev => ({
+  setNewProject((prev: typeof newProject) => ({
         ...prev,
         stakeholders: [...prev.stakeholders, {
           id: `stakeholder-${Date.now()}`,
@@ -1473,7 +1475,7 @@ const ProjectsPage: React.FC = () => {
   // Add Objective
   const addObjective = () => {
     if (newObjective.trim() && !newProject.objectives.includes(newObjective.trim())) {
-      setNewProject(prev => ({
+  setNewProject((prev: typeof newProject) => ({
         ...prev,
         objectives: [...prev.objectives, newObjective.trim()]
       }));
@@ -1484,7 +1486,7 @@ const ProjectsPage: React.FC = () => {
   // Add Success Criteria
   const addSuccessCriteria = () => {
     if (newSuccessCriteria.trim() && !newProject.successCriteria.includes(newSuccessCriteria.trim())) {
-      setNewProject(prev => ({
+  setNewProject((prev: typeof newProject) => ({
         ...prev,
         successCriteria: [...prev.successCriteria, newSuccessCriteria.trim()]
       }));
@@ -1494,31 +1496,31 @@ const ProjectsPage: React.FC = () => {
 
   // Remove functions
   const removeObjective = (index: number) => {
-    setNewProject(prev => ({
+  setNewProject((prev: typeof newProject) => ({
       ...prev,
-      objectives: prev.objectives.filter((_, i) => i !== index)
+  objectives: prev.objectives.filter((_: any, i: number) => i !== index)
     }));
   };
 
   const removeSuccessCriteria = (index: number) => {
-    setNewProject(prev => ({
+  setNewProject((prev: typeof newProject) => ({
       ...prev,
-      successCriteria: prev.successCriteria.filter((_, i) => i !== index)
+  successCriteria: prev.successCriteria.filter((_: any, i: number) => i !== index)
     }));
   };
 
   const removeStakeholder = (index: number) => {
-    setNewProject(prev => ({
+  setNewProject((prev: typeof newProject) => ({
       ...prev,
-      stakeholders: prev.stakeholders.filter((_, i) => i !== index)
+  stakeholders: prev.stakeholders.filter((_: any, i: number) => i !== index)
     }));
   };
 
 
   const toggleIntegration = (integrationId: string) => {
-    setNewProject(prev => ({
+  setNewProject((prev: typeof newProject) => ({
       ...prev,
-      integrations: prev.integrations.map(integration =>
+      integrations: prev.integrations.map((integration: any) =>
         integration.id === integrationId
           ? { ...integration, enabled: !integration.enabled }
           : integration
@@ -1566,10 +1568,10 @@ const ProjectsPage: React.FC = () => {
   };
 
   const handleMilestoneSave = (milestone: Milestone) => {
-    setProjectMilestones(prev => {
-      const existing = prev.find(m => m.id === milestone.id);
+  setProjectMilestones((prev: typeof projectMilestones) => {
+  const existing = prev.find((m: any) => m.id === milestone.id);
       if (existing) {
-        return prev.map(m => m.id === milestone.id ? milestone : m);
+  return prev.map((m: any) => m.id === milestone.id ? milestone : m);
       } else {
         return [...prev, milestone];
       }
@@ -1583,6 +1585,49 @@ const ProjectsPage: React.FC = () => {
 
   const handleProjectClick = (project: any) => {
     navigate(`/projects/${project.id}`);
+  };
+
+  // Derived status based on dates and sprint completion
+  const computeDerivedStatus = (project: any): string => {
+    const now = new Date();
+    const start = project.startDate ? new Date(project.startDate) : null;
+    const end = project.endDate ? new Date(project.endDate) : null;
+
+    if (start && now < start) return 'planning';
+    if (start && end && now >= start && now <= end) return 'active';
+
+    // After end date: decide between completed vs overdue using sprint completion
+    if (end && now > end) {
+      const pid = project.id?.toString?.() || String(project.id);
+      const s = projectSprintsState?.[pid];
+      if (!s) return 'overdue'; // until sprints load, treat as overdue
+      const total = s.total || 0;
+      const completed = s.completed || 0;
+      const allCompleted = total === 0 ? true : completed === total;
+      return allCompleted ? 'completed' : 'overdue';
+    }
+
+    // Fallback
+    return (project.status || 'planning').toString().toLowerCase();
+  };
+
+  // Sprints cache and loader for card view
+  const [projectSprintsState, setProjectSprintsState] = useState<Record<string, { total: number; completed: number; loading: boolean }>>({});
+  const ensureProjectSprintsLoaded = async (projectId: string) => {
+    if (projectSprintsState[projectId]?.loading || projectSprintsState[projectId]?.total !== undefined) return;
+  setProjectSprintsState((prev: typeof projectSprintsState) => ({ ...prev, [projectId]: { total: 0, completed: 0, loading: true } }));
+    try {
+      const resp = await sprintApiService.getSprintsByProject(projectId);
+      const sprints = resp.data || [];
+      const total = sprints.length;
+      const completed = sprints.filter((s: any) => {
+        const st = (s.status || '').toString().toLowerCase();
+        return st === 'completed' || st === 'closed' || st === 'done';
+      }).length;
+  setProjectSprintsState((prev: typeof projectSprintsState) => ({ ...prev, [projectId]: { total, completed, loading: false } }));
+    } catch (e) {
+  setProjectSprintsState((prev: typeof projectSprintsState) => ({ ...prev, [projectId]: { total: 0, completed: 0, loading: false } }));
+    }
   };
 
   // Handle delete project
@@ -1623,7 +1668,7 @@ const ProjectsPage: React.FC = () => {
   };
 
   const getProjectMilestones = (projectId: number) => {
-    return projectMilestones.filter(m => m.projectId === `proj-${projectId}`);
+  return projectMilestones.filter((m: any) => m.projectId === `proj-${projectId}`);
   };
 
 
@@ -1798,7 +1843,7 @@ const ProjectsPage: React.FC = () => {
                     <Label>Team Members</Label>
                     <div className="flex flex-wrap gap-2">
                       {(selectedProject.teamMembers || []).length > 0 ? (
-                        (selectedProject.teamMembers || []).map((member, index) => (
+                        (selectedProject.teamMembers || []).map((member: any, index: number) => (
                           <div key={index} className="flex items-center space-x-2 bg-muted/50 rounded-lg px-3 py-2">
                             <Avatar className="w-6 h-6">
                               <AvatarImage src={member.avatar} alt={member.name} />
@@ -2190,9 +2235,14 @@ const ProjectsPage: React.FC = () => {
                         </div>
                         <div>
                           <CardTitle className="text-lg font-medium leading-tight">{project.name}</CardTitle>
-                          <Badge variant="outline" className={`mt-1 ${getStatusColor(project.status)}`}>
-                            {project.status.charAt(0).toUpperCase() + project.status.slice(1)}
-                          </Badge>
+                          {(() => {
+                            const derived = computeDerivedStatus(project);
+                            return (
+                              <Badge variant="outline" className={`mt-1 ${getStatusColor(derived)}`}>
+                                {derived.slice(0,1).toUpperCase() + derived.slice(1)}
+                              </Badge>
+                            );
+                          })()}
                         </div>
                       </div>
                       <DropdownMenu>
@@ -2229,15 +2279,31 @@ const ProjectsPage: React.FC = () => {
                     <CardDescription className="text-sm line-clamp-2 mt-2">
                       {project.description}
                     </CardDescription>
-                  </CardHeader>
+                    </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Progress */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-muted-foreground">Progress</span>
-                        <span className="text-sm font-medium">{project.progress}%</span>
+                        {(() => {
+                          const pid = project.id?.toString?.() || String(project.id);
+                          const s = projectSprintsState?.[pid];
+                          let progressValue = project.progress;
+                          if (s && s.total > 0) {
+                            progressValue = Math.round((s.completed / s.total) * 100);
+                          }
+                          return <span className="text-sm font-medium">{progressValue}%</span>;
+                        })()}
                       </div>
-                      <Progress value={project.progress} className="h-2" />
+                      {(() => {
+                        const pid = project.id?.toString?.() || String(project.id);
+                        const s = projectSprintsState?.[pid];
+                        let progressValue = project.progress;
+                        if (s && s.total > 0) {
+                          progressValue = Math.round((s.completed / s.total) * 100);
+                        }
+                        return <Progress value={progressValue} className="h-2" />;
+                      })()}
                     </div>
 
                     {/* Stats */}
@@ -2286,7 +2352,16 @@ const ProjectsPage: React.FC = () => {
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {project.completedSprints}/{project.sprints} sprints
+                        {(() => {
+                          const pid = project.id?.toString?.() || String(project.id);
+                          const s = projectSprintsState?.[pid];
+                          if (!s) {
+                            ensureProjectSprintsLoaded(pid);
+                            return '—/— sprints';
+                          }
+                          if (s.loading) return '—/— sprints';
+                          return `${s.completed}/${s.total} sprints`;
+                        })()}
                       </div>
                     </div>
                   </CardContent>
@@ -2302,9 +2377,14 @@ const ProjectsPage: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <h3 className="font-semibold truncate">{project.name}</h3>
                       <div className="flex items-center space-x-2">
-                        <Badge variant="outline" className={getStatusColor(project.status)}>
-                          {project.status.charAt(0).toUpperCase() + project.status.slice(1)}
-                        </Badge>
+                        {(() => {
+                          const derived = computeDerivedStatus(project);
+                          return (
+                            <Badge variant="outline" className={getStatusColor(derived)}>
+                              {derived.slice(0,1).toUpperCase() + derived.slice(1)}
+                            </Badge>
+                          );
+                        })()}
                         <Badge variant="outline" className={getPriorityColor(project.priority)}>
                           {project.priority.charAt(0).toUpperCase() + project.priority.slice(1)}
                         </Badge>
@@ -2323,8 +2403,18 @@ const ProjectsPage: React.FC = () => {
                         </span>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Progress value={project.progress} className="w-20 h-2" />
-                        <span className="text-sm font-medium">{project.progress}%</span>
+                        {(() => {
+                          const pid = project.id?.toString?.() || String(project.id);
+                          const s = projectSprintsState?.[pid];
+                          let progressValue = project.progress;
+                          if (s && s.total > 0) {
+                            progressValue = Math.round((s.completed / s.total) * 100);
+                          }
+                          return <>
+                            <Progress value={progressValue} className="w-20 h-2" />
+                            <span className="text-sm font-medium">{progressValue}%</span>
+                          </>;
+                        })()}
                       </div>
                     </div>
                   </div>
