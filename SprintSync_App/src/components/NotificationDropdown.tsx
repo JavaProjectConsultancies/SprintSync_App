@@ -230,8 +230,8 @@ const NotificationDropdown: React.FC = () => {
         toast.success('Navigating to Team Allocation');
         break;
       case 'team-mention':
-        navigateTo('ai-insights');
-        toast.success('Navigating to AI Insights');
+        navigateTo('dashboard');
+        toast.success('Navigating to Dashboard');
         break;
       default:
         navigateTo('dashboard');

@@ -56,7 +56,7 @@ interface Task {
   status: 'todo' | 'inprogress' | 'qa' | 'done';
   progress?: number;
   labels?: string[];
-  type?: 'db' | 'api' | 'ui' | 'qa' | 'devops' | 'research';
+  type?: 'db' | 'api' | 'ui' | 'qa' | 'devops' | 'research' | 'bug' | 'issue';
 }
 
 interface ScrumBoardEnhancedProps {
@@ -496,13 +496,27 @@ const ScrumBoardEnhanced: React.FC<ScrumBoardEnhancedProps> = ({
                 </Button>
               </div>
               <div className="space-y-2">
-                {getItemsByStatus(status, 'task').map((task) => (
+                {getItemsByStatus(status, 'task').map((task) => {
+                  // Determine if it's a task or issue based on type or other criteria
+                  const isIssue = task.type === 'bug' || task.type === 'issue' || task.labels?.includes('bug') || task.labels?.includes('issue');
+                  
+                  return (
                   <div
                     key={task.id}
-                    className={`p-2 bg-white border rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer ${
-                      selectedItems.includes(task.id) ? 'ring-2 ring-blue-500' : ''
+                    className={`p-2 rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer ${
+                      selectedItems.includes(task.id) 
+                        ? 'ring-2 ring-blue-500' 
+                        : ''
                     }`}
                     onClick={() => handleItemSelect(task.id)}
+                    style={{
+                      backgroundColor: isIssue ? '#ff0000' : '#00ff00',
+                      borderColor: isIssue ? '#cc0000' : '#00cc00',
+                      borderWidth: '4px',
+                      borderStyle: 'solid',
+                      backgroundImage: 'none !important',
+                      background: isIssue ? '#ff0000 !important' : '#00ff00 !important'
+                    }}
                   >
                     <div className="flex items-start justify-between mb-1">
                       <div className="flex items-center space-x-1">
@@ -555,13 +569,14 @@ const ScrumBoardEnhanced: React.FC<ScrumBoardEnhancedProps> = ({
                       </div>
                       <div className="flex items-center space-x-1">
                         <Avatar className="h-4 w-4">
-                          <AvatarFallback className="text-xs">{getInitials(task.assignee)}</AvatarFallback>
+                          <AvatarFallback className="text-xs">{getInitials(task.assignee || 'Unassigned')}</AvatarFallback>
                         </Avatar>
-                        <span className="text-xs">{task.assignee.split(' ')[0]}</span>
+                        <span className="text-xs">{task.assignee?.split(' ')[0] || 'Unassigned'}</span>
                       </div>
                     </div>
                   </div>
-                ))}
+                ));
+                })
               </div>
             </CardContent>
           </Card>

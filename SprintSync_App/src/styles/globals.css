@@ -738,4 +738,62 @@ html {
     pointer-events: none;
     z-index: 15;
   }
+  
+  /* Task and Issue color coding for Scrum Board */
+  .task-card {
+    background-color: #dcfce7 !important;
+    border: 2px solid #22c55e !important;
+  }
+  
+  .task-card > div,
+  .task-card [data-slot="card"] {
+    background-color: #dcfce7 !important;
+  }
+  
+  .task-card [data-slot="card-content"] {
+    background-color: #dcfce7 !important;
+  }
+  
+  .issue-card {
+    background-color: #fee2e2 !important;
+    border: 2px solid #ef4444 !important;
+  }
+  
+  .issue-card > div,
+  .issue-card [data-slot="card"] {
+    background-color: #fee2e2 !important;
+  }
+  
+  .issue-card [data-slot="card-content"] {
+    background-color: #fee2e2 !important;
+  }
+  
+  /* Dark mode support for task and issue cards */
+  .dark .task-card {
+    background-color: #14532d !important;
+    border: 2px solid #22c55e !important;
+  }
+  
+  .dark .task-card > div,
+  .dark .task-card [data-slot="card"] {
+    background-color: #14532d !important;
+  }
+  
+  .dark .task-card [data-slot="card-content"] {
+    background-color: #14532d !important;
+  }
+  
+  .dark .issue-card {
+    background-color: #7f1d1d !important;
+    border: 2px solid #ef4444 !important;
+  }
+  
+  .dark .issue-card > div,
+  .dark .issue-card [data-slot="card"] {
+    background-color: #7f1d1d !important;
+  }
+  
+  .dark .issue-card [data-slot="card-content"] {
+    background-color: #7f1d1d !important;
+  }
 }

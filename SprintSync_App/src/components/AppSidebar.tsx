@@ -90,9 +90,7 @@ const AppSidebar: React.FC = () => {
       icon: Brain,
       permission: 'view_analytics',
       children: [
-        { title: 'AI Insights', icon: Brain, permission: 'view_analytics', badge: 'NEW', id: 'ai-insights' },
         { title: 'Team Allocation', icon: Users, permission: 'view_team', id: 'team-allocation' },
-        { title: 'Reports', icon: BarChart3, permission: 'view_analytics', id: 'reports' },
       ]
     },
     // {
@@ -144,7 +142,6 @@ const AppSidebar: React.FC = () => {
           icon: Brain,
           children: [
             { title: 'Team Allocation', icon: Users, id: 'team-allocation' },
-            { title: 'Reports', icon: BarChart3, id: 'reports' },
           ]
         },
         // {

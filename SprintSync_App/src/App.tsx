@@ -14,7 +14,7 @@ import Dashboard from './components/Dashboard';
 import AppSidebar from './components/AppSidebar';
 import NotificationDropdown from './components/NotificationDropdown';
 import { Toaster } from './components/ui/sonner';
-import { Brain, Sparkles, ChevronRight } from 'lucide-react';
+import { Sparkles, ChevronRight } from 'lucide-react';
 import sprintSyncLogo from './assets/aadf192e83d08c7cc03896c06b452017e84d04aa.png';
 import PageTransition from './components/PageTransition';
 
@@ -24,9 +24,8 @@ import ProjectDetailsPage from './pages/ProjectDetailsPage';
 import BacklogPage from './pages/BacklogPage';
 import ScrumPage from './pages/ScrumPage';
 import TimeTrackingPage from './pages/TimeTrackingPage';
-import AIInsightsPage from './pages/AIInsightsPage';
 import TeamAllocationPage from './pages/TeamAllocationPage';
-import ReportsPage from './pages/ReportsPage';
+// ReportsPage removed from routes (hidden)
 import ProfilePage from './pages/ProfilePage';
 import AdminPanelPage from './pages/AdminPanelPage';
 import TodoListPage from './pages/TodoListPage';
@@ -78,8 +77,8 @@ const AppContent: React.FC = () => {
     if (user) {
       // If somehow user lands on a non-existent route, redirect to dashboard
       const validRoutes = ['/', '/projects', '/backlog', '/scrum', '/time-tracking', 
-                          '/ai-insights', '/team-allocation', '/reports', '/profile', 
-                          '/admin-panel', '/todo-list'];
+              '/team-allocation', '/profile', 
+              '/admin-panel', '/todo-list'];
       const isValidRoute = validRoutes.includes(location.pathname) || 
                           location.pathname.startsWith('/projects/');
       
@@ -105,9 +104,8 @@ const AppContent: React.FC = () => {
       '/projects': { title: 'Projects', description: 'Manage your project portfolio', icon: '📁' },
       '/scrum': { title: 'Scrum Management', description: 'Sprint planning and tracking', icon: '🏃' },
       '/time-tracking': { title: 'Time Tracking', description: 'Monitor work hours and productivity', icon: '⏱️' },
-      '/ai-insights': { title: 'AI Insights', description: 'Intelligent project analytics', icon: '🧠' },
       '/team-allocation': { title: 'Team Allocation', description: 'Resource management and planning', icon: '👥' },
-      '/reports': { title: 'Reports', description: 'Performance metrics and analytics', icon: '📈' },
+      // '/reports' intentionally hidden from UI
       '/profile': { title: 'Profile', description: 'Your account settings', icon: '👤' },
       '/admin-panel': { title: 'Admin Panel', description: 'System administration', icon: '⚙️' },
       '/todo-list': { title: 'My Tasks', description: 'Personal task management', icon: '✅' },
@@ -123,19 +121,12 @@ const AppContent: React.FC = () => {
   // Helper function to check route access based on role
   const hasRouteAccess = (path: string, role: string): boolean => {
     const roleAccess: { [key: string]: string[] } = {
-      admin: ['/', '/projects', '/team-allocation', '/reports', '/profile', '/admin-panel'],
-      manager: ['/', '/projects', '/scrum', '/time-tracking', '/ai-insights', '/team-allocation', '/reports', '/profile', '/todo-list'],
-      developer: ['/', '/projects', '/scrum', '/time-tracking', '/ai-insights', '/reports', '/profile', '/todo-list'], // Removed team-allocation for developers
+      admin: ['/', '/projects', '/team-allocation', '/profile', '/admin-panel'],
+      manager: ['/', '/projects', '/scrum', '/time-tracking', '/team-allocation', '/profile', '/todo-list'],
+      developer: ['/', '/projects', '/scrum', '/time-tracking', '/profile', '/todo-list'], // Removed team-allocation for developers
     };
     
     return roleAccess[role]?.includes(path) || false;
-  };
-
-  // Handle AI Insights button click
-  const handleAIInsightsClick = () => {
-    if (user && hasRouteAccess('/ai-insights', user.role)) {
-      navigate('/ai-insights');
-    }
   };
 
   if (isLoading) {
@@ -340,26 +331,6 @@ const AppContent: React.FC = () => {
           
           {/* Enhanced Header Actions */}
           <div className="flex items-center space-x-3 px-4">
-            {/* Enhanced AI Insights Button - Now functional */}
-            {user && hasRouteAccess('/ai-insights', user.role) && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="hidden md:flex items-center space-x-2 bg-gradient-to-r from-green-50 to-cyan-50 border-green-200 hover:from-green-100 hover:to-cyan-100 transition-all duration-200 shadow-sm hover:shadow-md group"
-                onClick={handleAIInsightsClick}
-              >
-                <Brain className="w-4 h-4 text-green-600 group-hover:scale-110 transition-transform" />
-                <span className="font-medium">AI Insights</span>
-                <Badge 
-                  variant="secondary" 
-                  className="bg-green-500 text-white text-xs px-2 py-0.5 min-w-[20px] h-5 flex items-center justify-center animate-pulse"
-                >
-                  3
-                </Badge>
-                <Sparkles className="w-3 h-3 text-cyan-500 opacity-60 group-hover:opacity-100 transition-opacity" />
-              </Button>
-            )}
-            
             <NotificationDropdown />
           </div>
         </header>
@@ -417,13 +388,6 @@ const AppContent: React.FC = () => {
                       </ProtectedRoute>
                     } />
                     
-                    {/* AI Insights - accessible by manager, developer */}
-                    <Route path="/ai-insights" element={
-                      <ProtectedRoute allowedRoles={['manager', 'developer']}>
-                        <AIInsightsPage />
-                      </ProtectedRoute>
-                    } />
-                    
                     {/* Team Allocation - accessible by admin, manager */}
                     <Route path="/team-allocation" element={
                       <ProtectedRoute allowedRoles={['admin', 'manager']}>
@@ -432,7 +396,7 @@ const AppContent: React.FC = () => {
                     } />
                     
                     {/* Reports - accessible by all roles */}
-                    <Route path="/reports" element={<ReportsPage />} />
+                    {/* Reports route removed: reports page hidden */}
                     
                     {/* Profile - accessible by all roles */}
                     <Route path="/profile" element={<ProfilePage />} />

@@ -21,7 +21,8 @@ import {
   Tooltip,
   ResponsiveContainer,
   BarChart,
-  Bar
+  Bar,
+  Legend
 } from 'recharts';
 import {
   FolderKanban,
@@ -121,6 +122,21 @@ const Dashboard: React.FC = () => {
   // Filter states
   const [selectedProjectForSprint, setSelectedProjectForSprint] = useState<string>('all');
   const [selectedProjectForTasks, setSelectedProjectForTasks] = useState<string>('all');
+
+  // Log API data availability on initial load and when data changes
+  useEffect(() => {
+    const sprints = Array.isArray(apiSprints) ? apiSprints.length : ((apiSprints as any)?.content?.length || 0);
+    const tasks = Array.isArray(apiTasks) ? apiTasks.length : ((apiTasks as any)?.content?.length || 0);
+    const stories = Array.isArray(apiStories) ? apiStories.length : ((apiStories as any)?.content?.length || 0);
+    const projects = Array.isArray(apiProjects) ? apiProjects.length : ((apiProjects as any)?.content?.length || 0);
+    
+    console.log('[Dashboard] API Data Availability:', {
+      sprints: { count: sprints, loading: sprintsLoading, error: sprintsError ? String(sprintsError) : 'NO' },
+      tasks: { count: tasks, loading: tasksLoading, error: tasksError ? String(tasksError) : 'NO' },
+      stories: { count: stories, loading: storiesLoading, error: storiesError ? String(storiesError) : 'NO' },
+      projects: { count: projects, loading: projectsLoading, error: projectsError ? String(projectsError) : 'NO' }
+    });
+  }, [apiSprints, apiTasks, apiStories, apiProjects, sprintsLoading, tasksLoading, storiesLoading, projectsLoading]);
 
   // Helper function to normalize paginated API responses
   const normalizeApiData = (data: any): any[] => {
@@ -689,131 +705,333 @@ const Dashboard: React.FC = () => {
     ];
   }, [apiProjects]);
 
-  // Generate project-specific sprint performance data based on actual project characteristics
+  // Generate project-specific sprint performance data based on actual sprint data
   const getSprintPerformanceData = (projectId: string) => {
-    const project = accessibleProjects.find(p => p.id === projectId);
-    
-    if (projectId === 'all') {
-      // Aggregate data from all accessible projects
+    // Normalize all API data first
+    const normalizedSprints = normalizeApiData(apiSprints);
+    const normalizedTasks = normalizeApiData(apiTasks);
+    const normalizedStories = normalizeApiData(apiStories);
+    const normalizedProjects = normalizeApiData(apiProjects);
+
+    // Debug logging
+    console.log('[Dashboard] getSprintPerformanceData called:', {
+      requestedProjectId: projectId,
+      normalizedDataCounts: {
+        sprints: normalizedSprints?.length || 0,
+        tasks: normalizedTasks?.length || 0,
+        stories: normalizedStories?.length || 0,
+        projects: normalizedProjects?.length || 0
+      },
+      userAssignedProjects: userAssignedProjects.length,
+      apiSprints: Array.isArray(apiSprints) ? apiSprints.length : ((apiSprints as any)?.content?.length || 0),
+      apiTasks: Array.isArray(apiTasks) ? apiTasks.length : ((apiTasks as any)?.content?.length || 0),
+      apiStories: Array.isArray(apiStories) ? apiStories.length : ((apiStories as any)?.content?.length || 0)
+    });
+
+    // Add null/undefined checks for API data
+    if (!normalizedSprints || normalizedSprints.length === 0) {
+      console.log('[getSprintPerformanceData] No sprints found, returning empty data');
       return [
-        { name: 'Sprint 12', planned: 45, done: 42 },
-        { name: 'Sprint 13', planned: 50, done: 48 },
-        { name: 'Sprint 14', planned: 40, done: 35 },
-        { name: 'Sprint 15', planned: 35, done: 28 }
+        { name: 'Sprint 1', planned: 0, done: 0 },
+        { name: 'Sprint 2', planned: 0, done: 0 },
+        { name: 'Sprint 3', planned: 0, done: 0 },
+        { name: 'Sprint 4', planned: 0, done: 0 }
       ];
     }
 
-    if (!project) return [];
-
-    // Generate data based on project characteristics
-    const baseVelocity = project.teamMembers.length * 8; // Base velocity per team member
-    const progressFactor = project.progress / 100;
-    const priorityMultiplier = project.priority === 'critical' ? 1.2 : project.priority === 'high' ? 1.1 : 1.0;
+    let sprints: any[] = [];
     
-    // Use project ID to create consistent "random" values
-    const projectSeed = project.id.charCodeAt(project.id.length - 1);
-    
-    const sprints: { name: string; planned: number; done: number }[] = [];
-    for (let i = 1; i <= 4; i++) {
-      // Create consistent values based on project ID and sprint number
-      const variation = ((projectSeed + i) % 10) / 10; // 0-0.9 variation
-      const planned = Math.round(baseVelocity * priorityMultiplier * (0.8 + variation * 0.4));
-      const done = Math.round(planned * (0.7 + progressFactor * 0.3) * (0.8 + variation * 0.4));
-      sprints.push({
-        name: `Sprint ${i}`,
-        planned,
-        done: Math.min(done, planned)
+    if (projectId === 'all') {
+      // Get all sprints from all accessible projects
+      sprints = normalizedSprints.filter(sprint => {
+        return userAssignedProjects.some(p => p.id === sprint.projectId);
       });
+    } else {
+      // Get sprints for specific project
+      sprints = normalizedSprints.filter(sprint => sprint.projectId === projectId);
     }
-    
-    return sprints;
+
+    console.log('[getSprintPerformanceData] Filtered sprints:', {
+      projectId: projectId,
+      filteredCount: sprints.length,
+      filteredSprints: sprints.slice(0, 5).map(s => ({
+        id: s.id,
+        name: s.name,
+        projectId: s.projectId,
+        status: s.status
+      }))
+    });
+
+    if (sprints.length === 0) {
+      // Return empty data if no sprints found
+      return [
+        { name: 'Sprint 1', planned: 0, done: 0 },
+        { name: 'Sprint 2', planned: 0, done: 0 },
+        { name: 'Sprint 3', planned: 0, done: 0 },
+        { name: 'Sprint 4', planned: 0, done: 0 }
+      ];
+    }
+
+    // Sort sprints by name and get last 4
+    const sortedSprints = sprints.sort((a, b) => {
+      const aNum = parseInt(a.name?.match(/\d+/)?.[0] || '0', 10);
+      const bNum = parseInt(b.name?.match(/\d+/)?.[0] || '0', 10);
+      return aNum - bNum;
+    }).slice(-4);
+
+    // Map sprint data to chart format
+    return sortedSprints.map((sprint, index) => {
+      // Get tasks for this sprint - with null checks
+      const sprintTasks = normalizedTasks.filter(task => {
+        // Tasks are linked through stories to sprints
+        const story = normalizedStories.find(s => s.id === task.storyId);
+        const matches = story?.sprintId === sprint.id;
+        
+        if (task.id === (normalizedTasks[0]?.id) && !matches) {
+          // Log first task linking for debugging
+          console.log('[getSprintPerformanceData] First task linkage debug:', {
+            taskId: task.id,
+            taskStoryId: task.storyId,
+            foundStory: story ? { id: story.id, sprintId: story.sprintId } : null,
+            targetSprintId: sprint.id,
+            matches
+          });
+        }
+        
+        return matches;
+      });
+
+      // Calculate planned vs done
+      const totalTasks = sprintTasks.length;
+      const doneTasks = sprintTasks.filter(task => {
+        const status = (task.status || '').toString().toLowerCase().trim();
+        return status === 'done' || status === 'completed';
+      }).length;
+
+      // Use velocity points if available, otherwise use task count
+      const planned = sprint.velocityPoints || (sprint.capacityHours && Math.round(sprint.capacityHours / 8)) || totalTasks || 5;
+      const done = doneTasks || (totalTasks > 0 && sprint.status?.toLowerCase() === 'completed' ? totalTasks : 0) || 0;
+
+      const sprintResult = {
+        name: sprint.name || `Sprint ${index + 1}`,
+        planned: Math.max(planned, 1),
+        done: Math.min(done, planned)
+      };
+
+      console.log('[getSprintPerformanceData] Sprint calculation:', {
+        sprintId: sprint.id,
+        sprintName: sprint.name,
+        sprintData: sprintResult,
+        linkedTasksCount: sprintTasks.length,
+        doneTasksCount: doneTasks,
+        velocityPoints: sprint.velocityPoints,
+        capacityHours: sprint.capacityHours,
+        sprintStatus: sprint.status,
+        firstTaskSample: sprintTasks[0] ? {
+          id: sprintTasks[0].id,
+          status: sprintTasks[0].status,
+          storyId: sprintTasks[0].storyId
+        } : null
+      });
+
+      return sprintResult;
+    });
   };
 
-  // Generate project-specific task distribution data based on project status and progress
+  // Generate project-specific task distribution data based on actual task data
   const getTaskDistributionData = (projectId: string) => {
-    const project = accessibleProjects.find(p => p.id === projectId);
-    
-    if (projectId === 'all') {
-      // Aggregate data from all accessible projects
+    // Normalize all API data first
+    const normalizedTasks = normalizeApiData(apiTasks);
+    const normalizedStories = normalizeApiData(apiStories);
+    const normalizedProjects = normalizeApiData(apiProjects);
+
+    console.log('[getTaskDistributionData] called:', {
+      requestedProjectId: projectId,
+      normalizedDataCounts: {
+        tasks: normalizedTasks?.length || 0,
+        stories: normalizedStories?.length || 0,
+        projects: normalizedProjects?.length || 0
+      },
+      userAssignedProjects: userAssignedProjects.length
+    });
+
+    // Add null/undefined checks for API data
+    if (!normalizedTasks || normalizedTasks.length === 0) {
+      console.log('[getTaskDistributionData] No tasks found, returning zero data');
       return [
-        { name: 'To Do', value: 28, percentage: 19 },
-        { name: 'In Progress', value: 35, percentage: 24 },
-        { name: 'QA', value: 15, percentage: 10 },
-        { name: 'Done', value: 67, percentage: 46 }
+        { name: 'To Do', value: 0, percentage: 0 },
+        { name: 'In Progress', value: 0, percentage: 0 },
+        { name: 'QA', value: 0, percentage: 0 },
+        { name: 'Done', value: 0, percentage: 0 }
       ];
     }
 
-    if (!project) return [];
+    let projectTasks: any[] = [];
 
-    // Generate data based on project characteristics
-    const totalTasks = 100;
-    const progress = project.progress;
-    const status = project.status;
-    
-    let todo, inProgress, qa, done;
-    
-    if (status === 'completed') {
-      // Completed projects have most tasks done
-      done = Math.round(totalTasks * 0.9);
-      qa = Math.round(totalTasks * 0.05);
-      inProgress = Math.round(totalTasks * 0.03);
-      todo = totalTasks - done - qa - inProgress;
-    } else if (status === 'planning') {
-      // Planning projects have most tasks in todo
-      todo = Math.round(totalTasks * 0.6);
-      inProgress = Math.round(totalTasks * 0.2);
-      qa = Math.round(totalTasks * 0.1);
-      done = totalTasks - todo - inProgress - qa;
-    } else if (status === 'active') {
-      // Active projects have balanced distribution based on progress
-      done = Math.round(totalTasks * (progress / 100) * 0.8);
-      qa = Math.round(totalTasks * 0.15);
-      inProgress = Math.round(totalTasks * 0.25);
-      todo = totalTasks - done - qa - inProgress;
+    if (projectId === 'all') {
+      // Get all tasks from accessible projects
+      projectTasks = normalizedTasks.filter(task => {
+        const story = normalizedStories.find(s => s.id === task.storyId);
+        const project = normalizedProjects.find(p => p.id === story?.projectId);
+        return userAssignedProjects.some(up => up.id === project?.id);
+      });
     } else {
-      // Default distribution
-      done = Math.round(totalTasks * 0.3);
-      qa = Math.round(totalTasks * 0.15);
-      inProgress = Math.round(totalTasks * 0.3);
-      todo = totalTasks - done - qa - inProgress;
+      // Get tasks for specific project
+      projectTasks = normalizedTasks.filter(task => {
+        const story = normalizedStories.find(s => s.id === task.storyId);
+        return story?.projectId === projectId;
+      });
     }
 
-    const total = todo + inProgress + qa + done;
+    console.log('[getTaskDistributionData] Filtered tasks:', {
+      projectId: projectId,
+      filteredCount: projectTasks.length,
+      sampleTasks: projectTasks.slice(0, 3).map(t => ({
+        id: t.id,
+        status: t.status,
+        storyId: t.storyId
+      }))
+    });
+
+    // Count tasks by status
+    const statusCounts: Record<string, number> = {
+      'To Do': 0,
+      'In Progress': 0,
+      'QA': 0,
+      'Done': 0
+    };
+
+    for (const task of projectTasks) {
+      const status = (task.status || '').toString().toUpperCase().trim();
+      
+      if (status === 'TO_DO' || status === 'TODO') {
+        statusCounts['To Do']++;
+      } else if (status === 'IN_PROGRESS' || status === 'INPROGRESS') {
+        statusCounts['In Progress']++;
+      } else if (status === 'QA_REVIEW' || status === 'QA' || status === 'QAREVIEW') {
+        statusCounts['QA']++;
+      } else if (status === 'DONE' || status === 'COMPLETED') {
+        statusCounts['Done']++;
+      } else {
+        // Default unknown statuses to "To Do"
+        console.log('[getTaskDistributionData] Unknown status for task:', {
+          taskId: task.id,
+          rawStatus: task.status,
+          normalizedStatus: status
+        });
+        statusCounts['To Do']++;
+      }
+    }
+
+    const total = Object.values(statusCounts).reduce((a, b) => a + b, 0);
     
+    console.log('[getTaskDistributionData] Status counts:', {
+      projectId: projectId,
+      statusCounts,
+      total
+    });
+    
+    if (total === 0) {
+      // Return default distribution if no tasks
+      return [
+        { name: 'To Do', value: 0, percentage: 0 },
+        { name: 'In Progress', value: 0, percentage: 0 },
+        { name: 'QA', value: 0, percentage: 0 },
+        { name: 'Done', value: 0, percentage: 0 }
+      ];
+    }
+
     return [
-      { 
-        name: 'To Do', 
-        value: todo, 
-        percentage: Math.round((todo / total) * 100) 
+      {
+        name: 'To Do',
+        value: statusCounts['To Do'],
+        percentage: Math.round((statusCounts['To Do'] / total) * 100)
       },
-      { 
-        name: 'In Progress', 
-        value: inProgress, 
-        percentage: Math.round((inProgress / total) * 100) 
+      {
+        name: 'In Progress',
+        value: statusCounts['In Progress'],
+        percentage: Math.round((statusCounts['In Progress'] / total) * 100)
       },
-      { 
-        name: 'QA', 
-        value: qa, 
-        percentage: Math.round((qa / total) * 100) 
+      {
+        name: 'QA',
+        value: statusCounts['QA'],
+        percentage: Math.round((statusCounts['QA'] / total) * 100)
       },
-      { 
-        name: 'Done', 
-        value: done, 
-        percentage: Math.round((done / total) * 100) 
+      {
+        name: 'Done',
+        value: statusCounts['Done'],
+        percentage: Math.round((statusCounts['Done'] / total) * 100)
       }
     ];
   };
 
   // Get filtered data based on selected projects
-  const sprintPerformanceData = useMemo(() => 
-    getSprintPerformanceData(selectedProjectForSprint), 
-    [selectedProjectForSprint]
-  );
+  const sprintPerformanceData = useMemo(() => {
+    const data = getSprintPerformanceData(selectedProjectForSprint);
+    
+    // Detailed logging for sprint performance data
+    console.log('[Dashboard] Sprint Performance Data:', {
+      selectedProject: selectedProjectForSprint,
+      chartData: data,
+      hasData: data.some(d => d.planned > 0),
+      sprintCount: data.length,
+      totalPlanned: data.reduce((sum, d) => sum + d.planned, 0),
+      totalDone: data.reduce((sum, d) => sum + d.done, 0),
+      apiDataAvailable: {
+        sprints: Array.isArray(apiSprints) ? apiSprints.length : ((apiSprints as any)?.content?.length || 0),
+        tasks: Array.isArray(apiTasks) ? apiTasks.length : ((apiTasks as any)?.content?.length || 0),
+        stories: Array.isArray(apiStories) ? apiStories.length : ((apiStories as any)?.content?.length || 0),
+        projects: Array.isArray(apiProjects) ? apiProjects.length : ((apiProjects as any)?.content?.length || 0)
+      }
+    });
+    
+    // If no data and we have a project selected, show fallback data
+    if (data.every(d => d.planned === 0) && selectedProjectForSprint !== 'all') {
+      console.log('[Dashboard] Using fallback sprint performance data (no real data available)');
+      return [
+        { name: 'Sprint 1', planned: 5, done: 3 },
+        { name: 'Sprint 2', planned: 7, done: 5 },
+        { name: 'Sprint 3', planned: 6, done: 4 },
+        { name: 'Sprint 4', planned: 8, done: 6 }
+      ];
+    }
+    return data;
+  }, [selectedProjectForSprint, apiSprints, apiTasks, apiStories, apiProjects, userAssignedProjects]);
   
-  const taskDistributionData = useMemo(() => 
-    getTaskDistributionData(selectedProjectForTasks), 
-    [selectedProjectForTasks]
-  );
+  const taskDistributionData = useMemo(() => {
+    const data = getTaskDistributionData(selectedProjectForTasks);
+    
+    // Detailed logging for task distribution data
+    console.log('[Dashboard] Task Distribution Data:', {
+      selectedProject: selectedProjectForTasks,
+      chartData: data,
+      hasData: data.some(d => d.value > 0),
+      statusBreakdown: {
+        todo: data.find(d => d.name === 'To Do')?.value || 0,
+        inProgress: data.find(d => d.name === 'In Progress')?.value || 0,
+        qa: data.find(d => d.name === 'QA')?.value || 0,
+        done: data.find(d => d.name === 'Done')?.value || 0,
+        total: data.reduce((sum, d) => sum + d.value, 0)
+      },
+      apiDataAvailable: {
+        tasks: Array.isArray(apiTasks) ? apiTasks.length : ((apiTasks as any)?.content?.length || 0),
+        stories: Array.isArray(apiStories) ? apiStories.length : ((apiStories as any)?.content?.length || 0),
+        projects: Array.isArray(apiProjects) ? apiProjects.length : ((apiProjects as any)?.content?.length || 0)
+      }
+    });
+    
+    // If no data and we have a project selected, show fallback data
+    if (data.every(d => d.value === 0) && selectedProjectForTasks !== 'all') {
+      console.log('[Dashboard] Using fallback task distribution data (no real data available)');
+      return [
+        { name: 'To Do', value: 5, percentage: 20 },
+        { name: 'In Progress', value: 8, percentage: 32 },
+        { name: 'QA', value: 7, percentage: 28 },
+        { name: 'Done', value: 5, percentage: 20 }
+      ];
+    }
+    return data;
+  }, [selectedProjectForTasks, apiTasks, apiStories, apiProjects, userAssignedProjects]);
 
   // Reset filters
   const resetFilters = () => {
@@ -902,7 +1120,7 @@ const Dashboard: React.FC = () => {
   }
 
   const firstName = user.name.split(' ')[0];
-  const underperformingMembers = teamPerformanceData.filter(member => member.performance === 'needs_attention');
+  const underperformingMembers = teamPerformanceData.filter(member => (member as any).performance === 'needs_attention' || (member.completed as number) / Math.max(member.tasks as number, 1) < 0.7);
 
   // Show loading animation until all APIs are fetched
   if (isLoadingAny) {
@@ -1029,68 +1247,6 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* AI Insights Panel */}
-      <Card className="bg-gradient-to-br from-green-50 to-cyan-50 border-green-200 hover:shadow-xl transition-all duration-300 animate-fadeInUp" style={{ animationDelay: '0.4s' }}>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Sparkles className="w-5 h-5 text-green-600" />
-              <span>AI Insights</span>
-              <Badge variant="secondary" className="bg-green-100 text-green-800">
-                {aiInsights.length} new
-              </Badge>
-            </div>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => navigate('/ai-insights')}
-              title="View all AI insights"
-            >
-              View All
-              <ArrowUpRight className="w-4 h-4 ml-1" />
-            </Button>
-          </CardTitle>
-          <CardDescription>
-            AI-powered recommendations for your projects
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {aiInsights.map((insight, index) => (
-              <div key={insight.id} className="flex items-start gap-3 p-3 bg-white rounded-lg border hover:shadow-md transition-all duration-300 hover:scale-[1.02] animate-fadeInUp" style={{ animationDelay: `${0.5 + index * 0.1}s` }}>
-                <div className="flex-shrink-0 pt-0.5">
-                  {insight.priority === 'positive' ? (
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  ) : (
-                    <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <h4 className="font-medium text-sm">{insight.title}</h4>
-                      <Badge variant="outline" className="text-xs flex-shrink-0">
-                        {insight.confidence}%
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">{insight.description}</p>
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="text-xs"
-                      onClick={() => navigate('/ai-insights')}
-                      title="View detailed AI insights"
-                    >
-                      Take Action
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Charts and Analytics */}
       {hasPermission('view_analytics') && (
         <>
@@ -1215,21 +1371,46 @@ const Dashboard: React.FC = () => {
               )}
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={350}>
                 <PieChart>
                   <Pie
                     data={taskDistributionData}
-                    cx="50%"
+                    cx="40%"
                     cy="50%"
                     outerRadius={80}
+                    innerRadius={30}
+                    paddingAngle={6}
                     dataKey="value"
-                    label={({ name, percentage }) => `${name}: ${percentage}%`}
+                    label={false}
                   >
                     {taskDistributionData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={pieColors[index % pieColors.length]} />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip 
+                    formatter={(value, name) => {
+                      const total = taskDistributionData.reduce((sum, item) => sum + item.value, 0);
+                      const percentage = total > 0 ? ((Number(value) / total) * 100).toFixed(0) : '0';
+                      return `${value} tasks (${percentage}%)`;
+                    }}
+                    contentStyle={{ 
+                      backgroundColor: '#fff', 
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px' 
+                    }}
+                  />
+                  <Legend 
+                    layout="vertical"
+                    align="right"
+                    verticalAlign="middle"
+                    formatter={(value, entry) => {
+                      const data = entry?.payload as any;
+                      return data ? `${data.name}: ${data.value} tasks (${data.percentage}%)` : value;
+                    }}
+                    wrapperStyle={{
+                      paddingLeft: '20px'
+                    }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </CardContent>
@@ -1340,16 +1521,16 @@ const Dashboard: React.FC = () => {
                       <div className="flex items-center space-x-3">
                         <User className="w-5 h-5 text-muted-foreground" />
                         <div>
-                          <h4 className="font-medium">{member.name}</h4>
-                          <p className="text-sm text-muted-foreground">{member.role}</p>
+                          <h4 className="font-medium">{(member as any).name || member.member}</h4>
+                          <p className="text-sm text-muted-foreground">{(member as any).role || 'Team Member'}</p>
                         </div>
-                        <Badge variant="destructive">{member.taskCompletion}/100</Badge>
+                        <Badge variant="destructive">{(member as any).taskCompletion || Math.round((member.completed / Math.max(member.tasks, 1)) * 100)}/100</Badge>
                       </div>
                       
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div className="flex items-center space-x-2">
                           <AlertTriangle className="w-4 h-4 text-orange-500" />
-                          <span>Task completion: {member.taskCompletion}% (target: 70%)</span>
+                          <span>Task completion: {(member as any).taskCompletion || Math.round((member.completed / Math.max(member.tasks, 1)) * 100)}% (target: 70%)</span>
                         </div>
                         <div className="flex items-center space-x-2">
                           <Clock className="w-4 h-4 text-red-500" />
@@ -1375,8 +1556,8 @@ const Dashboard: React.FC = () => {
                         <Button 
                           size="sm" 
                           variant="ghost"
-                          onClick={() => navigate('/reports')}
-                          title="View team reports"
+                          onClick={() => navigate('/team-allocation')}
+                          title="View team allocation"
                         >
                           <Eye className="w-4 h-4 mr-1" />
                           View Details
@@ -1404,8 +1585,8 @@ const Dashboard: React.FC = () => {
               </Button>
               <Button 
                 variant="outline"
-                onClick={() => navigate('/reports')}
-                title="Generate team reports"
+                onClick={() => navigate('/team-allocation')}
+                title="Generate team allocation"
               >
                 <BookOpen className="w-4 h-4 mr-1" />
                 Generate Report
@@ -1476,8 +1657,8 @@ const Dashboard: React.FC = () => {
             {usersError && ` Users API: ${usersError.message}`}
             {departmentsError && ` Departments API: ${departmentsError.message}`}
             {domainsError && ` Domains API: ${domainsError.message}`}
-            {epicsError && ` Epics API: ${epicsError.message}`}
-            {releasesError && ` Releases API: ${releasesError.message}`}
+            {epicsError && ` Epics API: ${typeof epicsError === 'string' ? epicsError : (epicsError as any)?.message}`}
+            {releasesError && ` Releases API: ${typeof releasesError === 'string' ? releasesError : (releasesError as any)?.message}`}
             {sprintsError && ` Sprints API: ${sprintsError.message}`}
             {storiesError && ` Stories API: ${storiesError.message}`}
             {tasksError && ` Tasks API: ${tasksError.message}`}

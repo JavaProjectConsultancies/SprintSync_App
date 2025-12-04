@@ -88,6 +88,8 @@ interface Task {
   progress?: number;
   efforts: EffortEntry[];
   totalEffort?: number; // calculated from efforts array
+  labels?: string[];
+  type?: 'db' | 'api' | 'ui' | 'qa' | 'devops' | 'research' | 'bug' | 'issue';
 }
 
 const ScrumPageEnhanced: React.FC = () => {
@@ -182,7 +184,8 @@ const ScrumPageEnhanced: React.FC = () => {
       dueDate: '10/02/24',
       status: 'todo',
       efforts: [],
-      totalEffort: 360
+      totalEffort: 360,
+      type: 'ui'
     },
     {
       id: 'TSK-002',
@@ -194,7 +197,8 @@ const ScrumPageEnhanced: React.FC = () => {
       dueDate: '12/02/24',
       status: 'todo',
       efforts: [],
-      totalEffort: 0
+      totalEffort: 0,
+      type: 'api'
     },
     {
       id: 'TSK-003',
@@ -207,7 +211,8 @@ const ScrumPageEnhanced: React.FC = () => {
       status: 'inprogress',
       progress: 65,
       efforts: [],
-      totalEffort: 390
+      totalEffort: 390,
+      type: 'qa'
     },
     {
       id: 'TSK-004',
@@ -219,7 +224,8 @@ const ScrumPageEnhanced: React.FC = () => {
       dueDate: '15/02/24',
       status: 'qa',
       efforts: [],
-      totalEffort: 360
+      totalEffort: 360,
+      type: 'qa'
     },
     {
       id: 'TSK-005',
@@ -231,7 +237,8 @@ const ScrumPageEnhanced: React.FC = () => {
       dueDate: '14/02/24',
       status: 'todo',
       efforts: [],
-      totalEffort: 0
+      totalEffort: 0,
+      type: 'ui'
     },
     {
       id: 'TSK-006',
@@ -244,7 +251,8 @@ const ScrumPageEnhanced: React.FC = () => {
       status: 'inprogress',
       progress: 30,
       efforts: [],
-      totalEffort: 150
+      totalEffort: 150,
+      type: 'ui'
     },
     {
       id: 'TSK-007',
@@ -256,7 +264,48 @@ const ScrumPageEnhanced: React.FC = () => {
       dueDate: '20/02/24',
       status: 'done',
       efforts: [],
-      totalEffort: 480
+      totalEffort: 480,
+      type: 'ui'
+    },
+    {
+      id: 'BUG-001',
+      title: 'Payment Gateway Timeout Error',
+      storyId: 'US-001',
+      priority: 'high',
+      assignee: 'Arjun Patel',
+      avatar: '',
+      dueDate: '09/02/24',
+      status: 'todo',
+      efforts: [],
+      totalEffort: 0,
+      type: 'bug'
+    },
+    {
+      id: 'ISSUE-001',
+      title: 'User Authentication Fails on Mobile',
+      storyId: 'US-003',
+      priority: 'high',
+      assignee: 'Sneha Reddy',
+      avatar: '',
+      dueDate: '11/02/24',
+      status: 'inprogress',
+      progress: 25,
+      efforts: [],
+      totalEffort: 120,
+      type: 'issue'
+    },
+    {
+      id: 'BUG-002',
+      title: 'Dashboard Chart Not Loading Data',
+      storyId: 'US-002',
+      priority: 'medium',
+      assignee: 'Rahul Kumar',
+      avatar: '',
+      dueDate: '13/02/24',
+      status: 'qa',
+      efforts: [],
+      totalEffort: 180,
+      labels: ['bug']
     }
   ]);
 
@@ -326,10 +375,10 @@ const ScrumPageEnhanced: React.FC = () => {
   };
 
   // Add Task Handler - all roles can add tasks
-  const handleAddTask = (newTaskData: Omit<Task, 'id'>) => {
+  const handleAddTask = (task: Omit<Task, 'id' | 'efforts' | 'totalEffort'>) => {
     const newTask: Task = {
       id: `TSK-${String(tasks.length + 1).padStart(3, '0')}`,
-      ...newTaskData,
+      ...task,
       efforts: [],
       totalEffort: 0
     };
@@ -338,6 +387,9 @@ const ScrumPageEnhanced: React.FC = () => {
 
   const TaskCard: React.FC<{ task: Task }> = ({ task }) => {
     const parentStory = stories.find(story => story.id === task.storyId);
+    
+    // Determine if it's a task or issue based on type or other criteria
+    const isIssue = task.type === 'bug' || task.type === 'issue' || task.labels?.includes('bug') || task.labels?.includes('issue');
     
     const [{ isDragging }, drag] = useDrag({
       type: ItemTypes.TASK,
@@ -349,13 +401,22 @@ const ScrumPageEnhanced: React.FC = () => {
 
     return (
       <div 
-        ref={drag}
+        ref={drag as any}
         className={`mb-3 transition-all cursor-move ${
           isDragging ? 'opacity-50 rotate-2 scale-105' : ''
         }`}
       >
-        <Card className="border hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
+        <div 
+          className={`border rounded-lg hover:shadow-md transition-shadow ${
+            isIssue ? 'issue-card' : 'task-card'
+          }`}
+          style={{
+            backgroundColor: isIssue ? '#fee2e2' : '#dcfce7',
+            borderColor: isIssue ? '#ef4444' : '#22c55e',
+            borderWidth: '2px'
+          }}
+        >
+          <div className="p-4">
             <div className="flex items-start justify-between mb-2">
               <div className="flex items-center space-x-2">
                 <GripVertical className="w-3 h-3 text-muted-foreground" />
@@ -467,8 +528,8 @@ const ScrumPageEnhanced: React.FC = () => {
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     );
   };
@@ -477,7 +538,7 @@ const ScrumPageEnhanced: React.FC = () => {
     const storyTasks = tasks.filter(task => task.storyId === story.id);
     const completedTasks = storyTasks.filter(task => task.status === 'done');
     
-    const [{ isDragging }, drag] = useDrag({
+    const [{ isDragging }, dragRef] = useDrag({
       type: ItemTypes.STORY,
       item: { id: story.id, type: ItemTypes.STORY },
       collect: (monitor) => ({
@@ -487,7 +548,7 @@ const ScrumPageEnhanced: React.FC = () => {
 
     return (
       <div 
-        ref={drag}
+        ref={dragRef as any}
         className={`mb-3 transition-all cursor-move ${
           isDragging ? 'opacity-50 rotate-2 scale-105' : ''
         }`}
@@ -580,7 +641,7 @@ const ScrumPageEnhanced: React.FC = () => {
     tasks: Task[]; 
     stories: Story[]; 
   }> = ({ title, status, tasks, stories }) => {
-    const [{ isOver }, drop] = useDrop({
+    const [{ isOver }, dropRef] = useDrop({
       accept: [ItemTypes.TASK, ItemTypes.STORY],
       drop: (item: { id: string; type: string }) => {
         moveItem(item.id, status, item.type);
@@ -592,7 +653,7 @@ const ScrumPageEnhanced: React.FC = () => {
 
     return (
       <div
-        ref={drop}
+        ref={dropRef as any}
         className={`min-h-[600px] w-80 flex-shrink-0 p-4 rounded-lg transition-colors ${
           isOver ? 'bg-gradient-light border-2 border-dashed border-primary' : 'bg-gray-50'
         }`}
@@ -770,25 +831,16 @@ const ScrumPageEnhanced: React.FC = () => {
             </CardContent>
           </Card>
         )}
-
-        {/* Add Dialogs */}
-        {canManageSprintsAndStories && (
-          <AddStoryDialog
-            open={isAddStoryDialogOpen}
-            onOpenChange={setIsAddStoryDialogOpen}
-            onAddStory={handleAddStory}
-          />
-        )}
-        
-        <AddTaskDialog
-          open={isAddTaskDialogOpen}
-          onOpenChange={setIsAddTaskDialogOpen}
-          onAddTask={handleAddTask}
-          stories={stories}
-        />
-      </div>
-    </DndProvider>
-  );
+      
+      <AddTaskDialog
+        isOpen={isAddTaskDialogOpen}
+        onClose={() => setIsAddTaskDialogOpen(false)}
+        onSubmit={handleAddTask}
+        stories={stories}
+      />
+    </div>
+  </DndProvider>
+);
 };
 
 export default ScrumPageEnhanced;
