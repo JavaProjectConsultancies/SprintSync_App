@@ -27,6 +27,7 @@ interface BurndownChartProps {
   numberOfSprints?: number; // Number of Sprints (Total completed sprints for average velocity)
   data?: BurndownData[];
   useHours?: boolean; // Flag to use Hours instead of Story Points
+  lineColor?: string; // Color for the Actual Burndown line
 }
 
 const BurndownChart: React.FC<BurndownChartProps> = ({
@@ -41,31 +42,32 @@ const BurndownChart: React.FC<BurndownChartProps> = ({
   workRemainingPerDay = [],
   numberOfSprints,
   data,
-  useHours = false
+  useHours = false,
+  lineColor = "#3b82f6"
 }) => {
   // Calculate sprint length if not provided
   const calculatedSprintLength = sprintLengthDays || Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24));
-  
+
   // Calculate remaining story points
   const remainingStoryPoints = storyPointsCommitted - storyPointsCompleted;
-  
+
   // Calculate current date and day
   const currentDate = new Date().toISOString().split('T')[0];
   const start = new Date(startDate);
   const current = new Date();
   const currentDay = Math.max(0, Math.floor((current.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
   const remainingDays = Math.max(0, calculatedSprintLength - currentDay);
-  
+
   // Generate burndown data if not provided
   const burndownData: BurndownData[] = data || (() => {
     const dataPoints: BurndownData[] = [];
     const idealBurnRate = storyPointsCommitted / calculatedSprintLength;
-    
+
     for (let day = 0; day <= calculatedSprintLength; day++) {
       const date = new Date(startDate);
       date.setDate(date.getDate() + day);
       const idealRemaining = Math.max(0, storyPointsCommitted - (day * idealBurnRate));
-      
+
       // Use workRemainingPerDay if provided, otherwise calculate based on completion
       let actualRemaining = storyPointsCommitted;
       if (day === 0) {
@@ -78,12 +80,12 @@ const BurndownChart: React.FC<BurndownChartProps> = ({
         // For future days, use remaining points
         actualRemaining = remainingStoryPoints;
       }
-      
+
       // If workRemainingPerDay is provided, use it
       if (workRemainingPerDay.length > day) {
         actualRemaining = workRemainingPerDay[day];
       }
-      
+
       dataPoints.push({
         day,
         date: date.toISOString().split('T')[0],
@@ -94,18 +96,18 @@ const BurndownChart: React.FC<BurndownChartProps> = ({
     }
     return dataPoints;
   })();
-  
+
   // Calculate velocity metrics
-  const averageVelocity = numberOfSprints && numberOfSprints > 0 
-    ? storyPointsCompleted / numberOfSprints 
+  const averageVelocity = numberOfSprints && numberOfSprints > 0
+    ? storyPointsCompleted / numberOfSprints
     : storyPointsCompleted / Math.max(1, currentDay);
-  
+
   const currentRemaining = burndownData.find(d => d.day === currentDay)?.remainingStoryPoints || remainingStoryPoints;
   const currentIdeal = burndownData.find(d => d.day === currentDay)?.idealRemaining || (storyPointsCommitted - (currentDay * (storyPointsCommitted / calculatedSprintLength)));
-  
+
   const isAheadOfSchedule = currentRemaining < currentIdeal;
   const variance = Math.abs(currentRemaining - currentIdeal);
-  
+
   const sprintProgress = (storyPointsCompleted / storyPointsCommitted) * 100;
   const unitLabel = useHours ? 'Hours' : 'Story Points';
 
@@ -210,23 +212,22 @@ const BurndownChart: React.FC<BurndownChartProps> = ({
               {isAheadOfSchedule ? (
                 <div className="flex items-center space-x-1 text-green-600">
                   <TrendingUp className="w-4 h-4" />
-                  <span>Ahead by {variance} points</span>
+                  <span>Ahead by {variance.toFixed(1)} points</span>
                 </div>
               ) : (
                 <div className="flex items-center space-x-1 text-red-600">
                   <TrendingDown className="w-4 h-4" />
-                  <span>Behind by {variance} points</span>
+                  <span>Behind by {variance.toFixed(1)} points</span>
                 </div>
               )}
             </div>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
-            <div 
-              className={`h-2 rounded-full transition-all duration-300 ${
-                sprintProgress >= 90 ? 'bg-green-500' : 
-                sprintProgress >= 70 ? 'bg-blue-500' : 
-                sprintProgress >= 50 ? 'bg-yellow-500' : 'bg-red-500'
-              }`}
+            <div
+              className={`h-2 rounded-full transition-all duration-300 ${sprintProgress >= 90 ? 'bg-green-500' :
+                  sprintProgress >= 70 ? 'bg-blue-500' :
+                    sprintProgress >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                }`}
               style={{ width: `${Math.min(sprintProgress, 100)}%` }}
             />
           </div>
@@ -242,48 +243,48 @@ const BurndownChart: React.FC<BurndownChartProps> = ({
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={burndownData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis 
-                dataKey="day" 
+              <XAxis
+                dataKey="day"
                 tickFormatter={formatDay}
                 label={{ value: 'Sprint Days', position: 'insideBottom', offset: -10 }}
                 stroke="#666"
                 fontSize={12}
                 interval="preserveStartEnd"
               />
-              <YAxis 
+              <YAxis
                 label={{ value: `Remaining ${unitLabel}`, angle: -90, position: 'insideLeft' }}
                 stroke="#666"
                 fontSize={12}
               />
               <Tooltip content={<CustomTooltip />} />
-              
+
               {/* Ideal burndown line */}
-              <Line 
-                type="linear" 
-                dataKey="idealRemaining" 
-                stroke="#10b981" 
-                strokeWidth={2} 
+              <Line
+                type="linear"
+                dataKey="idealRemaining"
+                stroke="#10b981"
+                strokeWidth={2}
                 strokeDasharray="8 4"
                 dot={false}
                 name="Ideal Burndown"
               />
-              
+
               {/* Actual burndown line */}
-              <Line 
-                type="monotone" 
-                dataKey="remainingStoryPoints" 
-                stroke="#3b82f6" 
-                strokeWidth={3} 
-                dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
-                activeDot={{ r: 6, stroke: '#3b82f6', strokeWidth: 2, fill: 'white' }}
+              <Line
+                type="monotone"
+                dataKey="remainingStoryPoints"
+                stroke={lineColor}
+                strokeWidth={3}
+                dot={{ fill: lineColor, strokeWidth: 2, r: 4 }}
+                activeDot={{ r: 6, stroke: lineColor, strokeWidth: 2, fill: 'white' }}
                 name="Actual Burndown"
               />
-              
+
               {/* Current day line */}
-              <ReferenceLine 
-                x={currentDay} 
-                stroke="#ef4444" 
-                strokeDasharray="4 4" 
+              <ReferenceLine
+                x={currentDay}
+                stroke="#ef4444"
+                strokeDasharray="4 4"
                 strokeWidth={2}
                 label={{ value: "Today", position: "top" }}
               />
@@ -303,7 +304,7 @@ const BurndownChart: React.FC<BurndownChartProps> = ({
               <span className="font-medium text-sm">Sprint Status</span>
             </div>
             <p className="text-sm text-muted-foreground mb-2">
-              {isAheadOfSchedule 
+              {isAheadOfSchedule
                 ? "The team is performing well and is ahead of the ideal burndown rate."
                 : "The team is behind schedule and may need to adjust scope or increase velocity."
               }
@@ -322,7 +323,7 @@ const BurndownChart: React.FC<BurndownChartProps> = ({
               <span className="font-medium text-sm">Forecast</span>
             </div>
             <p className="text-sm text-muted-foreground mb-2">
-              {remainingDays > 0 
+              {remainingDays > 0
                 ? `At current pace, ${Math.round(remainingStoryPoints / ((storyPointsCompleted / Math.max(1, currentDay)) || 1))} more days needed to complete remaining work.`
                 : "Sprint has ended. Review completed work and plan next sprint."
               }

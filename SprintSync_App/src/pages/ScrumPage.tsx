@@ -214,7 +214,7 @@ import LoadingSpinner from "../components/LoadingSpinner";
 
 // import CreateSprintDialog from "../components/CreateSprintDialog";
 
-// import TeamCapacityCalculator from "../components/TeamCapacityCalculator";
+import TeamCapacityCalculator from "../components/TeamCapacityCalculator";
 
 import {
   useWorkflowLanesByProject,
@@ -268,7 +268,7 @@ const ScrumPage: React.FC = () => {
 
   // const [isCreateSprintDialogOpen, setIsCreateSprintDialogOpen] = useState(false);
 
-  // const [isCapacityCalculatorOpen, setIsCapacityCalculatorOpen] = useState(false);
+  const [isCapacityCalculatorOpen, setIsCapacityCalculatorOpen] = useState(false);
 
   const [isAddStoryDialogOpen, setIsAddStoryDialogOpen] = useState(false);
 
@@ -445,6 +445,7 @@ const ScrumPage: React.FC = () => {
   const [isBacklogTaskDialogOpen, setIsBacklogTaskDialogOpen] = useState(false);
   const [backlogTaskToView, setBacklogTaskToView] = useState<Task | null>(null);
   const [selectedBacklogTasks, setSelectedBacklogTasks] = useState<string[]>([]);
+  const [isLoggingEffort, setIsLoggingEffort] = useState(false);
 
   // Role-based permissions
 
@@ -4363,7 +4364,7 @@ const ScrumPage: React.FC = () => {
             const date = new Date(fullYear, parseInt(month) - 1, parseInt(day));
 
             if (!isNaN(date.getTime())) {
-              dueDate = date.toISOString().split("T")[0];
+              dueDate = date.toISOString().slice(0, 10);
             }
           }
         } catch (e) {
@@ -5573,6 +5574,7 @@ const ScrumPage: React.FC = () => {
     }
 
     try {
+      setIsLoggingEffort(true);
       // Find the parent task
 
       const parentTask = allTasks.find(
@@ -5744,6 +5746,8 @@ const ScrumPage: React.FC = () => {
       toast.error("Failed to log effort");
 
       console.error("Error logging effort:", error);
+    } finally {
+      setIsLoggingEffort(false);
     }
   };
 
@@ -5765,6 +5769,7 @@ const ScrumPage: React.FC = () => {
     }
 
     try {
+      setIsLoggingEffort(true);
       // Create time entry for the task
       const timeEntryData = {
         userId: user?.id || "",
@@ -5885,6 +5890,8 @@ const ScrumPage: React.FC = () => {
     } catch (error) {
       toast.error("Failed to log effort");
       console.error("Error logging effort:", error);
+    } finally {
+      setIsLoggingEffort(false);
     }
   };
 
@@ -5906,6 +5913,7 @@ const ScrumPage: React.FC = () => {
     }
 
     try {
+      setIsLoggingEffort(true);
       // Create time entry for the issue
       const timeEntryData = {
         userId: user?.id || "",
@@ -5964,6 +5972,8 @@ const ScrumPage: React.FC = () => {
     } catch (error) {
       toast.error("Failed to log effort");
       console.error("Error logging effort:", error);
+    } finally {
+      setIsLoggingEffort(false);
     }
   };
 
@@ -6108,9 +6118,45 @@ const ScrumPage: React.FC = () => {
 
                   <Badge
                     variant="outline"
-                    className={`text-xs ${getStatusColor(story.status)} font-medium`}
+                    className={`text-xs ${getStatusColor(
+                      (() => {
+                        const tasks = allTasks.filter((t) => t.storyId === story.id);
+                        if (tasks.length === 0) return story.status;
+
+                        const allDone = tasks.every((t) => {
+                          const s = t.status?.toUpperCase();
+                          return s === "DONE";
+                        });
+                        if (allDone) return "DONE";
+
+                        const allTodo = tasks.every((t) => {
+                          const s = t.status?.toUpperCase();
+                          return s === "TODO" || s === "TO_DO";
+                        });
+                        if (allTodo) return "TODO";
+
+                        return "IN_PROGRESS";
+                      })()
+                    )} font-medium`}
                   >
-                    {story.status.replace("_", " ")}
+                    {(() => {
+                      const tasks = allTasks.filter((t) => t.storyId === story.id);
+                      if (tasks.length === 0) return story.status.replace("_", " ");
+
+                      const allDone = tasks.every((t) => {
+                        const s = t.status?.toUpperCase();
+                        return s === "DONE";
+                      });
+                      if (allDone) return "DONE";
+
+                      const allTodo = tasks.every((t) => {
+                        const s = t.status?.toUpperCase();
+                        return s === "TODO" || s === "TO_DO";
+                      });
+                      if (allTodo) return "TODO";
+
+                      return "IN PROGRESS";
+                    })()}
                   </Badge>
 
                   {storyTasks.length > 0 && (
@@ -6204,7 +6250,7 @@ const ScrumPage: React.FC = () => {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </div >
     );
   };
 
@@ -6894,6 +6940,25 @@ const ScrumPage: React.FC = () => {
       </div>
     );
   }
+
+  const getSprintComputedStatus = (sprint: Sprint) => {
+    if (!sprint.startDate || !sprint.endDate) return sprint.status;
+    const now = new Date();
+    const start = new Date(sprint.startDate);
+    const end = new Date(sprint.endDate);
+
+    // Set times to ensure accurate day comparison if needed, 
+    // but simplified logic as requested:
+    // before start -> planning
+    // between start and end -> active
+    // after end -> completed
+
+    if (now < start) return "PLANNING";
+    if (now >= start && now <= end) return "ACTIVE";
+    if (now > end) return "COMPLETED";
+
+    return sprint.status;
+  };
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -7799,9 +7864,65 @@ const ScrumPage: React.FC = () => {
         <TabsContent value="scrum-board" className="mt-0 flex-1">
           {/* Story-Row Aligned Grid Scrum Board */}
 
-          {sprintStoriesLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          {sprintStoriesLoading || tasksLoading || issuesLoading ? (
+            <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] bg-gradient-to-br from-white via-green-50/30 to-cyan-50/30">
+              <div className="text-center space-y-6">
+                <div
+                  className="loading"
+                  style={{
+                    width: "100px",
+                    height: "100px",
+                    position: "relative",
+                    margin: "0px auto",
+                  }}
+                >
+                  <div
+                    className="loading__ring"
+                    style={{
+                      position: "absolute",
+                      width: "100px",
+                      height: "100px",
+                      transform: "skew(30deg, 20deg)",
+                    }}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      version="1.1"
+                      x="0px"
+                      y="0px"
+                      viewBox="0 0 100 100"
+                      className="loading-svg"
+                    >
+                      <path d="M85.5,42c-0.2-0.8-0.5-1.7-0.8-2.5c-0.3-0.9-0.7-1.6-1-2.3c-0.3-0.7-0.6-1.3-1-1.9c0.3,0.5,0.5,1.1,0.8,1.7  c0.2,0.7,0.6,1.5,0.8,2.3s0.5,1.7,0.8,2.5c0.8,3.5,1.3,7.5,0.8,12c-0.4,4.3-1.8,9-4.2,13.4c-2.4,4.2-5.9,8.2-10.5,11.2  c-1.1,0.7-2.2,1.5-3.4,2c-0.5,0.2-1.2,0.6-1.8,0.8s-1.3,0.5-1.9,0.8c-2.6,1-5.3,1.7-8.1,1.8l-1.1,0.1L53.8,84c-0.7,0-1.4,0-2.1,0  c-1.4-0.1-2.9-0.1-4.2-0.5c-1.4-0.1-2.8-0.6-4.1-0.8c-1.4-0.5-2.7-0.9-3.9-1.5c-1.2-0.6-2.4-1.2-3.7-1.9c-0.6-0.3-1.2-0.7-1.7-1.1  l-0.8-0.6c-0.3-0.1-0.6-0.4-0.8-0.6l-0.8-0.6L31.3,76l-0.2-0.2L31,75.7l-0.1-0.1l0,0l-1.5-1.5c-1.2-1-1.9-2.1-2.7-3.1  c-0.4-0.4-0.7-1.1-1.1-1.7l-1.1-1.7c-0.3-0.6-0.6-1.2-0.9-1.8c-0.2-0.5-0.6-1.2-0.8-1.8c-0.4-1.2-1-2.4-1.2-3.7  c-0.2-0.6-0.4-1.2-0.5-1.9c-0.1-0.6-0.2-1.2-0.3-1.8c-0.3-1.2-0.3-2.4-0.4-3.7c-0.1-1.2,0-2.5,0.1-3.7c0.2-1.2,0.3-2.4,0.6-3.5  c0.1-0.6,0.3-1.1,0.4-1.7l0.1-0.8l0.3-0.8c1.5-4.3,3.8-8,6.5-11c0.8-0.8,1.4-1.5,2.1-2.1c0.9-0.9,1.4-1.3,2.2-1.8  c1.4-1.2,2.9-2,4.3-2.8c2.8-1.5,5.5-2.3,7.7-2.8s4-0.7,5.2-0.6c0.6-0.1,1.1,0,1.4,0s0.4,0,0.4,0h0.1c2.7,0.1,5-2.2,5-5  c0.1-2.7-2.2-5-5-5c-0.2,0-0.2,0-0.3,0c0,0-0.2,0.1-0.6,0.1c-0.4,0-1,0-1.8,0.1c-1.6,0.1-4,0.4-6.9,1.2c-2.9,0.8-6.4,2-9.9,4.1  c-1.8,1-3.6,2.3-5.4,3.8C26,21.4,25,22.2,24.4,23c-0.2,0.2-0.4,0.4-0.6,0.6c-0.2,0.2-0.5,0.4-0.6,0.7c-0.5,0.4-0.8,0.9-1.3,1.4  c-3.2,3.9-5.9,8.8-7.5,14.3l-0.3,1l-0.2,1.1c-0.1,0.7-0.3,1.4-0.4,2.1c-0.3,1.5-0.4,2.9-0.5,4.5c0,1.5-0.1,3,0.1,4.5  c0.2,1.5,0.2,3,0.6,4.6c0.1,0.7,0.3,1.5,0.4,2.3c0.2,0.8,0.5,1.5,0.7,2.3c0.4,1.6,1.1,3,1.7,4.4c0.3,0.7,0.7,1.4,1.1,2.1  c0.4,0.8,0.8,1.4,1.2,2.1c0.5,0.7,0.9,1.4,1.4,2s0.9,1.3,1.5,1.9c1.1,1.3,2.2,2.7,3.3,3.5l1.7,1.6c0,0,0.1,0.1,0.1,0.1c0,0,0,0,0,0  c0,0,0,0,0,0l0.1,0.1l0.1,0.1h0.2l0.5,0.4l1,0.7c0.4,0.2,0.6,0.5,1,0.7l1.1,0.6c0.8,0.4,1.4,0.9,2.1,1.2c1.4,0.7,2.9,1.5,4.4,2  c1.5,0.7,3.1,1,4.6,1.5c1.5,0.3,3.1,0.7,4.7,0.8c1.6,0.2,3.1,0.2,4.7,0.2c0.8,0,1.6-0.1,2.4-0.1l1.2-0.1l1.1-0.1  c3.1-0.4,6.1-1.3,8.9-2.4c0.8-0.3,1.4-0.6,2.1-0.9s1.3-0.7,2-1.1c1.3-0.7,2.6-1.7,3.7-2.5c0.5-0.4,1-0.9,1.6-1.3l0.8-0.6l0.2-0.2  c0,0,0.1-0.1,0.1-0.1c0.1-0.1,0,0,0,0v0.1l0.1-0.1l0.4-0.4c0.5-0.5,1-1,1.5-1.5c0.3-0.3,0.5-0.5,0.8-0.8l0.7-0.8  c0.9-1.1,1.8-2.2,2.5-3.3c0.4-0.6,0.7-1.1,1.1-1.7c0.3-0.7,0.6-1.2,0.9-1.8c2.4-4.9,3.5-9.8,3.7-14.4C87.3,49.7,86.6,45.5,85.5,42z"></path>
+                    </svg>
+                  </div>
+                  <div
+                    className="loading__ring"
+                    style={{
+                      position: "absolute",
+                      width: "100px",
+                      height: "100px",
+                      transform: "skew(-30deg, -20deg) scale(-1, 1)",
+                    }}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      version="1.1"
+                      x="0px"
+                      y="0px"
+                      viewBox="0 0 100 100"
+                      className="loading-svg"
+                    >
+                      <path d="M85.5,42c-0.2-0.8-0.5-1.7-0.8-2.5c-0.3-0.9-0.7-1.6-1-2.3c-0.3-0.7-0.6-1.3-1-1.9c0.3,0.5,0.5,1.1,0.8,1.7  c0.2,0.7,0.6,1.5,0.8,2.3s0.5,1.7,0.8,2.5c0.8,3.5,1.3,7.5,0.8,12c-0.4,4.3-1.8,9-4.2,13.4c-2.4,4.2-5.9,8.2-10.5,11.2  c-1.1,0.7-2.2,1.5-3.4,2c-0.5,0.2-1.2,0.6-1.8,0.8s-1.3,0.5-1.9,0.8c-2.6,1-5.3,1.7-8.1,1.8l-1.1,0.1L53.8,84c-0.7,0-1.4,0-2.1,0  c-1.4-0.1-2.9-0.1-4.2-0.5c-1.4-0.1-2.8-0.6-4.1-0.8c-1.4-0.5-2.7-0.9-3.9-1.5c-1.2-0.6-2.4-1.2-3.7-1.9c-0.6-0.3-1.2-0.7-1.7-1.1  l-0.8-0.6c-0.3-0.1-0.6-0.4-0.8-0.6l-0.8-0.6L31.3,76l-0.2-0.2L31,75.7l-0.1-0.1l0,0l-1.5-1.5c-1.2-1-1.9-2.1-2.7-3.1  c-0.4-0.4-0.7-1.1-1.1-1.7l-1.1-1.7c-0.3-0.6-0.6-1.2-0.9-1.8c-0.2-0.5-0.6-1.2-0.8-1.8c-0.4-1.2-1-2.4-1.2-3.7  c-0.2-0.6-0.4-1.2-0.5-1.9c-0.1-0.6-0.2-1.2-0.3-1.8c-0.3-1.2-0.3-2.4-0.4-3.7c-0.1-1.2,0-2.5,0.1-3.7c0.2-1.2,0.3-2.4,0.6-3.5  c0.1-0.6,0.3-1.1,0.4-1.7l0.1-0.8l0.3-0.8c1.5-4.3,3.8-8,6.5-11c0.8-0.8,1.4-1.5,2.1-2.1c0.9-0.9,1.4-1.3,2.2-1.8  c1.4-1.2,2.9-2,4.3-2.8c2.8-1.5,5.5-2.3,7.7-2.8s4-0.7,5.2-0.6c0.6-0.1,1.1,0,1.4,0s0.4,0,0.4,0h0.1c2.7,0.1,5-2.2,5-5  c0.1-2.7-2.2-5-5-5c-0.2,0-0.2,0-0.3,0c0,0-0.2,0.1-0.6,0.1c-0.4,0-1,0-1.8,0.1c-1.6,0.1-4,0.4-6.9,1.2c-2.9,0.8-6.4,2-9.9,4.1  c-1.8,1-3.6,2.3-5.4,3.8C26,21.4,25,22.2,24.4,23c-0.2,0.2-0.4,0.4-0.6,0.6c-0.2,0.2-0.5,0.4-0.6,0.7c-0.5,0.4-0.8,0.9-1.3,1.4  c-3.2,3.9-5.9,8.8-7.5,14.3l-0.3,1l-0.2,1.1c-0.1,0.7-0.3,1.4-0.4,2.1c-0.3,1.5-0.4,2.9-0.5,4.5c0,1.5-0.1,3,0.1,4.5  c0.2,1.5,0.2,3,0.6,4.6c0.1,0.7,0.3,1.5,0.4,2.3c0.2,0.8,0.5,1.5,0.7,2.3c0.4,1.6,1.1,3,1.7,4.4c0.3,0.7,0.7,1.4,1.1,2.1  c0.4,0.8,0.8,1.4,1.2,2.1c0.5,0.7,0.9,1.4,1.4,2s0.9,1.3,1.5,1.9c1.1,1.3,2.2,2.7,3.3,3.5l1.7,1.6c0,0,0.1,0.1,0.1,0.1c0,0,0,0,0,0  c0,0,0,0,0,0l0.1,0.1l0.1,0.1h0.2l0.5,0.4l1,0.7c0.4,0.2,0.6,0.5,1,0.7l1.1,0.6c0.8,0.4,1.4,0.9,2.1,1.2c1.4,0.7,2.9,1.5,4.4,2  c1.5,0.7,3.1,1,4.6,1.5c1.5,0.3,3.1,0.7,4.7,0.8c1.6,0.2,3.1,0.2,4.7,0.2c0.8,0,1.6-0.1,2.4-0.1l1.2-0.1l1.1-0.1  c3.1-0.4,6.1-1.3,8.9-2.4c0.8-0.3,1.4-0.6,2.1-0.9s1.3-0.7,2-1.1c1.3-0.7,2.6-1.7,3.7-2.5c0.5-0.4,1-0.9,1.6-1.3l0.8-0.6l0.2-0.2  c0,0,0.1-0.1,0.1-0.1c0.1-0.1,0,0,0,0v0.1l0.1-0.1l0.4-0.4c0.5-0.5,1-1,1.5-1.5c0.3-0.3,0.5-0.5,0.8-0.8l0.7-0.8  c0.9-1.1,1.8-2.2,2.5-3.3c0.4-0.6,0.7-1.1,1.1-1.7c0.3-0.7,0.6-1.2,0.9-1.8c2.4-4.9,3.5-9.8,3.7-14.4C87.3,49.7,86.6,45.5,85.5,42z"></path>
+                    </svg>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-muted-foreground text-sm">
+                    Board Loading
+                  </p>
+                </div>
+              </div>
             </div>
           ) : !selectedProject ? (
             <div className="flex items-center justify-center py-12">
@@ -8979,15 +9100,15 @@ const ScrumPage: React.FC = () => {
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center space-x-3">
-                          <Badge className={getStatusColor(sprint.status)}>
-                            {sprint.status}
+                          <Badge className={getStatusColor(getSprintComputedStatus(sprint))}>
+                            {getSprintComputedStatus(sprint)}
                           </Badge>
 
                           <h4 className="font-semibold">{sprint.name}</h4>
 
                           <Badge variant="outline">
                             {
-                              sprintStories.filter(
+                              (backlogStoriesData || []).filter(
                                 (s) => s.sprintId === sprint.id,
                               ).length
                             }{" "}
@@ -9094,7 +9215,16 @@ const ScrumPage: React.FC = () => {
               );
 
               const storyPointsCompleted = sprintStories
-                .filter((s) => s.status === "DONE")
+                .filter((s) => {
+                  const tasks = allTasks.filter(t => t.storyId === s.id);
+                  if (tasks.length === 0) return s.status === "DONE";
+
+                  // Strict rule: Story is done ONLY if ALL tasks are DONE
+                  return tasks.every(t => {
+                    const status = t.status?.toUpperCase();
+                    return status === "DONE";
+                  });
+                })
                 .reduce((sum, s) => sum + (s.storyPoints || 0), 0);
 
               const sprintLengthDays =
@@ -9121,12 +9251,30 @@ const ScrumPage: React.FC = () => {
                   (point: any) => point.remainingWork || 0,
                 ) || [];
 
+              // Override the last data point with the strictly calculated remaining work
+              // This ensures the chart reflects the immediate client-side state
+              if (workRemainingPerDay.length > 0) {
+                const currentRemainingWork = Math.max(0, storyPointsCommitted - storyPointsCompleted);
+                workRemainingPerDay[workRemainingPerDay.length - 1] = currentRemainingWork;
+              }
+
+              // Dynamic Color Logic
+              const currentDayIndex = Math.floor((new Date().getTime() - new Date(currentSprint.startDate || "").getTime()) / (1000 * 60 * 60 * 24));
+              const idealBurnRate = storyPointsCommitted / (sprintLengthDays || 1);
+              const idealRemainingToday = Math.max(0, storyPointsCommitted - (currentDayIndex * idealBurnRate));
+              const currentActualRemaining = Math.max(0, storyPointsCommitted - storyPointsCompleted);
+
+              // Red if behind (Actual > Ideal), Green if ahead/on-track (Actual <= Ideal)
+              // Keep Ideal line blue (handled in BurndownChart defaults/constants)
+              const chartColor = currentActualRemaining > idealRemainingToday ? "#ef4444" : "#10b981";
+
               return (
                 <BurndownChart
                   sprintName={currentSprint.name}
                   sprintGoal={currentSprint.goal}
                   startDate={currentSprint.startDate || ""}
                   endDate={currentSprint.endDate || ""}
+                  lineColor={chartColor}
                   sprintLengthDays={sprintLengthDays}
                   storyPointsCommitted={storyPointsCommitted}
                   storyPointsCompleted={storyPointsCompleted}
@@ -10266,10 +10414,10 @@ const ScrumPage: React.FC = () => {
                       <Badge
                         variant="outline"
                         className={getStatusColor(
-                          selectedSprintForDetails.status,
+                          getSprintComputedStatus(selectedSprintForDetails),
                         )}
                       >
-                        {selectedSprintForDetails.status}
+                        {getSprintComputedStatus(selectedSprintForDetails)}
                       </Badge>
 
                       <Badge variant="secondary">
@@ -11474,10 +11622,15 @@ const ScrumPage: React.FC = () => {
                 disabled={
                   !effortLog.hours ||
                   effortLog.hours <= 0 ||
-                  !effortLog.description.trim()
+                  !effortLog.description.trim() ||
+                  isLoggingEffort
                 }
               >
-                <Clock className="w-4 h-4 mr-2" />
+                {isLoggingEffort ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Clock className="w-4 h-4 mr-2" />
+                )}
                 Log {effortLog.hours}h
               </Button>
             </DialogFooter>
@@ -12134,7 +12287,7 @@ const ScrumPage: React.FC = () => {
 
                                         {subtask.dueDate && (
                                           <div className="flex items-center space-x-1">
-                                            <Calendar className="w-3 h-3" />
+                                            <CalendarIcon className="w-3 h-3" />
 
                                             <span>
                                               {new Date(
@@ -12255,7 +12408,7 @@ const ScrumPage: React.FC = () => {
                           <div className="space-y-4">
                             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                               <div className="flex items-center space-x-2 mb-2">
-                                <Calendar className="w-4 h-4 text-gray-600" />
+                                <CalendarIcon className="w-4 h-4 text-gray-600" />
 
                                 <span className="text-sm font-medium text-gray-900">
                                   Task Due Date
@@ -14114,7 +14267,8 @@ const ScrumPage: React.FC = () => {
       /> */}
 
       {/* Team Capacity Calculator */}
-      {/* <TeamCapacityCalculator
+      {/* Team Capacity Calculator */}
+      <TeamCapacityCalculator
         open={isCapacityCalculatorOpen}
         onOpenChange={setIsCapacityCalculatorOpen}
         onCalculate={(capacity) => {
@@ -14124,7 +14278,7 @@ const ScrumPage: React.FC = () => {
           }));
         }}
         initialCapacity={newSprint.capacityHours ? parseInt(newSprint.capacityHours) : undefined}
-      /> */}
+      />
 
       {/* Add Task Dialog */}
       <AddTaskDialog
