@@ -150,6 +150,7 @@ import {
 } from "../hooks/api/useStories";
 
 import { storyApiService } from "../services/api/entities/storyApi";
+import { sprintApiService } from "../services/api/entities/sprintApi";
 
 import {
   useTasksByStory,
@@ -298,10 +299,70 @@ const ScrumPage: React.FC = () => {
   const [editLogData, setEditLogData] = useState({
     hoursWorked: 0,
     description: "",
-    workDate: new Date().toISOString().split("T")[0],
-    startTime: "",
-    endTime: "",
   });
+
+  const [dashboardProject, setDashboardProject] = useState("all");
+  const [dashboardSprint, setDashboardSprint] = useState("all");
+  const [dashboardMember, setDashboardMember] = useState("all");
+  const [dashboardTasks, setDashboardTasks] = useState<Task[]>([]);
+  const [dashboardStories, setDashboardStories] = useState<Story[]>([]);
+  const [dashboardSprints, setDashboardSprints] = useState<Sprint[]>([]);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardDataLoaded, setDashboardDataLoaded] = useState(false);
+
+  // Filtered tasks based on selected project, sprint, and member
+  const filteredTasks = useMemo(() => {
+    return dashboardTasks.filter((task) => {
+      const story = dashboardStories.find((s) => s.id === task.storyId);
+      if (!story) {
+        // If strict filtering is needed, we might exclude tasks without stories found in the current set
+        // But if filtering by "all" we might want to be lenient.
+        // For now, if we can't find the story, we can't filter by project/sprint accurately,
+        // so we exclude it to be safe, or include if filters are "all"?
+        // Let's assume strict filtering requires story to be present to know projectId/sprintId.
+        return false;
+      }
+
+      const projectMatch = dashboardProject === "all" || story.projectId === dashboardProject;
+      const sprintMatch = dashboardSprint === "all" || story.sprintId === dashboardSprint;
+      const memberMatch = dashboardMember === "all" || task.assigneeId === dashboardMember;
+
+      return projectMatch && sprintMatch && memberMatch;
+    });
+  }, [dashboardTasks, dashboardStories, dashboardProject, dashboardSprint, dashboardMember]);
+
+  // Fetch dashboard data when tab is active
+  useEffect(() => {
+    if (activeView === "dashboard" && !dashboardDataLoaded && !dashboardLoading) {
+      const fetchDashboardData = async () => {
+        setDashboardLoading(true);
+        try {
+          // Fetch all tasks and stories for client-side filtering
+          const [tasksRes, storiesRes, sprintsRes] = await Promise.all([
+            taskApiService.getAllTasks(),
+            storyApiService.getAllStories(),
+            sprintApiService.getSprints()
+          ]);
+
+          const tasks = Array.isArray(tasksRes.data) ? tasksRes.data : (tasksRes.data?.content || []);
+          const stories = Array.isArray(storiesRes.data) ? storiesRes.data : (storiesRes.data?.content || []);
+          const sprints = Array.isArray(sprintsRes.data) ? sprintsRes.data : (sprintsRes.data?.content || []);
+
+          setDashboardTasks(tasks);
+          setDashboardStories(stories);
+          setDashboardSprints(sprints);
+          setDashboardDataLoaded(true);
+        } catch (error) {
+          console.error("Failed to fetch dashboard data", error);
+          toast.error("Failed to load dashboard data");
+        } finally {
+          setDashboardLoading(false);
+        }
+      };
+
+      fetchDashboardData();
+    }
+  }, [activeView, dashboardDataLoaded, dashboardLoading]);
 
   const [isStoryDetailsOpen, setIsStoryDetailsOpen] = useState(false);
 
@@ -6324,8 +6385,7 @@ const ScrumPage: React.FC = () => {
               : parentStory?.priority === "MEDIUM"
                 ? "border-l-blue-500"
                 : "border-l-green-500"
-            } bg-white hover:shadow-lg transition-all duration-200 rounded-lg overflow-hidden w-full aspect-square flex flex-col`}
-        >
+            } issue-card hover:shadow-lg transition-all duration-200 rounded-lg overflow-hidden w-full aspect-square flex flex-col`}        >
           <CardContent className="p-3 flex flex-col flex-1 justify-between">
             {/* Top Row: Issue ID and Due Date */}
             <div className="flex items-center justify-between mb-2 flex-shrink-0">
@@ -6511,7 +6571,7 @@ const ScrumPage: React.FC = () => {
                 : parentStory?.priority === "MEDIUM"
                   ? "border-l-blue-500"
                   : "border-l-green-500"
-            } bg-lime-200 hover:shadow-lg transition-all duration-200 rounded-lg overflow-hidden w-full aspect-square flex flex-col`}
+            } task-card hover:shadow-lg transition-all duration-200 rounded-lg overflow-hidden w-full aspect-square flex flex-col`}
         >
           <CardContent className="p-3 flex flex-col flex-1 justify-between">
             {/* Top Row: Task ID and Due Date */}
@@ -7240,6 +7300,90 @@ const ScrumPage: React.FC = () => {
 
                 <TabsTrigger value="burndown">Burndown</TabsTrigger>
               </TabsList>
+
+              {/* Dashboard Tab Content */}
+              <TabsContent value="dashboard" className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h1 className="text-2xl font-semibold">Performance &amp; Workload</h1>
+                </div>
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex items-center space-x-2 mb-3">
+                    <Filter className="w-4 h-4 text-gray-600" />
+                    {/* Project Filter */}
+                    <Select value={dashboardProject} onValueChange={setDashboardProject}>
+                      <SelectTrigger className="w-[150px]">
+                        <SelectValue placeholder={dashboardProject === "all" ? "All Projects" : dashboardProject} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Projects</SelectItem>
+                        {projects?.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {/* Sprint Filter */}
+                    <Select
+                      value={dashboardSprint}
+                      onValueChange={setDashboardSprint}
+                      disabled={dashboardProject === "all"}
+                    >
+                      <SelectTrigger className="w-[150px]">
+                        <SelectValue placeholder={dashboardSprint === "all" ? "All Sprints" : dashboardSprint} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Sprints</SelectItem>
+                        {dashboardSprints
+                          ?.filter((s) => dashboardProject === "all" || s.projectId === dashboardProject)
+                          .map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    {/* Member Filter */}
+                    <Select value={dashboardMember} onValueChange={setDashboardMember}>
+                      <SelectTrigger className="w-[150px]">
+                        <SelectValue placeholder={dashboardMember === "all" ? "All Members" : dashboardMember} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Members</SelectItem>
+                        {users?.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {dashboardLoading ? (
+                    <div className="flex justify-center">
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="p-4 bg-white rounded shadow">
+                        <h3 className="text-sm font-medium text-gray-500">Total Tasks</h3>
+                        <p className="text-2xl font-semibold">{filteredTasks.length}</p>
+                      </div>
+                      <div className="p-4 bg-white rounded shadow">
+                        <h3 className="text-sm font-medium text-gray-500">Completed</h3>
+                        <p className="text-2xl font-semibold">{filteredTasks.filter((t) => t.status === "DONE").length}</p>
+                      </div>
+                      <div className="p-4 bg-white rounded shadow">
+                        <h3 className="text-sm font-medium text-gray-500">In Progress</h3>
+                        <p className="text-2xl font-semibold">{filteredTasks.filter((t) => t.status === "IN_PROGRESS").length}</p>
+                      </div>
+                      <div className="p-4 bg-white rounded shadow">
+                        <h3 className="text-sm font-medium text-gray-500">Pending</h3>
+                        <p className="text-2xl font-semibold">{filteredTasks.filter((t) => t.status === "TODO").length}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
             </div>
           </div>
         </div>

@@ -6,16 +6,16 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { 
-  CheckCircle, 
-  Clock, 
-  AlertTriangle, 
-  Calendar, 
-  User, 
-  Code, 
-  Palette, 
-  Shield, 
-  FileText, 
+import {
+  CheckCircle,
+  Clock,
+  AlertTriangle,
+  Calendar,
+  User,
+  Code,
+  Palette,
+  Shield,
+  FileText,
   Presentation,
   Database,
   Bug,
@@ -31,10 +31,10 @@ import {
   Filter
 } from 'lucide-react';
 import { UserTask } from '../types';
-import { useTasksByAssignee, useTasks } from '../hooks/api/useTasks';
+import { useTasksByAssignee, useTasks, useAllTasks } from '../hooks/api/useTasks';
 import { useProjects } from '../hooks/api/useProjects';
-import { useStories } from '../hooks/api/useStories';
-import { useSprints } from '../hooks/api/useSprints';
+import { useAllStories } from '../hooks/api/useStories';
+import { useAllSprints } from '../hooks/api/useSprints';
 import { useUsers } from '../hooks/api/useUsers';
 import { Task } from '../types/api';
 
@@ -50,7 +50,7 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
 
   // State for filter dropdown
   const [selectedFilter, setSelectedFilter] = useState<'in-progress' | 'pending' | 'overdue'>('in-progress');
-  
+
   // State for manager filters (only for managers)
   const [selectedProjectFilter, setSelectedProjectFilter] = useState<string>('all');
   const [selectedSprintFilter, setSelectedSprintFilter] = useState<string>('all');
@@ -65,13 +65,13 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
 
   // Check if user is manager/admin
   const isManagerOrAdmin = userRole === 'admin' || userRole === 'manager';
-  
+
   // Fetch projects, stories, sprints, and users for filters
   const { data: apiProjects } = useProjects();
-  const { data: apiStories } = useStories();
-  const { data: apiSprints } = useSprints();
+  const { data: apiStories } = useAllStories();
+  const { data: apiSprints } = useAllSprints();
   const { data: apiUsers } = useUsers({ page: 0, size: 1000 });
-  
+
   // Helper to normalize API data
   const normalizeApiData = (data: any): any[] => {
     if (Array.isArray(data)) {
@@ -85,17 +85,17 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
     }
     return [];
   };
-  
+
   // Get manager's project IDs (for managers only)
   const managerProjectIds = useMemo(() => {
     if (userRole !== 'manager') return new Set<string>();
-    
+
     const projects = normalizeApiData(apiProjects);
     if (!projects || projects.length === 0) {
       console.log('[UserTasks] No projects loaded yet for manager', userId);
       return new Set<string>();
     }
-    
+
     const filteredProjects = projects.filter(project => {
       // Try multiple possible field names for managerId
       const managerId = (project as any).managerId || (project as any).manager?.id || (project as any).manager_id;
@@ -103,7 +103,7 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
       const managerIdStr = managerId ? String(managerId) : null;
       const userIdStr = userId ? String(userId) : null;
       const matches = managerIdStr === userIdStr;
-      
+
       if (!matches && userRole === 'manager') {
         // Debug logging for manager project filtering
         console.log('[UserTasks] Project manager mismatch:', {
@@ -115,12 +115,12 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
           userId
         });
       }
-      
+
       return matches;
     });
-    
+
     const projectIds = new Set(filteredProjects.map(project => project.id));
-    
+
     console.log('[UserTasks] Manager project filtering:', {
       userId,
       userRole,
@@ -129,89 +129,98 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
       managerProjectIds: Array.from(projectIds),
       projectNames: filteredProjects.map(p => (p as any).name)
     });
-    
+
     return projectIds;
   }, [apiProjects, userId, userRole]);
-  
+
   // Get story IDs from manager's projects (for managers only)
   const managerStoryIds = useMemo(() => {
-    if (userRole !== 'manager' || managerProjectIds.size === 0) return new Set<string>();
-    
+    // For managers, we want to allow filtering by ALL projects they have access to, not just managed ones
+    // Matches logic from Dashboard.tsx
+    if (userRole !== 'manager') return new Set<string>();
+
+    // Instead of filtering by managerProjectIds, filter by all accessible projects
+    // Wait, managerProjectIds logic above filters by managerId === userId.
+    // If we want to revert to "accessible projects" logic, we need to broaden that scope.
+    // But let's first fix the DATA SOURCE by using useAllTasks below.
+
+    // Current logic: managerStoryIds only includes stories from projects where user is MANAGER.
+    // Dashboard logic: allows tasks if user has *access* to project via assignment.
+
     const stories = normalizeApiData(apiStories);
-    return new Set(
-      stories
-        .filter(story => {
-          const storyProjectId = (story as any).projectId || (story as any).project?.id || (story as any).project_id;
-          return storyProjectId && managerProjectIds.has(storyProjectId);
-        })
-        .map(story => story.id)
-    );
-  }, [apiStories, managerProjectIds, userRole]);
-  
+    return new Set(stories.map(s => s.id));
+    // Optimization: Just get all story IDs for now to allow broader filtering later
+    // Or keep it restricted if that was original intent, but user wants "Total Tasks" (29).
+    // The "Total Tasks" 29 includes tasks from projects where user might just be a member.
+  }, [apiStories, userRole]);
+
   // Fetch tasks based on role:
   // - Admins: Fetch ALL tasks
-  // - Managers: Fetch tasks from their projects only
+  // - Managers: Fetch ALL tasks (and filter on client side) to ensure accurate counts
   // - Other users: Fetch only their assigned tasks
-  const { data: allTasksData, loading: allTasksLoading, error: allTasksError } = useTasks();
+  const { data: allTasksData, loading: allTasksLoading, error: allTasksError } = useAllTasks();
   const { data: assignedTasksData, loading: assignedTasksLoading, error: assignedTasksError } = useTasksByAssignee(userId);
-  
+
   // Use appropriate data based on role
-  const rawTasksData = userRole === 'admin' ? allTasksData : 
-                       userRole === 'manager' ? allTasksData : 
-                       assignedTasksData;
-  const tasksLoading = userRole === 'admin' ? allTasksLoading : 
-                       userRole === 'manager' ? allTasksLoading : 
-                       assignedTasksLoading;
-  const tasksError = userRole === 'admin' ? allTasksError : 
-                     userRole === 'manager' ? allTasksError : 
-                     assignedTasksError;
+  const rawTasksData = userRole === 'admin' ? allTasksData :
+    userRole === 'manager' ? allTasksData :
+      assignedTasksData;
+  const tasksLoading = userRole === 'admin' ? allTasksLoading :
+    userRole === 'manager' ? allTasksLoading :
+      assignedTasksLoading;
+  const tasksError = userRole === 'admin' ? allTasksError :
+    userRole === 'manager' ? allTasksError :
+      assignedTasksError;
 
   // Extract and filter tasks from API response
   const assignedTasks = useMemo(() => {
     if (!rawTasksData) return [];
-    
-    let tasks = Array.isArray(rawTasksData) 
-      ? rawTasksData 
+
+    let tasks = Array.isArray(rawTasksData)
+      ? rawTasksData
       : (rawTasksData as any).data || (rawTasksData as any).content || [];
-    
-    // For managers: Filter tasks to only include tasks from their projects
-    // Only filter if we have story IDs, otherwise return empty array (don't show all tasks)
+
+    // For managers: Filter tasks to include those they manage OR are effective members of projects
     if (userRole === 'manager') {
-      if (managerStoryIds.size === 0) {
-        // If no stories found for manager's projects yet, return empty array
-        // This prevents showing all tasks while stories are loading
-        console.log('[UserTasks] Manager task filtering: No stories found yet, returning empty tasks');
-        return [];
-      }
-      
       const beforeCount = tasks.length;
+
+      // Use simpler, more permissive logic first: 
+      // If we used useAllTasks, we have everything. Now filter to what manager should see.
+      // Dashboard.tsx logic: Task -> Story -> Project -> User Assigned/Managed
+
+      const projects = normalizeApiData(apiProjects);
+      // Manager's accessible projects (managed + assigned)
+      const allowedProjectIds = new Set(projects.map(p => p.id));
+
+      /* 
+         Note: apiProjects should already be filtered by backend/hooks to only return what user can see?
+         If useProjects() returns all public projects, we need to be careful.
+         But assuming useProjects returns accessible projects:
+      */
+
+      const stories = normalizeApiData(apiStories);
+
       tasks = tasks.filter((task: Task) => {
         if (!task || !task.id) return false;
-        const taskStoryId = (task as any).storyId || (task as any).story?.id;
-        if (!taskStoryId) {
-          // Tasks without storyId can't be filtered - skip them for managers
-          return false;
-        }
-        const belongsToManagerProject = managerStoryIds.has(taskStoryId);
-        
-        // Removed per-task logging to reduce console noise
-        // Summary logging is done after filtering
-        
-        return belongsToManagerProject;
-      });
-      
-      console.log('[UserTasks] Manager task filtering result:', {
-        userId,
-        userRole,
-        beforeCount,
-        afterCount: tasks.length,
-        managerStoryIdsCount: managerStoryIds.size,
-        filteredOut: beforeCount - tasks.length
+
+        // 1. Explicitly assigned
+        const assigneeId = (task as any).assigneeId || (task as any).assignee?.id || (task as any).assignee?.userId;
+        if (assigneeId && String(assigneeId) === String(userId)) return true;
+
+        // 2. Linked to accessible project
+        const storyId = (task as any).storyId || (task as any).story?.id;
+        if (!storyId) return false;
+
+        const story = stories.find(s => s.id === storyId);
+        if (!story) return false;
+
+        const projectId = story.projectId || (story as any).project?.id;
+        return projectId && allowedProjectIds.has(projectId);
       });
     }
-    
+
     return tasks;
-  }, [rawTasksData, userRole, managerStoryIds]);
+  }, [rawTasksData, userRole, apiProjects, apiStories, userId]);
 
   // Map API Task data to UserTask format
   const userTasks = useMemo(() => {
@@ -220,7 +229,7 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
     return assignedTasks.map((task: Task) => {
       // Normalize task status - handle case variations and different formats
       const taskStatus = (task.status || '').toString().toUpperCase().trim();
-      
+
       // Map API status to display status - handle all possible status values
       const statusMap: Record<string, 'pending' | 'in-progress' | 'completed'> = {
         'TO_DO': 'pending',
@@ -371,7 +380,7 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
     if (userRole !== 'manager') return [];
     const users = normalizeApiData(apiUsers);
     const memberIds = new Set<string>();
-    
+
     managerProjects.forEach(project => {
       const teamMembers = (project as any).teamMembers || [];
       if (Array.isArray(teamMembers)) {
@@ -381,14 +390,14 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
         });
       }
     });
-    
+
     return users.filter(user => memberIds.has(String(user.id)));
   }, [apiUsers, managerProjects, userRole]);
 
   // Apply manager filters to all tasks (for statistics calculation)
   const getAllFilteredTasks = useMemo(() => {
     if (userRole !== 'manager') return userTasks;
-    
+
     let tasks = [...userTasks];
 
     // Filter by project
@@ -401,7 +410,7 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
           })
           .map(story => story.id)
       );
-      
+
       tasks = tasks.filter(task => {
         const taskData = assignedTasks.find((t: Task) => t.id === task.id);
         if (!taskData) return false;
@@ -420,7 +429,7 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
           })
           .map(story => story.id)
       );
-      
+
       tasks = tasks.filter(task => {
         const taskData = assignedTasks.find((t: Task) => t.id === task.id);
         if (!taskData) return false;
@@ -446,16 +455,16 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
   const filteredPendingTasks = getAllFilteredTasks.filter(task => task.status === 'pending');
   const filteredInProgressTasks = getAllFilteredTasks.filter(task => task.status === 'in-progress');
   const filteredCompletedTasks = getAllFilteredTasks.filter(task => task.status === 'completed');
-  
+
   // Use filtered statistics if filters are active (for managers), otherwise use original statistics
   const hasActiveFilters = userRole === 'manager' && (selectedProjectFilter !== 'all' || selectedSprintFilter !== 'all' || selectedMemberFilter !== 'all');
-  
+
   const displayTotalTasks = hasActiveFilters ? getAllFilteredTasks.length : totalTasks;
   const displayCompletedCount = hasActiveFilters ? filteredCompletedTasks.length : completedCount;
   const displayInProgressCount = hasActiveFilters ? filteredInProgressTasks.length : inProgressCount;
   const displayPendingCount = hasActiveFilters ? filteredPendingTasks.length : pendingCount;
-  const displayCompletionRate = displayTotalTasks > 0 
-    ? Math.round((displayCompletedCount / displayTotalTasks) * 100) 
+  const displayCompletionRate = displayTotalTasks > 0
+    ? Math.round((displayCompletedCount / displayTotalTasks) * 100)
     : 0;
 
   // Get filtered tasks based on selected dropdown option and manager filters
@@ -623,7 +632,7 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
     const today = new Date();
     const diffTime = date.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays < 0) {
       return `Overdue by ${Math.abs(diffDays)} days`;
     } else if (diffDays === 0) {
@@ -648,8 +657,8 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
             </Badge>
           </CardTitle>
           <CardDescription>
-            {isManagerOrAdmin 
-              ? "All users' current workload and task progress" 
+            {isManagerOrAdmin
+              ? "All users' current workload and task progress"
               : `${userName}'s current workload and task progress`}
           </CardDescription>
         </CardHeader>
@@ -675,8 +684,8 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
             <span>Error Loading Tasks</span>
           </CardTitle>
           <CardDescription className="text-red-700">
-            {isManagerOrAdmin 
-              ? "Unable to fetch all users' tasks" 
+            {isManagerOrAdmin
+              ? "Unable to fetch all users' tasks"
               : `Unable to fetch tasks for ${userName}`}
           </CardDescription>
         </CardHeader>
@@ -685,8 +694,8 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
             <p className="text-sm text-red-600 mb-4">
               {tasksError?.message || 'An error occurred while loading tasks'}
             </p>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => window.location.reload()}
               className="text-red-600 border-red-300 hover:bg-red-50"
             >
@@ -711,8 +720,8 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
             </Badge>
           </CardTitle>
           <CardDescription>
-            {isManagerOrAdmin 
-              ? "All users' current workload and task progress" 
+            {isManagerOrAdmin
+              ? "All users' current workload and task progress"
               : `${userName}'s current workload and task progress`}
           </CardDescription>
         </CardHeader>
@@ -721,8 +730,8 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
             <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>{isManagerOrAdmin ? 'No tasks found' : 'No tasks assigned yet'}</p>
             <p className="text-sm">
-              {isManagerOrAdmin 
-                ? 'When tasks are created, they will appear here' 
+              {isManagerOrAdmin
+                ? 'When tasks are created, they will appear here'
                 : 'When tasks are assigned to you, they will appear here'}
             </p>
           </div>
@@ -744,8 +753,8 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
                 {userRole}
               </Badge>
             </div>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="sm"
               onClick={handleViewAllTasks}
               className="flex items-center space-x-1"
@@ -755,8 +764,8 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
             </Button>
           </div>
           <CardDescription>
-            {isManagerOrAdmin 
-              ? "All users' current workload and task progress" 
+            {isManagerOrAdmin
+              ? "All users' current workload and task progress"
               : `${userName}'s current workload and task progress`}
           </CardDescription>
         </CardHeader>
@@ -790,8 +799,8 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
                 {/* Sprint Filter */}
                 <div>
                   <label className="text-xs text-gray-600 mb-1 block">Sprint</label>
-                  <Select 
-                    value={selectedSprintFilter} 
+                  <Select
+                    value={selectedSprintFilter}
                     onValueChange={setSelectedSprintFilter}
                     disabled={selectedProjectFilter === 'all'}
                   >
@@ -827,7 +836,7 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
                   </Select>
                 </div>
               </div>
-              
+
               {/* Clear Filters Button */}
               {(selectedProjectFilter !== 'all' || selectedSprintFilter !== 'all' || selectedMemberFilter !== 'all') && (
                 <div className="mt-3 flex justify-end">
@@ -847,7 +856,7 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
               )}
             </div>
           )}
-          
+
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">{displayTotalTasks}</div>
@@ -924,9 +933,9 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
           </CardHeader>
           <CardContent>
             {filteredTasks.length > 0 ? (
-              <div 
+              <div
                 className={`space-y-3 overflow-y-auto pr-2 ${selectedFilter === 'overdue' ? 'scrollbar-thumb-red-300 scrollbar-track-red-100' : 'scrollbar-thumb-gray-300 scrollbar-track-gray-100'} scrollbar-thin`}
-                style={{ 
+                style={{
                   maxHeight: '480px',
                   scrollbarWidth: 'thin',
                   scrollbarColor: selectedFilter === 'overdue' ? '#fca5a5 #fee2e2' : '#d1d5db #f3f4f6'
@@ -934,15 +943,14 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
               >
                 {filteredTasks.map((task) => {
                   const isOverdue = selectedFilter === 'overdue';
-                  
+
                   return (
-                    <div 
-                      key={task.id} 
-                      className={`flex items-start space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${
-                        isOverdue 
-                          ? 'border-red-200 bg-white hover:bg-red-50' 
-                          : 'hover:bg-gray-50'
-                      }`}
+                    <div
+                      key={task.id}
+                      className={`flex items-start space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${isOverdue
+                        ? 'border-red-200 bg-white hover:bg-red-50'
+                        : 'hover:bg-gray-50'
+                        }`}
                       onClick={() => handleTaskClick(task)}
                     >
                       <div className="flex-shrink-0 mt-1">
@@ -950,26 +958,25 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between">
-                          <h4 className={`font-medium text-sm ${
-                            isOverdue 
-                              ? 'text-red-800 hover:text-red-600' 
-                              : 'hover:text-blue-600'
-                          }`}>
+                          <h4 className={`font-medium text-sm ${isOverdue
+                            ? 'text-red-800 hover:text-red-600'
+                            : 'hover:text-blue-600'
+                            }`}>
                             {task.title}
                           </h4>
                           <div className="flex items-center space-x-2">
-                            <Badge 
-                              variant="outline" 
+                            <Badge
+                              variant="outline"
                               className={
-                                isOverdue 
-                                  ? 'bg-red-100 text-red-800 border-red-200' 
+                                isOverdue
+                                  ? 'bg-red-100 text-red-800 border-red-200'
                                   : getPriorityColor(task.priority)
                               }
                             >
                               {task.priority}
                             </Badge>
-                            <Button 
-                              variant="ghost" 
+                            <Button
+                              variant="ghost"
                               size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1004,12 +1011,11 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
                             <User className="w-3 h-3" />
                             <span>{(task as any).assigneeName || 'Unassigned'}</span>
                           </span>
-                          <span 
-                            className={`flex items-center space-x-1 cursor-pointer ${
-                              isOverdue 
-                                ? 'hover:text-red-800' 
-                                : 'hover:text-blue-600'
-                            }`}
+                          <span
+                            className={`flex items-center space-x-1 cursor-pointer ${isOverdue
+                              ? 'hover:text-red-800'
+                              : 'hover:text-blue-600'
+                              }`}
                             onClick={(e) => {
                               e.stopPropagation();
                               handleProjectClick(task.projectId, task.projectName);

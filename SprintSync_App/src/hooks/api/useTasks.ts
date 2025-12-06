@@ -1,11 +1,11 @@
 import { useApi, useApiMutation, usePaginatedApi, useSearchApi } from './useApi';
-import { 
-  taskApiService, 
+import {
+  taskApiService,
   subtaskApiService,
-  Task, 
+  Task,
   Subtask,
-  ApiResponse, 
-  PaginationParams 
+  ApiResponse,
+  PaginationParams
 } from '../../services/api';
 
 // Task Hooks
@@ -13,6 +13,13 @@ export function useTasks(params?: PaginationParams) {
   return useApi(
     () => taskApiService.getTasks(params),
     [JSON.stringify(params)]
+  );
+}
+
+export function useAllTasks() {
+  return useApi(
+    () => taskApiService.getAllTasks(),
+    []
   );
 }
 

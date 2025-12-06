@@ -7,9 +7,9 @@ export { useApi } from './useApi';
 // Entity-specific hooks
 export { useUsers, useCreateUser, useUpdateUser, useDeleteUser, useActiveUsers } from './useUsers';
 export { useProjects, useCreateProject } from './useProjects';
-export { useSprints, useCreateSprint, useUpdateSprint, useDeleteSprint } from './useSprints';
-export { useStories, useCreateStory, useUpdateStory, useDeleteStory } from './useStories';
-export { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from './useTasks';
+export { useSprints, useAllSprints, useCreateSprint, useUpdateSprint, useDeleteSprint } from './useSprints';
+export { useStories, useAllStories, useCreateStory, useUpdateStory, useDeleteStory } from './useStories';
+export { useTasks, useAllTasks, useCreateTask, useUpdateTask, useDeleteTask } from './useTasks';
 export { useSubtasks, createSubtask, updateSubtask, deleteSubtask } from './useSubtasks';
 export { useDepartments, createDepartment, updateDepartment, deleteDepartment } from './useDepartments';
 export { useDomains, createDomain, updateDomain, deleteDomain } from './useDomains';

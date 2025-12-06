@@ -4,6 +4,7 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
+import { Progress } from '../components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
@@ -18,10 +19,10 @@ import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import AddStoryDialog from '../components/AddStoryDialog';
 import AddTaskDialog from '../components/AddTaskDialog';
-import { 
+import {
   Search,
   Plus,
-  Calendar, 
+  Calendar,
   Clock,
   Target,
   AlertTriangle,
@@ -128,17 +129,17 @@ const ScrumPageEnhanced: React.FC = () => {
   ];
 
   const sprints = [
-    { 
-      id: 'sprint-15', 
-      name: 'Sprint 15 - UI Integration', 
+    {
+      id: 'sprint-15',
+      name: 'Sprint 15 - UI Integration',
       status: 'active',
       daysLeft: 3,
       points: '52:05',
       project: 'fintech-mobile'
     },
-    { 
-      id: 'sprint-16', 
-      name: 'Sprint 16 - Payment Gateway', 
+    {
+      id: 'sprint-16',
+      name: 'Sprint 16 - Payment Gateway',
       status: 'planning',
       daysLeft: 14,
       points: '68:10',
@@ -156,7 +157,7 @@ const ScrumPageEnhanced: React.FC = () => {
       assignee: 'Arjun Patel'
     },
     {
-      id: 'US-002', 
+      id: 'US-002',
       title: 'Dashboard Analytics View',
       priority: 'medium',
       points: 5,
@@ -312,14 +313,14 @@ const ScrumPageEnhanced: React.FC = () => {
   // Drag and drop handlers
   const moveItem = useCallback((id: string, newStatus: string, itemType: string) => {
     if (itemType === ItemTypes.STORY) {
-      setStories(prev => prev.map(story => 
-        story.id === id 
+      setStories(prev => prev.map(story =>
+        story.id === id
           ? { ...story, status: newStatus as Story['status'] }
           : story
       ));
     } else if (itemType === ItemTypes.TASK) {
-      setTasks(prev => prev.map(task => 
-        task.id === id 
+      setTasks(prev => prev.map(task =>
+        task.id === id
           ? { ...task, status: newStatus as Task['status'] }
           : task
       ));
@@ -366,7 +367,7 @@ const ScrumPageEnhanced: React.FC = () => {
   // Add Story Handler - only allowed for admin/manager
   const handleAddStory = (newStoryData: Omit<Story, 'id'>) => {
     if (!canManageSprintsAndStories) return;
-    
+
     const newStory: Story = {
       id: `US-${String(stories.length + 1).padStart(3, '0')}`,
       ...newStoryData
@@ -387,10 +388,10 @@ const ScrumPageEnhanced: React.FC = () => {
 
   const TaskCard: React.FC<{ task: Task }> = ({ task }) => {
     const parentStory = stories.find(story => story.id === task.storyId);
-    
+
     // Determine if it's a task or issue based on type or other criteria
     const isIssue = task.type === 'bug' || task.type === 'issue' || task.labels?.includes('bug') || task.labels?.includes('issue');
-    
+
     const [{ isDragging }, drag] = useDrag({
       type: ItemTypes.TASK,
       item: { id: task.id, type: ItemTypes.TASK },
@@ -400,16 +401,14 @@ const ScrumPageEnhanced: React.FC = () => {
     });
 
     return (
-      <div 
+      <div
         ref={drag as any}
-        className={`mb-3 transition-all cursor-move ${
-          isDragging ? 'opacity-50 rotate-2 scale-105' : ''
-        }`}
-      >
-        <div 
-          className={`border rounded-lg hover:shadow-md transition-shadow ${
-            isIssue ? 'issue-card' : 'task-card'
+        className={`mb-3 transition-all cursor-move ${isDragging ? 'opacity-50 rotate-2 scale-105' : ''
           }`}
+      >
+        <div
+          className={`border rounded-lg hover:shadow-md transition-shadow ${isIssue ? 'issue-card' : 'task-card'
+            }`}
           style={{
             backgroundColor: isIssue ? '#fee2e2' : '#dcfce7',
             borderColor: isIssue ? '#ef4444' : '#22c55e',
@@ -435,7 +434,7 @@ const ScrumPageEnhanced: React.FC = () => {
                   <DropdownMenuLabel>Task Actions</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   {canLogEffort && (
-                    <DropdownMenuItem 
+                    <DropdownMenuItem
                       className="flex items-center space-x-2 cursor-pointer"
                       onClick={() => handleOpenEffortDialog(task)}
                     >
@@ -459,7 +458,7 @@ const ScrumPageEnhanced: React.FC = () => {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-            
+
             {/* Parent Story Reference */}
             {parentStory && (
               <div className="mb-2 p-2 bg-blue-50 rounded border-l-3 border-blue-200">
@@ -471,9 +470,9 @@ const ScrumPageEnhanced: React.FC = () => {
                 </div>
               </div>
             )}
-            
+
             <h4 className="text-sm font-medium mb-3 line-clamp-2">{task.title}</h4>
-            
+
             {/* Effort Tracking */}
             <div className="mb-3 p-2 bg-gray-50 rounded border">
               <div className="flex items-center justify-between mb-1">
@@ -486,7 +485,7 @@ const ScrumPageEnhanced: React.FC = () => {
                 </span>
               </div>
             </div>
-            
+
             {task.progress && (
               <div className="mb-3">
                 <div className="flex justify-between text-xs mb-1">
@@ -494,14 +493,14 @@ const ScrumPageEnhanced: React.FC = () => {
                   <span>{task.progress}%</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-1">
-                  <div 
-                    className="bg-green-500 h-1 rounded-full" 
+                  <div
+                    className="bg-green-500 h-1 rounded-full"
                     style={{ width: `${task.progress}%` }}
                   ></div>
                 </div>
               </div>
             )}
-            
+
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <Avatar className="h-6 w-6">
@@ -514,9 +513,9 @@ const ScrumPageEnhanced: React.FC = () => {
               </div>
               <div className="flex items-center space-x-1">
                 {canLogEffort && (
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className="h-6 w-6 p-0 hover:bg-green-100"
                   >
                     <Clock className="w-3 h-3 text-green-600" />
@@ -537,7 +536,7 @@ const ScrumPageEnhanced: React.FC = () => {
   const StoryCard: React.FC<{ story: Story }> = ({ story }) => {
     const storyTasks = tasks.filter(task => task.storyId === story.id);
     const completedTasks = storyTasks.filter(task => task.status === 'done');
-    
+
     const [{ isDragging }, dragRef] = useDrag({
       type: ItemTypes.STORY,
       item: { id: story.id, type: ItemTypes.STORY },
@@ -547,11 +546,10 @@ const ScrumPageEnhanced: React.FC = () => {
     });
 
     return (
-      <div 
+      <div
         ref={dragRef as any}
-        className={`mb-3 transition-all cursor-move ${
-          isDragging ? 'opacity-50 rotate-2 scale-105' : ''
-        }`}
+        className={`mb-3 transition-all cursor-move ${isDragging ? 'opacity-50 rotate-2 scale-105' : ''
+          }`}
       >
         <Card className="border-2 border-green-200 bg-green-50 hover:shadow-md transition-shadow">
           <CardContent className="p-4">
@@ -596,9 +594,9 @@ const ScrumPageEnhanced: React.FC = () => {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-            
+
             <h4 className="text-sm font-medium mb-3 text-green-800">{story.title}</h4>
-            
+
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center space-x-2">
                 <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
@@ -620,11 +618,11 @@ const ScrumPageEnhanced: React.FC = () => {
                 </div>
               )}
             </div>
-            
+
             {storyTasks.length > 0 && (
               <div className="w-full bg-green-200 rounded-full h-1">
-                <div 
-                  className="bg-green-500 h-1 rounded-full" 
+                <div
+                  className="bg-green-500 h-1 rounded-full"
                   style={{ width: `${(completedTasks.length / storyTasks.length) * 100}%` }}
                 ></div>
               </div>
@@ -635,11 +633,11 @@ const ScrumPageEnhanced: React.FC = () => {
     );
   };
 
-  const KanbanColumn: React.FC<{ 
-    title: string; 
-    status: string; 
-    tasks: Task[]; 
-    stories: Story[]; 
+  const KanbanColumn: React.FC<{
+    title: string;
+    status: string;
+    tasks: Task[];
+    stories: Story[];
   }> = ({ title, status, tasks, stories }) => {
     const [{ isOver }, dropRef] = useDrop({
       accept: [ItemTypes.TASK, ItemTypes.STORY],
@@ -654,18 +652,17 @@ const ScrumPageEnhanced: React.FC = () => {
     return (
       <div
         ref={dropRef as any}
-        className={`min-h-[600px] w-80 flex-shrink-0 p-4 rounded-lg transition-colors ${
-          isOver ? 'bg-gradient-light border-2 border-dashed border-primary' : 'bg-gray-50'
-        }`}
+        className={`min-h-[600px] w-80 flex-shrink-0 p-4 rounded-lg transition-colors ${isOver ? 'bg-gradient-light border-2 border-dashed border-primary' : 'bg-gray-50'
+          }`}
       >
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-medium text-gray-900">{title}</h3>
           <div className="flex items-center space-x-2">
             <Badge variant="secondary" className="bg-white">{tasks.length + stories.length}</Badge>
             {status === 'todo' && canAddTasks && (
-              <Button 
-                size="sm" 
-                variant="outline" 
+              <Button
+                size="sm"
+                variant="outline"
                 className="h-7 w-7 p-0"
                 onClick={() => setIsAddTaskDialogOpen(true)}
               >
@@ -674,14 +671,14 @@ const ScrumPageEnhanced: React.FC = () => {
             )}
           </div>
         </div>
-        
+
         <ScrollArea className="h-[550px]" type="always">
           <div className="space-y-3 pr-2">
             {/* Render Stories */}
             {stories.map(story => (
               <StoryCard key={story.id} story={story} />
             ))}
-            
+
             {/* Render Tasks */}
             {tasks.map(task => (
               <TaskCard key={task.id} task={task} />
@@ -703,7 +700,7 @@ const ScrumPageEnhanced: React.FC = () => {
           </div>
           <div className="flex items-center space-x-3">
             {canManageSprintsAndStories && (
-              <Button 
+              <Button
                 className="bg-gradient-primary border-0 text-white hover:opacity-90"
                 onClick={() => setIsAddStoryDialogOpen(true)}
               >
@@ -731,7 +728,7 @@ const ScrumPageEnhanced: React.FC = () => {
               </SelectContent>
             </Select>
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <Label>Sprint:</Label>
             <Select value={selectedSprint} onValueChange={setSelectedSprint}>
@@ -749,7 +746,19 @@ const ScrumPageEnhanced: React.FC = () => {
           </div>
 
           {currentSprint && (
-            <div className="flex items-center space-x-4 ml-auto">
+            <div className="flex items-center space-x-6 ml-auto">
+              <div className="w-48">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-muted-foreground">Progress</span>
+                  <span className="text-xs font-medium">
+                    {tasks.length > 0 ? Math.round((tasks.filter(t => t.status === 'done').length / tasks.length) * 100) : 0}%
+                  </span>
+                </div>
+                <Progress
+                  value={tasks.length > 0 ? Math.round((tasks.filter(t => t.status === 'done').length / tasks.length) * 100) : 0}
+                  className="h-2"
+                />
+              </div>
               <Badge variant="secondary" className="bg-blue-100 text-blue-800">
                 {currentSprint.daysLeft} days left
               </Badge>
@@ -831,16 +840,16 @@ const ScrumPageEnhanced: React.FC = () => {
             </CardContent>
           </Card>
         )}
-      
-      <AddTaskDialog
-        isOpen={isAddTaskDialogOpen}
-        onClose={() => setIsAddTaskDialogOpen(false)}
-        onSubmit={handleAddTask}
-        stories={stories}
-      />
-    </div>
-  </DndProvider>
-);
+
+        <AddTaskDialog
+          isOpen={isAddTaskDialogOpen}
+          onClose={() => setIsAddTaskDialogOpen(false)}
+          onSubmit={handleAddTask}
+          stories={stories}
+        />
+      </div>
+    </DndProvider>
+  );
 };
 
 export default ScrumPageEnhanced;

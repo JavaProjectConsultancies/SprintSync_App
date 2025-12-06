@@ -19,14 +19,14 @@ export const useActivityLogsByEntity = (entityType: string, entityId: string) =>
     try {
       setLoading(true);
       setError(null);
-      
+
       console.log(`Fetching activity logs: entityType="${entityType}", entityId="${entityId}"`);
       const response = await activityLogApiService.getActivityLogsByEntity(entityType, entityId);
       console.log('Activity logs API response:', response);
-      
+
       // Handle response - API client returns { data, status, success, message }
       let logs: ActivityLog[] = [];
-      
+
       if (response && response.data !== undefined) {
         if (Array.isArray(response.data)) {
           logs = response.data;
@@ -43,7 +43,7 @@ export const useActivityLogsByEntity = (entityType: string, entityId: string) =>
       } else if (Array.isArray(response)) {
         logs = response;
       }
-      
+
       console.log(`Parsed ${logs.length} activity logs`);
       setActivityLogs(Array.isArray(logs) ? logs : []);
     } catch (err: any) {
@@ -117,10 +117,10 @@ export const useRecentActivityByEntity = (entityType: string, entityId: string, 
       console.log(`useRecentActivityByEntity: Fetching recent activity for entityType="${entityType}", entityId="${entityId}", days=${days}`);
       const response = await activityLogApiService.getRecentActivityByEntity(entityType, entityId, days);
       console.log('useRecentActivityByEntity: API response:', response);
-      
+
       // Handle response - API client returns { data, status, success, message }
       let logs: ActivityLog[] = [];
-      
+
       if (response && response.data !== undefined) {
         if (Array.isArray(response.data)) {
           logs = response.data;
@@ -137,7 +137,7 @@ export const useRecentActivityByEntity = (entityType: string, entityId: string, 
       } else if (Array.isArray(response)) {
         logs = response;
       }
-      
+
       console.log(`useRecentActivityByEntity: Parsed ${logs.length} activity logs`);
       setActivityLogs(logs);
     } catch (err: any) {
@@ -248,7 +248,7 @@ export const useActivityLogStatistics = () => {
  */
 const parseActivityLogResponse = (response: any): ActivityLog[] => {
   let logs: ActivityLog[] = [];
-  
+
   if (response && response.data !== undefined) {
     if (Array.isArray(response.data)) {
       logs = response.data;
@@ -264,7 +264,7 @@ const parseActivityLogResponse = (response: any): ActivityLog[] => {
   } else if (Array.isArray(response)) {
     logs = response;
   }
-  
+
   return logs;
 };
 
@@ -286,9 +286,9 @@ export const useProjectActivities = (projectId: string, days: number = 30) => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const allActivityLogs: ActivityLog[] = [];
-      
+
       // 1. Fetch project activities (includes project creation, updates, etc.)
       try {
         const projectActivitiesResponse = await activityLogApiService.getRecentActivityByEntity('project', projectId, days);
@@ -303,7 +303,7 @@ export const useProjectActivities = (projectId: string, days: number = 30) => {
         const { storyApiService } = await import('../../services/api/entities/storyApi');
         const storiesResponse = await storyApiService.getStoriesByProject(projectId);
         const stories = Array.isArray(storiesResponse.data) ? storiesResponse.data : [];
-        
+
         // Fetch activities for each story
         const storyActivitiesPromises = stories.map(async (story: any) => {
           try {
@@ -314,7 +314,7 @@ export const useProjectActivities = (projectId: string, days: number = 30) => {
             return [];
           }
         });
-        
+
         const storyActivitiesArrays = await Promise.all(storyActivitiesPromises);
         const storyActivities = storyActivitiesArrays.flat();
         allActivityLogs.push(...storyActivities);
@@ -326,7 +326,7 @@ export const useProjectActivities = (projectId: string, days: number = 30) => {
       try {
         const { epicApiService } = await import('../../services/api/entities/epicApi');
         const epicsResponse = await epicApiService.getEpicsByProject(projectId);
-        
+
         // Handle different response structures
         let epics: any[] = [];
         if (Array.isArray(epicsResponse)) {
@@ -338,17 +338,17 @@ export const useProjectActivities = (projectId: string, days: number = 30) => {
             epics = epicsResponse.data.data;
           }
         }
-        
+
         console.log(`Found ${epics.length} epics for project ${projectId}`);
-        
+
         // Fetch activities for each epic - try both 'epic' and 'Epic' entity types
         const epicActivitiesPromises = epics.map(async (epic: any) => {
           if (!epic || !epic.id) {
             return [];
           }
-          
+
           const activities: ActivityLog[] = [];
-          
+
           // Try 'epic' (lowercase)
           try {
             const response = await activityLogApiService.getRecentActivityByEntity('epic', epic.id, days);
@@ -357,7 +357,7 @@ export const useProjectActivities = (projectId: string, days: number = 30) => {
           } catch (err) {
             console.warn(`Error fetching activities for epic ${epic.id} (lowercase):`, err);
           }
-          
+
           // Try 'Epic' (capitalized) - some systems use capitalized entity types
           try {
             const response = await activityLogApiService.getRecentActivityByEntity('Epic', epic.id, days);
@@ -366,21 +366,21 @@ export const useProjectActivities = (projectId: string, days: number = 30) => {
           } catch (err) {
             // Silently fail - this is expected if entity type is lowercase
           }
-          
+
           if (activities.length > 0) {
             console.log(`Found ${activities.length} activities for epic ${epic.id} (${epic.title || 'unnamed'})`);
           }
-          
+
           return activities;
         });
-        
+
         const epicActivitiesArrays = await Promise.all(epicActivitiesPromises);
         const epicActivities = epicActivitiesArrays.flat();
-        
+
         if (epicActivities.length > 0) {
           console.log(`Total epic activities found: ${epicActivities.length}`);
         }
-        
+
         allActivityLogs.push(...epicActivities);
       } catch (err) {
         console.error('Error fetching epic activities:', err);
@@ -391,14 +391,14 @@ export const useProjectActivities = (projectId: string, days: number = 30) => {
         const { storyApiService } = await import('../../services/api/entities/storyApi');
         const storiesResponse = await storyApiService.getStoriesByProject(projectId);
         const stories = Array.isArray(storiesResponse.data) ? storiesResponse.data : [];
-        
+
         // Get all tasks from stories
         const { taskApiService } = await import('../../services/api/entities/taskApi');
         const taskActivitiesPromises = stories.map(async (story: any) => {
           try {
             const tasksResponse = await taskApiService.getTasksByStory(story.id);
             const tasks = Array.isArray(tasksResponse.data) ? tasksResponse.data : [];
-            
+
             // Fetch activities for each task
             const taskActivitiesPromises = tasks.map(async (task: any) => {
               try {
@@ -409,7 +409,7 @@ export const useProjectActivities = (projectId: string, days: number = 30) => {
                 return [];
               }
             });
-            
+
             const taskActivitiesArrays = await Promise.all(taskActivitiesPromises);
             return taskActivitiesArrays.flat();
           } catch (err) {
@@ -417,7 +417,7 @@ export const useProjectActivities = (projectId: string, days: number = 30) => {
             return [];
           }
         });
-        
+
         const taskActivitiesArrays = await Promise.all(taskActivitiesPromises);
         const taskActivities = taskActivitiesArrays.flat();
         allActivityLogs.push(...taskActivities);
@@ -429,7 +429,7 @@ export const useProjectActivities = (projectId: string, days: number = 30) => {
       try {
         const { teamMemberApi } = await import('../../services/api/entities/teamMemberApi');
         const teamMembers = await teamMemberApi.getTeamMembersByProject(projectId);
-        
+
         // Fetch activities for each team member addition
         const teamMemberActivitiesPromises = teamMembers.map(async (member: any) => {
           try {
@@ -442,7 +442,7 @@ export const useProjectActivities = (projectId: string, days: number = 30) => {
             return [];
           }
         });
-        
+
         const teamMemberActivitiesArrays = await Promise.all(teamMemberActivitiesPromises);
         const teamMemberActivities = teamMemberActivitiesArrays.flat();
         allActivityLogs.push(...teamMemberActivities);
@@ -468,7 +468,7 @@ export const useProjectActivities = (projectId: string, days: number = 30) => {
         acc[type] = (acc[type] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
-      
+
       console.log(`Total unique activities found: ${uniqueActivities.length}`, activityCounts);
 
       setAllActivities(uniqueActivities);

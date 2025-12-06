@@ -6,21 +6,21 @@ const BASE_URL = '/tasks';
 
 export const taskApiService = {
   // Basic CRUD operations
-  createTask: (task: Task) => 
+  createTask: (task: Task) =>
     apiClient.post<Task>(BASE_URL, task),
-  
-  getTaskById: (id: string) => 
+
+  getTaskById: (id: string) =>
     apiClient.get<Task>(`${BASE_URL}/${id}`),
-  
-  getTasks: (params?: any) => 
-    apiClient.get<Task[]>(BASE_URL, { params }),
-  
-  getAllTasks: () => 
+
+  getTasks: (params?: any) =>
+    apiClient.get<Task[]>(BASE_URL, params),
+
+  getAllTasks: () =>
     apiClient.get<Task[]>(`${BASE_URL}/all`),
-  
-  updateTask: (id: string, task: Partial<Task>) => 
+
+  updateTask: (id: string, task: Partial<Task>) =>
     apiClient.put<Task>(`${BASE_URL}/${id}`, task),
-  
+
   deleteTask: async (id: string, projectId?: string) => {
     const response = await apiClient.delete<void>(`${BASE_URL}/${id}`);
     emitProjectBudgetUpdated(projectId, "task-deleted");
@@ -28,13 +28,13 @@ export const taskApiService = {
   },
 
   // Story-specific operations
-  getTasksByStory: (storyId: string, params?: any) => 
+  getTasksByStory: (storyId: string, params?: any) =>
     apiClient.get<Task[]>(`${BASE_URL}/story/${storyId}`, { params }),
 
   // Search and filter operations
-  searchTasks: (query: string, params?: any) => 
-    apiClient.get<Task[]>(`${BASE_URL}/search`, { 
-      params: { ...params, query } 
+  searchTasks: (query: string, params?: any) =>
+    apiClient.get<Task[]>(`${BASE_URL}/search`, {
+      params: { ...params, query }
     }),
 
   // Status operations
@@ -44,44 +44,44 @@ export const taskApiService = {
     return apiClient.patch<Task>(`${BASE_URL}/${id}/status`, { status });
   },
 
-  getTasksByStatus: (status: string, params?: any) => 
+  getTasksByStatus: (status: string, params?: any) =>
     apiClient.get<Task[]>(`${BASE_URL}/status/${status}`, { params }),
 
   // Assignee operations
-  updateTaskAssignee: (id: string, assigneeId: string) => 
+  updateTaskAssignee: (id: string, assigneeId: string) =>
     apiClient.patch<Task>(`${BASE_URL}/${id}/assignee`, { assigneeId }),
 
-  getTasksByAssignee: (assigneeId: string, params?: any) => 
+  getTasksByAssignee: (assigneeId: string, params?: any) =>
     apiClient.get<Task[]>(`${BASE_URL}/assignee/${assigneeId}`, { params }),
 
   // Priority operations
-  getTasksByPriority: (priority: string, params?: any) => 
+  getTasksByPriority: (priority: string, params?: any) =>
     apiClient.get<Task[]>(`${BASE_URL}/priority/${priority}`, { params }),
 
   // Date operations
-  getTasksByDateRange: (startDate: string, endDate: string, params?: any) => 
-    apiClient.get<Task[]>(`${BASE_URL}/date-range`, { 
-      params: { ...params, startDate, endDate } 
+  getTasksByDateRange: (startDate: string, endDate: string, params?: any) =>
+    apiClient.get<Task[]>(`${BASE_URL}/date-range`, {
+      params: { ...params, startDate, endDate }
     }),
 
-  getOverdueTasks: (params?: any) => 
+  getOverdueTasks: (params?: any) =>
     apiClient.get<Task[]>(`${BASE_URL}/overdue`, { params }),
 
-  getTasksDueSoon: (days: number = 7, params?: any) => 
-    apiClient.get<Task[]>(`${BASE_URL}/due-soon`, { 
-      params: { ...params, days } 
+  getTasksDueSoon: (days: number = 7, params?: any) =>
+    apiClient.get<Task[]>(`${BASE_URL}/due-soon`, {
+      params: { ...params, days }
     }),
 
   // Time tracking
-  logTime: (id: string, hours: number, description?: string) => 
-    apiClient.patch<Task>(`${BASE_URL}/${id}/time`, { 
-      hours, description 
+  logTime: (id: string, hours: number, description?: string) =>
+    apiClient.patch<Task>(`${BASE_URL}/${id}/time`, {
+      hours, description
     }),
 
   updateTaskActualHours: (id: string, actualHours: number) =>
     apiClient.patch<Task>(`${BASE_URL}/${id}/actual-hours`, { actualHours }),
 
   // Statistics
-  getTaskStatistics: (id: string) => 
+  getTaskStatistics: (id: string) =>
     apiClient.get<any>(`${BASE_URL}/${id}/statistics`),
 };

@@ -1,9 +1,9 @@
 import { useApi, useApiMutation, usePaginatedApi, useSearchApi } from './useApi';
-import { 
-  sprintApiService, 
-  Sprint, 
-  ApiResponse, 
-  PaginationParams 
+import {
+  sprintApiService,
+  Sprint,
+  ApiResponse,
+  PaginationParams
 } from '../../services/api';
 
 // Hook for fetching all sprints
@@ -11,6 +11,13 @@ export function useSprints(params?: PaginationParams) {
   return useApi(
     () => sprintApiService.getSprints(params),
     [JSON.stringify(params)]
+  );
+}
+
+export function useAllSprints() {
+  return useApi(
+    () => sprintApiService.getSprints({ page: 0, size: 1000 }),
+    []
   );
 }
 
@@ -61,8 +68,8 @@ export function useSearchSprints() {
 // Hook for sprints by project
 export function useSprintsByProject(projectId: string, params?: PaginationParams) {
   return useApi(
-    () => projectId && projectId !== 'SKIP' 
-      ? sprintApiService.getSprintsByProject(projectId, params) 
+    () => projectId && projectId !== 'SKIP'
+      ? sprintApiService.getSprintsByProject(projectId, params)
       : Promise.resolve({ data: [] as Sprint[], success: true, message: '', status: 200 }),
     [projectId, JSON.stringify(params)],
     !!(projectId && projectId !== 'SKIP') // Only execute if projectId is valid
@@ -119,8 +126,8 @@ export function useSprintVelocity(id: string) {
 // Hook for sprint burndown
 export function useSprintBurndown(id: string) {
   return useApi(
-    () => id && id !== 'SKIP' 
-      ? sprintApiService.getSprintBurndown(id) 
+    () => id && id !== 'SKIP'
+      ? sprintApiService.getSprintBurndown(id)
       : Promise.resolve({ data: null, success: true, message: '', status: 200 }),
     [id],
     !!(id && id !== 'SKIP') // Only execute if id is valid

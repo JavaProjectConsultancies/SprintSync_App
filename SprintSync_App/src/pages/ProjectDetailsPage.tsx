@@ -26,7 +26,7 @@ import { toast } from 'sonner';
 import { Epic as ApiEpic } from '../types/api';
 import { Epic, EpicStatus } from '../types';
 import { subscribeToProjectBudgetUpdates } from '../utils/projectBudgetEvents';
-import { 
+import {
   ArrowLeft,
   Calendar,
   Users,
@@ -131,7 +131,7 @@ const ProjectDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  
+
   // Fetch real project data from API
   const { project, loading, error, refetch } = useProjectById(id || '');
 
@@ -148,37 +148,37 @@ const ProjectDetailsPage = () => {
       unsubscribe();
     };
   }, [id, refetch]);
-  
+
   // Fetch requirements for the project
   const { requirements, createRequirement, loading: requirementsLoading } = useRequirements(id || '');
-  
+
   // Fetch team members for the project
-  const { 
-    teamMembers: apiTeamMembers, 
-    loading: teamLoading, 
-    addTeamMemberToProject, 
-    removeTeamMemberFromProject, 
-    refreshTeamMembers 
+  const {
+    teamMembers: apiTeamMembers,
+    loading: teamLoading,
+    addTeamMemberToProject,
+    removeTeamMemberFromProject,
+    refreshTeamMembers
   } = useTeamMembers(id || '');
-  
+
   // Fetch all project-related activity logs (includes project creation and all activities)
-  const { 
-    activityLogs, 
-    loading: activityLogsLoading, 
+  const {
+    activityLogs,
+    loading: activityLogsLoading,
     error: activityLogsError,
     refetch: refetchActivities
   } = useProjectActivities(id || '', 30); // Last 30 days
-  
+
   // Local state for epics to handle real-time updates
   const [localEpics, setLocalEpics] = useState<any[]>([]);
   const [localRequirements, setLocalRequirements] = useState<any[]>([]);
   const [isAddRequirementDialogOpen, setIsAddRequirementDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<'requirement' | 'attachment'>('attachment');
-  
+
   // Team management state
   const [isTeamManagerOpen, setIsTeamManagerOpen] = useState(false);
   const [localTeamMembers, setLocalTeamMembers] = useState<any[]>([]);
-  
+
   // Attachment state
   const [attachments, setAttachments] = useState<any[]>([]);
   const [isLoadingAttachments, setIsLoadingAttachments] = useState(false);
@@ -186,7 +186,7 @@ const ProjectDetailsPage = () => {
   const [attachmentUrl, setAttachmentUrl] = useState<string>('');
   const [attachmentUrlName, setAttachmentUrlName] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
-  
+
   // Requirement form state
   const [requirementForm, setRequirementForm] = useState({
     title: '',
@@ -195,7 +195,7 @@ const ProjectDetailsPage = () => {
     type: 'functional',
     acceptanceCriteria: ''
   });
-  
+
   // Function to fetch epics from API
   const fetchEpicsFromApi = useCallback(async () => {
     if (!id) return;
@@ -212,7 +212,7 @@ const ProjectDetailsPage = () => {
           epicsData = (response.data as any).data;
         }
       }
-      
+
       if (epicsData.length > 0) {
         const convertedEpics = epicsData.map(convertApiEpicToLocal);
         // Deduplicate epics by ID to prevent duplicates
@@ -255,7 +255,7 @@ const ProjectDetailsPage = () => {
       projectTeamMembersCount: project?.teamMembers?.length || 0,
       projectId: id
     });
-    
+
     if (apiTeamMembers && apiTeamMembers.length > 0) {
       console.log('Setting team members from API:', apiTeamMembers);
       setLocalTeamMembers(apiTeamMembers);
@@ -347,12 +347,12 @@ const ProjectDetailsPage = () => {
         };
 
         const response = await attachmentApiService.createAttachment(attachmentData);
-        
+
         if (response.success) {
           toast.success('URL added successfully');
           setAttachmentUrl('');
           setAttachmentUrlName('');
-          
+
           // Reload attachments
           const refreshResponse = await attachmentApiService.getAttachmentsByEntity('project', id);
           if (refreshResponse.data) {
@@ -366,7 +366,7 @@ const ProjectDetailsPage = () => {
         const reader = new FileReader();
         reader.onloadend = async () => {
           const base64Data = reader.result as string;
-          
+
           // Create file attachment record
           const attachmentData = {
             uploadedBy: user.id,
@@ -381,11 +381,11 @@ const ProjectDetailsPage = () => {
           };
 
           const response = await attachmentApiService.createAttachment(attachmentData);
-          
+
           if (response.success) {
             toast.success('File uploaded successfully');
             setSelectedFile(null);
-            
+
             // Reload attachments
             const refreshResponse = await attachmentApiService.getAttachmentsByEntity('project', id);
             if (refreshResponse.data) {
@@ -395,7 +395,7 @@ const ProjectDetailsPage = () => {
             toast.error('Failed to upload file');
           }
         };
-        
+
         reader.readAsDataURL(selectedFile);
       }
     } catch (error) {
@@ -446,7 +446,7 @@ const ProjectDetailsPage = () => {
     const date = new Date(dateString);
     const now = new Date();
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-    
+
     if (diffInSeconds < 60) return 'just now';
     if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
     if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
@@ -460,65 +460,65 @@ const ProjectDetailsPage = () => {
     const action = (activityLog.action || '').toLowerCase();
     const description = activityLog.description || '';
     const entityType = activityLog.entityType || '';
-    
+
     // If description exists, use it
     if (description) {
       return description;
     }
-    
+
     // Format action to readable text
     const formattedAction = action
       .replace(/_/g, ' ')
       .replace(/\b\w/g, (l: string) => l.toUpperCase());
-    
+
     // Parse JSON values
     let newVals: any = null;
     let oldVals: any = null;
     try {
       if (activityLog.newValues) {
-        newVals = typeof activityLog.newValues === 'string' 
-          ? JSON.parse(activityLog.newValues) 
+        newVals = typeof activityLog.newValues === 'string'
+          ? JSON.parse(activityLog.newValues)
           : activityLog.newValues;
       }
       if (activityLog.oldValues) {
-        oldVals = typeof activityLog.oldValues === 'string' 
-          ? JSON.parse(activityLog.oldValues) 
+        oldVals = typeof activityLog.oldValues === 'string'
+          ? JSON.parse(activityLog.oldValues)
           : activityLog.oldValues;
       }
     } catch (e) {
       // Ignore parsing errors
     }
-    
+
     // Project creation
     if (entityType === 'project' && action === 'created') {
       const projectName = newVals?.name || newVals?.title || 'the project';
       return `created project "${projectName}"`;
     }
-    
+
     // Story creation
     if (entityType === 'story' && action === 'created') {
       const storyTitle = newVals?.title || newVals?.name || 'a story';
       return `created story "${storyTitle}"`;
     }
-    
+
     // Task creation
     if (entityType === 'task' && action === 'created') {
       const taskTitle = newVals?.title || newVals?.name || 'a task';
       return `created task "${taskTitle}"`;
     }
-    
+
     // Epic creation
     if (entityType === 'epic' && action === 'created') {
       const epicTitle = newVals?.title || newVals?.name || 'an epic';
       return `created epic "${epicTitle}"`;
     }
-    
+
     // Assignment changes
     if (action.includes('assign') || action === 'assigned') {
       const oldAssignee = oldVals?.assigneeId || oldVals?.assignedTo || oldVals?.assignee;
       const newAssignee = newVals?.assigneeId || newVals?.assignedTo || newVals?.assignee;
       const entityName = newVals?.title || newVals?.name || oldVals?.title || oldVals?.name || entityType;
-      
+
       if (newAssignee && !oldAssignee) {
         return `assigned "${entityName}" to user ${newAssignee}`;
       } else if (newAssignee && oldAssignee && newAssignee !== oldAssignee) {
@@ -527,7 +527,7 @@ const ProjectDetailsPage = () => {
         return `unassigned "${entityName}" from user ${oldAssignee}`;
       }
     }
-    
+
     // Team member addition
     if (entityType === 'project_team_member' && (action === 'created' || action === 'added')) {
       const userName = newVals?.userName || newVals?.name || newVals?.userId || 'a team member';
@@ -537,7 +537,7 @@ const ProjectDetailsPage = () => {
       }
       return `added ${userName} to the project team`;
     }
-    
+
     // Status changes
     if (action.includes('status') || (oldVals?.status && newVals?.status && oldVals.status !== newVals.status)) {
       const entityName = newVals?.title || newVals?.name || oldVals?.title || oldVals?.name || entityType;
@@ -549,7 +549,7 @@ const ProjectDetailsPage = () => {
         return `set status of "${entityName}" to ${newStatus}`;
       }
     }
-    
+
     // Priority changes
     if (action.includes('priority') || (oldVals?.priority && newVals?.priority && oldVals.priority !== newVals.priority)) {
       const entityName = newVals?.title || newVals?.name || oldVals?.title || oldVals?.name || entityType;
@@ -559,22 +559,22 @@ const ProjectDetailsPage = () => {
         return `changed priority of "${entityName}" from ${oldPriority} to ${newPriority}`;
       }
     }
-    
+
     // General updates
     if (action === 'updated' || action === 'update') {
       const entityName = newVals?.title || newVals?.name || oldVals?.title || oldVals?.name || entityType;
       return `updated ${entityType} "${entityName}"`;
     }
-    
+
     // Try to extract entity name
     const entityName = newVals?.title || newVals?.name || oldVals?.title || oldVals?.name || '';
-    
+
     if (entityName) {
       return `${formattedAction} "${entityName}"`;
     } else if (entityType && entityType !== 'project') {
       return `${formattedAction} ${entityType}`;
     }
-    
+
     return formattedAction;
   };
 
@@ -630,8 +630,8 @@ const ProjectDetailsPage = () => {
     title: milestone.name,
     description: milestone.description || '',
     dueDate: milestone.dueDate,
-    status: milestone.status === 'completed' ? 'completed' : 
-            milestone.status === 'in-progress' ? 'in-progress' : 'upcoming',
+    status: milestone.status === 'completed' ? 'completed' :
+      milestone.status === 'in-progress' ? 'in-progress' : 'upcoming',
     progress: milestone.progress || 0,
     tasks: 0, // Not available in current API
     completedTasks: 0 // Not available in current API
@@ -642,7 +642,7 @@ const ProjectDetailsPage = () => {
     // Find the owner name from team members
     const ownerMember = project.teamMembers?.find((member: any) => member.id === risk.owner);
     const ownerName = ownerMember ? ownerMember.name : risk.owner || 'Unknown';
-    
+
     return {
       id: risk.id,
       title: risk.title,
@@ -650,8 +650,8 @@ const ProjectDetailsPage = () => {
       probability: risk.probability as 'low' | 'medium' | 'high',
       impact: risk.impact as 'low' | 'medium' | 'high',
       mitigation: risk.mitigation || '',
-      status: risk.status === 'identified' ? 'identified' : 
-              risk.status === 'mitigated' ? 'mitigating' : 'resolved',
+      status: risk.status === 'identified' ? 'identified' :
+        risk.status === 'mitigated' ? 'mitigating' : 'resolved',
       owner: ownerName
     };
   }) || [];
@@ -659,17 +659,17 @@ const ProjectDetailsPage = () => {
   // Team management handlers
   const handleTeamMembersChange = async (newTeamMembers: any[]) => {
     setLocalTeamMembers(newTeamMembers);
-    
+
     // Refresh the team members from API to get updated data
     await refreshTeamMembers();
-    
+
     // Also refresh the project data to update the team count
     await refetch();
   };
 
   const handleAddTeamMember = async (userId: string, role: string, isTeamLead: boolean = false) => {
     if (!id) return;
-    
+
     try {
       await addTeamMemberToProject(id, userId, role, isTeamLead);
       await handleTeamMembersChange(localTeamMembers);
@@ -680,7 +680,7 @@ const ProjectDetailsPage = () => {
 
   const handleRemoveTeamMember = async (userId: string) => {
     if (!id) return;
-    
+
     try {
       await removeTeamMemberFromProject(id, userId);
       await handleTeamMembersChange(localTeamMembers);
@@ -709,7 +709,7 @@ const ProjectDetailsPage = () => {
       // If it's an object, extract a numeric value (e.g., from velocity or a rating)
       performanceValue = member.performance.velocity || member.performance.rating || 85;
     }
-    
+
     // Handle skills - can be array or string
     let skillsArray: string[] = [];
     if (Array.isArray(member.skills)) {
@@ -722,21 +722,21 @@ const ProjectDetailsPage = () => {
         skillsArray = member.skills.split(',').map((s: string) => s.trim()).filter((s: string) => s && s.length > 0);
       }
     }
-    
+
     // Handle workload - use from API or calculate from allocationPercentage
     let workloadValue = member.workload;
     if (workloadValue === undefined || workloadValue === null) {
       // Use allocationPercentage as workload if workload not provided
       workloadValue = member.allocationPercentage || 0;
     }
-    
+
     // Handle availability - use from API or allocationPercentage
     let availabilityValue = member.availability;
     if (availabilityValue === undefined || availabilityValue === null) {
       // Use allocationPercentage as availability if availability not provided
       availabilityValue = member.allocationPercentage || 100;
     }
-    
+
     return {
       name: member.name || 'Unknown Member',
       role: member.role || 'Team Member',
@@ -828,7 +828,7 @@ const ProjectDetailsPage = () => {
             <Settings className="w-4 h-4 mr-2" />
             Settings
           </Button>
-          <Button 
+          <Button
             className="bg-gradient-primary text-white"
             onClick={() => {
               // Validate project exists and is valid
@@ -836,14 +836,14 @@ const ProjectDetailsPage = () => {
                 console.error('Cannot navigate to board: Project is not available');
                 return;
               }
-              
+
               // Store project ID in sessionStorage for scrum page to pick up
               try {
                 sessionStorage.setItem('openProjectId', project.id);
               } catch (error) {
                 console.error('Failed to store project ID:', error);
               }
-              
+
               // Navigate to scrum board page
               navigate(`/scrum?project=${encodeURIComponent(project.id)}`);
             }}
@@ -859,7 +859,7 @@ const ProjectDetailsPage = () => {
       <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <Card>
           <CardContent className="p-4 text-center">
-            <div className="text-2xl font-semibold text-green-600">{project.progress}%</div>
+            <div className="text-2xl font-semibold text-green-600">{project.sprints > 0 ? Math.round((project.completedSprints / project.sprints) * 100) : 0}%</div>
             <div className="text-sm text-muted-foreground">Complete</div>
           </CardContent>
         </Card>
@@ -937,7 +937,7 @@ const ProjectDetailsPage = () => {
                 </div>
               </div>
               <div className="text-right space-y-2">
-                <div className="text-3xl font-bold text-blue-600">{project.progress}%</div>
+                <div className="text-3xl font-bold text-blue-600">{project.sprints > 0 ? Math.round((project.completedSprints / project.sprints) * 100) : 0}%</div>
                 <div className="text-sm text-gray-500">Complete</div>
               </div>
             </div>
@@ -956,9 +956,9 @@ const ProjectDetailsPage = () => {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Overall Progress</span>
-                    <span className="font-medium">{project.progress}%</span>
+                    <span className="font-medium">{project.sprints > 0 ? Math.round((project.completedSprints / project.sprints) * 100) : 0}%</span>
                   </div>
-                  <Progress value={project.progress} className="h-3" />
+                  <Progress value={project.sprints > 0 ? (project.completedSprints / project.sprints) * 100 : 0} className="h-3" />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 text-sm">
@@ -1106,7 +1106,7 @@ const ProjectDetailsPage = () => {
                       const userName = activityLog.userId || 'Unknown User';
                       const userInitials = userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
                       const activityMessage = formatActivityMessage(activityLog);
-                      
+
                       return (
                         <div key={activityLog.id} className="flex items-start space-x-3">
                           <Avatar className="w-6 h-6">
@@ -1146,7 +1146,7 @@ const ProjectDetailsPage = () => {
               </div>
             </div>
           </div>
-          <EpicManager 
+          <EpicManager
             epics={localEpics}
             projectId={id || ''}
             currentUserId={user?.id || ''}
@@ -1205,9 +1205,9 @@ const ProjectDetailsPage = () => {
                   <div className="text-2xl font-bold text-blue-600">{localRequirements?.length || 0}</div>
                   <div className="text-sm text-blue-500">Total Requirements</div>
                 </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   className="bg-white hover:bg-blue-50"
                   onClick={() => {
                     setDialogMode('requirement');
@@ -1315,9 +1315,9 @@ const ProjectDetailsPage = () => {
                   <div className="text-2xl font-bold text-green-600">{attachments?.length || 0}</div>
                   <div className="text-sm text-green-500">Total Attachments</div>
                 </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   className="bg-white hover:bg-green-50"
                   onClick={() => {
                     setDialogMode('attachment');
@@ -1360,9 +1360,8 @@ const ProjectDetailsPage = () => {
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between">
                         <div className="flex items-start gap-3 flex-1 min-w-0">
-                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                            isUrl ? 'bg-green-100' : 'bg-blue-100'
-                          }`}>
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${isUrl ? 'bg-green-100' : 'bg-blue-100'
+                            }`}>
                             {isUrl ? (
                               <Link className="w-5 h-5 text-green-600" />
                             ) : (
@@ -1471,8 +1470,8 @@ const ProjectDetailsPage = () => {
         <TabsContent value="team" className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold">Team Members ({teamMembers.length})</h3>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="sm"
               onClick={() => setIsTeamManagerOpen(true)}
             >
@@ -1499,80 +1498,80 @@ const ProjectDetailsPage = () => {
               </CardContent>
             </Card>
           ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {teamMembers.map((member, index) => (
-              <Card key={member.id || member.name || index} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-4">
-                  <div className="flex items-start space-x-3">
-                    <Avatar className="w-12 h-12">
-                      <AvatarImage src={member.avatar} />
-                      <AvatarFallback className="bg-gradient-to-br from-green-100 to-cyan-100">
-                        {getInitials(member.name)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 space-y-2">
-                      <div>
-                        <div className="flex items-center space-x-2">
-                        <h4 className="font-medium text-sm">{member.name}</h4>
-                          {member.isTeamLead && (
-                            <Badge variant="secondary" className="text-xs">Lead</Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground">{member.role}</p>
-                        <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-                          <span>{member.department}</span>
-                          <span>•</span>
-                          <span>{member.experience}</span>
-                          <span>•</span>
-                          <span>₹{member.hourlyRate}</span>
-                        </div>
-                        {member.skills && member.skills.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {member.skills.slice(0, 3).map((skill, index) => (
-                              <Badge key={index} variant="outline" className="text-xs px-1 py-0">
-                                {skill}
-                              </Badge>
-                            ))}
-                            {member.skills.length > 3 && (
-                              <Badge variant="outline" className="text-xs px-1 py-0">
-                                +{member.skills.length - 3} more
-                              </Badge>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {teamMembers.map((member, index) => (
+                <Card key={member.id || member.name || index} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-4">
+                    <div className="flex items-start space-x-3">
+                      <Avatar className="w-12 h-12">
+                        <AvatarImage src={member.avatar} />
+                        <AvatarFallback className="bg-gradient-to-br from-green-100 to-cyan-100">
+                          {getInitials(member.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 space-y-2">
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <h4 className="font-medium text-sm">{member.name}</h4>
+                            {member.isTeamLead && (
+                              <Badge variant="secondary" className="text-xs">Lead</Badge>
                             )}
                           </div>
-                        )}
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <div>
-                          <div className="flex justify-between text-xs mb-1">
-                            <span className="text-muted-foreground">Workload</span>
-                            <span>{member.workload}%</span>
+                          <p className="text-xs text-muted-foreground">{member.role}</p>
+                          <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                            <span>{member.department}</span>
+                            <span>•</span>
+                            <span>{member.experience}</span>
+                            <span>•</span>
+                            <span>₹{member.hourlyRate}</span>
                           </div>
-                          <Progress value={member.workload} className="h-1" />
-                        </div>
-                        
-                        <div>
-                          <div className="flex justify-between text-xs mb-1">
-                            <span className="text-muted-foreground">Performance</span>
-                            <span className="text-green-600">{member.performance}%</span>
-                          </div>
-                          <Progress value={member.performance} className="h-1" />
+                          {member.skills && member.skills.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {member.skills.slice(0, 3).map((skill, index) => (
+                                <Badge key={index} variant="outline" className="text-xs px-1 py-0">
+                                  {skill}
+                                </Badge>
+                              ))}
+                              {member.skills.length > 3 && (
+                                <Badge variant="outline" className="text-xs px-1 py-0">
+                                  +{member.skills.length - 3} more
+                                </Badge>
+                              )}
+                            </div>
+                          )}
                         </div>
 
-                        <div>
-                          <div className="flex justify-between text-xs mb-1">
-                            <span className="text-muted-foreground">Availability</span>
-                            <span className="text-blue-600">{member.availability}%</span>
+                        <div className="space-y-2">
+                          <div>
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-muted-foreground">Workload</span>
+                              <span>{member.workload}%</span>
+                            </div>
+                            <Progress value={member.workload} className="h-1" />
                           </div>
-                          <Progress value={member.availability} className="h-1" />
+
+                          <div>
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-muted-foreground">Performance</span>
+                              <span className="text-green-600">{member.performance}%</span>
+                            </div>
+                            <Progress value={member.performance} className="h-1" />
+                          </div>
+
+                          <div>
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-muted-foreground">Availability</span>
+                              <span className="text-blue-600">{member.availability}%</span>
+                            </div>
+                            <Progress value={member.availability} className="h-1" />
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           )}
         </TabsContent>
 
@@ -1602,7 +1601,7 @@ const ProjectDetailsPage = () => {
                         <p className="text-xs text-muted-foreground">{stakeholder.role}</p>
                         <p className="text-xs text-blue-600">{stakeholder.email}</p>
                       </div>
-                      
+
                       {stakeholder.responsibilities && stakeholder.responsibilities.length > 0 && (
                         <div className="space-y-1">
                           <div className="text-xs text-muted-foreground">Responsibilities</div>
@@ -1843,7 +1842,7 @@ const ProjectDetailsPage = () => {
                       <div className="flex items-center space-x-3">
                         <div className="w-5 h-5 bg-gray-400 rounded flex items-center justify-center">
                           <span className="text-white text-xs font-bold">?</span>
-                      </div>
+                        </div>
                         <span className="font-medium text-sm text-muted-foreground">{integration.name}</span>
                       </div>
                     </div>
@@ -1882,7 +1881,7 @@ const ProjectDetailsPage = () => {
 
       {/* Add Requirement/Attachment Dialog */}
       <Dialog open={isAddRequirementDialogOpen} onOpenChange={setIsAddRequirementDialogOpen}>
-        <DialogContent 
+        <DialogContent
           className={`max-w-[90vw] w-[90vw] ${dialogMode === 'attachment' ? 'h-[90vh] max-h-[90vh]' : 'max-h-[80vh]'} flex flex-col`}
           style={{ width: '90vw', maxWidth: '90vw', ...(dialogMode === 'attachment' ? { height: '90vh', maxHeight: '90vh' } : { maxHeight: '80vh' }) }}
         >
@@ -1891,12 +1890,12 @@ const ProjectDetailsPage = () => {
               {dialogMode === 'requirement' ? 'Add Requirement' : 'Add Attachment'}
             </DialogTitle>
             <DialogDescription className="text-base">
-              {dialogMode === 'requirement' 
+              {dialogMode === 'requirement'
                 ? 'Create a new functional or non-functional requirement for this project.'
                 : 'Upload files or add URLs to attach to this project. All file types are supported.'}
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="flex-1 space-y-6 overflow-y-auto">
             {dialogMode === 'requirement' ? (
               /* Requirement Form */
@@ -2040,7 +2039,7 @@ const ProjectDetailsPage = () => {
               </>
             )}
           </div>
-          
+
           <DialogFooter className="flex-shrink-0">
             <Button variant="outline" onClick={() => {
               setIsAddRequirementDialogOpen(false);
@@ -2058,7 +2057,7 @@ const ProjectDetailsPage = () => {
               Cancel
             </Button>
             {dialogMode === 'requirement' ? (
-              <Button 
+              <Button
                 onClick={async () => {
                   if (!requirementForm.title.trim()) {
                     toast.error('Please enter a requirement title');

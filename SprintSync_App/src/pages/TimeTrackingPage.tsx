@@ -19,10 +19,10 @@ import { useTeamMembers } from '../hooks/api/useTeamMembers';
 import { TimeEntry as ApiTimeEntry, User, Project, Story, Task, Sprint } from '../types/api';
 import { useAuth } from '../contexts/AuthContextEnhanced';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { 
-  Clock, 
+import {
+  Clock,
   Target,
-  Users, 
+  Users,
   TrendingUp,
   BarChart3,
   CheckCircle2
@@ -348,10 +348,10 @@ const TimeTrackingPage: React.FC = () => {
   const [projectSprints, setProjectSprints] = useState<Sprint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Fetch team members for selected project (will be defined after projects)
   const projectTeamMembersResult = useTeamMembers(projectFilter !== 'all' ? projectFilter : undefined);
-  
+
   // Fetch sprints for selected project
   useEffect(() => {
     const fetchProjectSprints = async () => {
@@ -359,7 +359,7 @@ const TimeTrackingPage: React.FC = () => {
         setProjectSprints([]);
         return;
       }
-      
+
       try {
         const { sprintApiService } = await import('../services/api/entities/sprintApi');
         const response = await sprintApiService.getSprintsByProject(projectFilter);
@@ -373,7 +373,7 @@ const TimeTrackingPage: React.FC = () => {
         setProjectSprints([]);
       }
     };
-    
+
     fetchProjectSprints();
   }, [projectFilter]);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
@@ -438,8 +438,8 @@ const TimeTrackingPage: React.FC = () => {
           }
 
           const isManagerOrAdmin = currentUser && (
-            (currentUser.role as string) === 'admin' || 
-            (currentUser.role as string) === 'manager' || 
+            (currentUser.role as string) === 'admin' ||
+            (currentUser.role as string) === 'manager' ||
             (currentUser.role as string) === 'MANAGER' ||
             (currentUser.role as string) === 'ADMIN' ||
             (currentUser.role as string)?.toLowerCase() === 'manager' ||
@@ -548,49 +548,49 @@ const TimeTrackingPage: React.FC = () => {
   const usersResult = useUsers({ page: 0, size: 1000 });
   const activeUsersResult = useActiveUsers({ page: 0, size: 1000 });
   const projectsResult = useProjects();
-  
+
   // Extract data - ensure all are arrays (moved before useEffect that uses it)
   // Filter to show only current user if not manager/admin, otherwise show all users
   const usersData = Array.isArray(usersResult.data) ? usersResult.data : [];
   const users = useMemo(() => {
     // Check if current user is manager or admin
     const isManagerOrAdmin = currentUser && (
-      (currentUser.role as string) === 'admin' || 
-      (currentUser.role as string) === 'manager' || 
+      (currentUser.role as string) === 'admin' ||
+      (currentUser.role as string) === 'manager' ||
       (currentUser.role as string) === 'MANAGER' ||
       (currentUser.role as string) === 'ADMIN' ||
       (currentUser.role as string)?.toLowerCase() === 'manager' ||
       (currentUser.role as string)?.toLowerCase() === 'admin'
     );
-    
+
     // If current user is manager/admin, show all users; otherwise show only current user
     if (currentUser && currentUser.id && !isManagerOrAdmin) {
       const currentUserId = normalizeId(currentUser.id);
       return usersData.filter(user => normalizeId(user.id) === currentUserId);
     }
-    
+
     return usersData;
   }, [usersData, currentUser]);
-  
+
   // Fetch all stories and tasks using getAll methods
   const [allStories, setAllStories] = useState<Story[]>([]);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [allSubtasks, setAllSubtasks] = useState<any[]>([]);
   const [additionalProjects, setAdditionalProjects] = useState<Project[]>([]);
   const [userTasksMap, setUserTasksMap] = useState<Map<string, Task[]>>(new Map());
-  
+
   useEffect(() => {
     const fetchStoriesAndTasks = async () => {
       try {
         const { storyApiService } = await import('../services/api/entities/storyApi');
         const { taskApiService } = await import('../services/api/entities/taskApi');
         const { subtaskApiService } = await import('../services/api/entities/subtaskApi');
-        
+
         // Fetch all stories
         const storiesResponse = await storyApiService.getAllStories();
         const storiesData = Array.isArray(storiesResponse.data) ? storiesResponse.data : [];
         setAllStories(prev => mergeById(prev, storiesData));
-        
+
         // Fetch all tasks - try /all endpoint first, fallback to regular endpoint
         let tasksData: Task[] = [];
         try {
@@ -617,9 +617,9 @@ const TimeTrackingPage: React.FC = () => {
             throw err;
           }
         }
-        
+
         setAllTasks(prev => mergeById(prev, tasksData));
-        
+
         // Fetch all subtasks to create subtaskId -> taskId mapping
         let subtasksData: any[] = [];
         try {
@@ -643,9 +643,9 @@ const TimeTrackingPage: React.FC = () => {
             }
           }
         }
-        
+
         setAllSubtasks(prev => mergeById(prev, subtasksData));
-        
+
         console.log('Fetched all stories:', storiesData.length);
         console.log('Fetched all tasks:', tasksData.length);
         console.log('Fetched all subtasks:', subtasksData.length);
@@ -672,8 +672,8 @@ const TimeTrackingPage: React.FC = () => {
     }
 
     const isManagerOrAdmin = currentUser && (
-      (currentUser.role as string) === 'admin' || 
-      (currentUser.role as string) === 'manager' || 
+      (currentUser.role as string) === 'admin' ||
+      (currentUser.role as string) === 'manager' ||
       (currentUser.role as string) === 'MANAGER' ||
       (currentUser.role as string) === 'ADMIN' ||
       (currentUser.role as string)?.toLowerCase() === 'manager' ||
@@ -706,7 +706,7 @@ const TimeTrackingPage: React.FC = () => {
             try {
               const response = await taskApiService.getTasksByAssignee(assigneeId, { page: 0, size: 1000 });
               let userTasks: Task[] = [];
-              
+
               if (Array.isArray(response.data)) {
                 userTasks = response.data;
               } else if (response.data && typeof response.data === 'object' && 'content' in response.data && Array.isArray((response.data as any).content)) {
@@ -718,7 +718,7 @@ const TimeTrackingPage: React.FC = () => {
               if (userTasks.length > 0) {
                 newUserTasksMap.set(assigneeId, userTasks);
                 setAllTasks(prev => mergeById(prev, userTasks));
-                
+
                 const storyIds = new Set<string>();
                 userTasks.forEach(task => {
                   const storyId = normalizeId(task.storyId);
@@ -732,7 +732,7 @@ const TimeTrackingPage: React.FC = () => {
                       const storyResponse = await storyApiService.getStoryById(storyId);
                       if (storyResponse.data) {
                         setAllStories(prev => mergeById(prev, [storyResponse.data as Story]));
-                        
+
                         const story = storyResponse.data as Story;
                         const projectId = normalizeId(story.projectId);
                         if (projectId) {
@@ -763,7 +763,7 @@ const TimeTrackingPage: React.FC = () => {
           try {
             const response = await taskApiService.getTasksByAssignee(userId, { page: 0, size: 1000 });
             let userTasks: Task[] = [];
-            
+
             if (Array.isArray(response.data)) {
               userTasks = response.data;
             } else if (response.data && typeof response.data === 'object' && 'content' in response.data && Array.isArray((response.data as any).content)) {
@@ -775,7 +775,7 @@ const TimeTrackingPage: React.FC = () => {
             if (userTasks.length > 0) {
               newUserTasksMap.set(userId, userTasks);
               setAllTasks(prev => mergeById(prev, userTasks));
-              
+
               const storyIds = new Set<string>();
               userTasks.forEach(task => {
                 const storyId = normalizeId(task.storyId);
@@ -789,7 +789,7 @@ const TimeTrackingPage: React.FC = () => {
                     const storyResponse = await storyApiService.getStoryById(storyId);
                     if (storyResponse.data) {
                       setAllStories(prev => mergeById(prev, [storyResponse.data as Story]));
-                      
+
                       const story = storyResponse.data as Story;
                       const projectId = normalizeId(story.projectId);
                       if (projectId) {
@@ -825,7 +825,7 @@ const TimeTrackingPage: React.FC = () => {
 
     userTasksFetchKeyRef.current = fetchKey;
 
-        fetchUserTasks()
+    fetchUserTasks()
       .then(() => {
         if (!cancelled) {
           userTasksFetchKeyRef.current = fetchKey;
@@ -841,12 +841,12 @@ const TimeTrackingPage: React.FC = () => {
       cancelled = true;
     };
   }, [currentUser?.id]);
-  
+
   const storiesResult = { data: allStories, loading: false, error: null };
   const tasksResult = { data: allTasks, loading: false, error: null };
-  
+
   const sprintsResult = useSprints();
-  
+
   // Extract data - ensure all are arrays
   const activeUsers = useMemo(() => {
     const data = activeUsersResult.data;
@@ -875,9 +875,9 @@ const TimeTrackingPage: React.FC = () => {
 
       const teamList: any[] =
         Array.isArray((project as any).teamMembers) ? (project as any).teamMembers :
-        Array.isArray((project as any).members) ? (project as any).members :
-        Array.isArray((project as any).team) ? (project as any).team :
-        [];
+          Array.isArray((project as any).members) ? (project as any).members :
+            Array.isArray((project as any).team) ? (project as any).team :
+              [];
 
       const managerId = normalizeId((project as any).managerId);
       const createdById = normalizeId((project as any).createdBy);
@@ -916,9 +916,9 @@ const TimeTrackingPage: React.FC = () => {
     if (projectFilter === 'all') {
       return []; // No project selected, return empty array
     }
-    
+
     const members = Array.isArray(projectTeamMembersResult.teamMembers) ? projectTeamMembersResult.teamMembers : [];
-    
+
     // Filter to only show team members from projects where the user is listed
     // The projects array already contains only projects where the user is listed
     const accessibleProjectIds = new Set(
@@ -966,7 +966,7 @@ const TimeTrackingPage: React.FC = () => {
       // If project is reset to 'all', keep current filters
       return;
     }
-    
+
     // Check if current sprint filter is valid for the selected project
     if (sprintFilter !== 'all') {
       const selectedSprint = sprints.find(s => normalizeId(s.id) === sprintFilter);
@@ -976,7 +976,7 @@ const TimeTrackingPage: React.FC = () => {
         setSprintFilter('all');
       }
     }
-    
+
     // Check if current user filter is valid for the selected project
     if (userFilter !== 'all' && projectFilter !== 'all') {
       const projectTeamMemberIds = new Set(
@@ -992,7 +992,7 @@ const TimeTrackingPage: React.FC = () => {
           })
           .filter((id): id is string => Boolean(id))
       );
-      
+
       if (!projectTeamMemberIds.has(userFilter)) {
         // User is not a team member of the selected project, reset it
         setUserFilter('all');
@@ -1138,8 +1138,8 @@ const TimeTrackingPage: React.FC = () => {
     }
 
     const isManagerOrAdmin = currentUser && (
-      (currentUser.role as string) === 'admin' || 
-      (currentUser.role as string) === 'manager' || 
+      (currentUser.role as string) === 'admin' ||
+      (currentUser.role as string) === 'manager' ||
       (currentUser.role as string) === 'MANAGER' ||
       (currentUser.role as string) === 'ADMIN' ||
       (currentUser.role as string)?.toLowerCase() === 'manager' ||
@@ -1201,8 +1201,8 @@ const TimeTrackingPage: React.FC = () => {
 
         // Check if current user is manager or admin
         const isManagerOrAdmin = currentUser && (
-          (currentUser.role as string) === 'admin' || 
-          (currentUser.role as string) === 'manager' || 
+          (currentUser.role as string) === 'admin' ||
+          (currentUser.role as string) === 'manager' ||
           (currentUser.role as string) === 'MANAGER' ||
           (currentUser.role as string) === 'ADMIN' ||
           (currentUser.role as string)?.toLowerCase() === 'manager' ||
@@ -1486,16 +1486,16 @@ const TimeTrackingPage: React.FC = () => {
 
     // Filter entries: managers/admins see entries from their accessible projects, others see only their own
     const isManagerOrAdmin = currentUser && (
-      (currentUser.role as string) === 'admin' || 
-      (currentUser.role as string) === 'manager' || 
+      (currentUser.role as string) === 'admin' ||
+      (currentUser.role as string) === 'manager' ||
       (currentUser.role as string) === 'MANAGER' ||
       (currentUser.role as string) === 'ADMIN' ||
       (currentUser.role as string)?.toLowerCase() === 'manager' ||
       (currentUser.role as string)?.toLowerCase() === 'admin'
     );
-    
+
     let entriesToMap = rawTimeEntries;
-    
+
     if (!isManagerOrAdmin && currentUser && currentUser.id) {
       // Non-managers/admins: only see their own entries
       entriesToMap = rawTimeEntries.filter(entry => normalizeId(entry.userId) === normalizeId(currentUser.id));
@@ -1504,14 +1504,14 @@ const TimeTrackingPage: React.FC = () => {
       const accessibleProjectIds = new Set(
         projects.map(p => normalizeId(p.id)).filter((id): id is string => Boolean(id))
       );
-      
+
       entriesToMap = rawTimeEntries.filter(entry => {
         // Get projectId from entry
         const entryProjectId = normalizeId((entry as any).projectId);
         if (entryProjectId && accessibleProjectIds.has(entryProjectId)) {
           return true;
         }
-        
+
         // Also check via story -> project mapping
         const entryStoryId = normalizeId(entry.storyId);
         if (entryStoryId) {
@@ -1521,7 +1521,7 @@ const TimeTrackingPage: React.FC = () => {
             return storyProjectId ? accessibleProjectIds.has(storyProjectId) : false;
           }
         }
-        
+
         // Also check via task -> story -> project mapping
         const entryTaskId = normalizeId(entry.taskId);
         if (entryTaskId) {
@@ -1537,137 +1537,137 @@ const TimeTrackingPage: React.FC = () => {
             }
           }
         }
-        
+
         return false;
       });
     }
-    
+
     // First, map all entries and resolve subtask entries to their parent tasks
     const processedEntries = entriesToMap.map((entry) => {
-        const normalizedEntryId = normalizeId(entry.id) || String(entry.id);
-        const normalizedUserId = normalizeId(entry.userId);
-        const user = normalizedUserId ? usersMap.get(normalizedUserId) : undefined;
-        
-        // Check if entry is for a subtask and resolve to parent task
-        const entrySubtaskId = normalizeId((entry as any).subtaskId);
-        let resolvedTaskId = normalizeId(entry.taskId);
-        
-        // If entry has subtaskId, find the parent taskId
-        if (entrySubtaskId && !resolvedTaskId) {
-          resolvedTaskId = subtaskToTaskMap.get(entrySubtaskId);
-        }
-        
-        const entryTaskId = resolvedTaskId;
-        const task = entryTaskId ? tasksMap.get(entryTaskId) : null;
-        const assigneeId = task?.assigneeId ? normalizeId(task.assigneeId) : undefined;
-        const assigneeUser = assigneeId ? usersMap.get(assigneeId) : undefined;
-        // Get story from entry.storyId or from task.storyId
-        const explicitStoryId = normalizeId(entry.storyId);
-        const derivedStoryId = explicitStoryId || (task?.storyId ? normalizeId(task.storyId) : undefined);
-        const story = derivedStoryId ? storiesMap.get(derivedStoryId) : null;
-        
-        // Get projectId from entry, story, or task's story (in that order)
-        // Note: Task doesn't have projectId directly, but Story does
-        const { id: entryResolvedProjectId, name: entryResolvedProjectName } = resolveProjectInfoFromEntry(entry);
-        const derivedProjectId =
-          entryResolvedProjectId ||
-          (story?.projectId ? normalizeId(story.projectId) : undefined);
-        const resolvedProjectId = derivedProjectId;
-        const project = resolvedProjectId ? projectsMap.get(resolvedProjectId) : null;
-        const rawProjectName =
-          (typeof (entry as any).projectName === 'string' && (entry as any).projectName) ||
-          (typeof (entry as any).project === 'string' && (entry as any).project) ||
-          entryResolvedProjectName ||
-          (story?.projectId && projectsMap.get(normalizeId(story.projectId)!)?.name);
-        const resolvedProjectName = project?.name || rawProjectName || 'Unassigned Project';
-        
-        // Get sprint from entry, story or project
-        const { id: entrySprintId, name: entrySprintName } = resolveSprintInfoFromEntry(entry);
-        const sprintId = entrySprintId || (story?.sprintId ? normalizeId(story.sprintId) : undefined);
-        const sprint = sprintId ? sprintsMap.get(sprintId) : 
-                      (derivedProjectId ? projectToSprintMap.get(derivedProjectId) : null);
-        const rawSprintName =
-          (typeof (entry as any).sprintName === 'string' && (entry as any).sprintName) ||
-          entrySprintName ||
-          (story && story.sprintId ? sprintsMap.get(normalizeId(story.sprintId) || '')?.name : undefined);
-        const resolvedSprintName = sprint?.name || rawSprintName;
-        const fallbackSprintLabel = resolvedSprintName || (sprintId ? formatDisplayName(String(sprintId)) : undefined);
+      const normalizedEntryId = normalizeId(entry.id) || String(entry.id);
+      const normalizedUserId = normalizeId(entry.userId);
+      const user = normalizedUserId ? usersMap.get(normalizedUserId) : undefined;
 
-        const rawCategory =
-          (entry as any).category ??
-          (entry as any).entryType ??
-          (entry as any).workType ??
-          (entry as any).type ??
-          (task as any)?.category ??
-          (task as any)?.workType ??
-          (story as any)?.category ??
-          (story as any)?.workType ??
-          undefined;
-        const normalizedCategory = normalizeCategory(rawCategory);
+      // Check if entry is for a subtask and resolve to parent task
+      const entrySubtaskId = normalizeId((entry as any).subtaskId);
+      let resolvedTaskId = normalizeId(entry.taskId);
 
-        const hoursWorked = entry.hoursWorked || 0;
-        const hours = Math.floor(hoursWorked);
-        const minutes = Math.round((hoursWorked - hours) * 60);
-        const timeSpent = `${hours}h ${minutes}m`;
+      // If entry has subtaskId, find the parent taskId
+      if (entrySubtaskId && !resolvedTaskId) {
+        resolvedTaskId = subtaskToTaskMap.get(entrySubtaskId);
+      }
 
-        const estimatedHours = task?.estimatedHours || story?.estimatedHours || 0;
-        const actualHours = task?.actualHours || story?.actualHours || 0;
-        const remainingHours = Math.max(0, estimatedHours - actualHours);
-        const remHours = Math.floor(remainingHours);
-        const remMinutes = Math.round((remainingHours - remHours) * 60);
-        const remaining = estimatedHours > 0 ? `${remHours}h ${remMinutes}m` : '0h 0m';
+      const entryTaskId = resolvedTaskId;
+      const task = entryTaskId ? tasksMap.get(entryTaskId) : null;
+      const assigneeId = task?.assigneeId ? normalizeId(task.assigneeId) : undefined;
+      const assigneeUser = assigneeId ? usersMap.get(assigneeId) : undefined;
+      // Get story from entry.storyId or from task.storyId
+      const explicitStoryId = normalizeId(entry.storyId);
+      const derivedStoryId = explicitStoryId || (task?.storyId ? normalizeId(task.storyId) : undefined);
+      const story = derivedStoryId ? storiesMap.get(derivedStoryId) : null;
 
-        const estHours = Math.floor(estimatedHours);
-        const estMinutes = Math.round((estimatedHours - estHours) * 60);
-        const estimation = estimatedHours > 0 ? `${estHours}h ${estMinutes}m` : undefined;
+      // Get projectId from entry, story, or task's story (in that order)
+      // Note: Task doesn't have projectId directly, but Story does
+      const { id: entryResolvedProjectId, name: entryResolvedProjectName } = resolveProjectInfoFromEntry(entry);
+      const derivedProjectId =
+        entryResolvedProjectId ||
+        (story?.projectId ? normalizeId(story.projectId) : undefined);
+      const resolvedProjectId = derivedProjectId;
+      const project = resolvedProjectId ? projectsMap.get(resolvedProjectId) : null;
+      const rawProjectName =
+        (typeof (entry as any).projectName === 'string' && (entry as any).projectName) ||
+        (typeof (entry as any).project === 'string' && (entry as any).project) ||
+        entryResolvedProjectName ||
+        (story?.projectId && projectsMap.get(normalizeId(story.projectId)!)?.name);
+      const resolvedProjectName = project?.name || rawProjectName || 'Unassigned Project';
 
-        const taskStatus = task?.status || 'TO_DO';
-        // Keep the original task status for display purposes
-        const normalizedTaskStatus = (taskStatus || '').toString().toUpperCase().trim();
-        // Map task status to entry status for filtering/grouping (legacy support)
-        let entryStatus: 'active' | 'completed' = 'active';
-        if (normalizedTaskStatus === 'DONE' || normalizedTaskStatus === 'COMPLETED') {
-          entryStatus = 'completed';
-        } else {
-          entryStatus = 'active';
-        }
+      // Get sprint from entry, story or project
+      const { id: entrySprintId, name: entrySprintName } = resolveSprintInfoFromEntry(entry);
+      const sprintId = entrySprintId || (story?.sprintId ? normalizeId(story.sprintId) : undefined);
+      const sprint = sprintId ? sprintsMap.get(sprintId) :
+        (derivedProjectId ? projectToSprintMap.get(derivedProjectId) : null);
+      const rawSprintName =
+        (typeof (entry as any).sprintName === 'string' && (entry as any).sprintName) ||
+        entrySprintName ||
+        (story && story.sprintId ? sprintsMap.get(normalizeId(story.sprintId) || '')?.name : undefined);
+      const resolvedSprintName = sprint?.name || rawSprintName;
+      const fallbackSprintLabel = resolvedSprintName || (sprintId ? formatDisplayName(String(sprintId)) : undefined);
 
-        const displayUserName = assigneeUser?.name || (assigneeId || user?.name || 'Unknown User');
-        const displayUserRole = assigneeUser?.role || user?.role || 'DEVELOPER';
+      const rawCategory =
+        (entry as any).category ??
+        (entry as any).entryType ??
+        (entry as any).workType ??
+        (entry as any).type ??
+        (task as any)?.category ??
+        (task as any)?.workType ??
+        (story as any)?.category ??
+        (story as any)?.workType ??
+        undefined;
+      const normalizedCategory = normalizeCategory(rawCategory);
 
-        return {
-          id: normalizedEntryId,
-          task: task?.title || 'Unassigned Task',
-          taskId: entryTaskId,
-          story: story?.title || 'Unassigned Story',
-          storyId: derivedStoryId,
-          project: resolvedProjectName,
-          projectId: resolvedProjectId || derivedProjectId,
-          sprintId: sprint?.id ? normalizeId(sprint.id) : sprintId,
-          sprintName: fallbackSprintLabel,
-          user: displayUserName,
-          userId: assigneeId || normalizedUserId || '',
-          userRole: displayUserRole,
-          duration: timeSpent,
-          date: entry.workDate || entry.createdAt,
-          status: entryStatus,
-          taskStatus: normalizedTaskStatus, // Store the actual task status for display
-          billable: entry.isBillable !== false,
-          category: normalizedCategory,
-          description: entry.description,
-          timeSpent,
-          remaining,
-          estimation,
-          startTime: entry.startTime || undefined,
-          endTime: entry.endTime || undefined,
-          hoursWorked: entry.hoursWorked,
-          notes: entry.description
-        };
-      });
+      const hoursWorked = entry.hoursWorked || 0;
+      const hours = Math.floor(hoursWorked);
+      const minutes = Math.round((hoursWorked - hours) * 60);
+      const timeSpent = `${hours}h ${minutes}m`;
+
+      const estimatedHours = task?.estimatedHours || story?.estimatedHours || 0;
+      const actualHours = task?.actualHours || story?.actualHours || 0;
+      const remainingHours = Math.max(0, estimatedHours - actualHours);
+      const remHours = Math.floor(remainingHours);
+      const remMinutes = Math.round((remainingHours - remHours) * 60);
+      const remaining = estimatedHours > 0 ? `${remHours}h ${remMinutes}m` : '0h 0m';
+
+      const estHours = Math.floor(estimatedHours);
+      const estMinutes = Math.round((estimatedHours - estHours) * 60);
+      const estimation = estimatedHours > 0 ? `${estHours}h ${estMinutes}m` : undefined;
+
+      const taskStatus = task?.status || 'TO_DO';
+      // Keep the original task status for display purposes
+      const normalizedTaskStatus = (taskStatus || '').toString().toUpperCase().trim();
+      // Map task status to entry status for filtering/grouping (legacy support)
+      let entryStatus: 'active' | 'completed' = 'active';
+      if (normalizedTaskStatus === 'DONE' || normalizedTaskStatus === 'COMPLETED') {
+        entryStatus = 'completed';
+      } else {
+        entryStatus = 'active';
+      }
+
+      const displayUserName = assigneeUser?.name || (assigneeId || user?.name || 'Unknown User');
+      const displayUserRole = assigneeUser?.role || user?.role || 'DEVELOPER';
+
+      return {
+        id: normalizedEntryId,
+        task: task?.title || 'Unassigned Task',
+        taskId: entryTaskId,
+        story: story?.title || 'Unassigned Story',
+        storyId: derivedStoryId,
+        project: resolvedProjectName,
+        projectId: resolvedProjectId || derivedProjectId,
+        sprintId: sprint?.id ? normalizeId(sprint.id) : sprintId,
+        sprintName: fallbackSprintLabel,
+        user: displayUserName,
+        userId: assigneeId || normalizedUserId || '',
+        userRole: displayUserRole,
+        duration: timeSpent,
+        date: entry.workDate || entry.createdAt,
+        status: entryStatus,
+        taskStatus: normalizedTaskStatus, // Store the actual task status for display
+        billable: entry.isBillable !== false,
+        category: normalizedCategory,
+        description: entry.description,
+        timeSpent,
+        remaining,
+        estimation,
+        startTime: entry.startTime || undefined,
+        endTime: entry.endTime || undefined,
+        hoursWorked: entry.hoursWorked,
+        notes: entry.description
+      };
+    });
 
     // Filter out entries without valid taskId (orphaned subtask entries that couldn't be resolved)
     const validEntries = processedEntries.filter(entry => entry.taskId);
-    
+
     // Group entries by taskId and aggregate hours
     const taskEntryMap = new Map<string, TimeEntry[]>();
     validEntries.forEach(entry => {
@@ -1682,20 +1682,20 @@ const TimeTrackingPage: React.FC = () => {
     const aggregatedEntries: TimeEntry[] = Array.from(taskEntryMap.entries()).map(([taskId, entries]) => {
       // Use the first entry as the base
       const baseEntry = entries[0];
-      
+
       // Aggregate hours from all entries (task + subtasks)
       const totalHours = entries.reduce((sum, entry) => sum + (entry.hoursWorked || 0), 0);
       const totalHoursRounded = Math.round(totalHours * 100) / 100;
       const hours = Math.floor(totalHoursRounded);
       const minutes = Math.round((totalHoursRounded - hours) * 60);
       const aggregatedTimeSpent = `${hours}h ${minutes}m`;
-      
+
       // Combine descriptions (if multiple entries)
       const descriptions = entries
         .map(e => e.description || e.notes)
         .filter(Boolean)
         .filter((v, i, a) => a.indexOf(v) === i); // Remove duplicates
-      const combinedDescription = descriptions.length > 0 
+      const combinedDescription = descriptions.length > 0
         ? (descriptions.length === 1 ? descriptions[0] : descriptions.join('; '))
         : baseEntry.description;
 
@@ -1742,13 +1742,13 @@ const TimeTrackingPage: React.FC = () => {
     const spent = parseTime(entry.timeSpent);
     const actual = entry.estimation ? parseTime(entry.estimation) : (spent + parseTime(entry.remaining));
     const remaining = parseTime(entry.remaining);
-    
+
     if (actual === 0) return { spentPercent: 0, remainingPercent: 0, actual, spent, remaining, variance: 0 };
-    
+
     const spentPercent = Math.round((spent / actual) * 100);
     const remainingPercent = Math.round((remaining / actual) * 100);
     const variance = actual > 0 ? Math.round(((spent - actual) / actual) * 100) : 0;
-    
+
     return { spentPercent, remainingPercent, actual, spent, remaining, variance };
   };
 
@@ -1833,21 +1833,21 @@ const TimeTrackingPage: React.FC = () => {
   const summaryStats = useMemo(() => {
     // Check if current user is manager or admin
     const isManagerOrAdmin = currentUser && (
-      (currentUser.role as string) === 'admin' || 
-      (currentUser.role as string) === 'manager' || 
+      (currentUser.role as string) === 'admin' ||
+      (currentUser.role as string) === 'manager' ||
       (currentUser.role as string) === 'MANAGER' ||
       (currentUser.role as string) === 'ADMIN' ||
       (currentUser.role as string)?.toLowerCase() === 'manager' ||
       (currentUser.role as string)?.toLowerCase() === 'admin'
     );
-    
+
     // Calculate allotted time
     let totalAllottedMinutes = 0;
     if (isManagerOrAdmin) {
       // For managers/admins: sum allotted time from all users' assigned tasks
       // Use a Set to avoid double-counting tasks that might be in both userTasksMap and allTasks
       const countedTaskIds = new Set<string>();
-      
+
       // First, count tasks from userTasksMap
       userTasksMap.forEach((tasks) => {
         tasks.forEach(task => {
@@ -1859,7 +1859,7 @@ const TimeTrackingPage: React.FC = () => {
           }
         });
       });
-      
+
       // Then, count tasks from allTasks that weren't already counted
       allTasks.forEach(task => {
         const taskId = normalizeId(task.id);
@@ -1886,7 +1886,7 @@ const TimeTrackingPage: React.FC = () => {
             combinedUserTasks.set(taskId, task);
           }
         });
-        
+
         // Sum estimated hours from all assigned tasks
         totalAllottedMinutes = Array.from(combinedUserTasks.values()).reduce((sum, task) => {
           const estimatedHours = task.estimatedHours || 0;
@@ -1894,17 +1894,17 @@ const TimeTrackingPage: React.FC = () => {
         }, 0);
       }
     }
-    
+
     const totalMinutes = filteredTimeEntries.reduce((sum, entry) => {
       return sum + parseTime(entry.timeSpent);
     }, 0);
-    
+
     const billableMinutes = filteredTimeEntries
       .filter(e => e.billable)
       .reduce((sum, entry) => {
         return sum + parseTime(entry.timeSpent);
       }, 0);
-    
+
     const uniqueUsers = new Set(filteredTimeEntries.map(e => e.userId)).size;
     const uniqueProjectsFiltered = new Set(
       filteredTimeEntries
@@ -1942,13 +1942,13 @@ const TimeTrackingPage: React.FC = () => {
       // No project filter, use active users count or unique users
       resolvedActiveMemberCount = activeUserCount > 0 ? activeUserCount : uniqueUsers;
     }
-    
+
     const formatTime = (minutes: number) => {
       const hours = Math.floor(minutes / 60);
       const mins = minutes % 60;
       return `${hours}h ${mins}m`;
     };
-    
+
     return {
       totalHours: formatTime(totalMinutes),
       billableHours: formatTime(billableMinutes),
@@ -2141,7 +2141,7 @@ const TimeTrackingPage: React.FC = () => {
   // Helper function to get status style based on task status
   const getTaskStatusStyle = useCallback((taskStatus: string | undefined) => {
     const normalizedStatus = (taskStatus || '').toString().toUpperCase().trim();
-    
+
     switch (normalizedStatus) {
       case 'DONE':
       case 'COMPLETED':
@@ -2231,7 +2231,7 @@ const TimeTrackingPage: React.FC = () => {
       if (normalizedCurrentUserId) {
         const managerId = normalizeId((project as any).managerId);
         const createdById = normalizeId((project as any).createdBy);
-        
+
         // Check if user is manager or creator
         if (managerId === normalizedCurrentUserId || createdById === normalizedCurrentUserId) {
           // User is manager or creator, check status
@@ -2253,9 +2253,9 @@ const TimeTrackingPage: React.FC = () => {
         // Check if user is a team member
         const teamList: any[] =
           Array.isArray((project as any).teamMembers) ? (project as any).teamMembers :
-          Array.isArray((project as any).members) ? (project as any).members :
-          Array.isArray((project as any).team) ? (project as any).team :
-          [];
+            Array.isArray((project as any).members) ? (project as any).members :
+              Array.isArray((project as any).team) ? (project as any).team :
+                [];
 
         const isTeamMember = teamList.some(member => {
           const memberId = normalizeId(
@@ -2291,20 +2291,20 @@ const TimeTrackingPage: React.FC = () => {
   }, [projects, summaryStats.totalUniqueProjects, summaryStats.uniqueProjects, currentUser]);
 
   const activeProjectsWithinRange = summaryStats.uniqueProjects || 0;
-  
+
   // Calculate team members count based on the same filtering logic as the picker
   const activeMemberCount = useMemo(() => {
     // Get all team members from projects where the user is listed
     const allProjectTeamMemberIds = new Set<string>();
-    
+
     // Collect team members from all accessible projects
     projects.forEach(project => {
       const teamList: any[] =
         Array.isArray((project as any).teamMembers) ? (project as any).teamMembers :
-        Array.isArray((project as any).members) ? (project as any).members :
-        Array.isArray((project as any).team) ? (project as any).team :
-        [];
-      
+          Array.isArray((project as any).members) ? (project as any).members :
+            Array.isArray((project as any).team) ? (project as any).team :
+              [];
+
       teamList.forEach(member => {
         const memberId = normalizeId(
           member?.userId ??
@@ -2319,11 +2319,11 @@ const TimeTrackingPage: React.FC = () => {
         }
       });
     });
-    
+
     // If a specific project is selected, filter to only that project's team members
     if (projectFilter !== 'all') {
       const normalizedProjectFilter = normalizeId(projectFilter);
-      
+
       // Get team members from the selected project (from API)
       const projectTeamMemberIds = new Set(
         projectTeamMembers
@@ -2339,17 +2339,17 @@ const TimeTrackingPage: React.FC = () => {
           })
           .filter((id): id is string => Boolean(id))
       );
-      
+
       // Fallback: If no team members from API, try to get from project data
       if (projectTeamMemberIds.size === 0) {
         const selectedProject = projects.find(p => normalizeId(p.id) === normalizedProjectFilter);
         if (selectedProject) {
           const projectTeamList: any[] =
             Array.isArray((selectedProject as any).teamMembers) ? (selectedProject as any).teamMembers :
-            Array.isArray((selectedProject as any).members) ? (selectedProject as any).members :
-            Array.isArray((selectedProject as any).team) ? (selectedProject as any).team :
-            [];
-          
+              Array.isArray((selectedProject as any).members) ? (selectedProject as any).members :
+                Array.isArray((selectedProject as any).team) ? (selectedProject as any).team :
+                  [];
+
           projectTeamList.forEach(member => {
             const memberId = normalizeId(
               member?.userId ??
@@ -2365,14 +2365,14 @@ const TimeTrackingPage: React.FC = () => {
           });
         }
       }
-      
+
       return projectTeamMemberIds.size;
     } else {
       // No project selected, return count of all team members from projects where user is listed
       return allProjectTeamMemberIds.size;
     }
   }, [projects, projectFilter, projectTeamMembers]);
-  
+
   const timeEntryCount = summaryStats.timeEntries || 0;
   const billablePercentage = summaryStats.billablePercentage || 0;
 
@@ -2425,23 +2425,23 @@ const TimeTrackingPage: React.FC = () => {
       .join('');
   };
 
-const formatEntryDateDisplay = (value?: string | Date | number) => {
-  const parsed = parseEntryDateValue(value);
-  if (!parsed) {
-    return '—';
-  }
+  const formatEntryDateDisplay = (value?: string | Date | number) => {
+    const parsed = parseEntryDateValue(value);
+    if (!parsed) {
+      return '—';
+    }
 
-  return new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(parsed);
+    return new Intl.DateTimeFormat('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).format(parsed);
   };
 
   // Determine if we're still loading initial data
-  const isLoadingData = loading || 
-    usersResult.loading || 
-    projectsResult.loading || 
+  const isLoadingData = loading ||
+    usersResult.loading ||
+    projectsResult.loading ||
     sprintsResult.loading ||
     (users.length === 0 && usersResult.data === null);
 
@@ -2460,17 +2460,17 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
     );
   }
 
-                  
-                  return (
+
+  return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
+        <div>
           <h1 className="text-2xl font-semibold text-foreground">Time Tracking Dashboard</h1>
           <p className="text-sm text-muted-foreground">
             Monitor logged effort, billability, and sprint focus in real time.
-                      </p>
-                    </div>
-                    </div>
+          </p>
+        </div>
+      </div>
 
       <Card className="border border-slate-200 shadow-sm">
         <CardContent className="p-4">
@@ -2494,9 +2494,9 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                 {timeFilter === 'custom' && (
                   <Popover open={customRangeOpen} onOpenChange={setCustomRangeOpen}>
                     <PopoverTrigger asChild>
-                            <Button 
+                      <Button
                         type="button"
-                              variant="outline" 
+                        variant="outline"
                         className={`h-10 w-full justify-start text-left font-normal ${customDateRange?.from ? '' : 'text-muted-foreground'}`}
                       >
                         {customRangeLabel}
@@ -2515,12 +2515,12 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                           type="button"
                           variant="ghost"
                           size="sm"
-                              onClick={() => {
+                          onClick={() => {
                             setCustomDateRange(undefined);
-                              }}
-                            >
+                          }}
+                        >
                           Clear
-                            </Button>
+                        </Button>
                         <Button
                           type="button"
                           size="sm"
@@ -2532,8 +2532,8 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                       </div>
                     </PopoverContent>
                   </Popover>
-                  )}
-                </div>
+                )}
+              </div>
 
               <div className="space-y-1 flex min-w-[140px] flex-1 flex-col">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Project</p>
@@ -2556,8 +2556,8 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                     })}
                   </SelectContent>
                 </Select>
-                      </div>
-                      
+              </div>
+
               <div className="space-y-1 flex min-w-[140px] flex-1 flex-col">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Sprint</p>
                 <Select value={sprintFilter} onValueChange={setSprintFilter}>
@@ -2575,13 +2575,13 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                           const sprintProjectId = normalizeId(sprint.projectId);
                           return sprintProjectId === normalizedProjectFilter;
                         });
-                        
+
                         // Fallback: If no sprints found, try to get sprints from the project data itself
                         if (filteredSprints.length === 0) {
                           const selectedProject = projects.find(p => normalizeId(p.id) === normalizedProjectFilter);
                           if (selectedProject && (selectedProject as any).sprints) {
-                            const projectSprints = Array.isArray((selectedProject as any).sprints) 
-                              ? (selectedProject as any).sprints 
+                            const projectSprints = Array.isArray((selectedProject as any).sprints)
+                              ? (selectedProject as any).sprints
                               : [];
                             filteredSprints = projectSprints.map((s: any) => ({
                               id: s.id || s.sprintId,
@@ -2606,7 +2606,7 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                     })()}
                   </SelectContent>
                 </Select>
-                        </div>
+              </div>
 
               <div className="space-y-1 flex min-w-[140px] flex-1 flex-col">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Team Member</p>
@@ -2619,15 +2619,15 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                     {(() => {
                       // Get all team members from projects where the user is listed
                       const allProjectTeamMemberIds = new Set<string>();
-                      
+
                       // Collect team members from all accessible projects
                       projects.forEach(project => {
                         const teamList: any[] =
                           Array.isArray((project as any).teamMembers) ? (project as any).teamMembers :
-                          Array.isArray((project as any).members) ? (project as any).members :
-                          Array.isArray((project as any).team) ? (project as any).team :
-                          [];
-                        
+                            Array.isArray((project as any).members) ? (project as any).members :
+                              Array.isArray((project as any).team) ? (project as any).team :
+                                [];
+
                         teamList.forEach(member => {
                           const memberId = normalizeId(
                             member?.userId ??
@@ -2641,12 +2641,12 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                           }
                         });
                       });
-                      
+
                       // If a specific project is selected, filter to only that project's team members
                       let filteredUsers = users;
                       if (projectFilter !== 'all') {
                         const normalizedProjectFilter = normalizeId(projectFilter);
-                        
+
                         // Get team members from the selected project (from API)
                         const projectTeamMemberIds = new Set(
                           projectTeamMembers
@@ -2662,17 +2662,17 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                             })
                             .filter((id): id is string => Boolean(id))
                         );
-                        
+
                         // Fallback: If no team members from API, try to get from project data
                         if (projectTeamMemberIds.size === 0) {
                           const selectedProject = projects.find(p => normalizeId(p.id) === normalizedProjectFilter);
                           if (selectedProject) {
                             const projectTeamList: any[] =
                               Array.isArray((selectedProject as any).teamMembers) ? (selectedProject as any).teamMembers :
-                              Array.isArray((selectedProject as any).members) ? (selectedProject as any).members :
-                              Array.isArray((selectedProject as any).team) ? (selectedProject as any).team :
-                              [];
-                            
+                                Array.isArray((selectedProject as any).members) ? (selectedProject as any).members :
+                                  Array.isArray((selectedProject as any).team) ? (selectedProject as any).team :
+                                    [];
+
                             projectTeamList.forEach(member => {
                               const memberId = normalizeId(
                                 member?.userId ??
@@ -2688,7 +2688,7 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                             });
                           }
                         }
-                        
+
                         // Filter users to only show team members from the selected project
                         filteredUsers = users.filter(user => {
                           const userId = normalizeId(user.id);
@@ -2701,7 +2701,7 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                           return userId ? allProjectTeamMemberIds.has(userId) : false;
                         });
                       }
-                      
+
                       return filteredUsers.map(user => {
                         const userId = normalizeId(user.id);
                         if (!userId) {
@@ -2716,7 +2716,7 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                     })()}
                   </SelectContent>
                 </Select>
-                        </div>
+              </div>
 
               <div className="space-y-1 flex min-w-[140px] flex-1 flex-col">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Work Type</p>
@@ -2733,7 +2733,7 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                     ))}
                   </SelectContent>
                 </Select>
-                        </div>
+              </div>
 
               <div className="space-y-1 flex min-w-[140px] flex-1 flex-col">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Billable Status</p>
@@ -2747,7 +2747,7 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                     <SelectItem value="non-billable">Non-billable</SelectItem>
                   </SelectContent>
                 </Select>
-                      </div>
+              </div>
 
               <div className="flex min-w-[100px] basis-[120px] flex-none flex-col justify-end">
                 <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground opacity-0">
@@ -2760,121 +2760,121 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                 >
                   Reset
                 </Button>
-                </div>
-                          </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 md:grid-cols-6">
         <Card className="shadow-sm">
-                  <CardContent className="p-4">
+          <CardContent className="p-4">
             <div className="flex items-start justify-between gap-4">
-                        <div>
+              <div>
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Total Hours Logged
                 </p>
                 <p className="mt-2 text-2xl font-semibold text-foreground">{totalHoursDecimal.toFixed(1)}</p>
                 <p className="text-xs text-muted-foreground">hours this period</p>
-                        </div>
+              </div>
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
                 <Clock className="h-5 w-5" />
               </span>
-                      </div>
-            </CardContent>
-          </Card>
-
-        <Card className="shadow-sm">
-                  <CardContent className="p-4">
-            <div className="flex items-start justify-between gap-4">
-                        <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Billable Hours
-                          </p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">{billableHoursDecimal.toFixed(1)}</p>
-                <p className="text-xs text-muted-foreground">{billablePercentage}% of total</p>
-                        </div>
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                <Target className="h-5 w-5" />
-              </span>
-                        </div>
-        </CardContent>
-      </Card>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card className="shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-start justify-between gap-4">
-                        <div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Billable Hours
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{billableHoursDecimal.toFixed(1)}</p>
+                <p className="text-xs text-muted-foreground">{billablePercentage}% of total</p>
+              </div>
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                <Target className="h-5 w-5" />
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Team Members
                 </p>
                 <p className="mt-2 text-2xl font-semibold text-foreground">{activeMemberCount}</p>
                 <p className="text-xs text-muted-foreground">
                   {activeMemberCount === 1 ? 'member' : 'members'} actively logging time
-                          </p>
-                        </div>
+                </p>
+              </div>
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-purple-50 text-purple-600">
                 <Users className="h-5 w-5" />
               </span>
-                  </div>
-                </CardContent>
-              </Card>
-
-        <Card className="shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-start justify-between gap-4">
-                        <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Active Projects
-                          </p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">{activeProjectsTotal}</p>
-                <p className="text-xs text-muted-foreground">
-                  {activeProjectsWithinRange > 0
-                    ? `with logged time${timeFilter !== 'all-time' ? ` (${activeProjectsWithinRange} in current range)` : ''}`
-                    : 'No time logged in selected range'}
-                            </p>
-                          </div>
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-sky-50 text-sky-600">
-                <BarChart3 className="h-5 w-5" />
-              </span>
-                        </div>
-                </CardContent>
-              </Card>
-
-        <Card className="shadow-sm">
-          <CardContent className="p-4">
-                                <div className="flex items-start justify-between gap-4">
-                  <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Daily Average
-                </p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">{averageDailyHoursDecimal.toFixed(1)}</p>
-                <p className="text-xs text-muted-foreground">hours per day</p>
-                  </div>
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-orange-50 text-orange-600">
-                <TrendingUp className="h-5 w-5" />
-              </span>
-                </div>
+            </div>
           </CardContent>
         </Card>
 
         <Card className="shadow-sm">
           <CardContent className="p-4">
-                                <div className="flex items-start justify-between gap-4">
-                  <div>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Active Projects
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{activeProjectsTotal}</p>
+                <p className="text-xs text-muted-foreground">
+                  {activeProjectsWithinRange > 0
+                    ? `with logged time${timeFilter !== 'all-time' ? ` (${activeProjectsWithinRange} in current range)` : ''}`
+                    : 'No time logged in selected range'}
+                </p>
+              </div>
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-sky-50 text-sky-600">
+                <BarChart3 className="h-5 w-5" />
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Daily Average
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{averageDailyHoursDecimal.toFixed(1)}</p>
+                <p className="text-xs text-muted-foreground">hours per day</p>
+              </div>
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-orange-50 text-orange-600">
+                <TrendingUp className="h-5 w-5" />
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Time Entries
                 </p>
                 <p className="mt-2 text-2xl font-semibold text-foreground">{timeEntryCount}</p>
                 <p className="text-xs text-muted-foreground">total entries</p>
-                                      </div>
+              </div>
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-rose-50 text-rose-600">
                 <CheckCircle2 className="h-5 w-5" />
-                                      </span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       <Card className="shadow-sm">
         <CardContent className="p-0">
@@ -2883,7 +2883,7 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
             <p className="text-sm text-muted-foreground">
               Showing {paginated.total === 0 ? 0 : paginated.start + 1}–{paginated.end} of {filteredTimeEntries.length} entries
             </p>
-                    </div>
+          </div>
           {paginated.rows.length > 0 ? (
             <Table className="[&_th]:text-xs [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-muted-foreground [&_td]:text-sm">
               <TableHeader>
@@ -2913,8 +2913,8 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                   const estimatedMinutesRaw = entry.estimation
                     ? parseTime(entry.estimation)
                     : entry.remaining
-                        ? parseTime(entry.timeSpent) + parseTime(entry.remaining)
-                        : undefined;
+                      ? parseTime(entry.timeSpent) + parseTime(entry.remaining)
+                      : undefined;
                   const estimatedHours =
                     estimatedMinutesRaw !== undefined
                       ? Math.round((estimatedMinutesRaw / 60) * 10) / 10
@@ -2925,7 +2925,7 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                     ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
                     : 'bg-slate-100 text-slate-600 border-slate-200';
 
-  return (
+                  return (
                     <TableRow key={entry.id}>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -2934,15 +2934,15 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                               {getInitials(entry.user)}
                             </AvatarFallback>
                           </Avatar>
-        <div>
+                          <div>
                             <p className="text-sm font-medium text-foreground">{entry.user}</p>
                             <p className="text-xs text-muted-foreground">{formatDisplayName(entry.userRole)}</p>
-        </div>
-      </div>
+                          </div>
+                        </div>
                       </TableCell>
                       <TableCell className="max-w-[220px]">
-                        <p 
-                          className="truncate font-medium text-foreground" 
+                        <p
+                          className="truncate font-medium text-foreground"
                           title={entry.task}
                           style={{ maxWidth: '220px' }}
                         >
@@ -2972,8 +2972,8 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                       </TableCell>
                       <TableCell className="max-w-[220px]">
                         {entry.notes ? (
-                          <p 
-                            className="truncate" 
+                          <p
+                            className="truncate"
                             title={entry.notes}
                             style={{ maxWidth: '220px' }}
                           >
@@ -2989,7 +2989,7 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
           ) : (
             <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
               No time entries match the selected filters.
-              </div>
+            </div>
           )}
           <div className="flex items-center justify-between border-t border-slate-200 px-6 py-3">
             <div className="flex items-center gap-2">
@@ -3033,7 +3033,7 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
         <Card className="shadow-sm">
           <CardContent className="p-6">
             <div className="flex items-start justify-between">
-                                      <div>
+              <div>
                 <h2 className="text-lg font-semibold text-foreground">Daily Time Trend</h2>
                 <p className="text-sm text-muted-foreground">Hours logged each day</p>
               </div>
@@ -3071,12 +3071,12 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
               ) : (
                 <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                   No daily activity for the selected filters.
-          </div>
-                                      )}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="shadow-sm">
           <CardContent className="p-6">
             <div className="flex items-start justify-between">
@@ -3084,7 +3084,7 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                 <h2 className="text-lg font-semibold text-foreground">Time by Sprint</h2>
                 <p className="text-sm text-muted-foreground">Compare logged hours across sprints</p>
               </div>
-              </div>
+            </div>
             <div className="mt-6 h-72">
               {sprintBreakdownData.length > 0 ? (
                 <ChartContainer
@@ -3121,8 +3121,8 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
               ) : (
                 <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                   No sprint data available.
-                                      </div>
-                                    )}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -3136,7 +3136,7 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                 <h2 className="text-lg font-semibold text-foreground">Time by Work Type</h2>
                 <p className="text-sm text-muted-foreground">Distribution of logged hours</p>
               </div>
-      </div>
+            </div>
             <div className="mt-6 h-72">
               {workTypeBreakdownData.length > 0 ? (
                 <ChartContainer
@@ -3153,7 +3153,7 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                 >
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <ChartTooltip 
+                      <ChartTooltip
                         content={<ChartTooltipContent />}
                         formatter={(value: any, name: any) => [
                           `${value} hours`,
@@ -3176,7 +3176,7 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
                           />
                         ))}
                       </Pie>
-                      <Legend 
+                      <Legend
                         formatter={(value: string) => formatDisplayName(value)}
                         wrapperStyle={{ fontSize: '12px' }}
                       />
@@ -3186,11 +3186,11 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
               ) : (
                 <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                   No work type data available.
-            </div>
+                </div>
               )}
-      </div>
-        </CardContent>
-      </Card>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card className="shadow-sm">
           <CardContent className="p-6">
@@ -3198,7 +3198,7 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
               <div>
                 <h2 className="text-lg font-semibold text-foreground">Time by Team Member</h2>
                 <p className="text-sm text-muted-foreground">Billable vs non-billable split</p>
-            </div>
+              </div>
             </div>
             <div className="mt-6 h-72">
               {teamBreakdownData.length > 0 ? (
@@ -3238,9 +3238,9 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
               ) : (
                 <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                   No team activity for the selected filters.
-          </div>
-          )}
-        </div>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -3251,19 +3251,19 @@ const formatEntryDateDisplay = (value?: string | Date | number) => {
           <DialogHeader>
             <DialogTitle>Performance Analytics</DialogTitle>
             <DialogDescription>
-              {selectedUserId && usersMap.get(selectedUserId) 
+              {selectedUserId && usersMap.get(selectedUserId)
                 ? `Performance metrics and charts for ${usersMap.get(selectedUserId)?.name}`
                 : 'Performance metrics and charts for all users'}
             </DialogDescription>
           </DialogHeader>
-          
+
           {selectedUserId && (
-            <UserAnalytics 
-              userId={selectedUserId} 
-              timeEntries={timeEntries} 
-              usersMap={usersMap} 
-              projectsMap={projectsMap} 
-              storiesMap={storiesMap} 
+            <UserAnalytics
+              userId={selectedUserId}
+              timeEntries={timeEntries}
+              usersMap={usersMap}
+              projectsMap={projectsMap}
+              storiesMap={storiesMap}
               tasksMap={tasksMap}
               parseTime={parseTime}
               formatTimeHHMM={formatTimeHHMM}
@@ -3287,19 +3287,19 @@ interface UserAnalyticsProps {
   formatTimeHHMM: (minutes: number) => string;
 }
 
-const UserAnalytics: React.FC<UserAnalyticsProps> = ({ 
-  userId, 
-  timeEntries, 
-  usersMap, 
-  projectsMap, 
-  storiesMap, 
+const UserAnalytics: React.FC<UserAnalyticsProps> = ({
+  userId,
+  timeEntries,
+  usersMap,
+  projectsMap,
+  storiesMap,
   tasksMap,
   parseTime,
   formatTimeHHMM
 }) => {
   const user = usersMap.get(userId);
   const userEntries = timeEntries.filter(e => e.userId === userId);
-  
+
   // Calculate daily time spent
   const dailyData = useMemo(() => {
     const dailyMap = new Map<string, number>();
@@ -3308,7 +3308,7 @@ const UserAnalytics: React.FC<UserAnalyticsProps> = ({
       const minutes = parseTime(entry.timeSpent);
       dailyMap.set(date, (dailyMap.get(date) || 0) + minutes);
     });
-    
+
     return Array.from(dailyMap.entries())
       .map(([date, minutes]) => ({
         date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -3318,7 +3318,7 @@ const UserAnalytics: React.FC<UserAnalyticsProps> = ({
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
       .slice(-14); // Last 14 days
   }, [userEntries, parseTime]);
-  
+
   // Calculate project breakdown
   const projectData = useMemo(() => {
     const projectMap = new Map<string, number>();
@@ -3327,7 +3327,7 @@ const UserAnalytics: React.FC<UserAnalyticsProps> = ({
       const minutes = parseTime(entry.timeSpent);
       projectMap.set(projectName, (projectMap.get(projectName) || 0) + minutes);
     });
-    
+
     return Array.from(projectMap.entries())
       .map(([project, minutes]) => ({
         project,
@@ -3336,7 +3336,7 @@ const UserAnalytics: React.FC<UserAnalyticsProps> = ({
       }))
       .sort((a, b) => b.minutes - a.minutes);
   }, [userEntries, parseTime]);
-  
+
   // Calculate category breakdown
   const categoryData = useMemo(() => {
     const categoryMap = new Map<string, number>();
@@ -3345,7 +3345,7 @@ const UserAnalytics: React.FC<UserAnalyticsProps> = ({
       const minutes = parseTime(entry.timeSpent);
       categoryMap.set(category, (categoryMap.get(category) || 0) + minutes);
     });
-    
+
     return Array.from(categoryMap.entries())
       .map(([category, minutes]) => ({
         category: category.charAt(0).toUpperCase() + category.slice(1),
@@ -3354,7 +3354,7 @@ const UserAnalytics: React.FC<UserAnalyticsProps> = ({
       }))
       .sort((a, b) => b.minutes - a.minutes);
   }, [userEntries, parseTime]);
-  
+
   // Calculate task completion stats
   const taskStats = useMemo(() => {
     const totalTasks = userEntries.length;

@@ -47,7 +47,7 @@ import {
 } from 'lucide-react';
 // Removed mock data imports - using API data only
 import UserTasks from './UserTasks';
-import { useProjects, useUsers, useDepartments, useDomains, useEpics, useReleases, useSprints, useStories, useTasks } from '../hooks/api';
+import { useProjects, useUsers, useDepartments, useDomains, useEpics, useReleases, useSprints, useStories, useTasks, useAllSprints, useAllStories, useAllTasks } from '../hooks/api';
 import { apiClient } from '../services/api/client';
 import { prefetchProjects } from '../hooks/api/useProjects';
 import LoadingSpinner from './LoadingSpinner';
@@ -55,7 +55,7 @@ import LoadingSpinner from './LoadingSpinner';
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user, hasPermission, canAccessProject } = useAuth();
-  
+
   // API authentication is now handled by AuthContext
   // No need for demo auth setup
 
@@ -77,21 +77,21 @@ const Dashboard: React.FC = () => {
   const { data: apiDomains, loading: domainsLoading, error: domainsError, refetch: refetchDomains } = useDomains();
   const { data: apiEpics, loading: epicsLoading, error: epicsError, refetch: refetchEpics } = useEpics();
   const { data: apiReleases, loading: releasesLoading, error: releasesError, refetch: refetchReleases } = useReleases();
-  const { data: apiSprints, loading: sprintsLoading, error: sprintsError, refetch: refetchSprints } = useSprints();
-  const { data: apiStories, loading: storiesLoading, error: storiesError, refetch: refetchStories } = useStories();
-  const { data: apiTasks, loading: tasksLoading, error: tasksError, refetch: refetchTasks } = useTasks();
-  
+  const { data: apiSprints, loading: sprintsLoading, error: sprintsError, refetch: refetchSprints } = useAllSprints();
+  const { data: apiStories, loading: storiesLoading, error: storiesError, refetch: refetchStories } = useAllStories();
+  const { data: apiTasks, loading: tasksLoading, error: tasksError, refetch: refetchTasks } = useAllTasks();
+
   // Check if any API is still loading (but consider cached data as loaded)
-  const isLoadingAny = (projectsLoading && !apiProjects) || 
-                       (usersLoading && !apiUsers) || 
-                       (departmentsLoading && !apiDepartments) || 
-                       (domainsLoading && !apiDomains) || 
-                       (epicsLoading && !apiEpics) || 
-                       (releasesLoading && !apiReleases) || 
-                       (sprintsLoading && !apiSprints) || 
-                       (storiesLoading && !apiStories) || 
-                       (tasksLoading && !apiTasks);
-  
+  const isLoadingAny = (projectsLoading && !apiProjects) ||
+    (usersLoading && !apiUsers) ||
+    (departmentsLoading && !apiDepartments) ||
+    (domainsLoading && !apiDomains) ||
+    (epicsLoading && !apiEpics) ||
+    (releasesLoading && !apiReleases) ||
+    (sprintsLoading && !apiSprints) ||
+    (storiesLoading && !apiStories) ||
+    (tasksLoading && !apiTasks);
+
   // Calculate loading progress with better logic
   const loadingProgress = useMemo(() => {
     const totalApis = 9;
@@ -106,11 +106,11 @@ const Dashboard: React.FC = () => {
       { loading: storiesLoading, data: apiStories, error: storiesError, name: 'Stories' },
       { loading: tasksLoading, data: apiTasks, error: tasksError, name: 'Tasks' },
     ];
-    
-    const loadedApis = apiStatuses.filter(api => 
+
+    const loadedApis = apiStatuses.filter(api =>
       (!api.loading && (api.data !== null || api.error))
     ).length;
-    
+
     return Math.round((loadedApis / totalApis) * 100);
   }, [
     projectsLoading, usersLoading, departmentsLoading, domainsLoading,
@@ -118,7 +118,7 @@ const Dashboard: React.FC = () => {
     apiProjects, apiUsers, apiDepartments, apiDomains, apiEpics, apiReleases, apiSprints, apiStories, apiTasks,
     projectsError, usersError, departmentsError, domainsError, epicsError, releasesError, sprintsError, storiesError, tasksError
   ]);
-  
+
   // Filter states
   const [selectedProjectForSprint, setSelectedProjectForSprint] = useState<string>('all');
   const [selectedProjectForTasks, setSelectedProjectForTasks] = useState<string>('all');
@@ -129,7 +129,7 @@ const Dashboard: React.FC = () => {
     const tasks = Array.isArray(apiTasks) ? apiTasks.length : ((apiTasks as any)?.content?.length || 0);
     const stories = Array.isArray(apiStories) ? apiStories.length : ((apiStories as any)?.content?.length || 0);
     const projects = Array.isArray(apiProjects) ? apiProjects.length : ((apiProjects as any)?.content?.length || 0);
-    
+
     console.log('[Dashboard] API Data Availability:', {
       sprints: { count: sprints, loading: sprintsLoading, error: sprintsError ? String(sprintsError) : 'NO' },
       tasks: { count: tasks, loading: tasksLoading, error: tasksError ? String(tasksError) : 'NO' },
@@ -158,12 +158,12 @@ const Dashboard: React.FC = () => {
   const accessibleProjects = useMemo(() => {
     if (!user) return [];
     const projectData = normalizeApiData(apiProjects);
-    
+
     // Admins can access all projects
     if (user.role === 'admin') {
       return projectData;
     }
-    
+
     // Managers can only access projects they manage
     if (user.role === 'manager') {
       return projectData.filter(project => {
@@ -175,7 +175,7 @@ const Dashboard: React.FC = () => {
         return managerIdStr === userIdStr;
       });
     }
-    
+
     // QA and regular users filter by canAccessProject
     return projectData.filter(project => canAccessProject(project.id));
   }, [user, canAccessProject, apiProjects]);
@@ -184,12 +184,12 @@ const Dashboard: React.FC = () => {
   const userAssignedProjects = useMemo(() => {
     if (!user) return [];
     const projectData = normalizeApiData(apiProjects);
-    
+
     // Admins see all projects
     if (user.role === 'admin') {
       return projectData;
     }
-    
+
     // Managers see only projects they manage
     if (user.role === 'manager') {
       return projectData.filter(project => {
@@ -201,18 +201,18 @@ const Dashboard: React.FC = () => {
         return managerIdStr === userIdStr;
       });
     }
-    
+
     // For regular users, filter projects where they are team members
     return projectData.filter(project => {
       // Check if user is in teamMembers array (handle both string[] and object[] formats)
       const teamMembers = (project as any).teamMembers;
       if (Array.isArray(teamMembers)) {
-        return teamMembers.some((member: any) => 
+        return teamMembers.some((member: any) =>
           (typeof member === 'string' && member === user.id) ||
           (typeof member === 'object' && (member.id === user.id || member.userId === user.id))
         );
       }
-      
+
       // Fallback: check if canAccessProject allows access
       return canAccessProject(project.id);
     });
@@ -221,22 +221,22 @@ const Dashboard: React.FC = () => {
   // Get role-based metrics from API data - optimized with early returns
   const metrics = useMemo(() => {
     if (!user) return null;
-    
+
     // Use cached projects immediately - don't wait for loading
     const projects = normalizeApiData(apiProjects);
     const users = normalizeApiData(apiUsers);
     const allTasks = normalizeApiData(apiTasks);
     const allSprints = normalizeApiData(apiSprints);
     const allStories = normalizeApiData(apiStories);
-    
+
     // Early validation - ensure we have tasks data
     if (allTasks.length === 0 && !tasksLoading) {
       console.warn('[Dashboard] No tasks found in API data. Tasks loading:', tasksLoading, 'Tasks data:', apiTasks);
     }
-    
+
     // Check if user is manager/admin
     const isManagerOrAdmin = user.role === 'admin' || user.role === 'manager';
-    
+
     // Get user's project IDs first (needed for both sprint filtering and fallback)
     // For managers: only projects where they are the manager
     // For admins: all projects
@@ -244,7 +244,7 @@ const Dashboard: React.FC = () => {
     const userProjectIdsForFiltering = user.role === 'admin'
       ? new Set(projects.map(p => p.id))  // Admins see all projects
       : user.role === 'manager'
-      ? new Set(
+        ? new Set(
           projects
             .filter(project => {
               // Managers only see projects where they are the manager
@@ -254,7 +254,7 @@ const Dashboard: React.FC = () => {
               const managerIdStr = managerId ? String(managerId) : null;
               const userIdStr = user.id ? String(user.id) : null;
               const matches = managerIdStr === userIdStr;
-              
+
               if (!matches && user.role === 'manager') {
                 // Debug logging for manager project filtering
                 console.log('[Dashboard] Project manager mismatch:', {
@@ -266,17 +266,17 @@ const Dashboard: React.FC = () => {
                   userId: user.id
                 });
               }
-              
+
               return matches;
             })
             .map(project => project.id)
         )
-      : new Set(
+        : new Set(
           projects
             .filter(project => {
               const teamMembers = (project as any).teamMembers;
               if (Array.isArray(teamMembers)) {
-                return teamMembers.some((member: any) => 
+                return teamMembers.some((member: any) =>
                   (typeof member === 'string' && member === user.id) ||
                   (typeof member === 'object' && (member.id === user.id || member.userId === user.id))
                 );
@@ -285,7 +285,7 @@ const Dashboard: React.FC = () => {
             })
             .map(project => project.id)
         );
-    
+
     // Debug logging for manager project filtering
     if (user.role === 'manager') {
       console.log('[Dashboard] Manager project filtering:', {
@@ -296,7 +296,7 @@ const Dashboard: React.FC = () => {
         managerProjectIds: Array.from(userProjectIdsForFiltering).slice(0, 5)
       });
     }
-    
+
     // Filter sprints based on user role - get sprints from user's accessible projects
     // For managers: filter sprints from their projects
     // For admins: show all sprints
@@ -316,51 +316,58 @@ const Dashboard: React.FC = () => {
       });
     }
     // For admins, keep all sprints (userSprints = allSprints)
-    
+
     // Get sprint IDs from user's accessible sprints
     const userSprintIds = new Set(userSprints.map(sprint => sprint.id));
-    
+
     // Filter stories that belong to user's sprints
     const userStories = allStories.filter(story => {
       const storySprintId = (story as any).sprintId || (story as any).sprint?.id || (story as any).sprintId;
       return storySprintId && userSprintIds.has(storySprintId);
     });
-    
+
     // Get story IDs from user's stories
     const userStoryIds = new Set(userStories.map(story => story.id));
-    
+
     // Also get all stories from user's projects (for fallback)
     const projectStories = allStories.filter(story => {
       const storyProjectId = (story as any).projectId || (story as any).project?.id || (story as any).projectId;
       return storyProjectId && userProjectIdsForFiltering.has(storyProjectId);
     });
     const projectStoryIds = new Set(projectStories.map(story => story.id));
-    
+
     // SIMPLIFIED APPROACH: Use direct user assignment as primary method
     // This is more reliable than filtering through sprints/stories
     let sprintTasks: any[] = [];
-    
+
     if (user.role === 'admin') {
       // Admins: Show all tasks
       sprintTasks = allTasks.filter(task => {
         return task && task.id && typeof task.id === 'string';
       });
     } else if (user.role === 'manager') {
-      // Managers: Filter tasks by projects they manage
-      // Get tasks through stories from manager's projects
+      // Managers: Filter tasks by projects they have access to (similar to getTaskDistributionData logic)
       const beforeCount = allTasks.length;
+
+      // Use the same robust logic as the chart: Task -> Story -> Project -> User Access
       sprintTasks = allTasks.filter(task => {
         if (!task || !task.id) return false;
-        const taskStoryId = (task as any).storyId || (task as any).story?.id;
-        if (!taskStoryId) {
-          // If task doesn't have a storyId, we can't filter it - skip it for managers
-          return false;
-        }
-        // Check if the task's story belongs to a project the manager manages
-        const belongsToManagerProject = projectStoryIds.has(taskStoryId);
-        return belongsToManagerProject;
+
+        // 1. Allow tasks assigned to the manager explicitly
+        const assigneeId = (task as any).assigneeId || (task as any).assignee?.id || (task as any).assignee?.userId;
+        if (assigneeId === user.id) return true;
+
+        // 2. Filter by project via story
+        const story = allStories.find(s => s.id === ((task as any).storyId || (task as any).story?.id));
+        if (!story) return false; // Orphan task
+
+        const project = projects.find(p => p.id === story.projectId);
+        if (!project) return false; // Orphan story
+
+        // Check if user has access to this project (assignments, management, etc.)
+        return userAssignedProjects.some(up => up.id === project.id);
       });
-      
+
       console.log('[Dashboard] Manager task filtering result:', {
         userId: user.id,
         userRole: user.role,
@@ -377,7 +384,7 @@ const Dashboard: React.FC = () => {
         const assigneeId = (task as any).assigneeId || (task as any).assignee?.id || (task as any).assignee?.userId;
         return assigneeId === user.id;
       });
-      
+
       // Fallback: If no direct assignments, try through projects/stories
       if (sprintTasks.length === 0 && projectStoryIds.size > 0) {
         sprintTasks = allTasks.filter(task => {
@@ -386,7 +393,7 @@ const Dashboard: React.FC = () => {
           return taskStoryId && projectStoryIds.has(taskStoryId);
         });
       }
-      
+
       // Final fallback: Try through sprints
       if (sprintTasks.length === 0 && userStoryIds.size > 0) {
         sprintTasks = allTasks.filter(task => {
@@ -396,7 +403,7 @@ const Dashboard: React.FC = () => {
         });
       }
     }
-    
+
     // Debug logging (temporary - check browser console to diagnose 0% issue)
     console.log('[Dashboard Metrics Debug]', {
       userRole: user.role,
@@ -427,10 +434,10 @@ const Dashboard: React.FC = () => {
         assigneeId: (sprintTasks[0] as any).assigneeId
       } : null
     });
-    
+
     // Fast calculations with early optimizations
     const totalProjects = isManagerOrAdmin ? projects.length : userAssignedProjects.length;
-    
+
     // Calculate total users
     // For admin: show all users from the system
     // For others: show users from projects where the user is listed
@@ -440,40 +447,40 @@ const Dashboard: React.FC = () => {
       }
       return String(value);
     };
-    
+
     let totalUsers: number;
-    
+
     if (user.role === 'admin') {
       // Admin sees all users in the system
       totalUsers = users.length;
     } else {
       // For non-admin users, show only users from projects where they are listed
       const normalizedCurrentUserId = user?.id ? normalizeId(user.id) : undefined;
-      
+
       // Get all projects where the user is listed (manager, creator, or team member)
       const userAccessibleProjects = projects.filter(project => {
         if (!project || !normalizedCurrentUserId) return false;
-        
+
         const projectIdNormalized = normalizeId(project.id);
         const teamList: any[] =
           Array.isArray((project as any).teamMembers) ? (project as any).teamMembers :
-          Array.isArray((project as any).members) ? (project as any).members :
-          Array.isArray((project as any).team) ? (project as any).team :
-          [];
-        
+            Array.isArray((project as any).members) ? (project as any).members :
+              Array.isArray((project as any).team) ? (project as any).team :
+                [];
+
         const managerId = normalizeId((project as any).managerId);
         const createdById = normalizeId((project as any).createdBy);
-        
+
         // Check if user is the manager
         if (managerId && managerId === normalizedCurrentUserId) {
           return true;
         }
-        
+
         // Check if user is the creator
         if (createdById && createdById === normalizedCurrentUserId) {
           return true;
         }
-        
+
         // Check if user is a team member
         if (teamList.length > 0) {
           return teamList.some(member => {
@@ -488,19 +495,19 @@ const Dashboard: React.FC = () => {
             return memberId ? memberId === normalizedCurrentUserId : false;
           });
         }
-        
+
         return false;
       });
-      
+
       // Collect all unique team member IDs from accessible projects
       const allProjectTeamMemberIds = new Set<string>();
       userAccessibleProjects.forEach(project => {
         const teamList: any[] =
           Array.isArray((project as any).teamMembers) ? (project as any).teamMembers :
-          Array.isArray((project as any).members) ? (project as any).members :
-          Array.isArray((project as any).team) ? (project as any).team :
-          [];
-        
+            Array.isArray((project as any).members) ? (project as any).members :
+              Array.isArray((project as any).team) ? (project as any).team :
+                [];
+
         teamList.forEach(member => {
           const memberId = normalizeId(
             member?.userId ??
@@ -514,7 +521,7 @@ const Dashboard: React.FC = () => {
             allProjectTeamMemberIds.add(memberId);
           }
         });
-        
+
         // Also include manager and creator if they exist
         const managerId = normalizeId((project as any).managerId);
         const createdById = normalizeId((project as any).createdBy);
@@ -525,59 +532,59 @@ const Dashboard: React.FC = () => {
           allProjectTeamMemberIds.add(createdById);
         }
       });
-      
+
       // Count unique users from projects where the user is listed
       totalUsers = allProjectTeamMemberIds.size;
     }
     const totalTasks = sprintTasks.length;
-    
+
     // Use single pass for task filtering (more efficient)
     let completedTasks = 0;
     let criticalItems = 0;
     const today = new Date();
     const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
     let upcomingDeadlines = 0;
-    
+
     // Track status counts for debugging
     const statusCounts: Record<string, number> = {};
-    
+
     for (const task of sprintTasks) {
       // Validate task structure
       if (!task || !task.id) continue;
-      
+
       // Get and normalize status - check multiple possible field names
-      const taskStatus = (task as any).status || 
-                        (task as any).taskStatus || 
-                        (task as any).state ||
-                        '';
+      const taskStatus = (task as any).status ||
+        (task as any).taskStatus ||
+        (task as any).state ||
+        '';
       const normalizedStatus = taskStatus?.toString().toLowerCase().trim() || '';
-      
+
       // Track status counts
       statusCounts[normalizedStatus] = (statusCounts[normalizedStatus] || 0) + 1;
-      
+
       // Handle various status formats - be very permissive
       // Database enum values: 'to_do', 'in_progress', 'qa_review', 'done'
       // API might return: 'DONE', 'Done', 'done', 'completed', 'COMPLETED', 'Completed'
-      const isCompleted = normalizedStatus === 'done' || 
-                          normalizedStatus === 'completed' ||
-                          normalizedStatus === 'd' ||
-                          normalizedStatus === 'finished' ||
-                          normalizedStatus === 'closed' ||
-                          normalizedStatus.includes('done') ||
-                          normalizedStatus.includes('complete') ||
-                          normalizedStatus.includes('finish');
-      
+      const isCompleted = normalizedStatus === 'done' ||
+        normalizedStatus === 'completed' ||
+        normalizedStatus === 'd' ||
+        normalizedStatus === 'finished' ||
+        normalizedStatus === 'closed' ||
+        normalizedStatus.includes('done') ||
+        normalizedStatus.includes('complete') ||
+        normalizedStatus.includes('finish');
+
       if (isCompleted) {
         completedTasks++;
       }
-      
+
       // Get and normalize priority
       const taskPriority = (task as any).priority || (task as any).taskPriority;
       const normalizedPriority = taskPriority?.toString().toLowerCase() || '';
       if (normalizedPriority === 'critical' || normalizedPriority === 'high') {
         criticalItems++;
       }
-      
+
       // Check due dates
       const dueDate = (task as any).dueDate || (task as any).due_date;
       if (dueDate) {
@@ -591,12 +598,12 @@ const Dashboard: React.FC = () => {
         }
       }
     }
-    
+
     // Calculate task completion percentage
-    const taskCompletionPercentage = totalTasks > 0 
-      ? Math.round((completedTasks / totalTasks) * 100) 
+    const taskCompletionPercentage = totalTasks > 0
+      ? Math.round((completedTasks / totalTasks) * 100)
       : 0;
-    
+
     // Log status breakdown for debugging
     console.log('[Dashboard Task Status Breakdown]', {
       totalTasks: sprintTasks.length,
@@ -610,7 +617,7 @@ const Dashboard: React.FC = () => {
         assigneeId: (t as any).assigneeId || (t as any).assignee?.id
       }))
     });
-    
+
     // Calculate sprint progress based on user's sprints
     let completedSprints = 0;
     for (const sprint of userSprints) {
@@ -621,7 +628,7 @@ const Dashboard: React.FC = () => {
       }
     }
     const sprintProgressValue = userSprints.length > 0 ? Math.round((completedSprints / userSprints.length) * 100) : 0;
-    
+
     // Ensure we return valid numbers
     return {
       projectCount: totalProjects || 0,
@@ -740,7 +747,7 @@ const Dashboard: React.FC = () => {
     }
 
     let sprints: any[] = [];
-    
+
     if (projectId === 'all') {
       // Get all sprints from all accessible projects
       sprints = normalizedSprints.filter(sprint => {
@@ -781,57 +788,33 @@ const Dashboard: React.FC = () => {
 
     // Map sprint data to chart format
     return sortedSprints.map((sprint, index) => {
-      // Get tasks for this sprint - with null checks
-      const sprintTasks = normalizedTasks.filter(task => {
-        // Tasks are linked through stories to sprints
-        const story = normalizedStories.find(s => s.id === task.storyId);
-        const matches = story?.sprintId === sprint.id;
-        
-        if (task.id === (normalizedTasks[0]?.id) && !matches) {
-          // Log first task linking for debugging
-          console.log('[getSprintPerformanceData] First task linkage debug:', {
-            taskId: task.id,
-            taskStoryId: task.storyId,
-            foundStory: story ? { id: story.id, sprintId: story.sprintId } : null,
-            targetSprintId: sprint.id,
-            matches
-          });
-        }
-        
-        return matches;
-      });
+      // Get stories for this sprint
+      const sprintStories = normalizedStories.filter(story => story.sprintId === sprint.id);
 
-      // Calculate planned vs done
-      const totalTasks = sprintTasks.length;
-      const doneTasks = sprintTasks.filter(task => {
-        const status = (task.status || '').toString().toLowerCase().trim();
-        return status === 'done' || status === 'completed';
-      }).length;
+      // Calculate planned vs done based on STORY POINTS
+      const plannedPoints = sprintStories.reduce((sum, story) => sum + (story.storyPoints || 0), 0);
 
-      // Use velocity points if available, otherwise use task count
-      const planned = sprint.velocityPoints || (sprint.capacityHours && Math.round(sprint.capacityHours / 8)) || totalTasks || 5;
-      const done = doneTasks || (totalTasks > 0 && sprint.status?.toLowerCase() === 'completed' ? totalTasks : 0) || 0;
+      const donePoints = sprintStories
+        .filter(story => (story.status || '').toString().toUpperCase() === 'DONE')
+        .reduce((sum, story) => sum + (story.storyPoints || 0), 0);
+
+      // Default to some visually visible value if 0 (optional, but requested graph "properly" might imply not flatlining if data is missing but planned exists)
+      // If planned points is 0, we can fallback to task count logic OR just show 0 to be accurate.
+      // Based on user request "graph properly... based on yesterday's logging", likely implies accurate SP data exists.
 
       const sprintResult = {
         name: sprint.name || `Sprint ${index + 1}`,
-        planned: Math.max(planned, 1),
-        done: Math.min(done, planned)
+        planned: plannedPoints,
+        done: donePoints
       };
 
-      console.log('[getSprintPerformanceData] Sprint calculation:', {
+      console.log('[getSprintPerformanceData] Sprint calculation (Story Points):', {
         sprintId: sprint.id,
         sprintName: sprint.name,
         sprintData: sprintResult,
-        linkedTasksCount: sprintTasks.length,
-        doneTasksCount: doneTasks,
-        velocityPoints: sprint.velocityPoints,
-        capacityHours: sprint.capacityHours,
-        sprintStatus: sprint.status,
-        firstTaskSample: sprintTasks[0] ? {
-          id: sprintTasks[0].id,
-          status: sprintTasks[0].status,
-          storyId: sprintTasks[0].storyId
-        } : null
+        storyCount: sprintStories.length,
+        doneStoryCount: sprintStories.filter(s => (s.status || '').toString().toUpperCase() === 'DONE').length,
+        velocityPoints: sprint.velocityPoints
       });
 
       return sprintResult;
@@ -903,7 +886,7 @@ const Dashboard: React.FC = () => {
 
     for (const task of projectTasks) {
       const status = (task.status || '').toString().toUpperCase().trim();
-      
+
       if (status === 'TO_DO' || status === 'TODO') {
         statusCounts['To Do']++;
       } else if (status === 'IN_PROGRESS' || status === 'INPROGRESS') {
@@ -924,13 +907,13 @@ const Dashboard: React.FC = () => {
     }
 
     const total = Object.values(statusCounts).reduce((a, b) => a + b, 0);
-    
+
     console.log('[getTaskDistributionData] Status counts:', {
       projectId: projectId,
       statusCounts,
       total
     });
-    
+
     if (total === 0) {
       // Return default distribution if no tasks
       return [
@@ -968,7 +951,7 @@ const Dashboard: React.FC = () => {
   // Get filtered data based on selected projects
   const sprintPerformanceData = useMemo(() => {
     const data = getSprintPerformanceData(selectedProjectForSprint);
-    
+
     // Detailed logging for sprint performance data
     console.log('[Dashboard] Sprint Performance Data:', {
       selectedProject: selectedProjectForSprint,
@@ -984,7 +967,7 @@ const Dashboard: React.FC = () => {
         projects: Array.isArray(apiProjects) ? apiProjects.length : ((apiProjects as any)?.content?.length || 0)
       }
     });
-    
+
     // If no data and we have a project selected, show fallback data
     if (data.every(d => d.planned === 0) && selectedProjectForSprint !== 'all') {
       console.log('[Dashboard] Using fallback sprint performance data (no real data available)');
@@ -997,10 +980,10 @@ const Dashboard: React.FC = () => {
     }
     return data;
   }, [selectedProjectForSprint, apiSprints, apiTasks, apiStories, apiProjects, userAssignedProjects]);
-  
+
   const taskDistributionData = useMemo(() => {
     const data = getTaskDistributionData(selectedProjectForTasks);
-    
+
     // Detailed logging for task distribution data
     console.log('[Dashboard] Task Distribution Data:', {
       selectedProject: selectedProjectForTasks,
@@ -1019,7 +1002,7 @@ const Dashboard: React.FC = () => {
         projects: Array.isArray(apiProjects) ? apiProjects.length : ((apiProjects as any)?.content?.length || 0)
       }
     });
-    
+
     // If no data and we have a project selected, show fallback data
     if (data.every(d => d.value === 0) && selectedProjectForTasks !== 'all') {
       console.log('[Dashboard] Using fallback task distribution data (no real data available)');
@@ -1051,10 +1034,10 @@ const Dashboard: React.FC = () => {
         subtitle: 'Aggregated view of all accessible projects'
       };
     }
-    
+
     const project = accessibleProjects.find(p => p.id === selectedProjectForSprint);
     if (!project) return { title: 'Sprint Performance', description: 'Planned vs Done comparison', subtitle: '' };
-    
+
     return {
       title: `Sprint Performance - ${project.name}`,
       description: `Planned vs Done comparison for ${project.name}`,
@@ -1070,10 +1053,10 @@ const Dashboard: React.FC = () => {
         subtitle: 'Aggregated view of all accessible projects'
       };
     }
-    
+
     const project = accessibleProjects.find(p => p.id === selectedProjectForTasks);
     if (!project) return { title: 'Task Distribution', description: 'Current sprint task breakdown', subtitle: '' };
-    
+
     return {
       title: `Task Distribution - ${project.name}`,
       description: `Current sprint task breakdown for ${project.name}`,
@@ -1113,7 +1096,7 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const pieColors = ['#10B981', '#06B6D4', '#F59E0B', '#EF4444'];
+  const pieColors = ['#EF4444', '#06B6D4', '#F59E0B', '#10B981'];
 
   if (!user) {
     return null;
@@ -1159,12 +1142,12 @@ const Dashboard: React.FC = () => {
             Here's your project overview for today.
           </p>
         </div>
-        
+
       </div>
 
       {/* Metrics Cards - Key Metrics First */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card 
+        <Card
           className="bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200 cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-105 animate-fadeInUp"
           style={{ animationDelay: '0.1s' }}
           onClick={() => navigate('/projects')}
@@ -1181,7 +1164,7 @@ const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card 
+        <Card
           className="bg-gradient-to-br from-green-50 to-green-100/50 border-green-200 cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-105 animate-fadeInUp"
           style={{ animationDelay: '0.2s' }}
           onClick={() => navigate('/todo-list')}
@@ -1198,7 +1181,7 @@ const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card 
+        <Card
           className="bg-gradient-to-br from-purple-50 to-purple-100/50 border-purple-200 cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-105 animate-fadeInUp"
           style={{ animationDelay: '0.3s' }}
           onClick={() => hasPermission('view_team') && navigate('/team-allocation')}
@@ -1215,7 +1198,7 @@ const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card 
+        <Card
           className="bg-gradient-to-br from-orange-50 to-orange-100/50 border-orange-200 cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-105 animate-fadeInUp"
           style={{ animationDelay: '0.4s' }}
           onClick={() => navigate('/scrum')}
@@ -1239,10 +1222,10 @@ const Dashboard: React.FC = () => {
       {/* User Tasks & Pending Work - Hidden for admin users */}
       {user.role !== 'admin' && (
         <div className="animate-fadeInUp" style={{ animationDelay: '0.3s' }}>
-          <UserTasks 
-            userId={user.id} 
-            userRole={user.role} 
-            userName={user.name} 
+          <UserTasks
+            userId={user.id}
+            userRole={user.role}
+            userName={user.name}
           />
         </div>
       )}
@@ -1284,137 +1267,137 @@ const Dashboard: React.FC = () => {
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Sprint Performance Chart */}
-          <Card className="bg-pastel-yellow hover:shadow-xl transition-all duration-300 animate-fadeInUp" style={{ animationDelay: '0.5s' }}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <TrendingUp className="w-5 h-5 text-yellow-600" />
-                  <span>{getSprintChartInfo().title}</span>
+            {/* Sprint Performance Chart */}
+            <Card className="bg-pastel-yellow hover:shadow-xl transition-all duration-300 animate-fadeInUp" style={{ animationDelay: '0.5s' }}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <TrendingUp className="w-5 h-5 text-yellow-600" />
+                    <span>{getSprintChartInfo().title}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Select value={selectedProjectForSprint} onValueChange={setSelectedProjectForSprint}>
+                      <SelectTrigger className="w-48 h-8">
+                        <SelectValue placeholder="Select project" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Projects</SelectItem>
+                        {accessibleProjects.map((project) => (
+                          <SelectItem key={project.id} value={project.id}>
+                            {project.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Select value={selectedProjectForSprint} onValueChange={setSelectedProjectForSprint}>
-                    <SelectTrigger className="w-48 h-8">
-                      <SelectValue placeholder="Select project" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Projects</SelectItem>
-                      {accessibleProjects.map((project) => (
-                        <SelectItem key={project.id} value={project.id}>
-                          {project.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <CardDescription>
-                {getSprintChartInfo().description}
-              </CardDescription>
-              {getSprintChartInfo().subtitle && (
-                <div className="mt-1 text-xs text-yellow-700 font-medium">
-                  {getSprintChartInfo().subtitle}
-                </div>
-              )}
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={sprintPerformanceData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                  <XAxis dataKey="name" stroke="#6b7280" />
-                  <YAxis stroke="#6b7280" />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#fff', 
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '8px' 
-                    }} 
-                  />
-                  <Bar dataKey="planned" fill="#06B6D4" name="Planned" />
-                  <Bar dataKey="done" fill="#10B981" name="Done" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+                <CardDescription>
+                  {getSprintChartInfo().description}
+                </CardDescription>
+                {getSprintChartInfo().subtitle && (
+                  <div className="mt-1 text-xs text-yellow-700 font-medium">
+                    {getSprintChartInfo().subtitle}
+                  </div>
+                )}
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={sprintPerformanceData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                    <XAxis dataKey="name" stroke="#6b7280" />
+                    <YAxis stroke="#6b7280" />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#fff',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Bar dataKey="planned" fill="#06B6D4" name="Planned" />
+                    <Bar dataKey="done" fill="#10B981" name="Done" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
 
-          {/* Task Distribution */}
-          <Card className="bg-pastel-cyan hover:shadow-xl transition-all duration-300 animate-fadeInUp" style={{ animationDelay: '0.6s' }}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Target className="w-5 h-5 text-cyan-600" />
-                  <span>{getTaskChartInfo().title}</span>
+            {/* Task Distribution */}
+            <Card className="bg-pastel-cyan hover:shadow-xl transition-all duration-300 animate-fadeInUp" style={{ animationDelay: '0.6s' }}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Target className="w-5 h-5 text-cyan-600" />
+                    <span>{getTaskChartInfo().title}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Select value={selectedProjectForTasks} onValueChange={setSelectedProjectForTasks}>
+                      <SelectTrigger className="w-48 h-8">
+                        <SelectValue placeholder="Select project" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Projects</SelectItem>
+                        {accessibleProjects.map((project) => (
+                          <SelectItem key={project.id} value={project.id}>
+                            {project.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Select value={selectedProjectForTasks} onValueChange={setSelectedProjectForTasks}>
-                    <SelectTrigger className="w-48 h-8">
-                      <SelectValue placeholder="Select project" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Projects</SelectItem>
-                      {accessibleProjects.map((project) => (
-                        <SelectItem key={project.id} value={project.id}>
-                          {project.name}
-                        </SelectItem>
+                <CardDescription>
+                  {getTaskChartInfo().description}
+                </CardDescription>
+                {getTaskChartInfo().subtitle && (
+                  <div className="mt-1 text-xs text-cyan-700 font-medium">
+                    {getTaskChartInfo().subtitle}
+                  </div>
+                )}
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={350}>
+                  <PieChart>
+                    <Pie
+                      data={taskDistributionData}
+                      cx="40%"
+                      cy="50%"
+                      outerRadius={80}
+                      innerRadius={30}
+                      paddingAngle={6}
+                      dataKey="value"
+                      label={false}
+                    >
+                      {taskDistributionData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={pieColors[index % pieColors.length]} />
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <CardDescription>
-                {getTaskChartInfo().description}
-              </CardDescription>
-              {getTaskChartInfo().subtitle && (
-                <div className="mt-1 text-xs text-cyan-700 font-medium">
-                  {getTaskChartInfo().subtitle}
-                </div>
-              )}
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={350}>
-                <PieChart>
-                  <Pie
-                    data={taskDistributionData}
-                    cx="40%"
-                    cy="50%"
-                    outerRadius={80}
-                    innerRadius={30}
-                    paddingAngle={6}
-                    dataKey="value"
-                    label={false}
-                  >
-                    {taskDistributionData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={pieColors[index % pieColors.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    formatter={(value, name) => {
-                      const total = taskDistributionData.reduce((sum, item) => sum + item.value, 0);
-                      const percentage = total > 0 ? ((Number(value) / total) * 100).toFixed(0) : '0';
-                      return `${value} tasks (${percentage}%)`;
-                    }}
-                    contentStyle={{ 
-                      backgroundColor: '#fff', 
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '8px' 
-                    }}
-                  />
-                  <Legend 
-                    layout="vertical"
-                    align="right"
-                    verticalAlign="middle"
-                    formatter={(value, entry) => {
-                      const data = entry?.payload as any;
-                      return data ? `${data.name}: ${data.value} tasks (${data.percentage}%)` : value;
-                    }}
-                    wrapperStyle={{
-                      paddingLeft: '20px'
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+                    </Pie>
+                    <Tooltip
+                      formatter={(value, name) => {
+                        const total = taskDistributionData.reduce((sum, item) => sum + item.value, 0);
+                        const percentage = total > 0 ? ((Number(value) / total) * 100).toFixed(0) : '0';
+                        return `${value} tasks (${percentage}%)`;
+                      }}
+                      contentStyle={{
+                        backgroundColor: '#fff',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Legend
+                      layout="vertical"
+                      align="right"
+                      verticalAlign="middle"
+                      formatter={(value, entry) => {
+                        const data = entry?.payload as any;
+                        return data ? `${data.name}: ${data.value} tasks (${data.percentage}%)` : value;
+                      }}
+                      wrapperStyle={{
+                        paddingLeft: '20px'
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
           </div>
         </>
       )}
@@ -1425,8 +1408,8 @@ const Dashboard: React.FC = () => {
           <CardTitle className="flex items-center justify-between">
             <span>Recent Projects</span>
             {hasPermission('view_projects') && (
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="sm"
                 onClick={() => navigate('/projects')}
                 title="View all projects"
@@ -1438,7 +1421,7 @@ const Dashboard: React.FC = () => {
           </CardTitle>
           <CardDescription>
             {user.role === 'admin' || user.role === 'manager'
-              ? 'All active projects' 
+              ? 'All active projects'
               : 'Your assigned projects'
             }
           </CardDescription>
@@ -1457,7 +1440,7 @@ const Dashboard: React.FC = () => {
                   className="flex items-center justify-between p-4 rounded-lg border bg-gradient-to-r from-white to-gray-50/50 cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] animate-fadeInUp"
                   style={{ animationDelay: `${0.8 + index * 0.1}s` }}
                   onClick={() => {
-                    try { sessionStorage.setItem('openProjectId', project.id); } catch {}
+                    try { sessionStorage.setItem('openProjectId', project.id); } catch { }
                     navigate('/projects?open=' + encodeURIComponent(project.id));
                   }}
                   title="Open project"
@@ -1526,7 +1509,7 @@ const Dashboard: React.FC = () => {
                         </div>
                         <Badge variant="destructive">{(member as any).taskCompletion || Math.round((member.completed / Math.max(member.tasks, 1)) * 100)}/100</Badge>
                       </div>
-                      
+
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div className="flex items-center space-x-2">
                           <AlertTriangle className="w-4 h-4 text-orange-500" />
@@ -1544,8 +1527,8 @@ const Dashboard: React.FC = () => {
                       </div>
 
                       <div className="flex items-center space-x-2">
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           variant="outline"
                           onClick={() => navigate('/team-allocation')}
                           title="Go to team management"
@@ -1553,8 +1536,8 @@ const Dashboard: React.FC = () => {
                           <MessageSquare className="w-4 h-4 mr-1" />
                           Schedule 1-on-1
                         </Button>
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           variant="ghost"
                           onClick={() => navigate('/team-allocation')}
                           title="View team allocation"
@@ -1573,9 +1556,9 @@ const Dashboard: React.FC = () => {
                 </Card>
               ))}
             </div>
-            
+
             <div className="flex items-center space-x-2 mt-4 pt-4 border-t">
-              <Button 
+              <Button
                 variant="outline"
                 onClick={() => navigate('/team-allocation')}
                 title="Go to team management"
@@ -1583,7 +1566,7 @@ const Dashboard: React.FC = () => {
                 <Users className="w-4 h-4 mr-1" />
                 Schedule Team Review
               </Button>
-              <Button 
+              <Button
                 variant="outline"
                 onClick={() => navigate('/team-allocation')}
                 title="Generate team allocation"
@@ -1591,7 +1574,7 @@ const Dashboard: React.FC = () => {
                 <BookOpen className="w-4 h-4 mr-1" />
                 Generate Report
               </Button>
-              <Button 
+              <Button
                 variant="outline"
                 onClick={() => navigate('/team-allocation')}
                 title="Access training resources"
@@ -1652,7 +1635,7 @@ const Dashboard: React.FC = () => {
         <Alert className="border-red-200 bg-red-50 animate-slideInLeft">
           <AlertTriangle className="h-4 w-4 text-red-600" />
           <AlertDescription className="text-red-800">
-            <strong>API Connection Issue:</strong> Unable to connect to some backend APIs. 
+            <strong>API Connection Issue:</strong> Unable to connect to some backend APIs.
             {projectsError && ` Projects API: ${projectsError.message}`}
             {usersError && ` Users API: ${usersError.message}`}
             {departmentsError && ` Departments API: ${departmentsError.message}`}
@@ -1675,9 +1658,9 @@ const Dashboard: React.FC = () => {
                 The application is currently using mock data as a fallback.
               </span>
               <div className="mt-3">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => {
                     console.log('Retrying API connection...');
                     refetchProjects();
