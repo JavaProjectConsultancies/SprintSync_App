@@ -55,12 +55,13 @@ public class ProjectService {
     private final EpicService epicService;
     private final ReleaseService releaseService;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ActivityLogService activityLogService;
 
     @Autowired
     public ProjectService(ProjectRepository projectRepository, IdGenerationService idGenerationService,
-                         RequirementService requirementService, RiskService riskService,
-                         StakeholderService stakeholderService, ProjectTeamMemberRepository projectTeamMemberRepository,
-                         EpicService epicService, ReleaseService releaseService) {
+            RequirementService requirementService, RiskService riskService,
+            StakeholderService stakeholderService, ProjectTeamMemberRepository projectTeamMemberRepository,
+            EpicService epicService, ReleaseService releaseService, ActivityLogService activityLogService) {
         this.projectRepository = projectRepository;
         this.idGenerationService = idGenerationService;
         this.requirementService = requirementService;
@@ -69,6 +70,7 @@ public class ProjectService {
         this.projectTeamMemberRepository = projectTeamMemberRepository;
         this.epicService = epicService;
         this.releaseService = releaseService;
+        this.activityLogService = activityLogService;
     }
 
     /**
@@ -135,6 +137,21 @@ public class ProjectService {
 
             Project savedProject = projectRepository.save(project);
             String projectId = savedProject.getId();
+
+            // Log activity
+            try {
+                activityLogService.logActivity(
+                        request.getManagerId() != null ? request.getManagerId() : "system",
+                        "project",
+                        savedProject.getId(),
+                        "created",
+                        "Created project: " + savedProject.getName(),
+                        null,
+                        savedProject,
+                        projectId);
+            } catch (Exception e) {
+                System.err.println("Failed to log activity: " + e.getMessage());
+            }
 
             int totalEntitiesCreated = 1; // Project itself
 
@@ -227,7 +244,8 @@ public class ProjectService {
                     if (epicDto.getEndDate() != null && !epicDto.getEndDate().isEmpty()) {
                         epic.setEndDate(LocalDate.parse(epicDto.getEndDate()));
                     }
-                    // Handle assigneeId - set to null if empty to avoid foreign key constraint violation
+                    // Handle assigneeId - set to null if empty to avoid foreign key constraint
+                    // violation
                     String assigneeId = epicDto.getAssigneeId();
                     if (assigneeId != null && !assigneeId.trim().isEmpty()) {
                         epic.setAssigneeId(assigneeId);
@@ -348,17 +366,15 @@ public class ProjectService {
     /**
      * Get all projects with pagination.
      * 
-     * @param page page number (0-indexed)
-     * @param size page size
-     * @param sortBy sort field
+     * @param page    page number (0-indexed)
+     * @param size    page size
+     * @param sortBy  sort field
      * @param sortDir sort direction
      * @return page of projects
      */
     @Transactional(readOnly = true)
     public Page<Project> getAllProjects(int page, int size, String sortBy, String sortDir) {
-        Sort sort = sortDir.equalsIgnoreCase("desc") ? 
-                   Sort.by(sortBy).descending() : 
-                   Sort.by(sortBy).ascending();
+        Sort sort = sortDir.equalsIgnoreCase("desc") ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
         Pageable pageable = PageRequest.of(page, size, sort);
         return projectRepository.findAll(pageable);
     }
@@ -452,21 +468,22 @@ public class ProjectService {
     /**
      * Find projects by multiple criteria.
      * 
-     * @param status the project status (optional)
-     * @param priority the project priority (optional)
+     * @param status    the project status (optional)
+     * @param priority  the project priority (optional)
      * @param managerId the manager ID (optional)
-     * @param isActive the active status (optional)
+     * @param isActive  the active status (optional)
      * @return list of projects matching the criteria
      */
     @Transactional(readOnly = true)
-    public List<Project> findProjectsByCriteria(ProjectStatus status, Priority priority, String managerId, Boolean isActive) {
+    public List<Project> findProjectsByCriteria(ProjectStatus status, Priority priority, String managerId,
+            Boolean isActive) {
         return projectRepository.findProjectsByCriteria(status, priority, managerId, isActive);
     }
 
     /**
      * Update project status.
      * 
-     * @param id the project ID
+     * @param id     the project ID
      * @param status the new status
      * @return the updated project
      * @throws IllegalArgumentException if project not found
@@ -485,7 +502,7 @@ public class ProjectService {
     /**
      * Update project progress.
      * 
-     * @param id the project ID
+     * @param id       the project ID
      * @param progress the new progress percentage
      * @return the updated project
      * @throws IllegalArgumentException if project not found
@@ -512,16 +529,16 @@ public class ProjectService {
         long activeProjects = projectRepository.countByIsActive(true);
         long completedProjects = projectRepository.countByStatus(ProjectStatus.COMPLETED);
         long highPriorityProjects = projectRepository.countByPriority(Priority.HIGH);
-        
-        return String.format("Total Projects: %d, Active: %d, Completed: %d, High Priority: %d", 
-                           totalProjects, activeProjects, completedProjects, highPriorityProjects);
+
+        return String.format("Total Projects: %d, Active: %d, Completed: %d, High Priority: %d",
+                totalProjects, activeProjects, completedProjects, highPriorityProjects);
     }
 
     /**
      * Find projects starting within date range.
      * 
      * @param startDate the start date
-     * @param endDate the end date
+     * @param endDate   the end date
      * @return list of projects starting within the date range
      */
     @Transactional(readOnly = true)
@@ -533,7 +550,7 @@ public class ProjectService {
      * Find projects ending within date range.
      * 
      * @param startDate the start date
-     * @param endDate the end date
+     * @param endDate   the end date
      * @return list of projects ending within the date range
      */
     @Transactional(readOnly = true)
@@ -541,8 +558,3 @@ public class ProjectService {
         return projectRepository.findProjectsEndingBetween(startDate, endDate);
     }
 }
-
-
-
-
-

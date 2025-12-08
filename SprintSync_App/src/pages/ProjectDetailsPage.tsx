@@ -489,6 +489,20 @@ const ProjectDetailsPage = () => {
       // Ignore parsing errors
     }
 
+    // Sprint activities
+    if (entityType === 'sprint') {
+      const sprintName = newVals?.name || newVals?.title || 'a sprint';
+      if (action === 'created') return `created sprint "${sprintName}"`;
+      if (action === 'started') return `started sprint "${sprintName}"`;
+      if (action === 'completed') return `completed sprint "${sprintName}"`;
+      if (action === 'updated' || action === 'update') return `updated sprint "${sprintName}"`;
+      if (action.includes('status')) {
+        const oldStatus = oldVals?.status || '';
+        const newStatus = newVals?.status || '';
+        return `changed status of sprint "${sprintName}" from ${oldStatus} to ${newStatus}`;
+      }
+    }
+
     // Project creation
     if (entityType === 'project' && action === 'created') {
       const projectName = newVals?.name || newVals?.title || 'the project';
@@ -501,10 +515,32 @@ const ProjectDetailsPage = () => {
       return `created story "${storyTitle}"`;
     }
 
+    // Story update
+    if (entityType === 'story' && (action === 'updated' || action === 'update')) {
+      const storyTitle = newVals?.title || newVals?.name || 'a story';
+      return `updated story "${storyTitle}"`;
+    }
+
     // Task creation
     if (entityType === 'task' && action === 'created') {
       const taskTitle = newVals?.title || newVals?.name || 'a task';
       return `created task "${taskTitle}"`;
+    }
+
+    // Pulled to Sprint
+    if (action === 'pulled_to_sprint') {
+      const title = newVals?.title || 'an item';
+      const sourceSprint = newVals?.sourceSprintId ? 'previous sprint' : 'backlog';
+      const targetSprint = newVals?.targetSprintId ? 'current sprint' : 'sprint';
+
+      // Try to get more descriptive sprint names if possible from log details if we stored them
+      // For now, generic message
+      if (entityType === 'story') {
+        return `moved story "${title}" to next sprint`;
+      } else if (entityType === 'task') {
+        return `moved unfinished task "${title}" to next sprint`;
+      }
+      return `moved "${title}" to next sprint`;
     }
 
     // Epic creation
@@ -543,10 +579,14 @@ const ProjectDetailsPage = () => {
       const entityName = newVals?.title || newVals?.name || oldVals?.title || oldVals?.name || entityType;
       const oldStatus = oldVals?.status || '';
       const newStatus = newVals?.status || '';
+
+      // Clean up status strings (remove underscores, capitalize)
+      const formatStatus = (s: any) => String(s).replace(/_/g, ' ').toLowerCase();
+
       if (oldStatus && newStatus) {
-        return `changed status of "${entityName}" from ${oldStatus} to ${newStatus}`;
+        return `changed status of "${entityName}" from ${formatStatus(oldStatus)} to ${formatStatus(newStatus)}`;
       } else if (newStatus) {
-        return `set status of "${entityName}" to ${newStatus}`;
+        return `set status of "${entityName}" to ${formatStatus(newStatus)}`;
       }
     }
 
@@ -1103,8 +1143,11 @@ const ProjectDetailsPage = () => {
                 ) : (
                   <div className="space-y-4">
                     {activityLogs.map((activityLog) => {
-                      const userName = activityLog.userId || 'Unknown User';
-                      const userInitials = userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
+                      // Find user in team members
+                      const user = localTeamMembers.find(m => m.id === activityLog.userId) ||
+                        teamMembers.find(m => m.id === activityLog.userId);
+                      const userName = user?.name || activityLog.userId || 'Unknown User';
+                      const userInitials = getInitials(userName);
                       const activityMessage = formatActivityMessage(activityLog);
 
                       return (

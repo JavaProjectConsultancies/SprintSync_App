@@ -35,6 +35,9 @@ public class ActivityLog {
     @Column(name = "entity_id", nullable = false, length = 255)
     private String entityId;
 
+    @Column(name = "project_id", length = 255)
+    private String projectId;
+
     @Column(name = "action", nullable = false, length = 100)
     private String action;
 
@@ -63,4 +66,3 @@ public class ActivityLog {
         }
     }
 }
-

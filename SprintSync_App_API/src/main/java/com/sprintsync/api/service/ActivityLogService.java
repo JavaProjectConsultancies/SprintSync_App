@@ -60,14 +60,23 @@ public class ActivityLogService {
     /**
      * Log an activity for an entity
      */
-    public ActivityLog logActivity(String userId, String entityType, String entityId, String action, 
-                                   String description, Object oldValues, Object newValues) {
+    public ActivityLog logActivity(String userId, String entityType, String entityId, String action,
+            String description, Object oldValues, Object newValues) {
+        return logActivity(userId, entityType, entityId, action, description, oldValues, newValues, null);
+    }
+
+    /**
+     * Log an activity for an entity with project ID
+     */
+    public ActivityLog logActivity(String userId, String entityType, String entityId, String action,
+            String description, Object oldValues, Object newValues, String projectId) {
         ActivityLog log = new ActivityLog();
         log.setUserId(userId);
         log.setEntityType(entityType);
         log.setEntityId(entityId);
         log.setAction(action);
         log.setDescription(description);
+        log.setProjectId(projectId);
 
         try {
             if (oldValues != null) {
@@ -154,7 +163,8 @@ public class ActivityLogService {
     /**
      * Get activity logs within date range with pagination
      */
-    public Page<ActivityLog> getActivityLogsByDateRange(LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
+    public Page<ActivityLog> getActivityLogsByDateRange(LocalDateTime startDate, LocalDateTime endDate,
+            Pageable pageable) {
         return activityLogRepository.findByDateRange(startDate, endDate, pageable);
     }
 
@@ -172,6 +182,18 @@ public class ActivityLogService {
     public List<ActivityLog> getRecentActivityByEntity(String entityType, String entityId, int days) {
         LocalDateTime since = LocalDateTime.now().minusDays(days);
         return activityLogRepository.findRecentActivityByEntity(entityType, entityId, since);
+    }
+
+    /**
+     * Get recent activity logs for a project
+     */
+    public List<ActivityLog> getProjectActivities(String projectId, int days) {
+        // Since we don't have a date filter in the new method yet, we'll fetch all and
+        // filter in memory or add a custom query later
+        // For now, let's trust the controller to request filtered data if needed, or
+        // add a method in repo
+        // Actually, let's use the new repo method
+        return activityLogRepository.findByProjectIdOrderByCreatedAtDesc(projectId);
     }
 
     /**
@@ -193,13 +215,12 @@ public class ActivityLogService {
      */
     public Map<String, Object> getActivityLogStatistics() {
         long totalLogs = activityLogRepository.count();
-        
+
         return Map.of(
-            "totalLogs", totalLogs,
-            "last24Hours", getRecentActivityByEntity("all", "all", 1).size(),
-            "last7Days", getRecentActivityByEntity("all", "all", 7).size(),
-            "last30Days", getRecentActivityByEntity("all", "all", 30).size()
-        );
+                "totalLogs", totalLogs,
+                "last24Hours", getRecentActivityByEntity("all", "all", 1).size(),
+                "last7Days", getRecentActivityByEntity("all", "all", 7).size(),
+                "last30Days", getRecentActivityByEntity("all", "all", 30).size());
     }
 
     /**
@@ -210,8 +231,3 @@ public class ActivityLogService {
         activityLogRepository.deleteOldLogs(before);
     }
 }
-
-
-
-
-

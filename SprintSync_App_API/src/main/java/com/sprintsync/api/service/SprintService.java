@@ -32,6 +32,9 @@ public class SprintService {
     @Autowired
     private BacklogService backlogService;
 
+    @Autowired
+    private ActivityLogService activityLogService;
+
     /**
      * Get all sprints with pagination
      */
@@ -55,13 +58,30 @@ public class SprintService {
         }
         sprint.setCreatedAt(LocalDateTime.now());
         sprint.setUpdatedAt(LocalDateTime.now());
-        
+
         // Set default status if not provided
         if (sprint.getStatus() == null) {
             sprint.setStatus(SprintStatus.PLANNING);
         }
-        
-        return sprintRepository.save(sprint);
+
+        Sprint savedSprint = sprintRepository.save(sprint);
+
+        // Log activity
+        try {
+            activityLogService.logActivity(
+                    "system", // TODO: Get current user
+                    "sprint",
+                    savedSprint.getId(),
+                    "created",
+                    "Created sprint: " + savedSprint.getName(),
+                    null,
+                    savedSprint,
+                    savedSprint.getProjectId());
+        } catch (Exception e) {
+            System.err.println("Failed to log activity: " + e.getMessage());
+        }
+
+        return savedSprint;
     }
 
     /**
@@ -123,7 +143,7 @@ public class SprintService {
             Sprint sprint = optionalSprint.get();
             sprint.setStatus(status);
             sprint.setUpdatedAt(LocalDateTime.now());
-            
+
             // Set start/end dates based on status
             if (status == SprintStatus.ACTIVE && sprint.getStartDate() == null) {
                 sprint.setStartDate(LocalDate.now());
@@ -139,8 +159,28 @@ public class SprintService {
                     }
                 }
             }
-            
-            return sprintRepository.save(sprint);
+
+            Sprint savedSprint = sprintRepository.save(sprint);
+
+            // Log activity
+            try {
+                activityLogService.logActivity(
+                        "system", // TODO: Get current user
+                        "sprint",
+                        savedSprint.getId(),
+                        status == SprintStatus.ACTIVE ? "started"
+                                : (status == SprintStatus.COMPLETED ? "completed" : "updated"),
+                        (status == SprintStatus.ACTIVE ? "Started sprint: "
+                                : (status == SprintStatus.COMPLETED ? "Completed sprint: " : "Updated sprint status: "))
+                                + savedSprint.getName(),
+                        optionalSprint.get(),
+                        savedSprint,
+                        savedSprint.getProjectId());
+            } catch (Exception e) {
+                System.err.println("Failed to log activity: " + e.getMessage());
+            }
+
+            return savedSprint;
         }
         return null;
     }
@@ -158,7 +198,7 @@ public class SprintService {
      */
     public Sprint completeSprint(String id) {
         Sprint completedSprint = updateSprintStatus(id, SprintStatus.COMPLETED);
-        
+
         // When sprint is completed, move incomplete stories and tasks to backlog
         if (completedSprint != null && backlogService != null) {
             try {
@@ -168,7 +208,7 @@ public class SprintService {
                 System.err.println("Error moving sprint to backlog: " + e.getMessage());
             }
         }
-        
+
         return completedSprint;
     }
 
@@ -187,17 +227,17 @@ public class SprintService {
         statistics.put("status", sprint.getStatus());
         statistics.put("startDate", sprint.getStartDate());
         statistics.put("endDate", sprint.getEndDate());
-        
+
         // Calculate sprint duration
         if (sprint.getStartDate() != null && sprint.getEndDate() != null) {
             long days = sprint.getStartDate().until(sprint.getEndDate()).getDays();
             statistics.put("duration", days);
         }
-        
+
         // Add more statistics as needed
         statistics.put("capacity", sprint.getCapacityHours());
         statistics.put("goal", sprint.getGoal());
-        
+
         return statistics;
     }
 
@@ -213,13 +253,13 @@ public class SprintService {
         Map<String, Object> velocity = new HashMap<>();
         velocity.put("sprintId", id);
         velocity.put("sprintName", sprint.getName());
-        
+
         // Calculate velocity based on completed stories/tasks
         // This would typically involve querying related entities
         velocity.put("plannedVelocity", sprint.getVelocityPoints());
         velocity.put("actualVelocity", sprint.getVelocityPoints() != null ? sprint.getVelocityPoints() : 0);
         velocity.put("velocityDifference", 0);
-        
+
         return velocity;
     }
 
@@ -237,7 +277,7 @@ public class SprintService {
         burndown.put("sprintName", sprint.getName());
         burndown.put("startDate", sprint.getStartDate());
         burndown.put("endDate", sprint.getEndDate());
-        
+
         // Generate burndown chart data points
         List<Map<String, Object>> dataPoints = new ArrayList<>();
         if (sprint.getStartDate() != null && sprint.getEndDate() != null) {
@@ -245,7 +285,7 @@ public class SprintService {
             LocalDate end = sprint.getEndDate();
             int totalDays = (int) current.until(end).getDays();
             int remainingWork = sprint.getCapacityHours() != null ? sprint.getCapacityHours() : 0;
-            
+
             for (int day = 0; day <= totalDays; day++) {
                 Map<String, Object> point = new HashMap<>();
                 point.put("day", day);
@@ -254,7 +294,7 @@ public class SprintService {
                 dataPoints.add(point);
             }
         }
-        
+
         burndown.put("dataPoints", dataPoints);
         return burndown;
     }
@@ -304,7 +344,7 @@ public class SprintService {
         capacity.put("allocatedCapacity", 0); // To be calculated from assigned work
         capacity.put("remainingCapacity", sprint.getCapacityHours());
         capacity.put("utilizationPercentage", 0.0);
-        
+
         return capacity;
     }
 
@@ -321,7 +361,7 @@ public class SprintService {
         progress.put("sprintId", id);
         progress.put("sprintName", sprint.getName());
         progress.put("status", sprint.getStatus());
-        
+
         // Calculate progress percentage based on time elapsed
         if (sprint.getStartDate() != null && sprint.getEndDate() != null) {
             LocalDate today = LocalDate.now();
@@ -336,7 +376,7 @@ public class SprintService {
                 progress.put("progressPercentage", 0.0);
             }
         }
-        
+
         return progress;
     }
 
@@ -352,11 +392,11 @@ public class SprintService {
         Map<String, Object> teamAllocation = new HashMap<>();
         teamAllocation.put("sprintId", id);
         teamAllocation.put("sprintName", sprint.getName());
-        
+
         // This would typically involve querying team members and their allocations
         teamAllocation.put("teamMembers", new ArrayList<>());
         teamAllocation.put("totalAllocation", 0);
-        
+
         return teamAllocation;
     }
 
@@ -375,7 +415,7 @@ public class SprintService {
         newSprint.setCapacityHours(originalSprint.getCapacityHours());
         newSprint.setGoal(originalSprint.getGoal());
         newSprint.setStatus(SprintStatus.PLANNING);
-        
+
         // Set dates for next sprint cycle
         if (originalSprint.getStartDate() != null && originalSprint.getEndDate() != null) {
             long duration = originalSprint.getStartDate().until(originalSprint.getEndDate()).getDays();
@@ -383,7 +423,7 @@ public class SprintService {
             newSprint.setStartDate(nextStartDate);
             newSprint.setEndDate(nextStartDate.plusDays(duration));
         }
-        
+
         return createSprint(newSprint);
     }
 
@@ -402,13 +442,13 @@ public class SprintService {
         retrospective.put("status", sprint.getStatus());
         retrospective.put("startDate", sprint.getStartDate());
         retrospective.put("endDate", sprint.getEndDate());
-        
+
         // Add retrospective questions and answers
         retrospective.put("whatWentWell", new ArrayList<>());
         retrospective.put("whatWentWrong", new ArrayList<>());
         retrospective.put("whatToImprove", new ArrayList<>());
         retrospective.put("actionItems", new ArrayList<>());
-        
+
         return retrospective;
     }
 
@@ -431,15 +471,9 @@ public class SprintService {
      */
     public List<Sprint> getRecentSprints(int limit) {
         return sprintRepository.findAll()
-            .stream()
-            .sorted((s1, s2) -> s2.getCreatedAt().compareTo(s1.getCreatedAt()))
-            .limit(limit)
-            .collect(Collectors.toList());
+                .stream()
+                .sorted((s1, s2) -> s2.getCreatedAt().compareTo(s1.getCreatedAt()))
+                .limit(limit)
+                .collect(Collectors.toList());
     }
 }
-
-
-
-
-
-

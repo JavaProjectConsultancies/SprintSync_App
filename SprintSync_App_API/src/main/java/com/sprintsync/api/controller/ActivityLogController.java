@@ -211,7 +211,8 @@ public class ActivityLogController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
             Pageable pageable) {
         try {
-            Page<ActivityLog> activityLogs = activityLogService.getActivityLogsByDateRange(startDate, endDate, pageable);
+            Page<ActivityLog> activityLogs = activityLogService.getActivityLogsByDateRange(startDate, endDate,
+                    pageable);
             return ResponseEntity.ok(activityLogs);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -227,6 +228,21 @@ public class ActivityLogController {
             @RequestParam(defaultValue = "7") int days) {
         try {
             List<ActivityLog> activityLogs = activityLogService.getRecentActivityByUser(userId, days);
+            return ResponseEntity.ok(activityLogs);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Get recent activity logs for a project
+     */
+    @GetMapping("/project/{projectId}")
+    public ResponseEntity<List<ActivityLog>> getProjectActivities(
+            @PathVariable String projectId,
+            @RequestParam(defaultValue = "30") int days) {
+        try {
+            List<ActivityLog> activityLogs = activityLogService.getProjectActivities(projectId, days);
             return ResponseEntity.ok(activityLogs);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -290,7 +306,3 @@ public class ActivityLogController {
         }
     }
 }
-
-
-
-

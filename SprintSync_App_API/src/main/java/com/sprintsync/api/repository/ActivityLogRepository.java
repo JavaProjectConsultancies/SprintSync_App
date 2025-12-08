@@ -28,7 +28,8 @@ public interface ActivityLogRepository extends JpaRepository<ActivityLog, String
     /**
      * Find all activity logs by entity type and ID with pagination
      */
-    Page<ActivityLog> findByEntityTypeAndEntityIdOrderByCreatedAtDesc(String entityType, String entityId, Pageable pageable);
+    Page<ActivityLog> findByEntityTypeAndEntityIdOrderByCreatedAtDesc(String entityType, String entityId,
+            Pageable pageable);
 
     /**
      * Find all activity logs by user ID
@@ -51,6 +52,16 @@ public interface ActivityLogRepository extends JpaRepository<ActivityLog, String
     Page<ActivityLog> findByEntityTypeOrderByCreatedAtDesc(String entityType, Pageable pageable);
 
     /**
+     * Find all activity logs by project ID
+     */
+    List<ActivityLog> findByProjectIdOrderByCreatedAtDesc(String projectId);
+
+    /**
+     * Find all activity logs by project ID with pagination
+     */
+    Page<ActivityLog> findByProjectIdOrderByCreatedAtDesc(String projectId, Pageable pageable);
+
+    /**
      * Find all activity logs by action
      */
     List<ActivityLog> findByActionOrderByCreatedAtDesc(String action);
@@ -59,13 +70,15 @@ public interface ActivityLogRepository extends JpaRepository<ActivityLog, String
      * Find all activity logs within date range
      */
     @Query("SELECT a FROM ActivityLog a WHERE a.createdAt BETWEEN :startDate AND :endDate ORDER BY a.createdAt DESC")
-    List<ActivityLog> findByDateRange(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+    List<ActivityLog> findByDateRange(@Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
 
     /**
      * Find all activity logs within date range with pagination
      */
     @Query("SELECT a FROM ActivityLog a WHERE a.createdAt BETWEEN :startDate AND :endDate ORDER BY a.createdAt DESC")
-    Page<ActivityLog> findByDateRange(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate, Pageable pageable);
+    Page<ActivityLog> findByDateRange(@Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate, Pageable pageable);
 
     /**
      * Find recent activity logs for a user
@@ -77,7 +90,8 @@ public interface ActivityLogRepository extends JpaRepository<ActivityLog, String
      * Find recent activity logs for an entity
      */
     @Query("SELECT a FROM ActivityLog a WHERE a.entityType = :entityType AND a.entityId = :entityId AND a.createdAt >= :since ORDER BY a.createdAt DESC")
-    List<ActivityLog> findRecentActivityByEntity(@Param("entityType") String entityType, @Param("entityId") String entityId, @Param("since") LocalDateTime since);
+    List<ActivityLog> findRecentActivityByEntity(@Param("entityType") String entityType,
+            @Param("entityId") String entityId, @Param("since") LocalDateTime since);
 
     /**
      * Count activity logs by entity type and ID
@@ -95,4 +109,3 @@ public interface ActivityLogRepository extends JpaRepository<ActivityLog, String
     @Query("DELETE FROM ActivityLog a WHERE a.createdAt < :before")
     void deleteOldLogs(@Param("before") LocalDateTime before);
 }
-

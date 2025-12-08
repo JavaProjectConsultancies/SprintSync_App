@@ -32,6 +32,9 @@ public class TaskService {
     @Autowired
     private NotificationService notificationService;
 
+    @Autowired
+    private ActivityLogService activityLogService;
+
     /**
      * Get all tasks with pagination
      */
@@ -67,48 +70,69 @@ public class TaskService {
         if (task.getId() == null) {
             task.setId(idGenerationService.generateTaskId());
         }
-        
-        // Always auto-assign task number to ensure sequential numbering within each story
-        // If taskNumber is null, 0, or 1 (default), calculate the next sequential number
-        boolean shouldAutoAssign = task.getTaskNumber() == null || 
-                                   task.getTaskNumber() == 0 || 
-                                   task.getTaskNumber() == 1;
-        
+
+        // Always auto-assign task number to ensure sequential numbering within each
+        // story
+        // If taskNumber is null, 0, or 1 (default), calculate the next sequential
+        // number
+        boolean shouldAutoAssign = task.getTaskNumber() == null ||
+                task.getTaskNumber() == 0 ||
+                task.getTaskNumber() == 1;
+
         if (shouldAutoAssign && task.getStoryId() != null) {
             Integer maxTaskNumber = taskRepository.findMaxTaskNumberByStoryId(task.getStoryId());
             if (maxTaskNumber == null) {
                 maxTaskNumber = 0;
             }
             // Set to next number (maxTaskNumber + 1)
-            // If maxTaskNumber is 0 and taskNumber was already 1, this sets it to 1 (no change, but explicit)
-            // If maxTaskNumber is 2 and taskNumber was 1 (default), this sets it to 3 (correct next number)
+            // If maxTaskNumber is 0 and taskNumber was already 1, this sets it to 1 (no
+            // change, but explicit)
+            // If maxTaskNumber is 2 and taskNumber was 1 (default), this sets it to 3
+            // (correct next number)
             task.setTaskNumber(maxTaskNumber + 1);
         }
-        
+
         task.setCreatedAt(LocalDateTime.now());
         task.setUpdatedAt(LocalDateTime.now());
         Task savedTask = taskRepository.save(task);
-        
+
+        // Log activity
+        if (activityLogService != null) {
+            try {
+                activityLogService.logActivity(
+                        "system", // TODO: Get current user
+                        "task",
+                        savedTask.getId(),
+                        "created",
+                        "Created task: " + savedTask.getTitle(),
+                        null,
+                        savedTask,
+                        null // ProjectId not readily available without extra fetch, skipping for now
+                );
+            } catch (Exception e) {
+                System.err.println("Failed to log activity: " + e.getMessage());
+            }
+        }
+
         // Create notification if task is created with an assignee
         if (savedTask.getAssigneeId() != null && !savedTask.getAssigneeId().isEmpty()) {
             try {
                 String title = "New Task Assignment";
                 String message = "You have been assigned to task: " + savedTask.getTitle();
                 notificationService.createNotification(
-                    savedTask.getAssigneeId(),
-                    title,
-                    message,
-                    "task",
-                    "task",
-                    savedTask.getId()
-                );
+                        savedTask.getAssigneeId(),
+                        title,
+                        message,
+                        "task",
+                        "task",
+                        savedTask.getId());
             } catch (Exception e) {
                 // Log error but don't fail the task creation
                 System.err.println("Failed to create notification for task creation: " + e.getMessage());
                 e.printStackTrace();
             }
         }
-        
+
         return savedTask;
     }
 
@@ -122,23 +146,23 @@ public class TaskService {
                 Task existingTask = existingTaskOpt.get();
                 String oldAssigneeId = existingTask.getAssigneeId();
                 String newAssigneeId = task.getAssigneeId();
-                
+
                 // Check if assignee changed and create notification
-                if (newAssigneeId != null && !newAssigneeId.isEmpty() && 
-                    !newAssigneeId.equals(oldAssigneeId)) {
+                if (newAssigneeId != null && !newAssigneeId.isEmpty() &&
+                        !newAssigneeId.equals(oldAssigneeId)) {
                     // Assignee changed, create notification
                     try {
                         String title = "New Task Assignment";
                         String message = "You have been assigned to task: " + task.getTitle();
-                        System.out.println("Creating notification for user: " + newAssigneeId + ", task: " + task.getTitle());
+                        System.out.println(
+                                "Creating notification for user: " + newAssigneeId + ", task: " + task.getTitle());
                         Notification createdNotification = notificationService.createNotification(
-                            newAssigneeId,
-                            title,
-                            message,
-                            "task",
-                            "task",
-                            task.getId()
-                        );
+                                newAssigneeId,
+                                title,
+                                message,
+                                "task",
+                                "task",
+                                task.getId());
                         System.out.println("Notification created successfully: " + createdNotification.getId());
                     } catch (Exception e) {
                         // Log error but don't fail the update
@@ -147,9 +171,29 @@ public class TaskService {
                     }
                 }
             }
-            
+
             task.setUpdatedAt(LocalDateTime.now());
-            return taskRepository.save(task);
+            Task updatedTask = taskRepository.save(task);
+
+            // Log activity
+            if (activityLogService != null) {
+                try {
+                    activityLogService.logActivity(
+                            "system", // TODO: Get current user
+                            "task",
+                            updatedTask.getId(),
+                            "updated",
+                            "Updated task: " + updatedTask.getTitle(),
+                            existingTaskOpt.get(), // Old values
+                            updatedTask, // New values
+                            null // ProjectId not readily available
+                    );
+                } catch (Exception e) {
+                    System.err.println("Failed to log activity: " + e.getMessage());
+                }
+            }
+
+            return updatedTask;
         }
         return null;
     }
@@ -171,10 +215,11 @@ public class TaskService {
      */
     public List<Task> getTasksByStoryId(String storyId) {
         List<Task> tasks = taskRepository.findByStoryId(storyId);
-        
-        // For each task, get the raw status from database and set it if it's a custom lane status
+
+        // For each task, get the raw status from database and set it if it's a custom
+        // lane status
         tasks.forEach(this::populateRawStatus);
-        
+
         return tasks;
     }
 
@@ -201,7 +246,8 @@ public class TaskService {
 
     /**
      * Update task status
-     * Supports both standard TaskStatus enum values and custom lane status values (strings)
+     * Supports both standard TaskStatus enum values and custom lane status values
+     * (strings)
      */
     public Task updateTaskStatus(String id, TaskStatus status) {
         Optional<Task> optionalTask = taskRepository.findById(id);
@@ -209,11 +255,30 @@ public class TaskService {
             Task task = optionalTask.get();
             task.setStatus(status);
             task.setUpdatedAt(LocalDateTime.now());
-            return taskRepository.save(task);
+            Task updatedTask = taskRepository.save(task);
+
+            // Log activity
+            if (activityLogService != null) {
+                try {
+                    activityLogService.logActivity(
+                            "system", // TODO: Get current user
+                            "task",
+                            updatedTask.getId(),
+                            "status_updated",
+                            "Updated task status to " + status + ": " + updatedTask.getTitle(),
+                            optionalTask.get(), // Old values
+                            updatedTask, // New values
+                            null);
+                } catch (Exception e) {
+                    System.err.println("Failed to log activity: " + e.getMessage());
+                }
+            }
+
+            return updatedTask;
         }
         return null;
     }
-    
+
     /**
      * Update task status with custom string value (for custom workflow lanes)
      */
@@ -226,9 +291,28 @@ public class TaskService {
                 TaskStatus status = TaskStatus.fromValue(statusValue);
                 task.setStatus(status);
                 task.setUpdatedAt(LocalDateTime.now());
-                return taskRepository.save(task);
+                Task updatedTask = taskRepository.save(task);
+
+                // Log activity
+                if (activityLogService != null) {
+                    try {
+                        activityLogService.logActivity(
+                                "system", // TODO: Get current user
+                                "task",
+                                updatedTask.getId(),
+                                "status_updated",
+                                "Updated task status: " + updatedTask.getTitle(),
+                                optionalTask.get(), // Old values
+                                updatedTask, // New values
+                                null);
+                    } catch (Exception e) {
+                        System.err.println("Failed to log activity: " + e.getMessage());
+                    }
+                }
+
+                return updatedTask;
             } catch (IllegalArgumentException e) {
-                // If it's a custom lane status (starts with "custom_lane_"), 
+                // If it's a custom lane status (starts with "custom_lane_"),
                 // we need to store it directly in the database using native query
                 // The TaskStatusConverter will handle reading it back
                 taskRepository.updateTaskStatusDirectly(id, statusValue);
@@ -249,7 +333,7 @@ public class TaskService {
             task.setAssigneeId(assigneeId);
             task.setUpdatedAt(LocalDateTime.now());
             Task savedTask = taskRepository.save(task);
-            
+
             // Create notification for the assigned user
             if (assigneeId != null && !assigneeId.isEmpty()) {
                 try {
@@ -257,13 +341,12 @@ public class TaskService {
                     String message = "You have been assigned to task: " + task.getTitle();
                     System.out.println("Creating notification for user: " + assigneeId + ", task: " + task.getTitle());
                     Notification createdNotification = notificationService.createNotification(
-                        assigneeId,
-                        title,
-                        message,
-                        "task",
-                        "task",
-                        task.getId()
-                    );
+                            assigneeId,
+                            title,
+                            message,
+                            "task",
+                            "task",
+                            task.getId());
                     System.out.println("Notification created successfully: " + createdNotification.getId());
                 } catch (Exception e) {
                     // Log error but don't fail the assignment
@@ -271,7 +354,7 @@ public class TaskService {
                     e.printStackTrace();
                 }
             }
-            
+
             return savedTask;
         }
         return null;
@@ -296,25 +379,26 @@ public class TaskService {
      */
     public Map<String, Object> getTaskStatistics() {
         List<Task> allTasks = taskRepository.findAll();
-        
+
         Map<String, Object> statistics = new HashMap<>();
         statistics.put("totalTasks", allTasks.size());
-        
+
         Map<TaskStatus, Long> statusCount = allTasks.stream()
-            .collect(Collectors.groupingBy(Task::getStatus, Collectors.counting()));
+                .collect(Collectors.groupingBy(Task::getStatus, Collectors.counting()));
         statistics.put("statusCount", statusCount);
-        
+
         Map<String, Long> priorityCount = allTasks.stream()
-            .collect(Collectors.groupingBy(task -> task.getPriority().getValue(), Collectors.counting()));
+                .collect(Collectors.groupingBy(task -> task.getPriority().getValue(), Collectors.counting()));
         statistics.put("priorityCount", priorityCount);
-        
+
         // Overdue tasks
         long overdueTasks = allTasks.stream()
-            .filter(task -> task.getDueDate() != null && task.getDueDate().isBefore(LocalDateTime.now().toLocalDate()))
-            .filter(task -> task.getStatus() != TaskStatus.DONE)
-            .count();
+                .filter(task -> task.getDueDate() != null
+                        && task.getDueDate().isBefore(LocalDateTime.now().toLocalDate()))
+                .filter(task -> task.getStatus() != TaskStatus.DONE)
+                .count();
         statistics.put("overdueTasks", overdueTasks);
-        
+
         return statistics;
     }
 
@@ -324,9 +408,9 @@ public class TaskService {
     public List<Task> getOverdueTasks() {
         LocalDateTime now = LocalDateTime.now();
         return taskRepository.findAll().stream()
-            .filter(task -> task.getDueDate() != null && task.getDueDate().isBefore(now.toLocalDate()))
-            .filter(task -> task.getStatus() != TaskStatus.DONE)
-            .collect(Collectors.toList());
+                .filter(task -> task.getDueDate() != null && task.getDueDate().isBefore(now.toLocalDate()))
+                .filter(task -> task.getStatus() != TaskStatus.DONE)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -335,12 +419,13 @@ public class TaskService {
     public List<Task> getTasksDueSoon(int days) {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime dueSoon = now.plusDays(days);
-        
+
         return taskRepository.findAll().stream()
-            .filter(task -> task.getDueDate() != null)
-            .filter(task -> task.getDueDate().isAfter(now.toLocalDate()) && task.getDueDate().isBefore(dueSoon.toLocalDate()))
-            .filter(task -> task.getStatus() != TaskStatus.DONE)
-            .collect(Collectors.toList());
+                .filter(task -> task.getDueDate() != null)
+                .filter(task -> task.getDueDate().isAfter(now.toLocalDate())
+                        && task.getDueDate().isBefore(dueSoon.toLocalDate()))
+                .filter(task -> task.getStatus() != TaskStatus.DONE)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -354,8 +439,10 @@ public class TaskService {
      * Get tasks by sprint ID
      */
     public List<Task> getTasksBySprintId(String sprintId) {
-        // Note: Task entity doesn't have sprintId field - tasks are related to sprints through stories
-        // This would need to be implemented by finding stories by sprintId first, then tasks by storyId
+        // Note: Task entity doesn't have sprintId field - tasks are related to sprints
+        // through stories
+        // This would need to be implemented by finding stories by sprintId first, then
+        // tasks by storyId
         return Collections.emptyList();
     }
 
@@ -363,8 +450,10 @@ public class TaskService {
      * Get tasks by project ID
      */
     public List<Task> getTasksByProjectId(String projectId) {
-        // Note: Task entity doesn't have projectId field - tasks are related to projects through stories
-        // This would need to be implemented by finding stories by projectId first, then tasks by storyId
+        // Note: Task entity doesn't have projectId field - tasks are related to
+        // projects through stories
+        // This would need to be implemented by finding stories by projectId first, then
+        // tasks by storyId
         return Collections.emptyList();
     }
 
@@ -374,7 +463,7 @@ public class TaskService {
     public List<Task> bulkUpdateTaskStatus(List<String> taskIds, TaskStatus status) {
         List<Task> updatedTasks = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
-        
+
         for (String taskId : taskIds) {
             Optional<Task> optionalTask = taskRepository.findById(taskId);
             if (optionalTask.isPresent()) {
@@ -384,7 +473,7 @@ public class TaskService {
                 updatedTasks.add(taskRepository.save(task));
             }
         }
-        
+
         return updatedTasks;
     }
 
@@ -393,24 +482,24 @@ public class TaskService {
      */
     public Map<String, Object> getTaskProgressByStory(String storyId) {
         List<Task> tasks = getTasksByStoryId(storyId);
-        
+
         Map<String, Object> progress = new HashMap<>();
         progress.put("totalTasks", tasks.size());
-        
+
         if (tasks.isEmpty()) {
             progress.put("completionPercentage", 0.0);
             progress.put("statusCount", new HashMap<>());
             return progress;
         }
-        
+
         Map<TaskStatus, Long> statusCount = tasks.stream()
-            .collect(Collectors.groupingBy(Task::getStatus, Collectors.counting()));
+                .collect(Collectors.groupingBy(Task::getStatus, Collectors.counting()));
         progress.put("statusCount", statusCount);
-        
+
         long completedTasks = statusCount.getOrDefault(TaskStatus.DONE, 0L);
         double completionPercentage = (double) completedTasks / tasks.size() * 100;
         progress.put("completionPercentage", Math.round(completionPercentage * 100.0) / 100.0);
-        
+
         return progress;
     }
 
@@ -419,24 +508,24 @@ public class TaskService {
      */
     public Map<String, Object> getTaskProgressBySprint(String sprintId) {
         List<Task> tasks = getTasksBySprintId(sprintId);
-        
+
         Map<String, Object> progress = new HashMap<>();
         progress.put("totalTasks", tasks.size());
-        
+
         if (tasks.isEmpty()) {
             progress.put("completionPercentage", 0.0);
             progress.put("statusCount", new HashMap<>());
             return progress;
         }
-        
+
         Map<TaskStatus, Long> statusCount = tasks.stream()
-            .collect(Collectors.groupingBy(Task::getStatus, Collectors.counting()));
+                .collect(Collectors.groupingBy(Task::getStatus, Collectors.counting()));
         progress.put("statusCount", statusCount);
-        
+
         long completedTasks = statusCount.getOrDefault(TaskStatus.DONE, 0L);
         double completionPercentage = (double) completedTasks / tasks.size() * 100;
         progress.put("completionPercentage", Math.round(completionPercentage * 100.0) / 100.0);
-        
+
         return progress;
     }
 
@@ -444,8 +533,10 @@ public class TaskService {
      * Get tasks by epic ID
      */
     public List<Task> getTasksByEpicId(String epicId) {
-        // Note: Task entity doesn't have epicId field - tasks are related to epics through stories
-        // This would need to be implemented by finding stories by epicId first, then tasks by storyId
+        // Note: Task entity doesn't have epicId field - tasks are related to epics
+        // through stories
+        // This would need to be implemented by finding stories by epicId first, then
+        // tasks by storyId
         return Collections.emptyList();
     }
 
@@ -453,8 +544,10 @@ public class TaskService {
      * Get tasks by release ID
      */
     public List<Task> getTasksByReleaseId(String releaseId) {
-        // Note: Task entity doesn't have releaseId field - tasks are related to releases through stories
-        // This would need to be implemented by finding stories by releaseId first, then tasks by storyId
+        // Note: Task entity doesn't have releaseId field - tasks are related to
+        // releases through stories
+        // This would need to be implemented by finding stories by releaseId first, then
+        // tasks by storyId
         return Collections.emptyList();
     }
 
@@ -515,9 +608,3 @@ public class TaskService {
         }
     }
 }
-
-
-
-
-
-

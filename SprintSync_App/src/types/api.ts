@@ -358,3 +358,17 @@ export interface Attachment {
   attachmentType?: 'file' | 'url'; // 'file' for file uploads, 'url' for links
   createdAt: string;
 }
+
+// Pagination response
+export interface Page<T> {
+  content: T[];
+  totalPages: number;
+  totalElements: number;
+  last: boolean;
+  size: number;
+  number: number;
+  sort?: any;
+  numberOfElements: number;
+  first: boolean;
+  empty: boolean;
+}
