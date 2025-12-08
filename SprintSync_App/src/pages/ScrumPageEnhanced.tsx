@@ -112,7 +112,7 @@ const ScrumPageEnhanced: React.FC = () => {
   const canLogEffort = true; // All roles can log effort
 
   const [newEffort, setNewEffort] = useState({
-    date: new Date().toISOString().split('T')[0],
+    date: '',
     timeSpent: '',
     hours: '',
     minutes: '',
@@ -135,7 +135,9 @@ const ScrumPageEnhanced: React.FC = () => {
       status: 'active',
       daysLeft: 3,
       points: '52:05',
-      project: 'fintech-mobile'
+      project: 'fintech-mobile',
+      startDate: '2024-02-01',
+      endDate: '2024-02-15'
     },
     {
       id: 'sprint-16',
@@ -143,7 +145,9 @@ const ScrumPageEnhanced: React.FC = () => {
       status: 'planning',
       daysLeft: 14,
       points: '68:10',
-      project: 'fintech-mobile'
+      project: 'fintech-mobile',
+      startDate: '2024-02-16',
+      endDate: '2024-03-01'
     }
   ];
 
@@ -846,6 +850,8 @@ const ScrumPageEnhanced: React.FC = () => {
           onClose={() => setIsAddTaskDialogOpen(false)}
           onSubmit={handleAddTask}
           stories={stories}
+          sprintStartDate={currentSprint?.startDate}
+          sprintEndDate={currentSprint?.endDate}
         />
       </div>
     </DndProvider>

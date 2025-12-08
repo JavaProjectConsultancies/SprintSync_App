@@ -465,7 +465,7 @@ const ScrumPage: React.FC = () => {
 
     description: "",
 
-    workDate: new Date().toISOString().split("T")[0],
+    workDate: "",
 
     startTime: "",
 
@@ -11570,6 +11570,23 @@ const ScrumPage: React.FC = () => {
                 <Input
                   id="effort-date"
                   type="date"
+                  required
+                  min={
+                    (Array.isArray(sprintsData)
+                      ? sprintsData
+                      : sprintsData?.data || []
+                    )
+                      .find((s: any) => s.id === selectedSprint)
+                      ?.startDate?.split("T")[0]
+                  }
+                  max={
+                    (Array.isArray(sprintsData)
+                      ? sprintsData
+                      : sprintsData?.data || []
+                    )
+                      .find((s: any) => s.id === selectedSprint)
+                      ?.endDate?.split("T")[0]
+                  }
                   value={effortLog.workDate}
                   onChange={(e) =>
                     setEffortLog((prev) => ({
@@ -11742,7 +11759,7 @@ const ScrumPage: React.FC = () => {
 
                     description: "",
 
-                    workDate: new Date().toISOString().split("T")[0],
+                    workDate: "",
 
                     startTime: "",
 
@@ -11766,6 +11783,7 @@ const ScrumPage: React.FC = () => {
                 disabled={
                   !effortLog.hours ||
                   effortLog.hours <= 0 ||
+                  !effortLog.workDate ||
                   !effortLog.description.trim() ||
                   isLoggingEffort
                 }
@@ -11830,7 +11848,7 @@ const ScrumPage: React.FC = () => {
                           setEffortLog({
                             hours: 0,
                             description: "",
-                            workDate: new Date().toISOString().split("T")[0],
+                            workDate: "",
                             startTime: "",
                             endTime: "",
                           });
@@ -12942,7 +12960,7 @@ const ScrumPage: React.FC = () => {
                         setEffortLog({
                           hours: 0,
                           description: "",
-                          workDate: new Date().toISOString().split("T")[0],
+                          workDate: "",
                           startTime: "",
                           endTime: "",
                         });
@@ -13902,6 +13920,8 @@ const ScrumPage: React.FC = () => {
 
           setSelectedStoryForIssue(null);
         }}
+        sprintStartDate={selectedSprint ? sprints?.find((s: any) => s.id === selectedSprint)?.startDate : undefined}
+        sprintEndDate={selectedSprint ? sprints?.find((s: any) => s.id === selectedSprint)?.endDate : undefined}
         onSubmit={handleAddIssue}
         stories={sprintStories.map((story) => ({
           id: story.id,
@@ -14436,6 +14456,8 @@ const ScrumPage: React.FC = () => {
           }));
         }}
         projectId={selectedProject}
+        sprintStartDate={selectedSprint ? sprints?.find((s: any) => s.id === selectedSprint)?.startDate : undefined}
+        sprintEndDate={selectedSprint ? sprints?.find((s: any) => s.id === selectedSprint)?.endDate : undefined}
         onSubmit={async (taskData) => {
           try {
             const storyId = taskData.storyId === 'none' ? undefined : taskData.storyId;
