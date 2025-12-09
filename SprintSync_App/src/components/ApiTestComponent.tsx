@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -6,10 +6,10 @@ import { Badge } from './ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Alert, AlertDescription } from './ui/alert';
 import { Loader2, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
-import { 
-  useProjects, 
-  useUsers, 
-  useDepartments, 
+import {
+  useProjects,
+  useUsers,
+  useDepartments,
   useDomains,
   projectApiService,
   userApiService,
@@ -30,8 +30,8 @@ export const ApiTestComponent: React.FC = () => {
   // API Hooks
   const { data: projects, loading: projectsLoading, error: projectsError, refetch: refetchProjects } = useProjects();
   const { data: users, loading: usersLoading, error: usersError, refetch: refetchUsers } = useUsers();
-  const { data: departments, loading: departmentsLoading, error: departmentsError, refetch: refetchDepartments } = useDepartments();
-  const { data: domains, loading: domainsLoading, error: domainsError, refetch: refetchDomains } = useDomains();
+  const { data: departments, loading: departmentsLoading, error: departmentsError } = useDepartments();
+  const { data: domains, loading: domainsLoading, error: domainsError } = useDomains();
 
   // Mutation hooks
   const createProjectMutation = useCreateProject();
@@ -69,7 +69,7 @@ export const ApiTestComponent: React.FC = () => {
         results.projects = {
           status: 'success',
           data: projectsResponse.data,
-          message: `Found ${projectsResponse.data?.content?.length || 0} projects`
+          message: `Found ${projectsResponse.data?.length || 0} projects`
         };
       } catch (error: any) {
         results.projects = {
@@ -85,7 +85,7 @@ export const ApiTestComponent: React.FC = () => {
         results.users = {
           status: 'success',
           data: usersResponse.data,
-          message: `Found ${usersResponse.data?.content?.length || 0} users`
+          message: `Found ${usersResponse.data?.length || 0} users`
         };
       } catch (error: any) {
         results.users = {
@@ -101,7 +101,7 @@ export const ApiTestComponent: React.FC = () => {
         results.departments = {
           status: 'success',
           data: departmentsResponse.data,
-          message: `Found ${departmentsResponse.data?.content?.length || 0} departments`
+          message: `Found ${departmentsResponse.data?.length || 0} departments`
         };
       } catch (error: any) {
         results.departments = {
@@ -117,7 +117,7 @@ export const ApiTestComponent: React.FC = () => {
         results.domains = {
           status: 'success',
           data: domainsResponse.data,
-          message: `Found ${domainsResponse.data?.content?.length || 0} domains`
+          message: `Found ${domainsResponse.data?.length || 0} domains`
         };
       } catch (error: any) {
         results.domains = {
@@ -138,7 +138,8 @@ export const ApiTestComponent: React.FC = () => {
   // Test creating a project
   const testCreateProject = async () => {
     try {
-      await createProjectMutation.mutateAsync(testProject);
+      // @ts-ignore
+      await createProjectMutation.mutate(testProject);
       await refetchProjects(); // Refresh the projects list
     } catch (error) {
       console.error('Failed to create test project:', error);
@@ -148,7 +149,8 @@ export const ApiTestComponent: React.FC = () => {
   // Test creating a user
   const testCreateUser = async () => {
     try {
-      await createUserMutation.mutateAsync(testUser);
+      // @ts-ignore
+      await createUserMutation.mutate(testUser);
       await refetchUsers(); // Refresh the users list
     } catch (error) {
       console.error('Failed to create test user:', error);
@@ -325,7 +327,7 @@ export const ApiTestComponent: React.FC = () => {
             <TabsContent value="data">
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Live API Data</h3>
-                
+
                 <div className="grid gap-4 md:grid-cols-2">
                   <Card>
                     <CardHeader>
@@ -462,7 +464,7 @@ export const ApiTestComponent: React.FC = () => {
             <TabsContent value="create">
               <div className="space-y-6">
                 <h3 className="text-lg font-semibold">Test API Create Operations</h3>
-                
+
                 <div className="grid gap-6 md:grid-cols-2">
                   {/* Test Create Project */}
                   <Card>
@@ -484,12 +486,12 @@ export const ApiTestComponent: React.FC = () => {
                           onChange={(e) => setTestProject({ ...testProject, description: e.target.value })}
                         />
                       </div>
-                      <Button 
-                        onClick={testCreateProject} 
-                        disabled={createProjectMutation.isPending}
+                      <Button
+                        onClick={testCreateProject}
+                        disabled={createProjectMutation.loading}
                         className="w-full"
                       >
-                        {createProjectMutation.isPending ? (
+                        {createProjectMutation.loading ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                             Creating...
@@ -498,13 +500,13 @@ export const ApiTestComponent: React.FC = () => {
                           'Create Test Project'
                         )}
                       </Button>
-                      {createProjectMutation.isSuccess && (
+                      {!createProjectMutation.loading && !createProjectMutation.error && (createProjectMutation as any).data && (
                         <Alert>
                           <CheckCircle className="h-4 w-4" />
                           <AlertDescription>Project created successfully!</AlertDescription>
                         </Alert>
                       )}
-                      {createProjectMutation.isError && (
+                      {createProjectMutation.error && (
                         <Alert variant="destructive">
                           <XCircle className="h-4 w-4" />
                           <AlertDescription>Failed to create project</AlertDescription>
@@ -533,12 +535,12 @@ export const ApiTestComponent: React.FC = () => {
                           onChange={(e) => setTestUser({ ...testUser, email: e.target.value })}
                         />
                       </div>
-                      <Button 
-                        onClick={testCreateUser} 
-                        disabled={createUserMutation.isPending}
+                      <Button
+                        onClick={testCreateUser}
+                        disabled={createUserMutation.loading}
                         className="w-full"
                       >
-                        {createUserMutation.isPending ? (
+                        {createUserMutation.loading ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                             Creating...
@@ -547,13 +549,13 @@ export const ApiTestComponent: React.FC = () => {
                           'Create Test User'
                         )}
                       </Button>
-                      {createUserMutation.isSuccess && (
+                      {!createUserMutation.loading && !createUserMutation.error && createUserMutation.data && (
                         <Alert>
                           <CheckCircle className="h-4 w-4" />
                           <AlertDescription>User created successfully!</AlertDescription>
                         </Alert>
                       )}
-                      {createUserMutation.isError && (
+                      {createUserMutation.error && (
                         <Alert variant="destructive">
                           <XCircle className="h-4 w-4" />
                           <AlertDescription>Failed to create user</AlertDescription>
@@ -569,7 +571,7 @@ export const ApiTestComponent: React.FC = () => {
             <TabsContent value="results">
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">API Test Results</h3>
-                
+
                 {Object.keys(testResults).length === 0 ? (
                   <div className="text-center py-8">
                     <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />

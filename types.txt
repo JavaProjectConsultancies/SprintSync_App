@@ -1,6 +1,0 @@
- entity_type 
--------------
- issues
- tasks
-(2 rows)
-

@@ -17,17 +17,17 @@ import LoadingSpinner from './LoadingSpinner';
 
 const TodoList: React.FC = () => {
   const { user } = useAuth();
-  
+
   // Fetch tasks assigned to the logged-in user directly from API
   // Only fetch if user ID is available
   const shouldFetch = !!user?.id;
-  const { 
-    data: assignedTasksData, 
-    loading: tasksLoading, 
+  const {
+    data: assignedTasksData,
+    loading: tasksLoading,
     error: tasksError,
     refetch: refetchTasks
   } = useTasksByAssignee(user?.id || '', undefined);
-  
+
   const [localTodos, setLocalTodos] = useState<TodoItemType[]>([]);
   const [newTodo, setNewTodo] = useState('');
   const [newPriority, setNewPriority] = useState<'low' | 'medium' | 'high'>('medium');
@@ -40,22 +40,22 @@ const TodoList: React.FC = () => {
   const assignedTasks = useMemo(() => {
     // Skip if user is not loaded or user ID is invalid
     if (!shouldFetch || !assignedTasksData) return [];
-    
+
     // Ensure data is an array
     const tasks = Array.isArray(assignedTasksData) ? assignedTasksData : [];
-    
+
     // Validate each task has required fields
     return tasks.filter((task: any) => {
-      const isValid = task && 
-             typeof task.id === 'string' && 
-             typeof task.title === 'string' &&
-             task.id.trim() !== '' &&
-             task.title.trim() !== '';
-      
+      const isValid = task &&
+        typeof task.id === 'string' &&
+        typeof task.title === 'string' &&
+        task.id.trim() !== '' &&
+        task.title.trim() !== '';
+
       if (!isValid) {
         console.warn('[TodoList] Invalid task structure:', task);
       }
-      
+
       return isValid;
     });
   }, [assignedTasksData, shouldFetch]);
@@ -71,7 +71,7 @@ const TodoList: React.FC = () => {
 
       const normalizedStatus = task.status?.toString().toLowerCase().trim() || '';
       const isCompleted = normalizedStatus === 'done' || normalizedStatus === 'completed' || normalizedStatus === 'done';
-      
+
       // Map priority: CRITICAL -> high, HIGH -> high, MEDIUM -> medium, LOW -> low
       let priority: 'low' | 'medium' | 'high' = 'medium';
       const normalizedPriority = task.priority?.toString().toLowerCase() || '';
@@ -80,7 +80,7 @@ const TodoList: React.FC = () => {
       } else if (normalizedPriority === 'low') {
         priority = 'low';
       }
-      
+
       // Validate dates
       let createdAt: Date;
       let updatedAt: Date;
@@ -89,10 +89,10 @@ const TodoList: React.FC = () => {
       try {
         createdAt = task.createdAt ? new Date(task.createdAt) : new Date();
         if (isNaN(createdAt.getTime())) createdAt = new Date();
-        
+
         updatedAt = task.updatedAt ? new Date(task.updatedAt) : new Date();
         if (isNaN(updatedAt.getTime())) updatedAt = new Date();
-        
+
         if (isCompleted && task.updatedAt) {
           completedAt = new Date(task.updatedAt);
           if (isNaN(completedAt.getTime())) completedAt = undefined;
@@ -103,7 +103,7 @@ const TodoList: React.FC = () => {
         updatedAt = new Date();
         completedAt = undefined;
       }
-      
+
       return {
         id: task.id,
         text: task.title.trim(),
@@ -125,7 +125,7 @@ const TodoList: React.FC = () => {
     const transformed = assignedTasks
       .map(transformTaskToTodoItem)
       .filter((item): item is TodoItemType => item !== null);
-    
+
     // Debug logging
     if (user) {
       console.log('[TodoList] Fetched tasks:', {
@@ -135,7 +135,7 @@ const TodoList: React.FC = () => {
         sampleTask: transformed[0] || null
       });
     }
-    
+
     return transformed;
   }, [assignedTasks, user]);
 
@@ -184,10 +184,10 @@ const TodoList: React.FC = () => {
   const updateTodo = async (id: string, updates: Partial<TodoItemType>) => {
     // Check if it's a local todo or a task todo
     const isLocalTodo = id.startsWith('local-');
-    
+
     if (isLocalTodo) {
       // Update local todo
-      setLocalTodos(prev => prev.map(todo => 
+      setLocalTodos(prev => prev.map(todo =>
         todo.id === id ? { ...todo, ...updates, updatedAt: new Date() } : todo
       ));
     } else {
@@ -200,7 +200,7 @@ const TodoList: React.FC = () => {
         }
 
         const taskUpdates: Partial<Task> = {};
-        
+
         // Map TodoItem updates to Task updates
         if (updates.completed !== undefined) {
           taskUpdates.status = (updates.completed ? 'DONE' : 'TO_DO') as any;
@@ -217,7 +217,7 @@ const TodoList: React.FC = () => {
           };
           taskUpdates.priority = priorityMap[updates.priority] as any;
         }
-        
+
         // Validate that we have updates to make
         if (Object.keys(taskUpdates).length === 0) {
           console.warn('No valid updates provided for task:', id);
@@ -226,7 +226,7 @@ const TodoList: React.FC = () => {
 
         console.log('[TodoList] Updating task:', { id, updates: taskUpdates });
         await taskApiService.updateTask(id, taskUpdates);
-        
+
         // Refetch tasks to get updated data
         if (refetchTasks) {
           await refetchTasks();
@@ -242,7 +242,7 @@ const TodoList: React.FC = () => {
   const deleteTodo = async (id: string) => {
     // Check if it's a local todo or a task todo
     const isLocalTodo = id.startsWith('local-');
-    
+
     if (isLocalTodo) {
       // Delete local todo
       setLocalTodos(prev => prev.filter(todo => todo.id !== id));
@@ -258,7 +258,7 @@ const TodoList: React.FC = () => {
 
         console.log('[TodoList] Deleting task:', id);
         await taskApiService.deleteTask(id);
-        
+
         // Refetch tasks to get updated data
         if (refetchTasks) {
           await refetchTasks();
@@ -274,7 +274,7 @@ const TodoList: React.FC = () => {
   const clearCompleted = async () => {
     // Clear completed local todos
     setLocalTodos(prev => prev.filter(todo => !todo.completed));
-    
+
     // Delete completed tasks from database
     const completedTaskIds = assignedTasks
       .filter((task: Task) => {
@@ -283,17 +283,17 @@ const TodoList: React.FC = () => {
       })
       .map((task: Task) => task.id)
       .filter((id): id is string => typeof id === 'string' && id.trim() !== '');
-    
+
     if (completedTaskIds.length === 0) {
       return;
     }
 
     console.log('[TodoList] Clearing completed tasks:', completedTaskIds.length);
-    
+
     // Delete completed tasks one by one
     let successCount = 0;
     let failCount = 0;
-    
+
     for (const taskId of completedTaskIds) {
       try {
         await taskApiService.deleteTask(taskId);
@@ -303,12 +303,12 @@ const TodoList: React.FC = () => {
         failCount++;
       }
     }
-    
+
     // Refetch tasks after deletion
     if (successCount > 0 && refetchTasks) {
       await refetchTasks();
     }
-    
+
     if (failCount > 0) {
       alert(`Failed to delete ${failCount} completed task(s). Please try again.`);
     }
@@ -476,7 +476,7 @@ const TodoList: React.FC = () => {
               onKeyDown={(e) => e.key === 'Enter' && addTodo()}
               className="flex-1"
             />
-            
+
             <Select value={newPriority} onValueChange={(value: 'low' | 'medium' | 'high') => setNewPriority(value)}>
               <SelectTrigger className="w-full md:w-32">
                 <SelectValue />
@@ -544,12 +544,6 @@ const TodoList: React.FC = () => {
                     <SelectItem value="health">Health ({categoryStats.health})</SelectItem>
                   </SelectContent>
                 </Select>
-
-                {completedTodos > 0 && (
-                  <Button variant="outline" onClick={clearCompleted} className="text-red-600 hover:bg-red-50">
-                    Clear Completed
-                  </Button>
-                )}
               </div>
             </div>
           </Tabs>
@@ -567,12 +561,12 @@ const TodoList: React.FC = () => {
                 </div>
                 <div className="space-y-2">
                   <h3 className="font-medium">
-                    {filter === 'completed' ? 'No completed tasks yet' : 
-                     filter === 'active' ? 'No active tasks' : 'No tasks found'}
+                    {filter === 'completed' ? 'No completed tasks yet' :
+                      filter === 'active' ? 'No active tasks' : 'No tasks found'}
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    {filter === 'completed' ? 'Complete some tasks to see them here' : 
-                     filter === 'active' ? 'All tasks are completed! 🎉' : 'Add your first task to get started'}
+                    {filter === 'completed' ? 'Complete some tasks to see them here' :
+                      filter === 'active' ? 'All tasks are completed! 🎉' : 'Add your first task to get started'}
                   </p>
                 </div>
               </div>

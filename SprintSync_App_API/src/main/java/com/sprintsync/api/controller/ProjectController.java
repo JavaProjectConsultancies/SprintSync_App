@@ -62,7 +62,7 @@ public class ProjectController {
      * @return ResponseEntity containing the created project
      */
     @PostMapping
-    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
+    @CacheEvict(value = { "projects", "projects-summary" }, allEntries = true)
     public ResponseEntity<Project> createProject(@RequestBody Project project) {
         try {
             Project createdProject = projectService.createProject(project);
@@ -79,7 +79,7 @@ public class ProjectController {
      * @return ResponseEntity containing the comprehensive project creation response
      */
     @PostMapping("/comprehensive")
-    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
+    @CacheEvict(value = { "projects", "projects-summary" }, allEntries = true)
     public ResponseEntity<CreateProjectResponse> createProjectComprehensive(@RequestBody CreateProjectRequest request) {
         try {
             CreateProjectResponse response = projectService.createProjectWithRelatedEntities(request);
@@ -108,15 +108,15 @@ public class ProjectController {
     public ResponseEntity<ProjectDto> getProjectById(@PathVariable String id) {
         Optional<Project> project = projectService.findById(id);
         return project.map(p -> ResponseEntity.ok(projectMapper.toDto(p)))
-                     .orElse(ResponseEntity.notFound().build());
+                .orElse(ResponseEntity.notFound().build());
     }
 
     /**
      * Get all projects with pagination.
      * 
-     * @param page page number (default: 0)
-     * @param size page size (default: 10)
-     * @param sortBy sort field (default: name)
+     * @param page    page number (default: 0)
+     * @param size    page size (default: 10)
+     * @param sortBy  sort field (default: name)
      * @param sortDir sort direction (default: asc)
      * @return ResponseEntity containing page of project DTOs
      */
@@ -127,12 +127,14 @@ public class ProjectController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "name") String sortBy,
             @RequestParam(defaultValue = "asc") String sortDir) {
-        
-        org.springframework.data.domain.Page<Project> projects = projectService.getAllProjects(page, size, sortBy, sortDir);
-        
+
+        org.springframework.data.domain.Page<Project> projects = projectService.getAllProjects(page, size, sortBy,
+                sortDir);
+
         // Convert to DTOs (lightweight mapping to keep list endpoint fast)
-        org.springframework.data.domain.Page<ProjectDto> projectDtos = projects.map(project -> projectMapper.toDto(project, false, false));
-        
+        org.springframework.data.domain.Page<ProjectDto> projectDtos = projects
+                .map(project -> projectMapper.toDto(project, false, false));
+
         // Return in frontend-compatible format
         Map<String, Object> response = new HashMap<>();
         response.put("content", projectDtos.getContent());
@@ -144,7 +146,7 @@ public class ProjectController {
         response.put("last", projectDtos.isLast());
         response.put("numberOfElements", projectDtos.getNumberOfElements());
         response.put("empty", projectDtos.isEmpty());
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -157,12 +159,12 @@ public class ProjectController {
     @Cacheable(value = "projects-summary", key = "'all'")
     public ResponseEntity<Map<String, Object>> getAllProjectsList() {
         List<Project> projects = projectService.getAllProjects();
-        
+
         // Convert to DTOs
         List<ProjectDto> projectDtos = projects.stream()
                 .map(project -> projectMapper.toDto(project, false, false))
                 .collect(Collectors.toList());
-        
+
         // Return in frontend-compatible format
         Map<String, Object> response = new HashMap<>();
         response.put("content", projectDtos);
@@ -174,7 +176,7 @@ public class ProjectController {
         response.put("last", true);
         response.put("numberOfElements", projectDtos.size());
         response.put("empty", projectDtos.isEmpty());
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -183,12 +185,28 @@ public class ProjectController {
         try {
             String token = extractTokenFromRequest(request);
             if (token == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(createEmptyProjectResponse("Authentication token not provided."));
+                logger.error("Authentication token not provided. Headers found:");
+                java.util.Enumeration<String> headerNames = request.getHeaderNames();
+                while (headerNames.hasMoreElements()) {
+                    String headerName = headerNames.nextElement();
+                    logger.error("{}: {}", headerName, request.getHeader(headerName));
+                }
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(createEmptyProjectResponse("Authentication token not provided."));
             }
 
-            User currentUser = authService.getCurrentUser(token);
+            User currentUser;
+            try {
+                currentUser = authService.getCurrentUser(token);
+            } catch (Exception e) {
+                logger.warn("Invalid token provided: {}", e.getMessage());
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(createEmptyProjectResponse("Invalid or expired token."));
+            }
+
             if (currentUser == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(createEmptyProjectResponse("Unable to identify current user."));
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(createEmptyProjectResponse("Unable to identify current user."));
             }
 
             List<Project> projects;
@@ -197,26 +215,28 @@ public class ProjectController {
             } else {
                 projects = projectService.getProjectsForUser(currentUser.getId());
             }
+
             List<ProjectDto> projectDtos = projects.stream()
-                    .map(project -> projectMapper.toDto(project, false, false))
+                    .map(project -> {
+                        try {
+                            return projectMapper.toDto(project, false, false);
+                        } catch (Exception e) {
+                            logger.error("Error mapping project {}: {}", project.getId(), e.getMessage());
+                            return null;
+                        }
+                    })
+                    .filter(java.util.Objects::nonNull)
                     .collect(Collectors.toList());
 
             Map<String, Object> response = new HashMap<>();
             response.put("content", projectDtos);
-            response.put("totalElements", (long) projectDtos.size());
-            response.put("totalPages", 1);
-            response.put("size", projectDtos.size());
-            response.put("number", 0);
-            response.put("first", true);
-            response.put("last", true);
-            response.put("numberOfElements", projectDtos.size());
-            response.put("empty", projectDtos.isEmpty());
+            response.put("totalElements", projectDtos.size());
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             logger.error("Failed to load accessible projects: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(createEmptyProjectResponse("Failed to load accessible projects."));
+                    .body(createEmptyProjectResponse("Failed to load accessible projects: " + e.getMessage()));
         }
     }
 
@@ -236,7 +256,8 @@ public class ProjectController {
      * Get projects by priority.
      * 
      * @param priority the project priority
-     * @return ResponseEntity containing list of projects with the specified priority
+     * @return ResponseEntity containing list of projects with the specified
+     *         priority
      */
     @GetMapping("/priority/{priority}")
     public ResponseEntity<List<Project>> getProjectsByPriority(@PathVariable Priority priority) {
@@ -248,7 +269,8 @@ public class ProjectController {
      * Get projects by manager ID.
      * 
      * @param managerId the manager ID
-     * @return ResponseEntity containing list of projects managed by the specified user
+     * @return ResponseEntity containing list of projects managed by the specified
+     *         user
      */
     @GetMapping("/manager/{managerId}")
     public ResponseEntity<List<Project>> getProjectsByManager(@PathVariable String managerId) {
@@ -306,10 +328,12 @@ public class ProjectController {
      * Get projects with low progress.
      * 
      * @param threshold the progress threshold
-     * @return ResponseEntity containing list of projects with progress below threshold
+     * @return ResponseEntity containing list of projects with progress below
+     *         threshold
      */
     @GetMapping("/low-progress")
-    public ResponseEntity<List<Project>> getProjectsWithLowProgress(@RequestParam(defaultValue = "50") Integer threshold) {
+    public ResponseEntity<List<Project>> getProjectsWithLowProgress(
+            @RequestParam(defaultValue = "50") Integer threshold) {
         List<Project> projects = projectService.findProjectsWithLowProgress(threshold);
         return ResponseEntity.ok(projects);
     }
@@ -317,10 +341,10 @@ public class ProjectController {
     /**
      * Get projects by multiple criteria.
      * 
-     * @param status the project status (optional)
-     * @param priority the project priority (optional)
+     * @param status    the project status (optional)
+     * @param priority  the project priority (optional)
      * @param managerId the manager ID (optional)
-     * @param isActive the active status (optional)
+     * @param isActive  the active status (optional)
      * @return ResponseEntity containing list of projects matching the criteria
      */
     @GetMapping("/criteria")
@@ -329,7 +353,7 @@ public class ProjectController {
             @RequestParam(required = false) Priority priority,
             @RequestParam(required = false) String managerId,
             @RequestParam(required = false) Boolean isActive) {
-        
+
         List<Project> projects = projectService.findProjectsByCriteria(status, priority, managerId, isActive);
         return ResponseEntity.ok(projects);
     }
@@ -337,12 +361,12 @@ public class ProjectController {
     /**
      * Update an existing project.
      * 
-     * @param id the project ID
+     * @param id             the project ID
      * @param projectDetails the updated project details
      * @return ResponseEntity containing the updated project
      */
     @PutMapping("/{id}")
-    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
+    @CacheEvict(value = { "projects", "projects-summary" }, allEntries = true)
     public ResponseEntity<Project> updateProject(@PathVariable String id, @RequestBody Project projectDetails) {
         try {
             projectDetails.setId(id);
@@ -356,7 +380,7 @@ public class ProjectController {
     /**
      * Update project status.
      * 
-     * @param id the project ID
+     * @param id     the project ID
      * @param status the new status
      * @return ResponseEntity containing the updated project
      */
@@ -373,7 +397,7 @@ public class ProjectController {
     /**
      * Update project progress.
      * 
-     * @param id the project ID
+     * @param id       the project ID
      * @param progress the new progress percentage
      * @return ResponseEntity containing the updated project
      */
@@ -394,7 +418,7 @@ public class ProjectController {
      * @return ResponseEntity with no content if successful
      */
     @DeleteMapping("/{id}")
-    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
+    @CacheEvict(value = { "projects", "projects-summary" }, allEntries = true)
     public ResponseEntity<Void> deleteProject(@PathVariable String id) {
         try {
             projectService.deleteProject(id);
@@ -408,14 +432,15 @@ public class ProjectController {
      * Get projects starting within date range.
      * 
      * @param startDate the start date
-     * @param endDate the end date
-     * @return ResponseEntity containing list of projects starting within the date range
+     * @param endDate   the end date
+     * @return ResponseEntity containing list of projects starting within the date
+     *         range
      */
     @GetMapping("/starting-between")
     public ResponseEntity<List<Project>> getProjectsStartingBetween(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        
+
         List<Project> projects = projectService.findProjectsStartingBetween(startDate, endDate);
         return ResponseEntity.ok(projects);
     }
@@ -424,14 +449,15 @@ public class ProjectController {
      * Get projects ending within date range.
      * 
      * @param startDate the start date
-     * @param endDate the end date
-     * @return ResponseEntity containing list of projects ending within the date range
+     * @param endDate   the end date
+     * @return ResponseEntity containing list of projects ending within the date
+     *         range
      */
     @GetMapping("/ending-between")
     public ResponseEntity<List<Project>> getProjectsEndingBetween(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        
+
         List<Project> projects = projectService.findProjectsEndingBetween(startDate, endDate);
         return ResponseEntity.ok(projects);
     }
@@ -473,5 +499,3 @@ public class ProjectController {
         return null;
     }
 }
-
-

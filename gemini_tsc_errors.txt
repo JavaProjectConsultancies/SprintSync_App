@@ -1,0 +1,630 @@
+src/components/__tests__/AddUserForm.test.tsx(2,52): error TS2307: Cannot find module '@testing-library/react' or its corresponding type declarations.
+src/components/__tests__/AddUserForm.test.tsx(7,1): error TS2304: Cannot find name 'jest'.
+src/components/__tests__/AddUserForm.test.tsx(9,13): error TS2304: Cannot find name 'jest'.
+src/components/__tests__/AddUserForm.test.tsx(15,1): error TS2304: Cannot find name 'jest'.
+src/components/__tests__/AddUserForm.test.tsx(26,1): error TS2304: Cannot find name 'jest'.
+src/components/__tests__/AddUserForm.test.tsx(37,1): error TS2304: Cannot find name 'jest'.
+src/components/__tests__/AddUserForm.test.tsx(55,1): error TS2582: Cannot find name 'describe'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+src/components/__tests__/AddUserForm.test.tsx(56,23): error TS2304: Cannot find name 'jest'.
+src/components/__tests__/AddUserForm.test.tsx(57,25): error TS2304: Cannot find name 'jest'.
+src/components/__tests__/AddUserForm.test.tsx(59,3): error TS2304: Cannot find name 'beforeEach'.
+src/components/__tests__/AddUserForm.test.tsx(60,5): error TS2304: Cannot find name 'jest'.
+src/components/__tests__/AddUserForm.test.tsx(63,3): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+src/components/__tests__/AddUserForm.test.tsx(72,5): error TS2304: Cannot find name 'expect'.
+src/components/__tests__/AddUserForm.test.tsx(73,5): error TS2304: Cannot find name 'expect'.
+src/components/__tests__/AddUserForm.test.tsx(74,5): error TS2304: Cannot find name 'expect'.
+src/components/__tests__/AddUserForm.test.tsx(75,5): error TS2304: Cannot find name 'expect'.
+src/components/__tests__/AddUserForm.test.tsx(76,5): error TS2304: Cannot find name 'expect'.
+src/components/__tests__/AddUserForm.test.tsx(77,5): error TS2304: Cannot find name 'expect'.
+src/components/__tests__/AddUserForm.test.tsx(78,5): error TS2304: Cannot find name 'expect'.
+src/components/__tests__/AddUserForm.test.tsx(81,3): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+src/components/__tests__/AddUserForm.test.tsx(94,7): error TS2304: Cannot find name 'expect'.
+src/components/__tests__/AddUserForm.test.tsx(95,7): error TS2304: Cannot find name 'expect'.
+src/components/__tests__/AddUserForm.test.tsx(96,7): error TS2304: Cannot find name 'expect'.
+src/components/__tests__/AddUserForm.test.tsx(97,7): error TS2304: Cannot find name 'expect'.
+src/components/__tests__/AddUserForm.test.tsx(101,3): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+src/components/__tests__/AddUserForm.test.tsx(117,7): error TS2304: Cannot find name 'expect'.
+src/components/__tests__/AddUserForm.test.tsx(121,3): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+src/components/__tests__/AddUserForm.test.tsx(137,7): error TS2304: Cannot find name 'expect'.
+src/components/__tests__/AddUserForm.test.tsx(141,3): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+src/components/__tests__/AddUserForm.test.tsx(160,7): error TS2304: Cannot find name 'expect'.
+src/components/__tests__/AddUserForm.test.tsx(164,3): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+src/components/__tests__/AddUserForm.test.tsx(180,7): error TS2304: Cannot find name 'expect'.
+src/components/__tests__/AddUserForm.test.tsx(184,3): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+src/components/__tests__/AddUserForm.test.tsx(200,7): error TS2304: Cannot find name 'expect'.
+src/components/__tests__/AddUserForm.test.tsx(204,3): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+src/components/__tests__/AddUserForm.test.tsx(220,7): error TS2304: Cannot find name 'expect'.
+src/components/__tests__/AddUserForm.test.tsx(224,3): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+src/components/__tests__/AddUserForm.test.tsx(236,5): error TS2304: Cannot find name 'expect'.
+src/components/__tests__/AddUserForm.test.tsx(239,3): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+src/components/__tests__/AddUserForm.test.tsx(249,5): error TS2304: Cannot find name 'expect'.
+src/components/__tests__/AddUserForm.test.tsx(251,61): error TS7006: Parameter 'button' implicitly has an 'any' type.
+src/components/__tests__/AddUserForm.test.tsx(257,7): error TS2304: Cannot find name 'expect'.
+src/components/AddIssueDialog.tsx(461,44): error TS7006: Parameter 'open' implicitly has an 'any' type.
+src/components/AddIssueDialog.tsx(569,43): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/AddIssueDialog.tsx(673,43): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/AddIssueDialog.tsx(717,43): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/AddIssueDialog.tsx(778,42): error TS7006: Parameter 'date' implicitly has an 'any' type.
+src/components/AddIssueDialog.tsx(797,42): error TS7006: Parameter 'date' implicitly has an 'any' type.
+src/components/AddIssueDialog.tsx(1014,41): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/AddStoryDialog.tsx(445,41): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/AddStoryDialog.tsx(486,39): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/AddStoryDialog.tsx(578,41): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/AddTaskDialog.tsx(550,44): error TS7006: Parameter 'open' implicitly has an 'any' type.
+src/components/AddTaskDialog.tsx(717,39): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/AddTaskDialog.tsx(819,39): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/AddTaskDialog.tsx(863,39): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/AddTaskDialog.tsx(929,38): error TS7006: Parameter 'date' implicitly has an 'any' type.
+src/components/AddTaskDialog.tsx(959,38): error TS7006: Parameter 'date' implicitly has an 'any' type.
+src/components/AddTaskDialog.tsx(1188,37): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/AddUserForm.tsx(674,37): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/AddUserForm.tsx(712,39): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/AddUserForm.tsx(746,39): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/AddUserForm.tsx(769,37): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/AddUserForm.tsx(966,39): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/ApiStatusChecker.tsx(101,46): error TS2345: Argument of type '{ name: string; endpoint: string; service: UserApiService; method: string; } | { name: string; endpoint: string; service: { createDepartment: (department: Department) => Promise<ApiResponse<Department>>; ... 8 more ...; getDepartmentStats: () => Promise<...>; }; method: string; } | ... 11 more ... | { ...; }' is not assignable to parameter of type 'ApiStatus & { service: any; method: string; }'.
+  Type '{ name: string; endpoint: string; service: UserApiService; method: string; }' is not assignable to type 'ApiStatus & { service: any; method: string; }'.
+    Property 'status' is missing in type '{ name: string; endpoint: string; service: UserApiService; method: string; }' but required in type 'ApiStatus'.
+src/components/ApiTestComponent.tsx(72,52): error TS2339: Property 'content' does not exist on type 'Project[]'.
+src/components/ApiTestComponent.tsx(88,49): error TS2339: Property 'content' does not exist on type 'User[]'.
+src/components/ApiTestComponent.tsx(141,35): error TS2339: Property 'mutateAsync' does not exist on type '{ createProject: (project: Project) => Promise<Project>; loading: boolean; error: Error | null; }'.
+src/components/ApiTestComponent.tsx(151,32): error TS2339: Property 'mutateAsync' does not exist on type '{ mutate: (params: Omit<User, "id" | "createdAt" | "updatedAt">) => Promise<ApiResponse<User>>; loading: boolean; error: ApiError | null; data: User | null; reset: () => void; }'.
+src/components/ApiTestComponent.tsx(489,57): error TS2339: Property 'isPending' does not exist on type '{ createProject: (project: Project) => Promise<Project>; loading: boolean; error: Error | null; }'.
+src/components/ApiTestComponent.tsx(492,48): error TS2339: Property 'isPending' does not exist on type '{ createProject: (project: Project) => Promise<Project>; loading: boolean; error: Error | null; }'.
+src/components/ApiTestComponent.tsx(501,46): error TS2339: Property 'isSuccess' does not exist on type '{ createProject: (project: Project) => Promise<Project>; loading: boolean; error: Error | null; }'.
+src/components/ApiTestComponent.tsx(507,46): error TS2551: Property 'isError' does not exist on type '{ createProject: (project: Project) => Promise<Project>; loading: boolean; error: Error | null; }'. Did you mean 'error'?
+src/components/ApiTestComponent.tsx(538,54): error TS2339: Property 'isPending' does not exist on type '{ mutate: (params: Omit<User, "id" | "createdAt" | "updatedAt">) => Promise<ApiResponse<User>>; loading: boolean; error: ApiError | null; data: User | null; reset: () => void; }'.
+src/components/ApiTestComponent.tsx(541,45): error TS2339: Property 'isPending' does not exist on type '{ mutate: (params: Omit<User, "id" | "createdAt" | "updatedAt">) => Promise<ApiResponse<User>>; loading: boolean; error: ApiError | null; data: User | null; reset: () => void; }'.
+src/components/ApiTestComponent.tsx(550,43): error TS2339: Property 'isSuccess' does not exist on type '{ mutate: (params: Omit<User, "id" | "createdAt" | "updatedAt">) => Promise<ApiResponse<User>>; loading: boolean; error: ApiError | null; data: User | null; reset: () => void; }'.
+src/components/ApiTestComponent.tsx(556,43): error TS2551: Property 'isError' does not exist on type '{ mutate: (params: Omit<User, "id" | "createdAt" | "updatedAt">) => Promise<ApiResponse<User>>; loading: boolean; error: ApiError | null; data: User | null; reset: () => void; }'. Did you mean 'error'?
+src/components/DashboardFilters.tsx(18,10): error TS2865: Import 'DashboardFilters' conflicts with local value, so must be declared with a type-only import when 'isolatedModules' is enabled.
+src/components/DashboardFilters.tsx(129,11): error TS2741: Property 'componentVisibility' is missing in type '{ projectIds: never[]; projectStatus: never[]; projectPriority: never[]; sprintIds: never[]; sprintStatus: never[]; sprintDateRange: { start: null; end: null; }; taskStatus: never[]; taskPriority: never[]; assigneeIds: never[]; ... 13 more ...; showOverdueItems: false; }' but required in type 'DashboardFilters'.
+src/components/DashboardFilters.tsx(193,33): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(257,26): error TS7006: Parameter 'date' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(273,26): error TS7006: Parameter 'date' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(460,74): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(489,75): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(505,36): error TS7031: Binding element 'value' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(518,73): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(532,74): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(553,39): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(564,39): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(575,39): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(586,39): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(622,47): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(640,47): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(658,47): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(676,47): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(694,47): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(712,47): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(730,47): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(748,47): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(766,47): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(784,47): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(802,47): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/DashboardFilters.tsx(820,47): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/EditUserForm.tsx(824,37): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/EditUserForm.tsx(860,39): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/EditUserForm.tsx(894,39): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/EditUserForm.tsx(918,37): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/EditUserForm.tsx(1112,39): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/EffortManager.tsx(444,48): error TS7006: Parameter 'date' implicitly has an 'any' type.
+src/components/EffortManager.tsx(445,48): error TS7006: Parameter 'date' implicitly has an 'any' type.
+src/components/EffortManager.tsx(507,47): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/EffortManager.tsx(523,47): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/EffortManager.tsx(563,45): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/EffortManager.tsx(595,45): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/EffortManager.tsx(657,45): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/EpicManager.tsx(399,7): error TS2322: Type 'EpicStatus' is not assignable to type '"completed" | "in-progress" | "planned" | "draft"'.
+  Type '"planning"' is not assignable to type '"completed" | "in-progress" | "planned" | "draft"'.
+src/components/EpicManager.tsx(891,66): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/EpicManager.tsx(905,64): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/EpicManager.tsx(923,35): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/EpicManager.tsx(1052,66): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/EpicManager.tsx(1066,64): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/EpicManager.tsx(1084,35): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/LaneConfigurationModal.tsx(200,31): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/LoadingSpinner.tsx(27,156): error TS2353: Object literal may only specify known properties, and 'enableBackground' does not exist in type 'Properties<string | number, string & {}>'.
+src/components/LoadingSpinner.tsx(37,156): error TS2353: Object literal may only specify known properties, and 'enableBackground' does not exist in type 'Properties<string | number, string & {}>'.
+src/components/LoginForm.tsx(68,40): error TS2339: Property 'data' does not exist on type 'LoginResponse'.
+src/components/MilestoneDialog.tsx(221,37): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/MilestoneDialog.tsx(246,37): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/MilestoneDialog.tsx(276,35): error TS7006: Parameter 'epicId' implicitly has an 'any' type.
+src/components/MilestoneDialog.tsx(368,36): error TS7006: Parameter 'date' implicitly has an 'any' type.
+src/components/MilestoneDialog.tsx(385,37): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/MilestoneDialog.tsx(423,37): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/components/MilestoneDialog.tsx(511,37): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/components/MilestoneWidget.tsx(348,37): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/NotificationDropdown.tsx(71,27): error TS2339: Property 'data' does not exist on type 'never'.
+src/components/NotificationDropdown.tsx(71,50): error TS2339: Property 'content' does not exist on type 'never'.
+src/components/NotificationDropdown.tsx(144,56): error TS2339: Property 'read' does not exist on type 'Notification'.
+src/components/NotificationDropdown.tsx(342,36): error TS2339: Property 'read' does not exist on type 'Notification'.
+src/components/NotificationDropdown.tsx(356,43): error TS2339: Property 'read' does not exist on type 'Notification'.
+src/components/NotificationDropdown.tsx(359,41): error TS2339: Property 'actionUrl' does not exist on type 'Notification'.
+src/components/NotificationDropdown.tsx(370,79): error TS2339: Property 'priority' does not exist on type 'Notification'.
+src/components/NotificationDropdown.tsx(372,41): error TS2339: Property 'priority' does not exist on type 'Notification'.
+src/components/PendingRegistrationsTab.tsx(116,55): error TS2339: Property 'experience' does not exist on type 'PendingRegistration'.
+src/components/PendingRegistrationsTab.tsx(219,55): error TS2339: Property 'isPending' does not exist on type '{ mutate: (params: string) => Promise<ApiResponse<void>>; loading: boolean; error: ApiError | null; data: void | null; reset: () => void; }'.
+src/components/PendingRegistrationsTab.tsx(228,55): error TS2339: Property 'isPending' does not exist on type '{ mutate: (params: string) => Promise<ApiResponse<void>>; loading: boolean; error: ApiError | null; data: void | null; reset: () => void; }'.
+src/components/ReleaseManager.tsx(162,60): error TS2304: Cannot find name 'getReleaseStatusColor'.
+src/components/ReleaseManager.tsx(202,44): error TS2304: Cannot find name 'getQualityGateStatusColor'.
+src/components/RouteErrorBoundary.tsx(52,23): error TS2339: Property 'children' does not exist on type 'Readonly<{ onReset?: (() => void) | undefined; }>'.
+src/components/RouteErrorBoundary.tsx(60,6): error TS2322: Type '{ children: ReactNode; key: string; onReset: () => void; }' is not assignable to type 'IntrinsicAttributes & IntrinsicClassAttributes<InnerErrorBoundary> & Readonly<{ onReset?: (() => void) | undefined; }>'.
+  Property 'children' does not exist on type 'IntrinsicAttributes & IntrinsicClassAttributes<InnerErrorBoundary> & Readonly<{ onReset?: (() => void) | undefined; }>'.
+src/components/ScrumBoardEnhanced.tsx(454,30): error TS2339: Property 'points' does not exist on type 'Story | Task'.
+  Property 'points' does not exist on type 'Task'.
+src/components/TaskActivityLog.tsx(182,55): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/TeamManager.tsx(144,7): error TS2322: Type 'ConnectDragSource' is not assignable to type 'Ref<HTMLDivElement> | undefined'.
+  Type 'ConnectDragSource' is not assignable to type '(instance: HTMLDivElement | null) => void | (() => VoidOrUndefinedOnly)'.
+    Type 'ReactElement<unknown, string | JSXElementConstructor<any>> | null' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+      Type 'null' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+src/components/TeamManager.tsx(187,25): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/TeamManager.tsx(321,7): error TS2322: Type 'ConnectDropTarget' is not assignable to type 'Ref<HTMLDivElement> | undefined'.
+  Type 'ConnectDropTarget' is not assignable to type '(instance: HTMLDivElement | null) => void | (() => VoidOrUndefinedOnly)'.
+    Type 'ReactElement<unknown, string | JSXElementConstructor<any>> | null' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+      Type 'null' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+src/components/TeamManager.tsx(580,29): error TS2345: Argument of type 'TeamMember[]' is not assignable to parameter of type 'SetStateAction<never[]>'.
+  Type 'TeamMember[]' is not assignable to type 'never[]'.
+    Type 'TeamMember' is not assignable to type 'never'.
+src/components/TeamManager.tsx(678,36): error TS2339: Property 'name' does not exist on type 'never'.
+src/components/TeamManager.tsx(679,35): error TS2339: Property 'skills' does not exist on type 'never'.
+src/components/TeamManager.tsx(679,47): error TS7006: Parameter 'skill' implicitly has an 'any' type.
+src/components/TeamManager.tsx(680,58): error TS2339: Property 'role' does not exist on type 'never'.
+src/components/TeamManager.tsx(681,70): error TS2339: Property 'experience' does not exist on type 'never'.
+src/components/TeamManager.tsx(683,75): error TS2339: Property 'availability' does not exist on type 'never'.
+src/components/TeamManager.tsx(684,77): error TS2339: Property 'availability' does not exist on type 'never'.
+src/components/TeamManager.tsx(684,106): error TS2339: Property 'availability' does not exist on type 'never'.
+src/components/TeamManager.tsx(685,74): error TS2339: Property 'availability' does not exist on type 'never'.
+src/components/TeamManager.tsx(702,36): error TS2345: Argument of type 'TeamMember[]' is not assignable to parameter of type 'SetStateAction<never[]>'.
+  Type 'TeamMember[]' is not assignable to type 'never[]'.
+    Type 'TeamMember' is not assignable to type 'never'.
+src/components/TeamManager.tsx(740,34): error TS2345: Argument of type 'TeamMember[]' is not assignable to parameter of type 'SetStateAction<never[]>'.
+  Type 'TeamMember[]' is not assignable to type 'never[]'.
+    Type 'TeamMember' is not assignable to type 'never'.
+src/components/TeamManager.tsx(943,37): error TS2339: Property 'id' does not exist on type 'never'.
+src/components/TeamManager.tsx(945,55): error TS2339: Property 'id' does not exist on type 'never'.
+src/components/TeamManager.tsx(1009,26): error TS7006: Parameter 'open' implicitly has an 'any' type.
+src/components/TeamManager.tsx(1027,33): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/TeamManager.tsx(1031,31): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/ui/accordion.tsx(4,37): error TS2307: Cannot find module '@radix-ui/react-accordion@1.2.3' or its corresponding type declarations.
+src/components/ui/accordion.tsx(5,33): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/alert-dialog.tsx(4,39): error TS2307: Cannot find module '@radix-ui/react-alert-dialog@1.1.6' or its corresponding type declarations.
+src/components/ui/alert.tsx(2,40): error TS2307: Cannot find module 'class-variance-authority@0.7.1' or its corresponding type declarations.
+src/components/ui/aspect-ratio.tsx(3,39): error TS2307: Cannot find module '@radix-ui/react-aspect-ratio@1.1.2' or its corresponding type declarations.
+src/components/ui/avatar.tsx(4,34): error TS2307: Cannot find module '@radix-ui/react-avatar@1.1.3' or its corresponding type declarations.
+src/components/ui/badge.tsx(2,22): error TS2307: Cannot find module '@radix-ui/react-slot@1.1.2' or its corresponding type declarations.
+src/components/ui/badge.tsx(3,40): error TS2307: Cannot find module 'class-variance-authority@0.7.1' or its corresponding type declarations.
+src/components/ui/button.tsx(2,22): error TS2307: Cannot find module '@radix-ui/react-slot@1.1.2' or its corresponding type declarations.
+src/components/ui/button.tsx(3,40): error TS2307: Cannot find module 'class-variance-authority@0.7.1' or its corresponding type declarations.
+src/components/ui/calendar.tsx(4,43): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/calendar.tsx(5,27): error TS2307: Cannot find module 'react-day-picker@8.10.1' or its corresponding type declarations.
+src/components/ui/calendar.tsx(63,22): error TS7031: Binding element 'className' implicitly has an 'any' type.
+src/components/ui/calendar.tsx(66,23): error TS7031: Binding element 'className' implicitly has an 'any' type.
+src/components/ui/carousel.tsx(6,8): error TS2307: Cannot find module 'embla-carousel-react@8.6.0' or its corresponding type declarations.
+src/components/ui/carousel.tsx(7,39): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/chart.tsx(4,36): error TS2307: Cannot find module 'recharts@2.15.2' or its corresponding type declarations.
+src/components/ui/chart.tsx(182,23): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/components/ui/chart.tsx(182,29): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/components/ui/chart.tsx(278,21): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/components/ui/checkbox.tsx(4,36): error TS2307: Cannot find module '@radix-ui/react-checkbox@1.1.4' or its corresponding type declarations.
+src/components/ui/checkbox.tsx(5,27): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/collapsible.tsx(3,39): error TS2307: Cannot find module '@radix-ui/react-collapsible@1.1.3' or its corresponding type declarations.
+src/components/ui/command.tsx(4,45): error TS2307: Cannot find module 'cmdk@1.1.1' or its corresponding type declarations.
+src/components/ui/command.tsx(5,28): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/context-menu.tsx(4,39): error TS2307: Cannot find module '@radix-ui/react-context-menu@2.2.6' or its corresponding type declarations.
+src/components/ui/context-menu.tsx(5,57): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/dialog.tsx(4,34): error TS2307: Cannot find module '@radix-ui/react-dialog@1.1.6' or its corresponding type declarations.
+src/components/ui/dialog.tsx(5,23): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/drawer.tsx(4,43): error TS2307: Cannot find module 'vaul@1.1.2' or its corresponding type declarations.
+src/components/ui/form.tsx(4,33): error TS2307: Cannot find module '@radix-ui/react-label@2.1.2' or its corresponding type declarations.
+src/components/ui/form.tsx(5,22): error TS2307: Cannot find module '@radix-ui/react-slot@1.1.2' or its corresponding type declarations.
+src/components/ui/form.tsx(14,8): error TS2307: Cannot find module 'react-hook-form@7.55.0' or its corresponding type declarations.
+src/components/ui/hover-card.tsx(4,37): error TS2307: Cannot find module '@radix-ui/react-hover-card@1.1.6' or its corresponding type declarations.
+src/components/ui/input-otp.tsx(4,43): error TS2307: Cannot find module 'input-otp@1.4.2' or its corresponding type declarations.
+src/components/ui/input-otp.tsx(5,27): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/input-otp.tsx(47,61): error TS2339: Property 'slots' does not exist on type '{}'.
+src/components/ui/label.tsx(4,33): error TS2307: Cannot find module '@radix-ui/react-label@2.1.2' or its corresponding type declarations.
+src/components/ui/menubar.tsx(4,35): error TS2307: Cannot find module '@radix-ui/react-menubar@1.1.6' or its corresponding type declarations.
+src/components/ui/menubar.tsx(5,57): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/navigation-menu.tsx(2,42): error TS2307: Cannot find module '@radix-ui/react-navigation-menu@1.2.5' or its corresponding type declarations.
+src/components/ui/navigation-menu.tsx(3,21): error TS2307: Cannot find module 'class-variance-authority@0.7.1' or its corresponding type declarations.
+src/components/ui/navigation-menu.tsx(4,33): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/pagination.tsx(6,8): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/pagination.tsx(75,7): error TS2783: 'size' is specified more than once, so this usage will be overwritten.
+src/components/ui/pagination.tsx(92,7): error TS2783: 'size' is specified more than once, so this usage will be overwritten.
+src/components/ui/popover.tsx(4,35): error TS2307: Cannot find module '@radix-ui/react-popover@1.1.6' or its corresponding type declarations.
+src/components/ui/radio-group.tsx(4,38): error TS2307: Cannot find module '@radix-ui/react-radio-group@1.2.3' or its corresponding type declarations.
+src/components/ui/radio-group.tsx(5,28): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/resizable.tsx(4,34): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/resizable.tsx(5,37): error TS2307: Cannot find module 'react-resizable-panels@2.1.7' or its corresponding type declarations.
+src/components/ui/scroll-area.tsx(4,38): error TS2307: Cannot find module '@radix-ui/react-scroll-area@1.2.3' or its corresponding type declarations.
+src/components/ui/select.tsx(4,34): error TS2307: Cannot find module '@radix-ui/react-select@2.1.6' or its corresponding type declarations.
+src/components/ui/select.tsx(9,8): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/separator.tsx(4,37): error TS2307: Cannot find module '@radix-ui/react-separator@1.1.2' or its corresponding type declarations.
+src/components/ui/sheet.tsx(4,33): error TS2307: Cannot find module '@radix-ui/react-dialog@1.1.6' or its corresponding type declarations.
+src/components/ui/sheet.tsx(5,23): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/sidebar.tsx(4,22): error TS2307: Cannot find module '@radix-ui/react-slot@1.1.2' or its corresponding type declarations.
+src/components/ui/sidebar.tsx(5,35): error TS2307: Cannot find module 'class-variance-authority@0.7.1' or its corresponding type declarations.
+src/components/ui/sidebar.tsx(6,31): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/sidebar.tsx(270,17): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/components/ui/slider.tsx(4,34): error TS2307: Cannot find module '@radix-ui/react-slider@1.2.3' or its corresponding type declarations.
+src/components/ui/sonner.tsx(3,26): error TS2307: Cannot find module 'next-themes@0.4.6' or its corresponding type declarations.
+src/components/ui/sonner.tsx(4,49): error TS2307: Cannot find module 'sonner@2.0.3' or its corresponding type declarations.
+src/components/ui/switch.tsx(4,34): error TS2307: Cannot find module '@radix-ui/react-switch@1.1.3' or its corresponding type declarations.
+src/components/ui/tabs.tsx(4,32): error TS2307: Cannot find module '@radix-ui/react-tabs@1.1.3' or its corresponding type declarations.
+src/components/ui/toggle-group.tsx(4,39): error TS2307: Cannot find module '@radix-ui/react-toggle-group@1.1.2' or its corresponding type declarations.
+src/components/ui/toggle-group.tsx(5,35): error TS2307: Cannot find module 'class-variance-authority@0.7.1' or its corresponding type declarations.
+src/components/ui/toggle.tsx(4,34): error TS2307: Cannot find module '@radix-ui/react-toggle@1.1.2' or its corresponding type declarations.
+src/components/ui/toggle.tsx(5,40): error TS2307: Cannot find module 'class-variance-authority@0.7.1' or its corresponding type declarations.
+src/components/ui/tooltip.tsx(4,35): error TS2307: Cannot find module '@radix-ui/react-tooltip@1.1.8' or its corresponding type declarations.
+src/components/UserTasks.tsx(338,41): error TS7006: Parameter 'task' implicitly has an 'any' type.
+src/components/UserTasks.tsx(339,44): error TS7006: Parameter 'task' implicitly has an 'any' type.
+src/components/UserTasks.tsx(340,43): error TS7006: Parameter 'task' implicitly has an 'any' type.
+src/components/UserTasks.tsx(344,41): error TS7006: Parameter 'task' implicitly has an 'any' type.
+src/components/UserTasks.tsx(455,59): error TS7006: Parameter 'task' implicitly has an 'any' type.
+src/components/UserTasks.tsx(456,62): error TS7006: Parameter 'task' implicitly has an 'any' type.
+src/components/UserTasks.tsx(457,61): error TS7006: Parameter 'task' implicitly has an 'any' type.
+src/components/UserTasks.tsx(483,46): error TS7006: Parameter 'task' implicitly has an 'any' type.
+src/components/UserTasks.tsx(552,41): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/components/UserTasks.tsx(553,43): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/components/UserTasks.tsx(554,37): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/components/UserTasks.tsx(561,49): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/components/UserTasks.tsx(561,54): error TS7006: Parameter 'task' implicitly has an 'any' type.
+src/components/UserTasks.tsx(562,49): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/components/UserTasks.tsx(562,54): error TS7006: Parameter 'task' implicitly has an 'any' type.
+src/components/UserTasks.tsx(944,37): error TS7006: Parameter 'task' implicitly has an 'any' type.
+src/components/UserTasks.tsx(981,41): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/contexts/AuthContext.tsx(9,3): error TS2353: Object literal may only specify known properties, and 'qa' does not exist in type 'Record<UserRole, string[]>'.
+src/contexts/AuthContext.tsx(347,5): error TS2322: Type '"designer"' is not assignable to type 'UserRole'.
+src/contexts/AuthContext.tsx(357,5): error TS2322: Type '"designer"' is not assignable to type 'UserRole'.
+src/contexts/AuthContext.tsx(367,5): error TS2322: Type '"designer"' is not assignable to type 'UserRole'.
+src/contexts/AuthContext.tsx(377,5): error TS2322: Type '"designer"' is not assignable to type 'UserRole'.
+src/contexts/AuthContext.tsx(387,5): error TS2322: Type '"designer"' is not assignable to type 'UserRole'.
+src/contexts/AuthContext.tsx(397,5): error TS2322: Type '"designer"' is not assignable to type 'UserRole'.
+src/contexts/AuthContext.tsx(409,5): error TS2322: Type '"designer"' is not assignable to type 'UserRole'.
+src/contexts/AuthContext.tsx(419,5): error TS2322: Type '"designer"' is not assignable to type 'UserRole'.
+src/contexts/AuthContext.tsx(429,5): error TS2322: Type '"designer"' is not assignable to type 'UserRole'.
+src/contexts/AuthContext.tsx(439,5): error TS2322: Type '"designer"' is not assignable to type 'UserRole'.
+src/contexts/AuthContextEnhanced.tsx(12,3): error TS2353: Object literal may only specify known properties, and 'qa' does not exist in type 'Record<UserRole, string[]>'.
+src/contexts/AuthContextEnhanced.tsx(122,28): error TS2551: Property 'avatarUrl' does not exist on type '{ id: string; email: string; name: string; role: string; department?: string | undefined; domain?: string | undefined; avatar?: string | undefined; }'. Did you mean 'avatar'?
+src/contexts/AuthContextEnhanced.tsx(123,32): error TS2551: Property 'departmentId' does not exist on type '{ id: string; email: string; name: string; role: string; department?: string | undefined; domain?: string | undefined; avatar?: string | undefined; }'. Did you mean 'department'?
+src/contexts/AuthContextEnhanced.tsx(124,28): error TS2551: Property 'domainId' does not exist on type '{ id: string; email: string; name: string; role: string; department?: string | undefined; domain?: string | undefined; avatar?: string | undefined; }'. Did you mean 'domain'?
+src/contexts/AuthContextEnhanced.tsx(233,34): error TS2339: Property 'fullName' does not exist on type '{ id: string; email: string; name: string; role: string; department?: string | undefined; domain?: string | undefined; avatar?: string | undefined; }'.
+src/contexts/AuthContextEnhanced.tsx(242,47): error TS2551: Property 'avatarUrl' does not exist on type '{ id: string; email: string; name: string; role: string; department?: string | undefined; domain?: string | undefined; avatar?: string | undefined; }'. Did you mean 'avatar'?
+src/contexts/AuthContextEnhanced.tsx(243,55): error TS2551: Property 'departmentId' does not exist on type '{ id: string; email: string; name: string; role: string; department?: string | undefined; domain?: string | undefined; avatar?: string | undefined; }'. Did you mean 'department'?
+src/contexts/AuthContextEnhanced.tsx(244,47): error TS2551: Property 'domainId' does not exist on type '{ id: string; email: string; name: string; role: string; department?: string | undefined; domain?: string | undefined; avatar?: string | undefined; }'. Did you mean 'domain'?
+src/data/mockData.ts(107,3): error TS2739: Type '{ id: string; title: string; description: string; acceptanceCriteria: string[]; storyPoints: number; priority: "high"; status: "done"; assigneeId: string; tasks: never[]; sprintId: string; createdAt: string; }' is missing the following properties from type 'Story': labels, components
+src/data/mockData.ts(125,3): error TS2739: Type '{ id: string; title: string; description: string; acceptanceCriteria: string[]; storyPoints: number; priority: "high"; status: "in-progress"; assigneeId: string; tasks: never[]; sprintId: string; createdAt: string; }' is missing the following properties from type 'Story': labels, components
+src/data/mockData.ts(143,3): error TS2739: Type '{ id: string; title: string; description: string; acceptanceCriteria: string[]; storyPoints: number; priority: "critical"; status: "todo"; assigneeId: string; tasks: never[]; createdAt: string; }' is missing the following properties from type 'Story': labels, components
+src/data/mockReleases.ts(39,9): error TS2322: Type '"in-progress"' is not assignable to type '"pending" | "passed" | "failed"'.
+src/data/mockReleases.ts(149,9): error TS2322: Type '"in-progress"' is not assignable to type '"pending" | "passed" | "failed"'.
+src/hooks/api/useActivityLogs.ts(3,23): error TS2305: Module '"../../types/api"' has no exported member 'ApiResponse'.
+src/hooks/api/useActivityLogs.ts(3,36): error TS2305: Module '"../../types/api"' has no exported member 'ApiError'.
+src/hooks/api/useActivityLogs.ts(35,43): error TS2339: Property 'data' does not exist on type 'never'.
+src/hooks/api/useActivityLogs.ts(36,34): error TS2339: Property 'data' does not exist on type 'never'.
+src/hooks/api/useActivityLogs.ts(37,50): error TS2339: Property 'content' does not exist on type 'never'.
+src/hooks/api/useActivityLogs.ts(38,34): error TS2339: Property 'content' does not exist on type 'never'.
+src/hooks/api/useActivityLogs.ts(39,50): error TS2339: Property 'items' does not exist on type 'never'.
+src/hooks/api/useActivityLogs.ts(40,34): error TS2339: Property 'items' does not exist on type 'never'.
+src/hooks/api/useActivityLogs.ts(129,43): error TS2339: Property 'data' does not exist on type 'never'.
+src/hooks/api/useActivityLogs.ts(130,34): error TS2339: Property 'data' does not exist on type 'never'.
+src/hooks/api/useActivityLogs.ts(131,50): error TS2339: Property 'content' does not exist on type 'never'.
+src/hooks/api/useActivityLogs.ts(132,34): error TS2339: Property 'content' does not exist on type 'never'.
+src/hooks/api/useActivityLogs.ts(133,50): error TS2339: Property 'items' does not exist on type 'never'.
+src/hooks/api/useActivityLogs.ts(134,34): error TS2339: Property 'items' does not exist on type 'never'.
+src/hooks/api/useApi.ts(124,17): error TS7006: Parameter 'prev' implicitly has an 'any' type.
+src/hooks/api/useApi.ts(129,15): error TS7006: Parameter 'prev' implicitly has an 'any' type.
+src/hooks/api/useApi.ts(135,15): error TS7006: Parameter 'prev' implicitly has an 'any' type.
+src/hooks/api/useEpics.ts(15,15): error TS2345: Argument of type 'ApiResponse<Epic[]>' is not assignable to parameter of type 'SetStateAction<Epic[]>'.
+src/hooks/api/useExperienceLevels.ts(171,41): error TS2339: Property 'toString' does not exist on type 'never'.
+src/hooks/api/useIssues.ts(24,44): error TS2345: Argument of type 'Omit<Issue, "id" | "createdAt" | "updatedAt">' is not assignable to parameter of type 'Issue'.
+  Type 'Omit<Issue, "id" | "createdAt" | "updatedAt">' is missing the following properties from type 'Issue': id, createdAt, updatedAt
+src/hooks/api/useReleases.ts(15,15): error TS2345: Argument of type 'ApiResponse<Release[]>' is not assignable to parameter of type 'SetStateAction<Release[]>'.
+src/hooks/api/useSprints.ts(64,73): error TS2554: Expected 1-2 arguments, but got 3.
+src/hooks/api/useTasks.ts(35,41): error TS2345: Argument of type 'Omit<Task, "id" | "createdAt" | "updatedAt">' is not assignable to parameter of type 'Task'.
+  Type 'Omit<Task, "id" | "createdAt" | "updatedAt">' is missing the following properties from type 'Task': id, createdAt, updatedAt
+src/hooks/api/useTasks.ts(60,69): error TS2554: Expected 1-2 arguments, but got 3.
+src/hooks/api/useTasks.ts(166,75): error TS2554: Expected 1-2 arguments, but got 3.
+src/hooks/api/useTeamMembers.ts(146,5): error TS2322: Type '(teamMember: CreateTeamMemberRequest) => Promise<boolean>' is not assignable to type '(teamMember: CreateTeamMemberRequest) => Promise<TeamMember | null>'.
+  Type 'Promise<boolean>' is not assignable to type 'Promise<TeamMember | null>'.
+    Type 'boolean' is not assignable to type 'TeamMember'.
+src/hooks/api/useTeamMembers.ts(149,5): error TS2322: Type '(projectId: string, userId: string, role: string, isTeamLead?: boolean) => Promise<boolean>' is not assignable to type '(projectId: string, userId: string, role: string, isTeamLead?: boolean | undefined) => Promise<TeamMember | null>'.
+  Type 'Promise<boolean>' is not assignable to type 'Promise<TeamMember | null>'.
+    Type 'boolean' is not assignable to type 'TeamMember'.
+src/main.tsx(2,17): error TS5097: An import path can only end with a '.tsx' extension when 'allowImportingTsExtensions' is enabled.
+src/pages/AdminPanelPage.tsx(476,37): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/AdminPanelPage.tsx(489,37): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/AdminPanelPage.tsx(502,39): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/AdminPanelPage.tsx(515,39): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/BacklogPage.tsx(516,45): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/pages/BacklogPage.tsx(517,51): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/pages/BacklogPage.tsx(518,43): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/pages/BacklogPage.tsx(519,45): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/pages/BacklogPage.tsx(550,38): error TS7006: Parameter 'task' implicitly has an 'any' type.
+src/pages/BacklogPage.tsx(992,33): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/pages/BacklogPage.tsx(1416,68): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/BacklogPage.tsx(1450,29): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/BacklogPage.tsx(1466,29): error TS7006: Parameter 'sprint' implicitly has an 'any' type.
+src/pages/BacklogPage.tsx(1910,9): error TS2322: Type '(effortData: Omit<EffortEntry, "id">) => void' is not assignable to type '(effort: Omit<EffortEntry, "id">) => void'.
+  Types of parameters 'effortData' and 'effort' are incompatible.
+    Type 'Omit<EffortEntry, "id">' is not assignable to type 'Omit<EffortEntry, "id">'. Two different types with this name exist, but they are unrelated.
+      Types of property 'description' are incompatible.
+        Type 'string | undefined' is not assignable to type 'string'.
+          Type 'undefined' is not assignable to type 'string'.
+src/pages/BacklogPage.tsx(1912,9): error TS2322: Type 'Task | null' is not assignable to type 'Task | null | undefined'.
+  Type 'Task' is missing the following properties from type 'Task': assignee, efforts
+src/pages/BacklogPage.tsx(1914,9): error TS2322: Type 'import("C:/Users/snakhate/Music/SprintSync_App/SprintSync_App/src/types/api").Task[]' is not assignable to type 'Task[]'.
+  Type 'Task' is missing the following properties from type 'Task': assignee, efforts
+src/pages/ProjectDetailsPage.tsx(1201,61): error TS2339: Property 'id' does not exist on type 'Omit<Epic, "id" | "createdAt" | "updatedAt">'.
+src/pages/ProjectDetailsPage.tsx(1970,39): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ProjectDetailsPage.tsx(1986,39): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ProjectDetailsPage.tsx(2195,41): error TS2339: Property 'duration' does not exist on type 'ProjectDetails'.
+src/pages/ProjectsPage.tsx(617,48): error TS2367: This comparison appears to be unintentional because the types 'string' and 'number' have no overlap.
+src/pages/ProjectsPage.tsx(619,26): error TS2345: Argument of type '{ teamMembers: any; progress: any; completedSprints: any; sprints: any; department: any; name: string; description?: string; status: ProjectStatus; priority: Priority; ... 15 more ...; updatedAt: string; }' is not assignable to parameter of type 'SetStateAction<Project | null>'.
+  Type '{ teamMembers: any; progress: any; completedSprints: any; sprints: any; department: any; name: string; description?: string; status: ProjectStatus; priority: Priority; ... 15 more ...; updatedAt: string; }' is not assignable to type 'Project'.
+    Types of property 'id' are incompatible.
+      Type 'string' is not assignable to type 'number'.
+src/pages/ProjectsPage.tsx(671,23): error TS2345: Argument of type '{ name: string; description: string; version: string; status: string; releaseDate: string; targetDate: string; releaseNotes: string; risks: string; dependencies: string; createdBy: string; }' is not assignable to parameter of type 'SetStateAction<{ name: string; description: string; version: string; status: string; releaseDate: string; targetDate: string; releaseNotes: string; risks: string; dependencies: string; createdBy: string; progress: number; ... 8 more ...; selectedEpics: string[]; }>'.
+  Type '{ name: string; description: string; version: string; status: string; releaseDate: string; targetDate: string; releaseNotes: string; risks: string; dependencies: string; createdBy: string; }' is missing the following properties from type '{ name: string; description: string; version: string; status: string; releaseDate: string; targetDate: string; releaseNotes: string; risks: string; dependencies: string; createdBy: string; progress: number; ... 8 more ...; selectedEpics: string[]; }': progress, linkedEpics, linkedStories, linkedSprints, and 6 more.
+src/pages/ProjectsPage.tsx(1193,22): error TS2345: Argument of type '{ name: string; description: string; priority: string; status: string; startDate: string; endDate: string; }' is not assignable to parameter of type 'SetStateAction<{ name: string; description: string; summary: string; theme: string; businessValue: string; priority: string; status: string; startDate: string; endDate: string; assigneeId: string; storyPoints: number; }>'.
+  Type '{ name: string; description: string; priority: string; status: string; startDate: string; endDate: string; }' is missing the following properties from type '{ name: string; description: string; summary: string; theme: string; businessValue: string; priority: string; status: string; startDate: string; endDate: string; assigneeId: string; storyPoints: number; }': summary, theme, businessValue, assigneeId, storyPoints
+src/pages/ProjectsPage.tsx(1312,17): error TS2345: Argument of type '(prev: NewProjectForm) => { risks: (Risk | { id: string; title: string; description: string; probability: string; impact: string; mitigation: string; status: string; owner: string; })[]; ... 19 more ...; releases: any[]; }' is not assignable to parameter of type 'SetStateAction<NewProjectForm>'.
+  Type '(prev: NewProjectForm) => { risks: (Risk | { id: string; title: string; description: string; probability: string; impact: string; mitigation: string; status: string; owner: string; })[]; ... 19 more ...; releases: any[]; }' is not assignable to type '(prevState: NewProjectForm) => NewProjectForm'.
+    Call signature return types '{ risks: (Risk | { id: string; title: string; description: string; probability: string; impact: string; mitigation: string; status: string; owner: string; })[]; name: string; description: string; ... 17 more ...; releases: any[]; }' and 'NewProjectForm' are incompatible.
+      The types of 'risks' are incompatible between these types.
+        Type '(Risk | { id: string; title: string; description: string; probability: string; impact: string; mitigation: string; status: string; owner: string; })[]' is not assignable to type 'Risk[]'.
+          Type 'Risk | { id: string; title: string; description: string; probability: string; impact: string; mitigation: string; status: string; owner: string; }' is not assignable to type 'Risk'.
+            Type '{ id: string; title: string; description: string; probability: string; impact: string; mitigation: string; status: string; owner: string; }' is not assignable to type 'Risk'.
+              Types of property 'probability' are incompatible.
+                Type 'string' is not assignable to type '"low" | "medium" | "high"'.
+src/pages/ProjectsPage.tsx(2134,11): error TS2322: Type 'Milestone | null' is not assignable to type 'Milestone | undefined'.
+  Type 'null' is not assignable to type 'Milestone | undefined'.
+src/pages/ProjectsPage.tsx(2339,71): error TS7006: Parameter 'member' implicitly has an 'any' type.
+src/pages/ProjectsPage.tsx(2339,79): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/pages/ProjectsPage.tsx(2462,75): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ProjectsPage.tsx(2498,73): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ProjectsPage.tsx(2527,76): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ProjectsPage.tsx(2841,39): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ProjectsPage.tsx(2888,87): error TS2339: Property 'email' does not exist on type 'Stakeholder'.
+src/pages/ProjectsPage.tsx(2974,45): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/pages/ProjectsPage.tsx(3078,70): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ProjectsPage.tsx(3092,68): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ProjectsPage.tsx(3110,35): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ProjectsPage.tsx(3214,71): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ProjectsPage.tsx(3485,73): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ProjectsPage.tsx(3498,68): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ProjectsPage.tsx(3523,68): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/RegistrationPage.tsx(329,37): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/RegistrationPage.tsx(354,37): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/RegistrationPage.tsx(376,37): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(347,88): error TS2339: Property 'content' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(348,96): error TS2339: Property 'content' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(349,96): error TS2339: Property 'content' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(878,23): error TS2339: Property 'data' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(964,18): error TS2339: Property 'data' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(964,37): error TS2339: Property 'content' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(968,21): error TS2339: Property 'data' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(968,43): error TS2339: Property 'content' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(1229,35): error TS2339: Property 'data' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(1577,24): error TS2339: Property 'data' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(1631,28): error TS2339: Property 'data' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(1701,29): error TS2339: Property 'data' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(1730,30): error TS2339: Property 'data' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(1735,44): error TS7006: Parameter 'lane' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(2083,10): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(2097,10): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(2104,29): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(2332,8): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(2337,33): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(2353,42): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(2362,8): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(2367,40): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(2388,65): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(2391,10): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(2445,66): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(2664,30): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(2693,30): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(2754,12): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(2804,12): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(2974,34): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(3023,10): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(3031,10): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(3083,38): error TS7006: Parameter 'task' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(3366,45): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "DONE" | "TO_DO" | "QA_REVIEW" | "BLOCKED" | undefined' and '"in_progress"' have no overlap.
+src/pages/ScrumPage.tsx(3392,39): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED" | undefined' and '"TODO"' have no overlap.
+src/pages/ScrumPage.tsx(3392,63): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED" | undefined' and '"todo"' have no overlap.
+src/pages/ScrumPage.tsx(3392,87): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED" | undefined' and '"to_do"' have no overlap.
+src/pages/ScrumPage.tsx(3429,63): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED" | undefined' and '"TODO"' have no overlap.
+src/pages/ScrumPage.tsx(3429,87): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED" | undefined' and '"todo"' have no overlap.
+src/pages/ScrumPage.tsx(3429,111): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED" | undefined' and '"to_do"' have no overlap.
+src/pages/ScrumPage.tsx(3473,45): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "DONE" | "TO_DO" | "QA_REVIEW" | "BLOCKED" | undefined' and '"in_progress"' have no overlap.
+src/pages/ScrumPage.tsx(3499,39): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED" | undefined' and '"TODO"' have no overlap.
+src/pages/ScrumPage.tsx(3499,63): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED" | undefined' and '"todo"' have no overlap.
+src/pages/ScrumPage.tsx(3499,87): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED" | undefined' and '"to_do"' have no overlap.
+src/pages/ScrumPage.tsx(3534,63): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED" | undefined' and '"TODO"' have no overlap.
+src/pages/ScrumPage.tsx(3534,87): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED" | undefined' and '"todo"' have no overlap.
+src/pages/ScrumPage.tsx(3534,111): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED" | undefined' and '"to_do"' have no overlap.
+src/pages/ScrumPage.tsx(3793,17): error TS2345: Argument of type '{ title: string; description: string; acceptanceCriteria: string; storyPoints: number; priority: "MEDIUM"; epicId: string; releaseId: string; }' is not assignable to parameter of type 'SetStateAction<{ title: string; description: string; acceptanceCriteria: string; storyPoints: number; priority: Priority; epicId: string; releaseId: string; sprintId: string; assigneeId: string; reporterId: string; dueDate: string | undefined; labels: string[]; }>'.
+  Type '{ title: string; description: string; acceptanceCriteria: string; storyPoints: number; priority: "MEDIUM"; epicId: string; releaseId: string; }' is missing the following properties from type '{ title: string; description: string; acceptanceCriteria: string; storyPoints: number; priority: Priority; epicId: string; releaseId: string; sprintId: string; assigneeId: string; reporterId: string; dueDate: string | undefined; labels: string[]; }': sprintId, assigneeId, reporterId, dueDate, labels
+src/pages/ScrumPage.tsx(5209,31): error TS2339: Property 'workDate' does not exist on type '{ hoursWorked: number; description: string; }'.
+src/pages/ScrumPage.tsx(5211,32): error TS2339: Property 'startTime' does not exist on type '{ hoursWorked: number; description: string; }'.
+src/pages/ScrumPage.tsx(5211,57): error TS2339: Property 'startTime' does not exist on type '{ hoursWorked: number; description: string; }'.
+src/pages/ScrumPage.tsx(5211,95): error TS2339: Property 'startTime' does not exist on type '{ hoursWorked: number; description: string; }'.
+src/pages/ScrumPage.tsx(5212,30): error TS2339: Property 'endTime' does not exist on type '{ hoursWorked: number; description: string; }'.
+src/pages/ScrumPage.tsx(5212,53): error TS2339: Property 'endTime' does not exist on type '{ hoursWorked: number; description: string; }'.
+src/pages/ScrumPage.tsx(5212,89): error TS2339: Property 'endTime' does not exist on type '{ hoursWorked: number; description: string; }'.
+src/pages/ScrumPage.tsx(5269,9): error TS2353: Object literal may only specify known properties, and 'workDate' does not exist in type 'SetStateAction<{ hoursWorked: number; description: string; }>'.
+src/pages/ScrumPage.tsx(5400,39): error TS7006: Parameter 'n' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(5565,39): error TS7006: Parameter 'n' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(6088,11): error TS2322: Type 'ConnectDragSource' is not assignable to type 'Ref<HTMLDivElement> | undefined'.
+  Type 'ConnectDragSource' is not assignable to type '(instance: HTMLDivElement | null) => void | (() => VoidOrUndefinedOnly)'.
+    Type 'ReactElement<unknown, string | JSXElementConstructor<any>> | null' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+      Type 'null' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+src/pages/ScrumPage.tsx(6129,31): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(6260,35): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(6281,35): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(6338,8): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(6373,9): error TS2322: Type 'ConnectDragSource' is not assignable to type 'Ref<HTMLDivElement> | undefined'.
+  Type 'ConnectDragSource' is not assignable to type '(instance: HTMLDivElement | null) => void | (() => VoidOrUndefinedOnly)'.
+    Type 'ReactElement<unknown, string | JSXElementConstructor<any>> | null' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+      Type 'null' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+src/pages/ScrumPage.tsx(6438,33): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(6501,8): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(6557,9): error TS2322: Type 'ConnectDragSource' is not assignable to type 'Ref<HTMLDivElement> | undefined'.
+  Type 'ConnectDragSource' is not assignable to type '(instance: HTMLDivElement | null) => void | (() => VoidOrUndefinedOnly)'.
+    Type 'ReactElement<unknown, string | JSXElementConstructor<any>> | null' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+      Type 'null' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+src/pages/ScrumPage.tsx(6625,33): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(6761,9): error TS2322: Type 'ConnectDropTarget' is not assignable to type 'Ref<HTMLDivElement> | undefined'.
+  Type 'ConnectDropTarget' is not assignable to type '(instance: HTMLDivElement | null) => void | (() => VoidOrUndefinedOnly)'.
+    Type 'ReactElement<unknown, string | JSXElementConstructor<any>> | null' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+      Type 'null' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+src/pages/ScrumPage.tsx(6831,92): error TS2339: Property 'content' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(6841,41): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(6851,66): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(6854,24): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(7064,33): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(7139,48): error TS7006: Parameter 'sprint' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(7225,41): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(7378,92): error TS2367: This comparison appears to be unintentional because the types 'TaskStatus' and '"TODO"' have no overlap.
+src/pages/ScrumPage.tsx(7405,74): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(7422,35): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(7430,90): error TS7006: Parameter 'sprint' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(7983,13): error TS2322: Type 'Task | null' is not assignable to type 'Task | null | undefined'.
+  Type 'Task' is missing the following properties from type 'Task': assignee, efforts
+src/pages/ScrumPage.tsx(7984,13): error TS2322: Type 'import("C:/Users/snakhate/Music/SprintSync_App/SprintSync_App/src/types/api").Task[]' is not assignable to type 'Task[]'.
+  Type 'Task' is missing the following properties from type 'Task': assignee, efforts
+src/pages/ScrumPage.tsx(8146,43): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(8273,43): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(8409,47): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(8477,45): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(8616,47): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(8689,41): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(8689,48): error TS7006: Parameter 'storyIndex' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(8715,30): error TS2367: This comparison appears to be unintentional because the types 'TaskStatus' and '"done"' have no overlap.
+src/pages/ScrumPage.tsx(8741,30): error TS2367: This comparison appears to be unintentional because the types 'TaskStatus' and '"done"' have no overlap.
+src/pages/ScrumPage.tsx(8868,31): error TS2322: Type 'ConnectDropTarget' is not assignable to type 'Ref<HTMLDivElement> | undefined'.
+  Type 'ConnectDropTarget' is not assignable to type '(instance: HTMLDivElement | null) => void | (() => VoidOrUndefinedOnly)'.
+    Type 'ReactElement<unknown, string | JSXElementConstructor<any>> | null' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+      Type 'null' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+src/pages/ScrumPage.tsx(9218,31): error TS7006: Parameter 'sprint' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(9247,39): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(9336,18): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(9336,23): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(9341,26): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(9351,26): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(9351,31): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(9367,18): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(9469,54): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(9490,51): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(9797,37): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(10063,26): error TS7006: Parameter 'open' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(10199,48): error TS2339: Property 'toLocaleDateString' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(10209,36): error TS7006: Parameter 'date' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(10233,37): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(10249,37): error TS7006: Parameter 'sprint' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(10263,37): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(10277,35): error TS7006: Parameter 'epic' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(10291,37): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(10305,38): error TS7006: Parameter 'release' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(10323,37): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(10351,37): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(10650,30): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(10662,30): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(10666,30): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(10666,35): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(10817,28): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(11045,35): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(11081,35): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(11163,26): error TS7006: Parameter 'open' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(11239,35): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(11271,35): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(11352,26): error TS7006: Parameter 'open' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(11359,17): error TS2353: Object literal may only specify known properties, and 'workDate' does not exist in type 'SetStateAction<{ hoursWorked: number; description: string; }>'.
+src/pages/ScrumPage.tsx(11414,38): error TS2339: Property 'workDate' does not exist on type '{ hoursWorked: number; description: string; }'.
+src/pages/ScrumPage.tsx(11432,40): error TS2339: Property 'startTime' does not exist on type '{ hoursWorked: number; description: string; }'.
+src/pages/ScrumPage.tsx(11447,40): error TS2339: Property 'endTime' does not exist on type '{ hoursWorked: number; description: string; }'.
+src/pages/ScrumPage.tsx(11468,21): error TS2353: Object literal may only specify known properties, and 'workDate' does not exist in type 'SetStateAction<{ hoursWorked: number; description: string; }>'.
+src/pages/ScrumPage.tsx(11556,38): error TS2339: Property 'data' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(11564,38): error TS2339: Property 'data' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(11824,35): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(11883,39): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(11990,43): error TS2353: Object literal may only specify known properties, and 'workDate' does not exist in type 'SetStateAction<{ hoursWorked: number; description: string; }>'.
+src/pages/ScrumPage.tsx(12037,49): error TS2339: Property 'acceptanceCriteria' does not exist on type 'Task'.
+src/pages/ScrumPage.tsx(12038,50): error TS2339: Property 'acceptanceCriteria' does not exist on type 'Task'.
+src/pages/ScrumPage.tsx(12046,57): error TS2339: Property 'acceptanceCriteria' does not exist on type 'Task'.
+src/pages/ScrumPage.tsx(12047,36): error TS7006: Parameter 'criteria' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(12047,46): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(12189,49): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(12684,31): error TS18048: 'selectedTaskForDetails.estimatedHours' is possibly 'undefined'.
+src/pages/ScrumPage.tsx(12688,37): error TS18048: 'selectedTaskForDetails.estimatedHours' is possibly 'undefined'.
+src/pages/ScrumPage.tsx(12717,31): error TS18048: 'selectedTaskForDetails.estimatedHours' is possibly 'undefined'.
+src/pages/ScrumPage.tsx(12727,37): error TS18048: 'selectedTaskForDetails.estimatedHours' is possibly 'undefined'.
+src/pages/ScrumPage.tsx(12765,43): error TS7006: Parameter 'n' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(12861,36): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(12882,47): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(12936,33): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(12995,37): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(13179,47): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(13280,47): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(13438,59): error TS7006: Parameter 'checked' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(13680,29): error TS18048: 'selectedIssueForDetails.estimatedHours' is possibly 'undefined'.
+src/pages/ScrumPage.tsx(13684,35): error TS18048: 'selectedIssueForDetails.estimatedHours' is possibly 'undefined'.
+src/pages/ScrumPage.tsx(13713,29): error TS18048: 'selectedIssueForDetails.estimatedHours' is possibly 'undefined'.
+src/pages/ScrumPage.tsx(13723,35): error TS18048: 'selectedIssueForDetails.estimatedHours' is possibly 'undefined'.
+src/pages/ScrumPage.tsx(13759,41): error TS7006: Parameter 'n' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(13857,34): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(13878,45): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(13905,37): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(13966,37): error TS7006: Parameter 'story' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(14252,35): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/pages/ScrumPage.tsx(14282,35): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/pages/ScrumPage_Fixed.tsx(865,53): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/ScrumPage_Fixed.tsx(920,11): error TS2322: Type '{ isOpen: boolean; onClose: () => void; onAddStory: (newStoryData: any) => void; sprintId: string; }' is not assignable to type 'IntrinsicAttributes & AddStoryDialogProps'.
+  Property 'isOpen' does not exist on type 'IntrinsicAttributes & AddStoryDialogProps'. Did you mean 'open'?
+src/pages/ScrumPage_Fixed.tsx(929,11): error TS2322: Type '{ isOpen: boolean; onClose: () => void; onAddTask: (newTaskData: any) => void; stories: Story[]; selectedStatus: string; onStatusChange: Dispatch<SetStateAction<string>>; }' is not assignable to type 'IntrinsicAttributes & AddTaskDialogProps'.
+  Property 'onAddTask' does not exist on type 'IntrinsicAttributes & AddTaskDialogProps'.
+src/pages/TaskDetailsPage.tsx(571,61): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/TaskDetailsPage.tsx(588,63): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/TaskDetailsPage.tsx(604,63): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/TaskDetailsPage.tsx(620,77): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/TeamAllocationPage.tsx(684,54): error TS2367: This comparison appears to be unintentional because the types '"manager" | "developer" | undefined' and '"ADMIN"' have no overlap.
+src/pages/TeamAllocationPage.tsx(905,7): error TS2367: This comparison appears to be unintentional because the types '"admin" | "manager" | "developer"' and '""' have no overlap.
+src/pages/TeamAllocationPage.tsx(909,7): error TS2367: This comparison appears to be unintentional because the types '"E1" | "E2" | "M1" | "M2" | "M3" | "L1" | "L2" | "L3" | "S1"' and '""' have no overlap.
+src/pages/TeamAllocationPage.tsx(1073,9): error TS2322: Type 'ConnectDragSource' is not assignable to type 'Ref<HTMLDivElement> | undefined'.
+  Type 'ConnectDragSource' is not assignable to type '(instance: HTMLDivElement | null) => void | (() => VoidOrUndefinedOnly)'.
+    Type 'ReactElement<unknown, string | JSXElementConstructor<any>> | null' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+      Type 'null' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+src/pages/TeamAllocationPage.tsx(1129,9): error TS2322: Type 'ConnectDropTarget' is not assignable to type 'Ref<HTMLDivElement> | undefined'.
+  Type 'ConnectDropTarget' is not assignable to type '(instance: HTMLDivElement | null) => void | (() => VoidOrUndefinedOnly)'.
+    Type 'ReactElement<unknown, string | JSXElementConstructor<any>> | null' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+      Type 'null' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+src/pages/TeamAllocationPage.tsx(1700,59): error TS7006: Parameter 'open' implicitly has an 'any' type.
+src/pages/TeamAllocationPage.tsx(1846,35): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/TeamAllocationPage.tsx(1912,37): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/TeamAllocationPage.tsx(1933,37): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/TimeTrackingPage.tsx(1613,61): error TS2339: Property 'estimatedHours' does not exist on type 'Story'.
+src/pages/TimeTrackingPage.tsx(1822,32): error TS2345: Argument of type 'Date | undefined' is not assignable to parameter of type 'Date'.
+  Type 'undefined' is not assignable to type 'Date'.
+src/pages/TimeTrackingPage.tsx(2997,64): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/services/api/client.ts(290,32): error TS7053: Element implicitly has an 'any' type because expression of type '"Authorization"' can't be used to index type '{}'.
+  Property 'Authorization' does not exist on type '{}'.
+src/services/api/client.ts(290,60): error TS7053: Element implicitly has an 'any' type because expression of type '"authorization"' can't be used to index type '{}'.
+  Property 'authorization' does not exist on type '{}'.
+src/services/api/entities/departmentApi.ts(2,34): error TS2307: Cannot find module '../../types/api' or its corresponding type declarations.
+src/services/api/entities/domainApi.ts(2,30): error TS2307: Cannot find module '../../types/api' or its corresponding type declarations.
+src/services/api/entities/epicApi.ts(2,28): error TS2307: Cannot find module '../../types/api' or its corresponding type declarations.
+src/services/api/entities/releaseApi.ts(2,31): error TS2307: Cannot find module '../../types/api' or its corresponding type declarations.
+src/services/api/entities/subtaskApi.ts(2,31): error TS2307: Cannot find module '../../types/api' or its corresponding type declarations.
+src/services/api/entities/teamMemberApi.ts(63,63): error TS2339: Property 'data' does not exist on type 'never'.
+src/services/api/entities/teamMemberApi.ts(64,30): error TS2339: Property 'data' does not exist on type 'never'.
+src/services/api/entities/teamMemberApi.ts(65,63): error TS2339: Property 'content' does not exist on type 'never'.
+src/services/api/entities/teamMemberApi.ts(66,30): error TS2339: Property 'content' does not exist on type 'never'.
+src/services/api/utilities/batchApi.ts(19,109): error TS2554: Expected 1 arguments, but got 2.
+src/services/api/utilities/batchApi.ts(34,108): error TS2554: Expected 1 arguments, but got 2.
+src/services/api/utilities/batchApi.ts(49,108): error TS2554: Expected 1 arguments, but got 2.
+src/services/api/utilities/batchApi.ts(64,106): error TS2554: Expected 1 arguments, but got 2.
+src/services/api/utilities/batchApi.ts(79,109): error TS2554: Expected 1 arguments, but got 2.
+src/types/api.ts(138,3): error TS2300: Duplicate identifier 'dueDate'.
+src/types/api.ts(140,3): error TS2300: Duplicate identifier 'dueDate'.

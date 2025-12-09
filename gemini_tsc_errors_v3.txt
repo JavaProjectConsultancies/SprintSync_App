@@ -1,0 +1,309 @@
+src/components/__tests__/AddUserForm.test.tsx(2,52): error TS2307: Cannot find module '@testing-library/react' or its corresponding type declarations.
+src/components/__tests__/AddUserForm.test.tsx(72,46): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<any>'.
+src/components/__tests__/AddUserForm.test.tsx(73,51): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<any>'.
+src/components/__tests__/AddUserForm.test.tsx(74,50): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<any>'.
+src/components/__tests__/AddUserForm.test.tsx(75,54): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<any>'.
+src/components/__tests__/AddUserForm.test.tsx(76,49): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<any>'.
+src/components/__tests__/AddUserForm.test.tsx(77,57): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<any>'.
+src/components/__tests__/AddUserForm.test.tsx(78,45): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<any>'.
+src/components/__tests__/AddUserForm.test.tsx(94,58): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<any>'.
+src/components/__tests__/AddUserForm.test.tsx(95,57): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<any>'.
+src/components/__tests__/AddUserForm.test.tsx(96,53): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<any>'.
+src/components/__tests__/AddUserForm.test.tsx(97,56): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<any>'.
+src/components/__tests__/AddUserForm.test.tsx(117,70): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<any>'.
+src/components/__tests__/AddUserForm.test.tsx(137,112): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<any>'.
+src/components/__tests__/AddUserForm.test.tsx(160,58): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<any>'.
+src/components/__tests__/AddUserForm.test.tsx(180,73): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<any>'.
+src/components/__tests__/AddUserForm.test.tsx(200,74): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<any>'.
+src/components/__tests__/AddUserForm.test.tsx(220,66): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<any>'.
+src/components/__tests__/AddUserForm.test.tsx(249,27): error TS2339: Property 'toHaveAttribute' does not exist on type 'JestMatchers<any>'.
+src/components/__tests__/AddUserForm.test.tsx(257,29): error TS2339: Property 'toHaveAttribute' does not exist on type 'JestMatchers<any>'.
+src/components/ApiStatusChecker.tsx(101,46): error TS2345: Argument of type '{ name: string; endpoint: string; service: UserApiService; method: string; } | { name: string; endpoint: string; service: { createDepartment: (department: Department) => Promise<ApiResponse<Department>>; ... 8 more ...; getDepartmentStats: () => Promise<...>; }; method: string; } | ... 11 more ... | { ...; }' is not assignable to parameter of type 'ApiStatus & { service: any; method: string; }'.
+  Type '{ name: string; endpoint: string; service: UserApiService; method: string; }' is not assignable to type 'ApiStatus & { service: any; method: string; }'.
+    Property 'status' is missing in type '{ name: string; endpoint: string; service: UserApiService; method: string; }' but required in type 'ApiStatus'.
+src/components/ApiTestComponent.tsx(72,52): error TS2339: Property 'content' does not exist on type 'Project[]'.
+src/components/ApiTestComponent.tsx(88,49): error TS2339: Property 'content' does not exist on type 'User[]'.
+src/components/ApiTestComponent.tsx(141,35): error TS2339: Property 'mutateAsync' does not exist on type '{ createProject: (project: Project) => Promise<Project>; loading: boolean; error: Error; }'.
+src/components/ApiTestComponent.tsx(151,32): error TS2339: Property 'mutateAsync' does not exist on type '{ mutate: (params: Omit<User, "id" | "createdAt" | "updatedAt">) => Promise<ApiResponse<User>>; loading: boolean; error: ApiError; data: User; reset: () => void; }'.
+src/components/ApiTestComponent.tsx(489,57): error TS2339: Property 'isPending' does not exist on type '{ createProject: (project: Project) => Promise<Project>; loading: boolean; error: Error; }'.
+src/components/ApiTestComponent.tsx(492,48): error TS2339: Property 'isPending' does not exist on type '{ createProject: (project: Project) => Promise<Project>; loading: boolean; error: Error; }'.
+src/components/ApiTestComponent.tsx(501,46): error TS2339: Property 'isSuccess' does not exist on type '{ createProject: (project: Project) => Promise<Project>; loading: boolean; error: Error; }'.
+src/components/ApiTestComponent.tsx(507,46): error TS2551: Property 'isError' does not exist on type '{ createProject: (project: Project) => Promise<Project>; loading: boolean; error: Error; }'. Did you mean 'error'?
+src/components/ApiTestComponent.tsx(538,54): error TS2339: Property 'isPending' does not exist on type '{ mutate: (params: Omit<User, "id" | "createdAt" | "updatedAt">) => Promise<ApiResponse<User>>; loading: boolean; error: ApiError; data: User; reset: () => void; }'.
+src/components/ApiTestComponent.tsx(541,45): error TS2339: Property 'isPending' does not exist on type '{ mutate: (params: Omit<User, "id" | "createdAt" | "updatedAt">) => Promise<ApiResponse<User>>; loading: boolean; error: ApiError; data: User; reset: () => void; }'.
+src/components/ApiTestComponent.tsx(550,43): error TS2339: Property 'isSuccess' does not exist on type '{ mutate: (params: Omit<User, "id" | "createdAt" | "updatedAt">) => Promise<ApiResponse<User>>; loading: boolean; error: ApiError; data: User; reset: () => void; }'.
+src/components/ApiTestComponent.tsx(556,43): error TS2551: Property 'isError' does not exist on type '{ mutate: (params: Omit<User, "id" | "createdAt" | "updatedAt">) => Promise<ApiResponse<User>>; loading: boolean; error: ApiError; data: User; reset: () => void; }'. Did you mean 'error'?
+src/components/DashboardFilters.tsx(18,10): error TS2865: Import 'DashboardFilters' conflicts with local value, so must be declared with a type-only import when 'isolatedModules' is enabled.
+src/components/DashboardFilters.tsx(129,11): error TS2741: Property 'componentVisibility' is missing in type '{ projectIds: undefined[]; projectStatus: undefined[]; projectPriority: undefined[]; sprintIds: undefined[]; sprintStatus: undefined[]; sprintDateRange: { start: null; end: null; }; taskStatus: undefined[]; ... 15 more ...; showOverdueItems: false; }' but required in type 'DashboardFilters'.
+src/components/EpicManager.tsx(399,7): error TS2322: Type 'EpicStatus' is not assignable to type '"completed" | "in-progress" | "planned" | "draft"'.
+  Type '"planning"' is not assignable to type '"completed" | "in-progress" | "planned" | "draft"'.
+src/components/LoadingSpinner.tsx(27,156): error TS2353: Object literal may only specify known properties, and 'enableBackground' does not exist in type 'Properties<string | number, string & {}>'.
+src/components/LoadingSpinner.tsx(37,156): error TS2353: Object literal may only specify known properties, and 'enableBackground' does not exist in type 'Properties<string | number, string & {}>'.
+src/components/LoginForm.tsx(68,40): error TS2339: Property 'data' does not exist on type 'LoginResponse'.
+src/components/NotificationDropdown.tsx(71,27): error TS2339: Property 'data' does not exist on type 'never'.
+src/components/NotificationDropdown.tsx(71,50): error TS2339: Property 'content' does not exist on type 'never'.
+src/components/NotificationDropdown.tsx(144,56): error TS2339: Property 'read' does not exist on type 'Notification'.
+src/components/NotificationDropdown.tsx(342,36): error TS2339: Property 'read' does not exist on type 'Notification'.
+src/components/NotificationDropdown.tsx(356,43): error TS2339: Property 'read' does not exist on type 'Notification'.
+src/components/NotificationDropdown.tsx(359,41): error TS2339: Property 'actionUrl' does not exist on type 'Notification'.
+src/components/NotificationDropdown.tsx(370,79): error TS2339: Property 'priority' does not exist on type 'Notification'.
+src/components/NotificationDropdown.tsx(372,41): error TS2339: Property 'priority' does not exist on type 'Notification'.
+src/components/PendingRegistrationsTab.tsx(116,55): error TS2339: Property 'experience' does not exist on type 'PendingRegistration'.
+src/components/PendingRegistrationsTab.tsx(219,55): error TS2339: Property 'isPending' does not exist on type '{ mutate: (params: string) => Promise<ApiResponse<void>>; loading: boolean; error: ApiError; data: void; reset: () => void; }'.
+src/components/PendingRegistrationsTab.tsx(228,55): error TS2339: Property 'isPending' does not exist on type '{ mutate: (params: string) => Promise<ApiResponse<void>>; loading: boolean; error: ApiError; data: void; reset: () => void; }'.
+src/components/ReleaseManager.tsx(162,60): error TS2304: Cannot find name 'getReleaseStatusColor'.
+src/components/ReleaseManager.tsx(202,44): error TS2304: Cannot find name 'getQualityGateStatusColor'.
+src/components/RouteErrorBoundary.tsx(52,23): error TS2339: Property 'children' does not exist on type 'Readonly<{ onReset?: () => void; }>'.
+src/components/RouteErrorBoundary.tsx(60,6): error TS2322: Type '{ children: ReactNode; key: string; onReset: () => void; }' is not assignable to type 'IntrinsicAttributes & IntrinsicClassAttributes<InnerErrorBoundary> & Readonly<{ onReset?: () => void; }>'.
+  Property 'children' does not exist on type 'IntrinsicAttributes & IntrinsicClassAttributes<InnerErrorBoundary> & Readonly<{ onReset?: () => void; }>'.
+src/components/ScrumBoardEnhanced.tsx(454,30): error TS2339: Property 'points' does not exist on type 'Story | Task'.
+  Property 'points' does not exist on type 'Task'.
+src/components/TeamManager.tsx(144,7): error TS2322: Type 'ConnectDragSource' is not assignable to type 'Ref<HTMLDivElement>'.
+  Type 'ConnectDragSource' is not assignable to type '(instance: HTMLDivElement) => void | (() => VoidOrUndefinedOnly)'.
+    Type 'ReactElement<unknown, string | JSXElementConstructor<any>>' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+src/components/TeamManager.tsx(321,7): error TS2322: Type 'ConnectDropTarget' is not assignable to type 'Ref<HTMLDivElement>'.
+  Type 'ConnectDropTarget' is not assignable to type '(instance: HTMLDivElement) => void | (() => VoidOrUndefinedOnly)'.
+    Type 'ReactElement<unknown, string | JSXElementConstructor<any>>' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+src/components/ui/accordion.tsx(4,37): error TS2307: Cannot find module '@radix-ui/react-accordion@1.2.3' or its corresponding type declarations.
+src/components/ui/accordion.tsx(5,33): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/alert-dialog.tsx(4,39): error TS2307: Cannot find module '@radix-ui/react-alert-dialog@1.1.6' or its corresponding type declarations.
+src/components/ui/alert.tsx(2,40): error TS2307: Cannot find module 'class-variance-authority@0.7.1' or its corresponding type declarations.
+src/components/ui/aspect-ratio.tsx(3,39): error TS2307: Cannot find module '@radix-ui/react-aspect-ratio@1.1.2' or its corresponding type declarations.
+src/components/ui/avatar.tsx(4,34): error TS2307: Cannot find module '@radix-ui/react-avatar@1.1.3' or its corresponding type declarations.
+src/components/ui/badge.tsx(2,22): error TS2307: Cannot find module '@radix-ui/react-slot@1.1.2' or its corresponding type declarations.
+src/components/ui/badge.tsx(3,40): error TS2307: Cannot find module 'class-variance-authority@0.7.1' or its corresponding type declarations.
+src/components/ui/button.tsx(2,22): error TS2307: Cannot find module '@radix-ui/react-slot@1.1.2' or its corresponding type declarations.
+src/components/ui/button.tsx(3,40): error TS2307: Cannot find module 'class-variance-authority@0.7.1' or its corresponding type declarations.
+src/components/ui/calendar.tsx(4,43): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/calendar.tsx(5,27): error TS2307: Cannot find module 'react-day-picker@8.10.1' or its corresponding type declarations.
+src/components/ui/carousel.tsx(6,8): error TS2307: Cannot find module 'embla-carousel-react@8.6.0' or its corresponding type declarations.
+src/components/ui/carousel.tsx(7,39): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/chart.tsx(4,36): error TS2307: Cannot find module 'recharts@2.15.2' or its corresponding type declarations.
+src/components/ui/checkbox.tsx(4,36): error TS2307: Cannot find module '@radix-ui/react-checkbox@1.1.4' or its corresponding type declarations.
+src/components/ui/checkbox.tsx(5,27): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/collapsible.tsx(3,39): error TS2307: Cannot find module '@radix-ui/react-collapsible@1.1.3' or its corresponding type declarations.
+src/components/ui/command.tsx(4,45): error TS2307: Cannot find module 'cmdk@1.1.1' or its corresponding type declarations.
+src/components/ui/command.tsx(5,28): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/context-menu.tsx(4,39): error TS2307: Cannot find module '@radix-ui/react-context-menu@2.2.6' or its corresponding type declarations.
+src/components/ui/context-menu.tsx(5,57): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/dialog.tsx(4,34): error TS2307: Cannot find module '@radix-ui/react-dialog@1.1.6' or its corresponding type declarations.
+src/components/ui/dialog.tsx(5,23): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/drawer.tsx(4,43): error TS2307: Cannot find module 'vaul@1.1.2' or its corresponding type declarations.
+src/components/ui/form.tsx(4,33): error TS2307: Cannot find module '@radix-ui/react-label@2.1.2' or its corresponding type declarations.
+src/components/ui/form.tsx(5,22): error TS2307: Cannot find module '@radix-ui/react-slot@1.1.2' or its corresponding type declarations.
+src/components/ui/form.tsx(14,8): error TS2307: Cannot find module 'react-hook-form@7.55.0' or its corresponding type declarations.
+src/components/ui/hover-card.tsx(4,37): error TS2307: Cannot find module '@radix-ui/react-hover-card@1.1.6' or its corresponding type declarations.
+src/components/ui/input-otp.tsx(4,43): error TS2307: Cannot find module 'input-otp@1.4.2' or its corresponding type declarations.
+src/components/ui/input-otp.tsx(5,27): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/input-otp.tsx(47,61): error TS2339: Property 'slots' does not exist on type 'unknown'.
+src/components/ui/label.tsx(4,33): error TS2307: Cannot find module '@radix-ui/react-label@2.1.2' or its corresponding type declarations.
+src/components/ui/menubar.tsx(4,35): error TS2307: Cannot find module '@radix-ui/react-menubar@1.1.6' or its corresponding type declarations.
+src/components/ui/menubar.tsx(5,57): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/navigation-menu.tsx(2,42): error TS2307: Cannot find module '@radix-ui/react-navigation-menu@1.2.5' or its corresponding type declarations.
+src/components/ui/navigation-menu.tsx(3,21): error TS2307: Cannot find module 'class-variance-authority@0.7.1' or its corresponding type declarations.
+src/components/ui/navigation-menu.tsx(4,33): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/pagination.tsx(6,8): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/popover.tsx(4,35): error TS2307: Cannot find module '@radix-ui/react-popover@1.1.6' or its corresponding type declarations.
+src/components/ui/radio-group.tsx(4,38): error TS2307: Cannot find module '@radix-ui/react-radio-group@1.2.3' or its corresponding type declarations.
+src/components/ui/radio-group.tsx(5,28): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/resizable.tsx(4,34): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/resizable.tsx(5,37): error TS2307: Cannot find module 'react-resizable-panels@2.1.7' or its corresponding type declarations.
+src/components/ui/scroll-area.tsx(4,38): error TS2307: Cannot find module '@radix-ui/react-scroll-area@1.2.3' or its corresponding type declarations.
+src/components/ui/select.tsx(4,34): error TS2307: Cannot find module '@radix-ui/react-select@2.1.6' or its corresponding type declarations.
+src/components/ui/select.tsx(9,8): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/separator.tsx(4,37): error TS2307: Cannot find module '@radix-ui/react-separator@1.1.2' or its corresponding type declarations.
+src/components/ui/sheet.tsx(4,33): error TS2307: Cannot find module '@radix-ui/react-dialog@1.1.6' or its corresponding type declarations.
+src/components/ui/sheet.tsx(5,23): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/sidebar.tsx(4,22): error TS2307: Cannot find module '@radix-ui/react-slot@1.1.2' or its corresponding type declarations.
+src/components/ui/sidebar.tsx(5,35): error TS2307: Cannot find module 'class-variance-authority@0.7.1' or its corresponding type declarations.
+src/components/ui/sidebar.tsx(6,31): error TS2307: Cannot find module 'lucide-react@0.487.0' or its corresponding type declarations.
+src/components/ui/slider.tsx(4,34): error TS2307: Cannot find module '@radix-ui/react-slider@1.2.3' or its corresponding type declarations.
+src/components/ui/sonner.tsx(3,26): error TS2307: Cannot find module 'next-themes@0.4.6' or its corresponding type declarations.
+src/components/ui/sonner.tsx(4,49): error TS2307: Cannot find module 'sonner@2.0.3' or its corresponding type declarations.
+src/components/ui/switch.tsx(4,34): error TS2307: Cannot find module '@radix-ui/react-switch@1.1.3' or its corresponding type declarations.
+src/components/ui/tabs.tsx(4,32): error TS2307: Cannot find module '@radix-ui/react-tabs@1.1.3' or its corresponding type declarations.
+src/components/ui/toggle-group.tsx(4,39): error TS2307: Cannot find module '@radix-ui/react-toggle-group@1.1.2' or its corresponding type declarations.
+src/components/ui/toggle-group.tsx(5,35): error TS2307: Cannot find module 'class-variance-authority@0.7.1' or its corresponding type declarations.
+src/components/ui/toggle.tsx(4,34): error TS2307: Cannot find module '@radix-ui/react-toggle@1.1.2' or its corresponding type declarations.
+src/components/ui/toggle.tsx(5,40): error TS2307: Cannot find module 'class-variance-authority@0.7.1' or its corresponding type declarations.
+src/components/ui/tooltip.tsx(4,35): error TS2307: Cannot find module '@radix-ui/react-tooltip@1.1.8' or its corresponding type declarations.
+src/contexts/AuthContext.tsx(9,3): error TS2353: Object literal may only specify known properties, and 'qa' does not exist in type 'Record<UserRole, string[]>'.
+src/contexts/AuthContext.tsx(347,5): error TS2322: Type '"designer"' is not assignable to type 'UserRole'.
+src/contexts/AuthContext.tsx(357,5): error TS2322: Type '"designer"' is not assignable to type 'UserRole'.
+src/contexts/AuthContext.tsx(367,5): error TS2322: Type '"designer"' is not assignable to type 'UserRole'.
+src/contexts/AuthContext.tsx(377,5): error TS2322: Type '"designer"' is not assignable to type 'UserRole'.
+src/contexts/AuthContext.tsx(387,5): error TS2322: Type '"designer"' is not assignable to type 'UserRole'.
+src/contexts/AuthContext.tsx(397,5): error TS2322: Type '"designer"' is not assignable to type 'UserRole'.
+src/contexts/AuthContext.tsx(409,5): error TS2322: Type '"designer"' is not assignable to type 'UserRole'.
+src/contexts/AuthContext.tsx(419,5): error TS2322: Type '"designer"' is not assignable to type 'UserRole'.
+src/contexts/AuthContext.tsx(429,5): error TS2322: Type '"designer"' is not assignable to type 'UserRole'.
+src/contexts/AuthContext.tsx(439,5): error TS2322: Type '"designer"' is not assignable to type 'UserRole'.
+src/contexts/AuthContextEnhanced.tsx(12,3): error TS2353: Object literal may only specify known properties, and 'qa' does not exist in type 'Record<UserRole, string[]>'.
+src/contexts/AuthContextEnhanced.tsx(122,28): error TS2551: Property 'avatarUrl' does not exist on type '{ id: string; email: string; name: string; role: string; department?: string; domain?: string; avatar?: string; }'. Did you mean 'avatar'?
+src/contexts/AuthContextEnhanced.tsx(123,32): error TS2551: Property 'departmentId' does not exist on type '{ id: string; email: string; name: string; role: string; department?: string; domain?: string; avatar?: string; }'. Did you mean 'department'?
+src/contexts/AuthContextEnhanced.tsx(124,28): error TS2551: Property 'domainId' does not exist on type '{ id: string; email: string; name: string; role: string; department?: string; domain?: string; avatar?: string; }'. Did you mean 'domain'?
+src/contexts/AuthContextEnhanced.tsx(233,34): error TS2339: Property 'fullName' does not exist on type '{ id: string; email: string; name: string; role: string; department?: string; domain?: string; avatar?: string; }'.
+src/contexts/AuthContextEnhanced.tsx(242,47): error TS2551: Property 'avatarUrl' does not exist on type '{ id: string; email: string; name: string; role: string; department?: string; domain?: string; avatar?: string; }'. Did you mean 'avatar'?
+src/contexts/AuthContextEnhanced.tsx(243,55): error TS2551: Property 'departmentId' does not exist on type '{ id: string; email: string; name: string; role: string; department?: string; domain?: string; avatar?: string; }'. Did you mean 'department'?
+src/contexts/AuthContextEnhanced.tsx(244,47): error TS2551: Property 'domainId' does not exist on type '{ id: string; email: string; name: string; role: string; department?: string; domain?: string; avatar?: string; }'. Did you mean 'domain'?
+src/data/mockData.ts(107,3): error TS2739: Type '{ id: string; title: string; description: string; acceptanceCriteria: string[]; storyPoints: number; priority: "high"; status: "done"; assigneeId: string; tasks: undefined[]; sprintId: string; createdAt: string; }' is missing the following properties from type 'Story': labels, components
+src/data/mockData.ts(125,3): error TS2739: Type '{ id: string; title: string; description: string; acceptanceCriteria: string[]; storyPoints: number; priority: "high"; status: "in-progress"; assigneeId: string; tasks: undefined[]; sprintId: string; createdAt: string; }' is missing the following properties from type 'Story': labels, components
+src/data/mockData.ts(143,3): error TS2739: Type '{ id: string; title: string; description: string; acceptanceCriteria: string[]; storyPoints: number; priority: "critical"; status: "todo"; assigneeId: string; tasks: undefined[]; createdAt: string; }' is missing the following properties from type 'Story': labels, components
+src/data/mockReleases.ts(39,9): error TS2322: Type '"in-progress"' is not assignable to type '"pending" | "passed" | "failed"'.
+src/data/mockReleases.ts(149,9): error TS2322: Type '"in-progress"' is not assignable to type '"pending" | "passed" | "failed"'.
+src/hooks/api/useActivityLogs.ts(3,23): error TS2305: Module '"../../types/api"' has no exported member 'ApiResponse'.
+src/hooks/api/useActivityLogs.ts(3,36): error TS2305: Module '"../../types/api"' has no exported member 'ApiError'.
+src/hooks/api/useActivityLogs.ts(35,43): error TS2339: Property 'data' does not exist on type 'never'.
+src/hooks/api/useActivityLogs.ts(36,34): error TS2339: Property 'data' does not exist on type 'never'.
+src/hooks/api/useActivityLogs.ts(37,50): error TS2339: Property 'content' does not exist on type 'never'.
+src/hooks/api/useActivityLogs.ts(38,34): error TS2339: Property 'content' does not exist on type 'never'.
+src/hooks/api/useActivityLogs.ts(39,50): error TS2339: Property 'items' does not exist on type 'never'.
+src/hooks/api/useActivityLogs.ts(40,34): error TS2339: Property 'items' does not exist on type 'never'.
+src/hooks/api/useActivityLogs.ts(129,43): error TS2339: Property 'data' does not exist on type 'never'.
+src/hooks/api/useActivityLogs.ts(130,34): error TS2339: Property 'data' does not exist on type 'never'.
+src/hooks/api/useActivityLogs.ts(131,50): error TS2339: Property 'content' does not exist on type 'never'.
+src/hooks/api/useActivityLogs.ts(132,34): error TS2339: Property 'content' does not exist on type 'never'.
+src/hooks/api/useActivityLogs.ts(133,50): error TS2339: Property 'items' does not exist on type 'never'.
+src/hooks/api/useActivityLogs.ts(134,34): error TS2339: Property 'items' does not exist on type 'never'.
+src/hooks/api/useEpics.ts(15,15): error TS2345: Argument of type 'ApiResponse<Epic[]>' is not assignable to parameter of type 'SetStateAction<Epic[]>'.
+src/hooks/api/useExperienceLevels.ts(171,41): error TS2339: Property 'toString' does not exist on type 'never'.
+src/hooks/api/useIssues.ts(24,44): error TS2345: Argument of type 'Omit<Issue, "id" | "createdAt" | "updatedAt">' is not assignable to parameter of type 'Issue'.
+  Type 'Omit<Issue, "id" | "createdAt" | "updatedAt">' is missing the following properties from type 'Issue': id, createdAt, updatedAt
+src/hooks/api/useReleases.ts(15,15): error TS2345: Argument of type 'ApiResponse<Release[]>' is not assignable to parameter of type 'SetStateAction<Release[]>'.
+src/hooks/api/useSprints.ts(64,73): error TS2554: Expected 1-2 arguments, but got 3.
+src/hooks/api/useTasks.ts(35,41): error TS2345: Argument of type 'Omit<Task, "id" | "createdAt" | "updatedAt">' is not assignable to parameter of type 'Task'.
+  Type 'Omit<Task, "id" | "createdAt" | "updatedAt">' is missing the following properties from type 'Task': id, createdAt, updatedAt
+src/hooks/api/useTasks.ts(60,69): error TS2554: Expected 1-2 arguments, but got 3.
+src/hooks/api/useTasks.ts(166,75): error TS2554: Expected 1-2 arguments, but got 3.
+src/hooks/api/useTeamMembers.ts(146,5): error TS2322: Type '(teamMember: CreateTeamMemberRequest) => Promise<boolean>' is not assignable to type '(teamMember: CreateTeamMemberRequest) => Promise<TeamMember>'.
+  Type 'Promise<boolean>' is not assignable to type 'Promise<TeamMember>'.
+    Type 'boolean' is not assignable to type 'TeamMember'.
+src/hooks/api/useTeamMembers.ts(149,5): error TS2322: Type '(projectId: string, userId: string, role: string, isTeamLead?: boolean) => Promise<boolean>' is not assignable to type '(projectId: string, userId: string, role: string, isTeamLead?: boolean) => Promise<TeamMember>'.
+  Type 'Promise<boolean>' is not assignable to type 'Promise<TeamMember>'.
+    Type 'boolean' is not assignable to type 'TeamMember'.
+src/main.tsx(2,17): error TS5097: An import path can only end with a '.tsx' extension when 'allowImportingTsExtensions' is enabled.
+src/pages/BacklogPage.tsx(1912,9): error TS2739: Type 'Task' is missing the following properties from type 'Task': assignee, efforts
+src/pages/BacklogPage.tsx(1914,9): error TS2322: Type 'import("C:/Users/snakhate/Music/SprintSync_App/SprintSync_App/src/types/api").Task[]' is not assignable to type 'Task[]'.
+  Type 'Task' is missing the following properties from type 'Task': assignee, efforts
+src/pages/ProjectDetailsPage.tsx(1201,61): error TS2339: Property 'id' does not exist on type 'Omit<Epic, "id" | "createdAt" | "updatedAt">'.
+src/pages/ProjectDetailsPage.tsx(2195,41): error TS2339: Property 'duration' does not exist on type 'ProjectDetails'.
+src/pages/ProjectsPage.tsx(617,48): error TS2367: This comparison appears to be unintentional because the types 'string' and 'number' have no overlap.
+src/pages/ProjectsPage.tsx(618,21): error TS2367: This comparison appears to be unintentional because the types 'number' and 'string' have no overlap.
+src/pages/ProjectsPage.tsx(618,63): error TS2367: This comparison appears to be unintentional because the types 'number' and 'string' have no overlap.
+src/pages/ProjectsPage.tsx(619,26): error TS2345: Argument of type '{ teamMembers: any; progress: any; completedSprints: any; sprints: any; department: any; name: string; description?: string; status: ProjectStatus; priority: Priority; ... 15 more ...; updatedAt: string; }' is not assignable to parameter of type 'SetStateAction<Project>'.
+  Type '{ teamMembers: any; progress: any; completedSprints: any; sprints: any; department: any; name: string; description?: string; status: ProjectStatus; priority: Priority; ... 15 more ...; updatedAt: string; }' is not assignable to type 'Project'.
+    Types of property 'id' are incompatible.
+      Type 'string' is not assignable to type 'number'.
+src/pages/ProjectsPage.tsx(671,23): error TS2345: Argument of type '{ name: string; description: string; version: string; status: string; releaseDate: string; targetDate: string; releaseNotes: string; risks: string; dependencies: string; createdBy: string; }' is not assignable to parameter of type 'SetStateAction<{ name: string; description: string; version: string; status: string; releaseDate: string; targetDate: string; releaseNotes: string; risks: string; dependencies: string; createdBy: string; progress: number; ... 8 more ...; selectedEpics: string[]; }>'.
+  Type '{ name: string; description: string; version: string; status: string; releaseDate: string; targetDate: string; releaseNotes: string; risks: string; dependencies: string; createdBy: string; }' is missing the following properties from type '{ name: string; description: string; version: string; status: string; releaseDate: string; targetDate: string; releaseNotes: string; risks: string; dependencies: string; createdBy: string; progress: number; ... 8 more ...; selectedEpics: string[]; }': progress, linkedEpics, linkedStories, linkedSprints, and 6 more.
+src/pages/ProjectsPage.tsx(1193,22): error TS2345: Argument of type '{ name: string; description: string; priority: string; status: string; startDate: string; endDate: string; }' is not assignable to parameter of type 'SetStateAction<{ name: string; description: string; summary: string; theme: string; businessValue: string; priority: string; status: string; startDate: string; endDate: string; assigneeId: string; storyPoints: number; }>'.
+  Type '{ name: string; description: string; priority: string; status: string; startDate: string; endDate: string; }' is missing the following properties from type '{ name: string; description: string; summary: string; theme: string; businessValue: string; priority: string; status: string; startDate: string; endDate: string; assigneeId: string; storyPoints: number; }': summary, theme, businessValue, assigneeId, storyPoints
+src/pages/ProjectsPage.tsx(1312,17): error TS2345: Argument of type '(prev: NewProjectForm) => { risks: (Risk | { id: string; title: string; description: string; probability: string; impact: string; mitigation: string; status: string; owner: string; })[]; ... 19 more ...; releases: any[]; }' is not assignable to parameter of type 'SetStateAction<NewProjectForm>'.
+  Type '(prev: NewProjectForm) => { risks: (Risk | { id: string; title: string; description: string; probability: string; impact: string; mitigation: string; status: string; owner: string; })[]; ... 19 more ...; releases: any[]; }' is not assignable to type '(prevState: NewProjectForm) => NewProjectForm'.
+    Call signature return types '{ risks: (Risk | { id: string; title: string; description: string; probability: string; impact: string; mitigation: string; status: string; owner: string; })[]; name: string; description: string; ... 17 more ...; releases: any[]; }' and 'NewProjectForm' are incompatible.
+      The types of 'risks' are incompatible between these types.
+        Type '(Risk | { id: string; title: string; description: string; probability: string; impact: string; mitigation: string; status: string; owner: string; })[]' is not assignable to type 'Risk[]'.
+          Type 'Risk | { id: string; title: string; description: string; probability: string; impact: string; mitigation: string; status: string; owner: string; }' is not assignable to type 'Risk'.
+            Type '{ id: string; title: string; description: string; probability: string; impact: string; mitigation: string; status: string; owner: string; }' is not assignable to type 'Risk'.
+              Types of property 'probability' are incompatible.
+                Type 'string' is not assignable to type '"low" | "medium" | "high"'.
+src/pages/ProjectsPage.tsx(2888,87): error TS2339: Property 'email' does not exist on type 'Stakeholder'.
+src/pages/ScrumPage.tsx(347,88): error TS2339: Property 'content' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(348,96): error TS2339: Property 'content' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(349,96): error TS2339: Property 'content' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(878,23): error TS2339: Property 'data' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(964,18): error TS2339: Property 'data' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(964,37): error TS2339: Property 'content' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(968,21): error TS2339: Property 'data' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(968,43): error TS2339: Property 'content' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(1229,35): error TS2339: Property 'data' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(1577,24): error TS2339: Property 'data' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(1631,28): error TS2339: Property 'data' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(1701,29): error TS2339: Property 'data' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(1730,30): error TS2339: Property 'data' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(3366,45): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "DONE" | "TO_DO" | "QA_REVIEW" | "BLOCKED"' and '"in_progress"' have no overlap.
+src/pages/ScrumPage.tsx(3392,39): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED"' and '"TODO"' have no overlap.
+src/pages/ScrumPage.tsx(3392,63): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED"' and '"todo"' have no overlap.
+src/pages/ScrumPage.tsx(3392,87): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED"' and '"to_do"' have no overlap.
+src/pages/ScrumPage.tsx(3429,63): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED"' and '"TODO"' have no overlap.
+src/pages/ScrumPage.tsx(3429,87): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED"' and '"todo"' have no overlap.
+src/pages/ScrumPage.tsx(3429,111): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED"' and '"to_do"' have no overlap.
+src/pages/ScrumPage.tsx(3473,45): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "DONE" | "TO_DO" | "QA_REVIEW" | "BLOCKED"' and '"in_progress"' have no overlap.
+src/pages/ScrumPage.tsx(3499,39): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED"' and '"TODO"' have no overlap.
+src/pages/ScrumPage.tsx(3499,63): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED"' and '"todo"' have no overlap.
+src/pages/ScrumPage.tsx(3499,87): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED"' and '"to_do"' have no overlap.
+src/pages/ScrumPage.tsx(3534,63): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED"' and '"TODO"' have no overlap.
+src/pages/ScrumPage.tsx(3534,87): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED"' and '"todo"' have no overlap.
+src/pages/ScrumPage.tsx(3534,111): error TS2367: This comparison appears to be unintentional because the types '"CANCELLED" | "IN_PROGRESS" | "DONE" | "QA_REVIEW" | "BLOCKED"' and '"to_do"' have no overlap.
+src/pages/ScrumPage.tsx(3793,17): error TS2345: Argument of type '{ title: string; description: string; acceptanceCriteria: string; storyPoints: number; priority: "MEDIUM"; epicId: string; releaseId: string; }' is not assignable to parameter of type 'SetStateAction<{ title: string; description: string; acceptanceCriteria: string; storyPoints: number; priority: Priority; epicId: string; releaseId: string; sprintId: string; assigneeId: string; reporterId: string; dueDate: string; labels: string[]; }>'.
+  Type '{ title: string; description: string; acceptanceCriteria: string; storyPoints: number; priority: "MEDIUM"; epicId: string; releaseId: string; }' is missing the following properties from type '{ title: string; description: string; acceptanceCriteria: string; storyPoints: number; priority: Priority; epicId: string; releaseId: string; sprintId: string; assigneeId: string; reporterId: string; dueDate: string; labels: string[]; }': sprintId, assigneeId, reporterId, dueDate, labels
+src/pages/ScrumPage.tsx(5209,31): error TS2339: Property 'workDate' does not exist on type '{ hoursWorked: number; description: string; }'.
+src/pages/ScrumPage.tsx(5211,32): error TS2339: Property 'startTime' does not exist on type '{ hoursWorked: number; description: string; }'.
+src/pages/ScrumPage.tsx(5211,57): error TS2339: Property 'startTime' does not exist on type '{ hoursWorked: number; description: string; }'.
+src/pages/ScrumPage.tsx(5211,95): error TS2339: Property 'startTime' does not exist on type '{ hoursWorked: number; description: string; }'.
+src/pages/ScrumPage.tsx(5212,30): error TS2339: Property 'endTime' does not exist on type '{ hoursWorked: number; description: string; }'.
+src/pages/ScrumPage.tsx(5212,53): error TS2339: Property 'endTime' does not exist on type '{ hoursWorked: number; description: string; }'.
+src/pages/ScrumPage.tsx(5212,89): error TS2339: Property 'endTime' does not exist on type '{ hoursWorked: number; description: string; }'.
+src/pages/ScrumPage.tsx(5269,9): error TS2353: Object literal may only specify known properties, and 'workDate' does not exist in type 'SetStateAction<{ hoursWorked: number; description: string; }>'.
+src/pages/ScrumPage.tsx(6088,11): error TS2322: Type 'ConnectDragSource' is not assignable to type 'Ref<HTMLDivElement>'.
+  Type 'ConnectDragSource' is not assignable to type '(instance: HTMLDivElement) => void | (() => VoidOrUndefinedOnly)'.
+    Type 'ReactElement<unknown, string | JSXElementConstructor<any>>' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+src/pages/ScrumPage.tsx(6373,9): error TS2322: Type 'ConnectDragSource' is not assignable to type 'Ref<HTMLDivElement>'.
+  Type 'ConnectDragSource' is not assignable to type '(instance: HTMLDivElement) => void | (() => VoidOrUndefinedOnly)'.
+    Type 'ReactElement<unknown, string | JSXElementConstructor<any>>' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+src/pages/ScrumPage.tsx(6557,9): error TS2322: Type 'ConnectDragSource' is not assignable to type 'Ref<HTMLDivElement>'.
+  Type 'ConnectDragSource' is not assignable to type '(instance: HTMLDivElement) => void | (() => VoidOrUndefinedOnly)'.
+    Type 'ReactElement<unknown, string | JSXElementConstructor<any>>' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+src/pages/ScrumPage.tsx(6761,9): error TS2322: Type 'ConnectDropTarget' is not assignable to type 'Ref<HTMLDivElement>'.
+  Type 'ConnectDropTarget' is not assignable to type '(instance: HTMLDivElement) => void | (() => VoidOrUndefinedOnly)'.
+    Type 'ReactElement<unknown, string | JSXElementConstructor<any>>' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+src/pages/ScrumPage.tsx(6831,92): error TS2339: Property 'content' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(7378,92): error TS2367: This comparison appears to be unintentional because the types 'TaskStatus' and '"TODO"' have no overlap.
+src/pages/ScrumPage.tsx(7983,13): error TS2739: Type 'Task' is missing the following properties from type 'Task': assignee, efforts
+src/pages/ScrumPage.tsx(7984,13): error TS2322: Type 'import("C:/Users/snakhate/Music/SprintSync_App/SprintSync_App/src/types/api").Task[]' is not assignable to type 'Task[]'.
+  Type 'Task' is missing the following properties from type 'Task': assignee, efforts
+src/pages/ScrumPage.tsx(8715,30): error TS2367: This comparison appears to be unintentional because the types 'TaskStatus' and '"done"' have no overlap.
+src/pages/ScrumPage.tsx(8741,30): error TS2367: This comparison appears to be unintentional because the types 'TaskStatus' and '"done"' have no overlap.
+src/pages/ScrumPage.tsx(8868,31): error TS2322: Type 'ConnectDropTarget' is not assignable to type 'Ref<HTMLDivElement>'.
+  Type 'ConnectDropTarget' is not assignable to type '(instance: HTMLDivElement) => void | (() => VoidOrUndefinedOnly)'.
+    Type 'ReactElement<unknown, string | JSXElementConstructor<any>>' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+src/pages/ScrumPage.tsx(10199,48): error TS2339: Property 'toLocaleDateString' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(11359,17): error TS2353: Object literal may only specify known properties, and 'workDate' does not exist in type 'SetStateAction<{ hoursWorked: number; description: string; }>'.
+src/pages/ScrumPage.tsx(11414,38): error TS2339: Property 'workDate' does not exist on type '{ hoursWorked: number; description: string; }'.
+src/pages/ScrumPage.tsx(11432,40): error TS2339: Property 'startTime' does not exist on type '{ hoursWorked: number; description: string; }'.
+src/pages/ScrumPage.tsx(11447,40): error TS2339: Property 'endTime' does not exist on type '{ hoursWorked: number; description: string; }'.
+src/pages/ScrumPage.tsx(11468,21): error TS2353: Object literal may only specify known properties, and 'workDate' does not exist in type 'SetStateAction<{ hoursWorked: number; description: string; }>'.
+src/pages/ScrumPage.tsx(11556,38): error TS2339: Property 'data' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(11564,38): error TS2339: Property 'data' does not exist on type 'never'.
+src/pages/ScrumPage.tsx(11990,43): error TS2353: Object literal may only specify known properties, and 'workDate' does not exist in type 'SetStateAction<{ hoursWorked: number; description: string; }>'.
+src/pages/ScrumPage.tsx(12037,49): error TS2339: Property 'acceptanceCriteria' does not exist on type 'Task'.
+src/pages/ScrumPage.tsx(12038,50): error TS2339: Property 'acceptanceCriteria' does not exist on type 'Task'.
+src/pages/ScrumPage.tsx(12046,57): error TS2339: Property 'acceptanceCriteria' does not exist on type 'Task'.
+src/pages/ScrumPage_Fixed.tsx(920,11): error TS2322: Type '{ isOpen: boolean; onClose: () => void; onAddStory: (newStoryData: any) => void; sprintId: string; }' is not assignable to type 'IntrinsicAttributes & AddStoryDialogProps'.
+  Property 'isOpen' does not exist on type 'IntrinsicAttributes & AddStoryDialogProps'. Did you mean 'open'?
+src/pages/ScrumPage_Fixed.tsx(929,11): error TS2322: Type '{ isOpen: boolean; onClose: () => void; onAddTask: (newTaskData: any) => void; stories: Story[]; selectedStatus: string; onStatusChange: Dispatch<SetStateAction<string>>; }' is not assignable to type 'IntrinsicAttributes & AddTaskDialogProps'.
+  Property 'onAddTask' does not exist on type 'IntrinsicAttributes & AddTaskDialogProps'.
+src/pages/TeamAllocationPage.tsx(684,54): error TS2367: This comparison appears to be unintentional because the types '"manager" | "developer"' and '"ADMIN"' have no overlap.
+src/pages/TeamAllocationPage.tsx(905,7): error TS2367: This comparison appears to be unintentional because the types '"admin" | "manager" | "developer"' and '""' have no overlap.
+src/pages/TeamAllocationPage.tsx(909,7): error TS2367: This comparison appears to be unintentional because the types '"E1" | "E2" | "M1" | "M2" | "M3" | "L1" | "L2" | "L3" | "S1"' and '""' have no overlap.
+src/pages/TeamAllocationPage.tsx(1073,9): error TS2322: Type 'ConnectDragSource' is not assignable to type 'Ref<HTMLDivElement>'.
+  Type 'ConnectDragSource' is not assignable to type '(instance: HTMLDivElement) => void | (() => VoidOrUndefinedOnly)'.
+    Type 'ReactElement<unknown, string | JSXElementConstructor<any>>' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+src/pages/TeamAllocationPage.tsx(1129,9): error TS2322: Type 'ConnectDropTarget' is not assignable to type 'Ref<HTMLDivElement>'.
+  Type 'ConnectDropTarget' is not assignable to type '(instance: HTMLDivElement) => void | (() => VoidOrUndefinedOnly)'.
+    Type 'ReactElement<unknown, string | JSXElementConstructor<any>>' is not assignable to type 'void | (() => VoidOrUndefinedOnly)'.
+src/pages/TimeTrackingPage.tsx(1613,61): error TS2339: Property 'estimatedHours' does not exist on type 'Story'.
+src/services/api/entities/departmentApi.ts(2,34): error TS2307: Cannot find module '../../types/api' or its corresponding type declarations.
+src/services/api/entities/domainApi.ts(2,30): error TS2307: Cannot find module '../../types/api' or its corresponding type declarations.
+src/services/api/entities/epicApi.ts(2,28): error TS2307: Cannot find module '../../types/api' or its corresponding type declarations.
+src/services/api/entities/releaseApi.ts(2,31): error TS2307: Cannot find module '../../types/api' or its corresponding type declarations.
+src/services/api/entities/subtaskApi.ts(2,31): error TS2307: Cannot find module '../../types/api' or its corresponding type declarations.
+src/services/api/entities/teamMemberApi.ts(63,63): error TS2339: Property 'data' does not exist on type 'never'.
+src/services/api/entities/teamMemberApi.ts(64,30): error TS2339: Property 'data' does not exist on type 'never'.
+src/services/api/entities/teamMemberApi.ts(65,63): error TS2339: Property 'content' does not exist on type 'never'.
+src/services/api/entities/teamMemberApi.ts(66,30): error TS2339: Property 'content' does not exist on type 'never'.
+src/services/api/utilities/batchApi.ts(19,109): error TS2554: Expected 1 arguments, but got 2.
+src/services/api/utilities/batchApi.ts(34,108): error TS2554: Expected 1 arguments, but got 2.
+src/services/api/utilities/batchApi.ts(49,108): error TS2554: Expected 1 arguments, but got 2.
+src/services/api/utilities/batchApi.ts(64,106): error TS2554: Expected 1 arguments, but got 2.
+src/services/api/utilities/batchApi.ts(79,109): error TS2554: Expected 1 arguments, but got 2.

@@ -6,16 +6,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Checkbox } from './ui/checkbox';
-import { Slider } from './ui/slider';
-import { Calendar } from './ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { CalendarIcon, Filter, X, RefreshCw, Save, Settings, Eye, EyeOff, Layout } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { useFilters, DashboardFilters as DashboardFiltersState } from '../contexts/FilterContext';
+import { Layout, Eye, EyeOff, X, Settings, RefreshCw, Save, Filter, Calendar as CalendarIcon, Layers3, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
-import { useAuth } from '../contexts/AuthContextEnhanced';
-import { useFilters } from '../contexts/FilterContext';
-
-// Import the interface from FilterContext to ensure consistency
-import { DashboardFilters, DashboardComponentVisibility } from '../contexts/FilterContext';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Calendar } from './ui/calendar';
+import { Slider } from './ui/slider';
 
 interface DashboardFiltersProps {
   availableProjects: any[];
@@ -104,15 +101,15 @@ const DashboardFilters: React.FC<DashboardFiltersProps> = ({
     if (contextFilters.showOnlyMyTasks) count++;
     if (contextFilters.showOnlyActiveItems) count++;
     if (contextFilters.showOverdueItems) count++;
-    
+
     setActiveFilterCount(count);
   }, [contextFilters]);
 
-  const handleUpdateFilter = (key: keyof DashboardFilters, value: any) => {
+  const handleUpdateFilter = (key: keyof DashboardFiltersState, value: any) => {
     updateFilter(key, value);
   };
 
-  const toggleArrayFilter = (key: keyof DashboardFilters, value: string) => {
+  const toggleArrayFilter = (key: keyof DashboardFiltersState, value: string) => {
     const currentArray = contextFilters[key] as string[];
     const newArray = currentArray.includes(value)
       ? currentArray.filter(item => item !== value)
@@ -120,13 +117,13 @@ const DashboardFilters: React.FC<DashboardFiltersProps> = ({
     handleUpdateFilter(key, newArray);
   };
 
-  const resetFilter = (key: keyof DashboardFilters) => {
+  const resetFilter = (key: keyof DashboardFiltersState) => {
     const defaultValue = getDefaultFilterValue(key);
     handleUpdateFilter(key, defaultValue);
   };
 
-  const getDefaultFilterValue = (key: keyof DashboardFilters): any => {
-    const defaults: DashboardFilters = {
+  const getDefaultFilterValue = (key: keyof DashboardFiltersState): any => {
+    const defaults: DashboardFiltersState = {
       projectIds: [],
       projectStatus: [],
       projectPriority: [],
@@ -149,7 +146,21 @@ const DashboardFilters: React.FC<DashboardFiltersProps> = ({
       showOnlyMyProjects: false,
       showOnlyMyTasks: false,
       showOnlyActiveItems: false,
-      showOverdueItems: false
+      showOverdueItems: false,
+      componentVisibility: {
+        showApiStatusIndicators: true,
+        showApiErrorAlert: true,
+        showPerformanceAlert: true,
+        showAiInsights: true,
+        showUserTasks: true,
+        showMetricsCards: true,
+        showTeamPerformanceAlerts: true,
+        showChartsAndAnalytics: true,
+        showRecentProjects: true,
+        showQuickActions: true,
+        showLiveStatusDashboard: true,
+        showTeamAllocationDemo: true
+      }
     };
     return defaults[key];
   };
@@ -169,53 +180,53 @@ const DashboardFilters: React.FC<DashboardFiltersProps> = ({
     onReset: () => void;
   }> = ({ label, options, selected, onChange, onReset }) => {
     return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <Label className="text-sm">{label}</Label>
-        {selected.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onReset}
-            className="h-6 px-2 text-xs"
-          >
-            <X className="w-3 h-3 mr-1" />
-            Clear
-          </Button>
-        )}
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        {options.map((option) => (
-          <div key={option.value} className="flex items-center space-x-2">
-            <Checkbox
-              id={`${label}-${option.value}`}
-              checked={selected.includes(option.value)}
-              onCheckedChange={(checked) => {
-                const newSelected = checked
-                  ? [...selected, option.value]
-                  : selected.filter(item => item !== option.value);
-                onChange(newSelected);
-              }}
-            />
-            <Label
-              htmlFor={`${label}-${option.value}`}
-              className="text-xs cursor-pointer"
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label className="text-sm">{label}</Label>
+          {selected.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onReset}
+              className="h-6 px-2 text-xs"
             >
-              {option.label}
-            </Label>
-          </div>
-        ))}
-      </div>
-      {selected.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {selected.map((value) => (
-            <Badge key={value} variant="secondary" className="text-xs">
-              {options.find(opt => opt.value === value)?.label}
-            </Badge>
+              <X className="w-3 h-3 mr-1" />
+              Clear
+            </Button>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {options.map((option) => (
+            <div key={option.value} className="flex items-center space-x-2">
+              <Checkbox
+                id={`${label}-${option.value}`}
+                checked={selected.includes(option.value)}
+                onCheckedChange={(checked) => {
+                  const newSelected = checked
+                    ? [...selected, option.value]
+                    : selected.filter(item => item !== option.value);
+                  onChange(newSelected);
+                }}
+              />
+              <Label
+                htmlFor={`${label}-${option.value}`}
+                className="text-xs cursor-pointer"
+              >
+                {option.label}
+              </Label>
+            </div>
           ))}
         </div>
-      )}
-    </div>
+        {selected.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {selected.map((value) => (
+              <Badge key={value} variant="secondary" className="text-xs">
+                {options.find(opt => opt.value === value)?.label}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -320,7 +331,7 @@ const DashboardFilters: React.FC<DashboardFiltersProps> = ({
           </div>
         </div>
       </CardHeader>
-      
+
       {isExpanded && (
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -472,7 +483,7 @@ const DashboardFilters: React.FC<DashboardFiltersProps> = ({
                   </SelectContent>
                 </Select>
               </div>
-              
+
               {contextFilters.timeRange === 'custom' && (
                 <DateRangeFilter
                   label="Custom Date Range"
@@ -556,7 +567,7 @@ const DashboardFilters: React.FC<DashboardFiltersProps> = ({
                     Show only my projects
                   </Label>
                 </div>
-                
+
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="showOnlyMyTasks"
@@ -567,7 +578,7 @@ const DashboardFilters: React.FC<DashboardFiltersProps> = ({
                     Show only my tasks
                   </Label>
                 </div>
-                
+
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="showOnlyActiveItems"
@@ -578,7 +589,7 @@ const DashboardFilters: React.FC<DashboardFiltersProps> = ({
                     Show only active items
                   </Label>
                 </div>
-                
+
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="showOverdueItems"
@@ -610,7 +621,7 @@ const DashboardFilters: React.FC<DashboardFiltersProps> = ({
                     {showComponentVisibility ? 'Hide' : 'Show'}
                   </Button>
                 </div>
-                
+
                 {showComponentVisibility && (
                   <div className="space-y-2 pl-4 border-l-2 border-gray-200">
                     <div className="grid grid-cols-1 gap-2">
@@ -830,7 +841,7 @@ const DashboardFilters: React.FC<DashboardFiltersProps> = ({
                         )}
                       </div>
                     </div>
-                    
+
                     <div className="pt-2 border-t">
                       <Button
                         variant="outline"

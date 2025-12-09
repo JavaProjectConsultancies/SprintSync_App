@@ -81,8 +81,14 @@ class ApiClient {
   }
 
   private shouldSkipPrefetchGate(endpoint: string, method: string): boolean {
+    // If no Authorization header, only skip prefetch for auth endpoints.
     if (!this.defaultHeaders['Authorization']) {
-      return true;
+      const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      if (normalizedEndpoint.startsWith(API_ENDPOINTS.AUTH)) {
+        return true;
+      }
+      // Allow other GET requests (e.g., project endpoints) to proceed; they may receive 401 until token is set.
+      return false;
     }
 
     if (!method || method.toUpperCase() !== 'GET') {
@@ -91,14 +97,12 @@ class ApiClient {
 
     const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
 
+    // Skip prefetch for auth endpoints.
     if (normalizedEndpoint.startsWith(API_ENDPOINTS.AUTH)) {
       return true;
     }
 
-    if (normalizedEndpoint.startsWith(API_ENDPOINTS.PROJECTS)) {
-      return true;
-    }
-
+    // Do not skip for project endpoints; let request handle token presence.
     return false;
   }
 
@@ -315,7 +319,7 @@ class ApiClient {
 
       if (!response.ok) {
         let errorMessage = data.message || `HTTP ${response.status}: ${response.statusText}`;
-        
+
         // Provide more specific error messages for common HTTP status codes
         switch (response.status) {
           case 401:
@@ -331,7 +335,7 @@ class ApiClient {
             errorMessage = 'Internal server error. Please try again later.';
             break;
         }
-        
+
         const error: ApiError = {
           message: errorMessage,
           status: response.status,
@@ -356,7 +360,7 @@ class ApiClient {
             code: 'TIMEOUT',
           } as ApiError;
         }
-        
+
         // Provide more helpful error messages for network errors
         let errorMessage = error.message;
         if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
@@ -366,7 +370,7 @@ class ApiClient {
 3. CORS is properly configured
 4. There are no firewall or network restrictions`;
         }
-        
+
         throw {
           message: errorMessage,
           status: 0,
@@ -378,7 +382,7 @@ class ApiClient {
           },
         } as ApiError;
       }
-      
+
       throw error;
     }
   }

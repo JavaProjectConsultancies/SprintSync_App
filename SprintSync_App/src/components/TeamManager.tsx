@@ -10,12 +10,12 @@ import { Separator } from './ui/separator';
 import { Progress } from './ui/progress';
 import { ScrollArea } from './ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { 
-  Users, 
-  Search, 
-  Plus, 
-  X, 
-  Star, 
+import {
+  Users,
+  Search,
+  Plus,
+  X,
+  Star,
   Clock,
   IndianRupee,
   Filter,
@@ -76,9 +76,10 @@ const ItemType = {
 };
 
 // Draggable Team Member Card
-const DraggableTeamMember = ({ member, isSelected, onSelect, onViewDetails }: { 
-  member: TeamMember; 
-  isSelected: boolean; 
+// Draggable Team Member Card
+const DraggableTeamMember = ({ member, isSelected, onSelect, onViewDetails }: {
+  member: TeamMember;
+  isSelected?: boolean;
   onSelect?: () => void;
   onViewDetails?: () => void;
 }) => {
@@ -111,15 +112,12 @@ const DraggableTeamMember = ({ member, isSelected, onSelect, onViewDetails }: {
   };
 
   const getPerformanceColor = (rating: string | number) => {
-    // Handle numeric performance (percentage)
     if (typeof rating === 'number') {
       if (rating >= 90) return 'text-green-600';
       if (rating >= 75) return 'text-blue-600';
       if (rating >= 60) return 'text-yellow-600';
       return 'text-red-600';
     }
-    
-    // Handle string rating
     switch (rating) {
       case 'excellent': return 'text-green-600';
       case 'good': return 'text-blue-600';
@@ -129,203 +127,122 @@ const DraggableTeamMember = ({ member, isSelected, onSelect, onViewDetails }: {
     }
   };
 
-  const getExperienceIcon = (experience: string) => {
-    switch (experience) {
-      case 'lead': return <Crown className="w-3 h-3 text-yellow-600" />;
-      case 'senior': return <Star className="w-3 h-3 text-blue-600" />;
-      case 'mid': return <Award className="w-3 h-3 text-green-600" />;
-      case 'junior': return <Target className="w-3 h-3 text-gray-600" />;
-      default: return null;
-    }
-  };
-
   return (
-    <div 
-      ref={drag}
-      className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
-        isDragging ? 'opacity-50 rotate-2 scale-105' : ''
-      }`}
-      onClick={() => {
-        console.log('Card clicked for member:', member.name);
-        onSelect?.();
-      }}
+    <div
+      ref={drag as unknown as React.LegacyRef<HTMLDivElement>}
+      onClick={onSelect}
+      className={`
+        p-3 rounded-lg border transition-all cursor-move select-none
+        ${isDragging ? 'opacity-50 ring-2 ring-blue-400 rotate-2 scale-105' : 'opacity-100 hover:shadow-md hover:border-blue-300'}
+        ${isSelected ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-300' : 'bg-white border-gray-200'}
+      `}
     >
-      <Card 
-        className={`h-full ${isSelected ? 'ring-2 ring-primary bg-gradient-light' : ''}`}
-      >
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex items-center space-x-3">
-              <div className="relative">
-                <Avatar className="w-10 h-10">
-                  <AvatarImage src={member.avatar} alt={member.name} />
-                  <AvatarFallback className="bg-gradient-to-br from-green-100 to-cyan-100">
-                    {member.name.split(' ').map(n => n[0]).join('')}
-                  </AvatarFallback>
-                </Avatar>
-                {member.isTeamLead && (
-                  <div className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center border border-white shadow-sm">
-                    <Crown className="w-2 h-2 text-white" />
-                  </div>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <h4 className="font-medium text-sm truncate">{member.name}</h4>
-                <div className="flex items-center space-x-1 mt-1">
-                  <Badge variant="outline" className={`text-xs ${getRoleColor(member.role)}`}>
-                    {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
-                  </Badge>
-                  {getExperienceIcon(member.experience)}
-                </div>
-              </div>
-            </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="h-6 w-6 p-0 flex-shrink-0"
-              title="View user details"
-              onClick={(e) => {
-                e.stopPropagation();
-                console.log('=== EYE BUTTON CLICKED ===');
-                console.log('Eye button clicked for:', member.name);
-                console.log('onViewDetails function:', onViewDetails);
-                if (onViewDetails) {
-                  onViewDetails();
-                  console.log('onViewDetails called successfully');
-                } else {
-                  console.log('ERROR: onViewDetails is undefined!');
-                }
-              }}
-            >
-              <Eye className="w-3 h-3" />
-            </Button>
+      <div className="flex items-start justify-between mb-2">
+        <div className="flex items-center space-x-3">
+          <Avatar className="h-9 w-9 border border-gray-100">
+            <AvatarImage src={member.avatar} />
+            <AvatarFallback className={`text-xs ${getRoleColor(member.role)}`}>
+              {member.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <h4 className="font-semibold text-sm text-gray-900 leading-tight">{member.name}</h4>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full uppercase tracking-wider font-medium mt-1 inline-block ${getRoleColor(member.role)}`}>
+              {member.role}
+            </span>
           </div>
+        </div>
+        {onViewDetails && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 text-gray-400 hover:text-blue-600"
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewDetails();
+            }}
+          >
+            <Eye className="w-3.5 h-3.5" />
+          </Button>
+        )}
+      </div>
 
-          <div className="space-y-2">
-            {/* Availability */}
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Availability</span>
-              <span className={member.availability >= 80 ? 'text-green-600' : member.availability >= 60 ? 'text-yellow-600' : 'text-red-600'}>
-                {member.availability}%
-              </span>
-            </div>
-            <Progress value={member.availability} className="h-1" />
-
-            {/* Performance */}
-            {member.performance && (
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Performance</span>
-                <span className={getPerformanceColor(typeof member.performance === 'number' ? member.performance : member.performance?.rating || 0)}>
-                  {typeof member.performance === 'number' 
-                    ? `${member.performance}%` 
-                    : member.performance?.rating?.replace('_', ' ') || 'N/A'}
-                </span>
-              </div>
+      <div className="flex items-center justify-between text-xs text-gray-500 pl-12">
+        <div className="flex items-center space-x-3">
+          <span title="Experience" className="flex items-center">
+            {member.experience === 'senior' || member.experience === 'lead' ? (
+              <Crown className="w-3 h-3 mr-1 text-yellow-500" />
+            ) : (
+              <Star className="w-3 h-3 mr-1 text-gray-400" />
             )}
+            <span className="capitalize">{member.experience}</span>
+          </span>
+          <span title="Hourly Rate" className="flex items-center">
+            <IndianRupee className="w-3 h-3 mr-0.5 text-gray-400" />
+            {member.hourlyRate}/hr
+          </span>
+        </div>
 
-            {/* Rate */}
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">CTC</span>
-              <div className="flex items-center space-x-1">
-                <IndianRupee className="w-3 h-3" />
-                <span>{(member.hourlyRate || 0).toLocaleString()}</span>
-              </div>
-            </div>
-
-            {/* Skills Preview */}
-            <div className="flex flex-wrap gap-1 mt-2">
-              {member.skills.slice(0, 3).map((skill, index) => (
-                <Badge key={index} variant="secondary" className="text-xs px-1 py-0">
-                  {skill}
-                </Badge>
-              ))}
-              {member.skills.length > 3 && (
-                <Badge variant="secondary" className="text-xs px-1 py-0">
-                  +{member.skills.length - 3}
-                </Badge>
-              )}
-            </div>
+        {member.performance && (
+          <div className={`flex items-center font-medium ${getPerformanceColor(typeof member.performance === 'object' ? member.performance.rating : 0)}`}>
+            <TrendingUp className="w-3 h-3 mr-1" />
+            {typeof member.performance === 'number' ? `${member.performance}%` : 'High'}
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
+
+      {/* Skill tags - limit to 3 */}
+      <div className="mt-3 flex flex-wrap gap-1 pl-12">
+        {member.skills.slice(0, 3).map((skill, i) => (
+          <span key={i} className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded border border-gray-200">
+            {skill}
+          </span>
+        ))}
+        {member.skills.length > 3 && (
+          <span className="text-[10px] text-gray-400 px-1">+ {member.skills.length - 3}</span>
+        )}
+      </div>
     </div>
   );
 };
 
-// Drop Zone for Selected Team
-const SelectedTeamDropZone = ({ selectedMembers, onDrop, onRemove, onViewDetails, projectBudget, projectDuration }: { 
-  selectedMembers: TeamMember[];
-  onDrop: (member: TeamMember) => void;
-  onRemove: (memberId: string) => void;
-  onViewDetails: (member: TeamMember) => void;
-  projectBudget?: number;
-  projectDuration?: number;
-}) => {
+// Selected Team Drop Zone
+const SelectedTeamDropZone = ({
+  selectedMembers,
+  onDrop,
+  onRemove,
+  onViewDetails,
+  projectBudget,
+  projectDuration
+}: any) => {
   const [{ isOver }, drop] = useDrop({
     accept: ItemType.TEAM_MEMBER,
-    drop: (item: { member: TeamMember }, monitor) => {
-      console.log('Drop received for:', item.member.name);
-      console.log('Drop zone onDrop function:', onDrop);
-      onDrop(item.member);
-      console.log('Drop handled successfully');
-    },
+    drop: (item: { member: TeamMember }) => onDrop(item.member),
     collect: (monitor) => ({
       isOver: monitor.isOver(),
     }),
-    hover: () => {
-      console.log('Hovering over drop zone');
-    }
   });
 
-  // Calculate team composition analysis
   const teamAnalysis = useMemo(() => {
-    if (!selectedMembers || selectedMembers.length === 0) {
-      return {
-        totalCost: 0,
-        roleDistribution: {},
-        avgExperience: 0,
-        avgPerformance: 0,
-        budgetUtilization: 0
-      };
-    }
+    const totalCost = selectedMembers?.reduce((acc: number, m: any) => acc + (m.hourlyRate * 8 * (projectDuration || 20)), 0) || 0;
+    const budgetUtilization = projectBudget ? (totalCost / projectBudget) * 100 : 0;
+    const avgPerformance = selectedMembers?.length ? selectedMembers.reduce((acc: number, m: any) => acc + (typeof m.performance === 'number' ? m.performance : 85), 0) / selectedMembers.length : 0;
+    const roleDistribution = selectedMembers?.reduce((acc: any, m: any) => { acc[m.role] = (acc[m.role] || 0) + 1; return acc; }, {}) || {};
 
-    const totalCost = selectedMembers.reduce((sum, member) => 
-      sum + (member.hourlyRate * (projectDuration || 40) * 8), 0
-    );
-    
-    const roleDistribution = selectedMembers.reduce((acc, member) => {
-      acc[member.role] = (acc[member.role] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-
-    const avgExperience = selectedMembers.reduce((sum, member) => {
-      const expValue = { junior: 1, mid: 2, senior: 3, lead: 4 }[member.experience] || 1;
-      return sum + expValue;
-    }, 0) / (selectedMembers.length || 1);
-
-    const avgPerformance = selectedMembers.reduce((sum, member) => 
-      sum + (typeof member.performance === 'number' ? member.performance : (member.performance?.velocity || 80)), 0
-    ) / (selectedMembers.length || 1);
-
-    return {
-      totalCost,
-      roleDistribution,
-      avgExperience,
-      avgPerformance,
-      budgetUtilization: projectBudget ? (totalCost / projectBudget) * 100 : 0
-    };
+    return { totalCost, budgetUtilization, avgPerformance, roleDistribution, avgExperience: 2 };
   }, [selectedMembers, projectBudget, projectDuration]);
 
   return (
-    <div 
-      ref={drop}
-      className={`min-h-[300px] p-4 border-2 border-dashed rounded-lg transition-colors ${
-        isOver ? 'border-primary bg-gradient-light' : 'border-gray-300'
-      }`}
+    <div
+      ref={drop as unknown as React.LegacyRef<HTMLDivElement>}
+      className={`
+        bg-white rounded-lg border-2 border-dashed h-full flex flex-col transition-colors
+        ${isOver ? 'border-green-500 bg-green-50/50' : 'border-gray-200'}
+      `}
     >
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-medium flex items-center space-x-2">
-          <Users className="w-4 h-4" />
+      <div className="p-4 border-b bg-gray-50/50 flex items-center justify-between rounded-t-lg">
+        <h3 className="font-semibold text-gray-900 flex items-center">
+          <Target className="w-5 h-5 mr-2 text-blue-600" />
           <span>Selected Team ({selectedMembers?.length || 0})</span>
         </h3>
         {selectedMembers && selectedMembers.length > 0 && (
@@ -336,134 +253,84 @@ const SelectedTeamDropZone = ({ selectedMembers, onDrop, onRemove, onViewDetails
       </div>
 
       {!selectedMembers || selectedMembers.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-48 text-center">
-          <UserPlus className="w-12 h-12 text-gray-400 mb-2" />
-          <p className="text-muted-foreground">Drag team members here to build your project team</p>
-          <p className="text-sm text-muted-foreground mt-1">or click on members to add them</p>
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center min-h-[400px]">
+          <div className="bg-blue-50 p-4 rounded-full mb-4">
+            <UserPlus className="w-8 h-8 text-blue-400" />
+          </div>
+          <h4 className="text-lg font-medium text-gray-900 mb-2">Build Your Dream Team</h4>
+          <p className="text-sm text-gray-500 max-w-xs mx-auto">
+            Drag and drop team members from the left panel here to assign them to this project.
+          </p>
         </div>
       ) : (
-        <div className="h-[500px] overflow-y-auto space-y-4 pr-4">
-          {/* Selected Members Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {selectedMembers.map((member) => (
-              <div key={member.id} className="relative overflow-hidden">
-                <DraggableTeamMember 
-                  member={member}
-                  isSelected={true}
-                    onViewDetails={() => onViewDetails(member)}
-                />
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="absolute top-1 right-1 h-5 w-5 p-0 rounded-full z-10"
-                  onClick={() => {
-                    console.log('Remove button clicked for:', member.name);
-                    console.log('onRemove function:', onRemove);
-                    onRemove(member.id);
-                  }}
-                >
-                  <X className="w-3 h-3" />
-                </Button>
-              </div>
-            ))}
+        <div className="flex-1 overflow-hidden flex flex-col">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {/* Selected Members Grid */}
+            <div className="grid grid-cols-1 gap-3">
+              {selectedMembers.map((member: TeamMember) => (
+                <div key={member.id} className="relative group">
+                  <DraggableTeamMember
+                    member={member}
+                    isSelected={true}
+                    onViewDetails={() => onViewDetails && onViewDetails(member)}
+                  />
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    onClick={() => onRemove && onRemove(member.id)}
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Team Analysis */}
-          <Card className="mt-4">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center space-x-2">
-                <TrendingUp className="w-4 h-4" />
-                <span>Team Composition Analysis</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Role Distribution */}
-              <div>
-                <Label className="text-xs text-muted-foreground">Role Distribution</Label>
-                <div className="flex flex-wrap gap-2 mt-1">
-                  {Object.entries(teamAnalysis.roleDistribution).map(([role, count]) => (
-                    <Badge key={role} variant="outline" className="text-xs">
-                      {role}: {count}
-                    </Badge>
-                  ))}
+          {/* Team Analysis Footer */}
+          <div className="p-4 bg-gray-50 border-t space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground flex items-center">
+                <TrendingUp className="w-3 h-3 mr-1" />
+                Role Distribution
+              </span>
+              <div className="flex -space-x-1">
+                {Object.entries(teamAnalysis.roleDistribution).map(([role, count]: [string, any]) => (
+                  <div key={role} className="w-6 h-6 rounded-full bg-blue-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-blue-700" title={`${role}: ${count}`}>
+                    {count}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {projectBudget && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Budget Usage</span>
+                  <span className={
+                    teamAnalysis.budgetUtilization > 100 ? 'text-red-600 font-bold' :
+                      teamAnalysis.budgetUtilization > 90 ? 'text-orange-600 font-medium' : 'text-green-600 font-medium'
+                  }>
+                    {teamAnalysis.budgetUtilization.toFixed(1)}%
+                  </span>
+                </div>
+                <Progress value={Math.min(teamAnalysis.budgetUtilization, 100)} className={`h-1.5 ${teamAnalysis.budgetUtilization > 100 ? 'bg-red-100' : ''}`} />
+                <div className="flex justify-between text-[10px] text-muted-foreground">
+                  <span className="flex items-center"><IndianRupee className="w-2 h-2 mr-0.5" /> {teamAnalysis.totalCost.toLocaleString()}</span>
+                  <span>Budget: <IndianRupee className="w-2 h-2 inline ml-0.5" /> {projectBudget.toLocaleString()}</span>
                 </div>
               </div>
-
-              {/* Budget Analysis */}
-              {projectBudget && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Estimated Cost</Label>
-                    <div className="flex items-center space-x-1 mt-1">
-                      <IndianRupee className="w-3 h-3" />
-                      <span className="text-sm font-medium">
-                        {(teamAnalysis.totalCost || 0).toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Budget Usage</Label>
-                    <div className="mt-1">
-                      <div className="flex justify-between text-xs">
-                        <span>{teamAnalysis.budgetUtilization.toFixed(1)}%</span>
-                        <span className={
-                          teamAnalysis.budgetUtilization > 90 ? 'text-red-600' :
-                          teamAnalysis.budgetUtilization > 75 ? 'text-yellow-600' : 'text-green-600'
-                        }>
-                          {teamAnalysis.budgetUtilization > 90 ? 'Over Budget' :
-                           teamAnalysis.budgetUtilization > 75 ? 'High Usage' : 'Within Budget'}
-                        </span>
-                      </div>
-                      <Progress value={teamAnalysis.budgetUtilization} className="h-1 mt-1" />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Recommendations */}
-              <div className="p-3 bg-gradient-light rounded-lg">
-                <div className="flex items-start space-x-2">
-                  <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium">Team Recommendations</p>
-                    <ul className="text-xs text-muted-foreground mt-1 space-y-1">
-                      {(selectedMembers.length < 7 || selectedMembers.length > 8) && (
-                        <li className={selectedMembers.length < 7 ? 'text-orange-600' : 'text-yellow-600'}>
-                          • Optimal team size is 7-8 members per project (Current: {selectedMembers.length})
-                        </li>
-                      )}
-                      {selectedMembers.filter(m => m.role === 'manager').length === 0 && (
-                        <li>• Consider adding a project manager for better coordination</li>
-                      )}
-                      {selectedMembers.filter(m => m.role === 'tester').length === 0 && (
-                        <li>• Add a tester to ensure quality assurance</li>
-                      )}
-                      {teamAnalysis.avgExperience < 2 && (
-                        <li>• Team may benefit from more senior members for mentoring</li>
-                      )}
-                      {teamAnalysis.budgetUtilization > 90 && (
-                        <li>• Consider optimizing team composition to reduce costs</li>
-                      )}
-                      {selectedMembers.length >= 7 && selectedMembers.length <= 8 && 
-                       selectedMembers.filter(m => m.role === 'manager').length > 0 &&
-                       teamAnalysis.budgetUtilization <= 90 && (
-                        <li className="text-green-600">• Team composition looks optimal! ✓</li>
-                      )}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+            )}
+          </div>
         </div>
       )}
     </div>
   );
 };
 
-const TeamManager = ({ 
-  selectedMembers: propSelectedMembers, 
-  onMembersChange, 
+const TeamManager = ({
+  selectedMembers: propSelectedMembers,
+  onMembersChange,
   projectBudget,
   projectDuration,
   projectId,
@@ -471,7 +338,7 @@ const TeamManager = ({
   onAddMember,
   onRemoveMember
 }: TeamManagerProps) => {
-  
+
 
   const [internalSelectedMembers, setInternalSelectedMembers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -488,10 +355,10 @@ const TeamManager = ({
     selectedUser: null as TeamMember | null,
     isOpen: false
   });
-  
+
   const [selectedUserForDetails, setSelectedUserForDetails] = useState<TeamMember | null>(null);
   const [isUserDetailsOpen, setIsUserDetailsOpen] = useState(false);
-  
+
   // Sync state with ref to prevent reset on re-renders
   React.useEffect(() => {
     // If ref has modal state but local state doesn't, restore it
@@ -502,7 +369,7 @@ const TeamManager = ({
       setSelectedUserForDetails(modalStateRef.current.selectedUser);
     }
   }); // Run on every render to catch re-renders from parent
-  
+
   // Use a key to force Dialog to remount when user changes, preventing auto-close
   const dialogKey = selectedUserForDetails?.id || 'no-user';
 
@@ -512,37 +379,37 @@ const TeamManager = ({
       try {
         console.log(`TeamManager: Fetching users from API... (attempt ${retryCount + 1})`);
         setLoadingUsers(true);
-        
+
         // Get fresh token from localStorage or use the hardcoded one
         const token = localStorage.getItem('authToken') || 'eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJkb21haW4iOiJET01OMDAwMDAwMDAwMDAwMSIsIm5hbWUiOiJBZG1pbiBVc2VyIiwiZGVwYXJ0bWVudCI6IkRFUFQwMDAwMDAwMDAwMDEiLCJ1c2VySWQiOiJVU0VSMDAwMDAwMDAwMDAxIiwic3ViIjoiYWRtaW5Ac3ByaW50c3luYy5jb20iLCJpYXQiOjE3NTk3NDg0NjUsImV4cCI6MTc1OTgzNDg2NX0.QdwUhiS_AvtqzTefTe14N7TKWB1jzrQg01Sz_lNOGBleAPqfVAgTHf97-JmCUQKZyXtAqkhYD-HN3YAMDywxRg';
-        
+
         console.log('TeamManager: Making API request to:', 'http://localhost:8080/api/users');
         console.log('TeamManager: Using token:', token.substring(0, 20) + '...');
-        
+
         const testResponse = await fetch('http://localhost:8080/api/users', {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         });
-        
+
         console.log('TeamManager: Response status:', testResponse.status);
         console.log('TeamManager: Response ok:', testResponse.ok);
-        
+
         if (!testResponse.ok) {
           const errorText = await testResponse.text();
           console.error('TeamManager: Error response:', errorText);
           throw new Error(`HTTP error! status: ${testResponse.status} - ${errorText}`);
         }
-        
+
         const testData = await testResponse.json();
         console.log('TeamManager: Direct fetch response:', testData);
-        
+
         // Use direct fetch data instead of userApiService
         if (testData && testData.content && Array.isArray(testData.content)) {
           console.log('TeamManager: Found', testData.content.length, 'users from direct fetch');
           console.log('TeamManager: Raw user data:', testData.content[0]); // Log first user for debugging
-          
+
           // Map API users to TeamMember format
           const mappedUsers: TeamMember[] = testData.content.map((user: any) => {
             // Parse skills from JSON string
@@ -559,7 +426,7 @@ const TeamManager = ({
                 skillsArray = ['General'];
               }
             }
-            
+
             return {
               id: user.id,
               name: user.name,
@@ -575,7 +442,7 @@ const TeamManager = ({
               projects: 0
             };
           });
-          
+
           console.log('TeamManager: Mapped users:', mappedUsers);
           setAvailableUsers(mappedUsers);
           setHasLoadedRealData(true);
@@ -592,14 +459,14 @@ const TeamManager = ({
           status: error.status,
           response: error.response?.data
         });
-        
+
         // Retry logic - only retry once
         if (retryCount === 0) {
           console.log('TeamManager: Retrying API call...');
           setTimeout(() => fetchUsers(1), 2000); // Retry after 2 seconds
           return;
         }
-        
+
         // API failed after retry - show empty state
         console.log('TeamManager: API failed after retry, showing empty state');
         setAvailableUsers([]);
@@ -620,7 +487,7 @@ const TeamManager = ({
         try {
           setLoadingUsers(true);
           const token = localStorage.getItem('authToken') || 'eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJkb21haW4iOiJET01OMDAwMDAwMDAwMDAwMSIsIm5hbWUiOiJBZG1pbiBVc2VyIiwiZGVwYXJ0bWVudCI6IkRFUFQwMDAwMDAwMDAwMDEiLCJ1c2VySWQiOiJVU0VSMDAwMDAwMDAwMDAxIiwic3ViIjoiYWRtaW5Ac3ByaW50c3luYy5jb20iLCJpYXQiOjE3NTk3NDg0NjUsImV4cCI6MTc1OTgzNDg2NX0.QdwUhiS_AvtqzTefTe14N7TKWB1jzrQg01Sz_lNOGBleAPqfVAgTHf97-JmCUQKZyXtAqkhYD-HN3YAMDywxRg';
-          
+
           console.log('TeamManager: Secondary load - making API request...');
           const response = await fetch('http://localhost:8080/api/users', {
             headers: {
@@ -628,7 +495,7 @@ const TeamManager = ({
               'Content-Type': 'application/json'
             }
           });
-          
+
           console.log('TeamManager: Secondary load - response status:', response.status);
           if (response.ok) {
             const data = await response.json();
@@ -659,7 +526,7 @@ const TeamManager = ({
           setLoadingUsers(false);
         }
       };
-      
+
       fetchUsers();
     }
   }, [hasLoadedRealData, loadingUsers]);
@@ -676,14 +543,14 @@ const TeamManager = ({
     console.log('TeamManager: Members to filter:', availableUsers.length, 'members');
     return availableUsers.filter(member => {
       const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           member.skills.some(skill => skill.toLowerCase().includes(searchTerm.toLowerCase()));
+        member.skills.some(skill => skill.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesRole = roleFilter === 'all' || member.role === roleFilter;
       const matchesExperience = experienceFilter === 'all' || member.experience === experienceFilter;
-      const matchesAvailability = availabilityFilter === 'all' || 
-                                 (availabilityFilter === 'high' && member.availability >= 80) ||
-                                 (availabilityFilter === 'medium' && member.availability >= 60 && member.availability < 80) ||
-                                 (availabilityFilter === 'low' && member.availability < 60);
-      
+      const matchesAvailability = availabilityFilter === 'all' ||
+        (availabilityFilter === 'high' && member.availability >= 80) ||
+        (availabilityFilter === 'medium' && member.availability >= 60 && member.availability < 80) ||
+        (availabilityFilter === 'low' && member.availability < 60);
+
       return matchesSearch && matchesRole && matchesExperience && matchesAvailability;
     });
   }, [availableUsers, searchTerm, roleFilter, experienceFilter, availabilityFilter]);
@@ -692,17 +559,17 @@ const TeamManager = ({
     console.log('=== handleAddMember START ===');
     console.log('handleAddMember called for:', member.name);
     console.log('Current selected members:', selectedMembers?.length || 0);
-    
+
     if (!selectedMembers?.find(m => m.id === member.id)) {
       const newMembers = [...(selectedMembers || []), member];
       console.log('Adding member, new count:', newMembers.length);
-      
+
       // Update internal state if using internal state management
       if (!propSelectedMembers) {
         setInternalSelectedMembers(newMembers);
         console.log('Updated internal selected members');
       }
-      
+
       // Call appropriate callback
       if (onMembersChange) {
         console.log('Calling onMembersChange with new members array');
@@ -713,7 +580,7 @@ const TeamManager = ({
         onTeamChange(newMembers);
         console.log('Called onTeamChange');
       }
-      
+
       // Also call the onAddMember callback if it exists (to trigger API call)
       if (onAddMember && projectId) {
         console.log('Calling onAddMember API callback for userId:', member.id);
@@ -731,16 +598,16 @@ const TeamManager = ({
     console.log('=== handleRemoveMember START ===');
     console.log('handleRemoveMember called for ID:', memberId);
     console.log('Member ID type:', typeof memberId);
-    
+
     const newMembers = (selectedMembers || []).filter(m => m.id !== memberId);
     console.log('Removing member, new count:', newMembers.length);
-    
+
     // Update internal state if using internal state management
     if (!propSelectedMembers) {
       setInternalSelectedMembers(newMembers);
       console.log('Updated internal selected members after removal');
     }
-    
+
     // Call appropriate callback
     if (onMembersChange) {
       console.log('Calling onMembersChange with new members array');
@@ -751,7 +618,7 @@ const TeamManager = ({
       onTeamChange(newMembers);
       console.log('Called onTeamChange for removal');
     }
-    
+
     // Also call the onRemoveMember callback if it exists (to trigger API call)
     if (onRemoveMember) {
       console.log('Calling onRemoveMember API callback for userId:', memberId);
@@ -768,13 +635,13 @@ const TeamManager = ({
     console.log('=== handleViewUserDetails START ===');
     console.log('handleViewUserDetails called for:', member.name);
     console.log('Setting selectedUserForDetails to:', member);
-    
+
     // Update ref to persist across re-renders
     modalStateRef.current = {
       selectedUser: member,
       isOpen: true
     };
-    
+
     setSelectedUserForDetails(member);
     console.log('Setting isUserDetailsOpen to: true');
     setIsUserDetailsOpen(true);
@@ -805,7 +672,7 @@ const TeamManager = ({
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                  <h3 className="font-medium">Available Team Members</h3>
+                    <h3 className="font-medium">Available Team Members</h3>
                     {hasLoadedRealData ? (
                       <Badge variant="default" className="bg-green-100 text-green-800">
                         Real Data
@@ -821,12 +688,12 @@ const TeamManager = ({
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                  <Badge variant="secondary">
+                    <Badge variant="secondary">
                       {loadingUsers ? 'Loading...' : `${filteredMembers.length} available`}
-                  </Badge>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    </Badge>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => {
                         console.log('Manual refresh triggered');
                         setLoadingUsers(true);
@@ -926,29 +793,29 @@ const TeamManager = ({
 
                 {/* Available Members List */}
                 <div className="h-[500px] overflow-y-auto space-y-3 pr-4">
-                    {loadingUsers ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-                        Loading users from database...
-                      </div>
-                    ) : filteredMembers.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                        <p className="text-lg font-medium mb-2">No users available</p>
-                        <p className="text-sm">Click the refresh button to load users from database</p>
-                      </div>
-                    ) : (
-                      filteredMembers.map((member) => (
+                  {loadingUsers ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                      Loading users from database...
+                    </div>
+                  ) : filteredMembers.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p className="text-lg font-medium mb-2">No users available</p>
+                      <p className="text-sm">Click the refresh button to load users from database</p>
+                    </div>
+                  ) : (
+                    filteredMembers.map((member) => (
                       <DraggableTeamMember
                         key={member.id}
                         member={member}
                         isSelected={isSelected(member.id)}
                         onSelect={() => handleAddMember(member)}
-                          onViewDetails={() => handleViewUserDetails(member)}
+                        onViewDetails={() => handleViewUserDetails(member)}
                       />
-                      ))
-                    )}
-                  </div>
+                    ))
+                  )}
+                </div>
               </div>
 
               {/* Selected Team */}
@@ -1003,15 +870,15 @@ const TeamManager = ({
         </Tabs>
 
         {/* User Details Modal */}
-        <Dialog 
+        <Dialog
           key={dialogKey}
-          open={isUserDetailsOpen} 
+          open={isUserDetailsOpen}
           onOpenChange={(open) => {
             console.log('=== DIALOG onOpenChange ===', open);
             console.log('Current state:', isUserDetailsOpen);
             console.log('New state:', open);
             console.log('Dialog key:', dialogKey);
-            
+
             // Only allow manual closing (when user clicks close or outside)
             if (!open) {
               console.log('Dialog is being closed');
@@ -1022,8 +889,8 @@ const TeamManager = ({
           }}
           modal={true}
         >
-          <DialogContent 
-            className="max-w-2xl" 
+          <DialogContent
+            className="max-w-2xl"
             onInteractOutside={(e) => {
               console.log('=== INTERACT OUTSIDE DETECTED ===');
               e.preventDefault(); // Prevent closing on outside click for debugging
@@ -1043,80 +910,80 @@ const TeamManager = ({
               (() => {
                 console.log('=== RENDERING DIALOG CONTENT FOR ===', selectedUserForDetails.name);
                 return (
-              <div className="space-y-6">
-                {/* User Header */}
-                <div className="flex items-center space-x-4">
-                  <Avatar className="h-16 w-16">
-                    <AvatarFallback className="text-lg">
-                      {selectedUserForDetails.name.split(' ').map(n => n[0]).join('')}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <h3 className="text-xl font-semibold">{selectedUserForDetails.name}</h3>
-                    <p className="text-muted-foreground capitalize">{selectedUserForDetails.role}</p>
-                    <p className="text-sm text-muted-foreground">{selectedUserForDetails.department}</p>
-                  </div>
-                </div>
-
-                {/* User Stats */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Card>
-                    <CardContent className="p-4 text-center">
-                      <div className="text-2xl font-bold text-blue-600">{selectedUserForDetails.availability}%</div>
-                      <div className="text-sm text-muted-foreground">Availability</div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4 text-center">
-                      <div className="text-2xl font-bold text-green-600">
-                        {typeof selectedUserForDetails.performance === 'number' 
-                          ? `${selectedUserForDetails.performance}%` 
-                          : selectedUserForDetails.performance?.rating || 'N/A'}
+                  <div className="space-y-6">
+                    {/* User Header */}
+                    <div className="flex items-center space-x-4">
+                      <Avatar className="h-16 w-16">
+                        <AvatarFallback className="text-lg">
+                          {selectedUserForDetails.name.split(' ').map(n => n[0]).join('')}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <h3 className="text-xl font-semibold">{selectedUserForDetails.name}</h3>
+                        <p className="text-muted-foreground capitalize">{selectedUserForDetails.role}</p>
+                        <p className="text-sm text-muted-foreground">{selectedUserForDetails.department}</p>
                       </div>
-                      <div className="text-sm text-muted-foreground">Performance</div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4 text-center">
-                      <div className="text-2xl font-bold text-purple-600">₹{selectedUserForDetails.hourlyRate}</div>
-                      <div className="text-sm text-muted-foreground">CTC</div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4 text-center">
-                      <div className="text-2xl font-bold text-orange-600 capitalize">{selectedUserForDetails.experience}</div>
-                      <div className="text-sm text-muted-foreground">Experience</div>
-                    </CardContent>
-                  </Card>
-                </div>
+                    </div>
 
-                {/* Skills */}
-                <div>
-                  <h4 className="text-lg font-medium mb-3">Skills</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedUserForDetails.skills.map((skill, index) => (
-                      <Badge key={index} variant="secondary" className="text-sm">
-                        {skill}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
+                    {/* User Stats */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <Card>
+                        <CardContent className="p-4 text-center">
+                          <div className="text-2xl font-bold text-blue-600">{selectedUserForDetails.availability}%</div>
+                          <div className="text-sm text-muted-foreground">Availability</div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="p-4 text-center">
+                          <div className="text-2xl font-bold text-green-600">
+                            {typeof selectedUserForDetails.performance === 'number'
+                              ? `${selectedUserForDetails.performance}%`
+                              : selectedUserForDetails.performance?.rating || 'N/A'}
+                          </div>
+                          <div className="text-sm text-muted-foreground">Performance</div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="p-4 text-center">
+                          <div className="text-2xl font-bold text-purple-600">₹{selectedUserForDetails.hourlyRate}</div>
+                          <div className="text-sm text-muted-foreground">CTC</div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="p-4 text-center">
+                          <div className="text-2xl font-bold text-orange-600 capitalize">{selectedUserForDetails.experience}</div>
+                          <div className="text-sm text-muted-foreground">Experience</div>
+                        </CardContent>
+                      </Card>
+                    </div>
 
-                {/* Additional Info */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Current Workload</h4>
-                    <div className="flex items-center space-x-2">
-                      <Progress value={selectedUserForDetails.workload || 0} className="flex-1" />
-                      <span className="text-sm">{selectedUserForDetails.workload || 0}%</span>
+                    {/* Skills */}
+                    <div>
+                      <h4 className="text-lg font-medium mb-3">Skills</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedUserForDetails.skills.map((skill, index) => (
+                          <Badge key={index} variant="secondary" className="text-sm">
+                            {skill}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Additional Info */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Current Workload</h4>
+                        <div className="flex items-center space-x-2">
+                          <Progress value={selectedUserForDetails.workload || 0} className="flex-1" />
+                          <span className="text-sm">{selectedUserForDetails.workload || 0}%</span>
+                        </div>
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Active Projects</h4>
+                        <div className="text-lg font-semibold">{selectedUserForDetails.projects || 0}</div>
+                      </div>
                     </div>
                   </div>
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Active Projects</h4>
-                    <div className="text-lg font-semibold">{selectedUserForDetails.projects || 0}</div>
-                  </div>
-                </div>
-              </div>
                 );
               })()
             ) : (

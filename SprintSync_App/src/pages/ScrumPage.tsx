@@ -299,6 +299,9 @@ const ScrumPage: React.FC = () => {
   const [editLogData, setEditLogData] = useState({
     hoursWorked: 0,
     description: "",
+    workDate: new Date().toISOString().split("T")[0],
+    startTime: "",
+    endTime: "",
   });
 
   const [dashboardProject, setDashboardProject] = useState("all");
@@ -344,9 +347,9 @@ const ScrumPage: React.FC = () => {
             sprintApiService.getSprints()
           ]);
 
-          const tasks = Array.isArray(tasksRes.data) ? tasksRes.data : (tasksRes.data?.content || []);
-          const stories = Array.isArray(storiesRes.data) ? storiesRes.data : (storiesRes.data?.content || []);
-          const sprints = Array.isArray(sprintsRes.data) ? sprintsRes.data : (sprintsRes.data?.content || []);
+          const tasks = Array.isArray(tasksRes.data) ? tasksRes.data : ((tasksRes.data as any)?.content || []);
+          const stories = Array.isArray(storiesRes.data) ? storiesRes.data : ((storiesRes.data as any)?.content || []);
+          const sprints = Array.isArray(sprintsRes.data) ? sprintsRes.data : ((sprintsRes.data as any)?.content || []);
 
           setDashboardTasks(tasks);
           setDashboardStories(stories);
@@ -875,7 +878,7 @@ const ScrumPage: React.FC = () => {
     return selectedProject
       ? Array.isArray(boardsData)
         ? boardsData
-        : boardsData?.data || []
+        : (boardsData as any)?.data || []
       : [];
   }, [selectedProject, boardsData]);
 
@@ -961,11 +964,11 @@ const ScrumPage: React.FC = () => {
 
   const epicsArray = Array.isArray(epicsData)
     ? epicsData
-    : epicsData?.data || epicsData?.content || [];
+    : (epicsData as any)?.data || (epicsData as any)?.content || [];
 
   const releasesArray = Array.isArray(releasesData)
     ? releasesData
-    : releasesData?.data || releasesData?.content || [];
+    : (releasesData as any)?.data || (releasesData as any)?.content || [];
 
   const epics = epicsArray.filter(
     (epic: any) => epic.projectId === selectedProject,
@@ -1226,7 +1229,7 @@ const ScrumPage: React.FC = () => {
         const currentBacklogStories = selectedProject
           ? (Array.isArray(backlogStoriesData)
             ? backlogStoriesData
-            : backlogStoriesData?.data || []
+            : (backlogStoriesData as any)?.data || []
           ).filter((s: Story) => s.status === "BACKLOG")
           : [];
 
@@ -1258,7 +1261,7 @@ const ScrumPage: React.FC = () => {
             if (response.ok) {
               const data = await response.json();
 
-              const tasks = Array.isArray(data) ? data : data?.data || [];
+              const tasks = Array.isArray(data) ? data : (data as any)?.data || [];
 
               return tasks;
             }
@@ -1293,7 +1296,7 @@ const ScrumPage: React.FC = () => {
             if (response.ok) {
               const data = await response.json();
 
-              const issues = Array.isArray(data) ? data : data?.data || [];
+              const issues = Array.isArray(data) ? data : (data as any)?.data || [];
 
               return issues;
             }
@@ -1574,7 +1577,7 @@ const ScrumPage: React.FC = () => {
     const sprintsArray = selectedProject
       ? Array.isArray(sprintsData)
         ? sprintsData
-        : sprintsData?.data || []
+        : (sprintsData as any)?.data || []
       : [];
 
     // Sort sprints by startDate in descending order (newest first)
@@ -1628,7 +1631,7 @@ const ScrumPage: React.FC = () => {
 
     const stories = Array.isArray(sprintStoriesData)
       ? sprintStoriesData
-      : sprintStoriesData?.data || [];
+      : (sprintStoriesData as any)?.data || [];
 
     // Filter stories to ensure they belong to the selected project's sprint
 
@@ -1698,7 +1701,7 @@ const ScrumPage: React.FC = () => {
 
     const stories = Array.isArray(backlogStoriesData)
       ? backlogStoriesData
-      : backlogStoriesData?.data || [];
+      : (backlogStoriesData as any)?.data || [];
 
     // Filter stories to ensure they belong to the selected project
     // Show ALL stories for the project (like BacklogPage does), not just those with status 'BACKLOG'
@@ -1727,7 +1730,7 @@ const ScrumPage: React.FC = () => {
     const allLanes = selectedProject
       ? Array.isArray(workflowLanesData)
         ? workflowLanesData
-        : workflowLanesData?.data || []
+        : (workflowLanesData as any)?.data || []
       : [];
 
     // Filter lanes by selected board (null = default board, which has boardId === null)
@@ -3308,8 +3311,6 @@ const ScrumPage: React.FC = () => {
 
       dueDate: undefined,
 
-      dueDate: undefined,
-
       labels: [],
     });
 
@@ -3366,8 +3367,7 @@ const ScrumPage: React.FC = () => {
 
           // Prevent non-managers from moving tasks from "In Progress" back to "To Do"
           const isMovingFromInProgressToTodo =
-            (oldStatus === "IN_PROGRESS" || oldStatus === "in_progress") &&
-            (newStatus === "todo" || newStatus === "TO_DO" || newStatus === "TODO");
+            oldStatus === "IN_PROGRESS" && newStatus === "todo";
 
           if (isMovingFromInProgressToTodo && !canManageSprintsAndStories) {
             toast.error("Only managers can move tasks from In Progress back to To Do");
@@ -3392,8 +3392,7 @@ const ScrumPage: React.FC = () => {
 
           // Prevent non-managers from moving tasks from "To Do" to "In Progress"
           const isMovingFromTodoToInProgress =
-            (oldStatus === "TO_DO" || oldStatus === "TODO" || oldStatus === "todo" || oldStatus === "to_do") &&
-            (newStatus === "inprogress" || newStatus === "IN_PROGRESS" || newStatus === "in_progress");
+            oldStatus === "TO_DO" && newStatus === "inprogress";
 
           if (isMovingFromTodoToInProgress && !canManageSprintsAndStories) {
             toast.error("Only managers can move tasks from To Do to In Progress");
@@ -3428,8 +3427,8 @@ const ScrumPage: React.FC = () => {
 
           // Log activity
           try {
-            const isMovingToInProgress = mappedStatus === "IN_PROGRESS" || mappedStatus === "in_progress";
-            const isMovingFromTodo = oldStatus === "TO_DO" || oldStatus === "TODO" || oldStatus === "todo" || oldStatus === "to_do";
+            const isMovingToInProgress = mappedStatus === "IN_PROGRESS";
+            const isMovingFromTodo = oldStatus === "TO_DO";
 
             let description = `Changed status from ${oldStatus} to ${mappedStatus}`;
             if (isMovingFromTodo && isMovingToInProgress && canManageSprintsAndStories) {
@@ -3473,8 +3472,7 @@ const ScrumPage: React.FC = () => {
 
           // Prevent non-managers from moving issues from "In Progress" back to "To Do"
           const isMovingFromInProgressToTodo =
-            (oldStatus === "IN_PROGRESS" || oldStatus === "in_progress") &&
-            (newStatus === "todo" || newStatus === "TO_DO" || newStatus === "TODO");
+            oldStatus === "IN_PROGRESS" && newStatus === "todo";
 
           if (isMovingFromInProgressToTodo && !canManageSprintsAndStories) {
             toast.error("Only managers can move issues from In Progress back to To Do");
@@ -3499,8 +3497,7 @@ const ScrumPage: React.FC = () => {
 
           // Prevent non-managers from moving issues from "To Do" to "In Progress"
           const isMovingFromTodoToInProgress =
-            (oldStatus === "TO_DO" || oldStatus === "TODO" || oldStatus === "todo" || oldStatus === "to_do") &&
-            (newStatus === "inprogress" || newStatus === "IN_PROGRESS" || newStatus === "in_progress");
+            oldStatus === "TO_DO" && newStatus === "inprogress";
 
           if (isMovingFromTodoToInProgress && !canManageSprintsAndStories) {
             toast.error("Only managers can move issues from To Do to In Progress");
@@ -3533,8 +3530,8 @@ const ScrumPage: React.FC = () => {
 
           // Log activity
           try {
-            const isMovingToInProgress = mappedStatus === "IN_PROGRESS" || mappedStatus === "in_progress";
-            const isMovingFromTodo = oldStatus === "TO_DO" || oldStatus === "TODO" || oldStatus === "todo" || oldStatus === "to_do";
+            const isMovingToInProgress = mappedStatus === "IN_PROGRESS";
+            const isMovingFromTodo = oldStatus === "TO_DO";
 
             let description = `Changed issue status from ${oldStatus} to ${mappedStatus}`;
             if (isMovingFromTodo && isMovingToInProgress && canManageSprintsAndStories) {
@@ -3795,18 +3792,17 @@ const ScrumPage: React.FC = () => {
 
     setNewStory({
       title: "",
-
       description: "",
-
       acceptanceCriteria: "",
-
       storyPoints: 0,
-
       priority: "MEDIUM",
-
       epicId: "",
-
       releaseId: "",
+      sprintId: selectedSprint || "",
+      assigneeId: "",
+      reporterId: user?.id || "",
+      dueDate: undefined,
+      labels: [],
     });
 
     setStoryAttachments([]);
@@ -6088,7 +6084,7 @@ const ScrumPage: React.FC = () => {
         {/* Story Card - Each story in its own separate row */}
 
         <div
-          ref={drag}
+          ref={drag as unknown as React.Ref<HTMLDivElement>}
           className={`transition-all cursor-move ${isDragging ? "opacity-50 rotate-1 scale-105" : "hover:scale-[1.01]"
             }`}
         >
@@ -6192,7 +6188,7 @@ const ScrumPage: React.FC = () => {
 
                         const allTodo = tasks.every((t) => {
                           const s = t.status?.toUpperCase();
-                          return s === "TODO" || s === "TO_DO";
+                          return s === "TO_DO";
                         });
                         if (allTodo) return "TODO";
 
@@ -6212,7 +6208,7 @@ const ScrumPage: React.FC = () => {
 
                       const allTodo = tasks.every((t) => {
                         const s = t.status?.toUpperCase();
-                        return s === "TODO" || s === "TO_DO";
+                        return s === "TO_DO";
                       });
                       if (allTodo) return "TODO";
 
@@ -6373,7 +6369,7 @@ const ScrumPage: React.FC = () => {
 
     return (
       <div
-        ref={drag}
+        ref={drag as unknown as React.Ref<HTMLDivElement>}
         className={`transition-all cursor-move ${isDragging ? "opacity-50 rotate-1 scale-105" : "hover:scale-[1.01]"
           }`}
       >
@@ -6557,7 +6553,7 @@ const ScrumPage: React.FC = () => {
 
     return (
       <div
-        ref={drag}
+        ref={drag as unknown as React.Ref<HTMLDivElement>}
         className={`transition-all cursor-move ${isDragging ? "opacity-50 rotate-1 scale-105" : "hover:scale-[1.01]"
           }`}
       >
@@ -6761,7 +6757,7 @@ const ScrumPage: React.FC = () => {
 
     return (
       <div
-        ref={drop}
+        ref={drop as unknown as React.Ref<HTMLDivElement>}
         className={`min-h-[600px] ${isOver ? "bg-blue-50 border-blue-300" : "bg-gray-50"} 
 
         border-2 border-dashed rounded-lg transition-colors flex flex-col`}
@@ -6831,7 +6827,7 @@ const ScrumPage: React.FC = () => {
           const tasksPromises = backlogStories.map(async (story: Story) => {
             try {
               const response = await taskApiService.getTasksByStory(story.id);
-              const tasks = Array.isArray(response.data) ? response.data : (response.data?.content || []);
+              const tasks = Array.isArray(response.data) ? response.data : ((response.data as any)?.content || []);
               return { storyId: story.id, tasks };
             } catch (error) {
               console.error(`Error fetching tasks for story ${story.id}:`, error);
@@ -7378,7 +7374,7 @@ const ScrumPage: React.FC = () => {
                       </div>
                       <div className="p-4 bg-white rounded shadow">
                         <h3 className="text-sm font-medium text-gray-500">Pending</h3>
-                        <p className="text-2xl font-semibold">{filteredTasks.filter((t) => t.status === "TODO").length}</p>
+                        <p className="text-2xl font-semibold">{filteredTasks.filter((t) => t.status as string === "TODO").length}</p>
                       </div>
                     </div>
                   )}
@@ -7983,8 +7979,12 @@ const ScrumPage: React.FC = () => {
             open={isBacklogEffortManagerOpen}
             onOpenChange={setIsBacklogEffortManagerOpen}
             onLogEffort={handleLogBacklogEffort}
-            task={selectedBacklogTaskForEffort}
-            allTasks={backlogTasks}
+            task={selectedBacklogTaskForEffort ? {
+              ...selectedBacklogTaskForEffort,
+              assignee: selectedBacklogTaskForEffort.assigneeId ? getUserName(selectedBacklogTaskForEffort.assigneeId) : 'Unassigned',
+              efforts: []
+            } as any : null}
+            allTasks={backlogTasks as any[]}
             allStories={[]}
           />
         </TabsContent>
@@ -8697,34 +8697,34 @@ const ScrumPage: React.FC = () => {
                         const todoTasks = allTasks.filter(
                           (task) =>
                             task.storyId === story.id &&
-                            (task.status === "to_do" ||
-                              task.status === "TO_DO" ||
-                              task.status === "todo" ||
-                              task.status === "TODO"),
+                            ((task.status as any) === "to_do" ||
+                              (task.status as any) === "TO_DO" ||
+                              (task.status as any) === "todo" ||
+                              (task.status as any) === "TODO"),
                         );
 
                         const inProgressTasks = allTasks.filter(
                           (task) =>
                             task.storyId === story.id &&
-                            (task.status === "in_progress" ||
-                              task.status === "IN_PROGRESS" ||
-                              task.status === "inprogress" ||
-                              task.status === "INPROGRESS"),
+                            ((task.status as any) === "in_progress" ||
+                              (task.status as any) === "IN_PROGRESS" ||
+                              (task.status as any) === "inprogress" ||
+                              (task.status as any) === "INPROGRESS"),
                         );
 
                         const qaTasks = allTasks.filter(
                           (task) =>
                             task.storyId === story.id &&
-                            (task.status === "qa_review" ||
-                              task.status === "QA_REVIEW" ||
-                              task.status === "qa" ||
-                              task.status === "QA"),
+                            ((task.status as any) === "qa_review" ||
+                              (task.status as any) === "QA_REVIEW" ||
+                              (task.status as any) === "qa" ||
+                              (task.status as any) === "QA"),
                         );
 
                         const doneTasks = allTasks.filter(
                           (task) =>
                             task.storyId === story.id &&
-                            (task.status === "done" || task.status === "DONE"),
+                            ((task.status as any) === "done" || (task.status as any) === "DONE"),
                         );
 
                         // Get issues for this story by status (same status mapping as tasks)
@@ -8732,34 +8732,35 @@ const ScrumPage: React.FC = () => {
                         const todoIssues = allIssues.filter(
                           (issue) =>
                             issue.storyId === story.id &&
-                            (issue.status === "to_do" ||
-                              issue.status === "TO_DO" ||
-                              issue.status === "todo" ||
-                              issue.status === "TODO"),
+                            ((issue.status as any) === "to_do" ||
+                              (issue.status as any) === "TO_DO" ||
+                              (issue.status as any) === "todo" ||
+                              (issue.status as any) === "TODO"),
                         );
 
                         const inProgressIssues = allIssues.filter(
                           (issue) =>
                             issue.storyId === story.id &&
-                            (issue.status === "in_progress" ||
-                              issue.status === "IN_PROGRESS" ||
-                              issue.status === "inprogress" ||
-                              issue.status === "INPROGRESS"),
+                            ((issue.status as any) === "in_progress" ||
+                              (issue.status as any) === "IN_PROGRESS" ||
+                              (issue.status as any) === "inprogress" ||
+                              (issue.status as any) === "INPROGRESS"),
                         );
 
                         const qaIssues = allIssues.filter(
                           (issue) =>
                             issue.storyId === story.id &&
-                            (issue.status === "qa_review" ||
-                              issue.status === "QA_REVIEW" ||
-                              issue.status === "qa" ||
-                              issue.status === "QA"),
+                            ((issue.status as any) === "qa_review" ||
+                              (issue.status as any) === "QA_REVIEW" ||
+                              (issue.status as any) === "qa" ||
+                              (issue.status as any) === "QA"),
                         );
 
                         const doneIssues = allIssues.filter(
                           (issue) =>
                             issue.storyId === story.id &&
-                            (issue.status === "done" || issue.status === "DONE"),
+                            issue.storyId === story.id &&
+                            ((issue.status as any) === "done" || (issue.status as any) === "DONE"),
                         );
 
                         const maxTaskCount = Math.max(
@@ -8886,7 +8887,7 @@ const ScrumPage: React.FC = () => {
 
                           return (
                             <div
-                              ref={drop}
+                              ref={drop as unknown as React.Ref<HTMLDivElement>}
                               className={`p-3 border-r border-gray-200 ${bgClass} ${isOver ? "bg-blue-100 ring-2 ring-blue-400 ring-inset" : ""} transition-all`}
                               style={style}
                               title={
@@ -10217,7 +10218,7 @@ const ScrumPage: React.FC = () => {
                         {newStory.dueDate ? (
                           typeof newStory.dueDate === 'string'
                             ? new Date(newStory.dueDate).toLocaleDateString()
-                            : newStory.dueDate.toLocaleDateString()
+                            : (newStory.dueDate as any).toLocaleDateString()
                         ) : (
                           <span>Pick a date</span>
                         )}
@@ -11574,7 +11575,7 @@ const ScrumPage: React.FC = () => {
                   min={
                     (Array.isArray(sprintsData)
                       ? sprintsData
-                      : sprintsData?.data || []
+                      : (sprintsData as any)?.data || []
                     )
                       .find((s: any) => s.id === selectedSprint)
                       ?.startDate?.split("T")[0]
@@ -11582,7 +11583,7 @@ const ScrumPage: React.FC = () => {
                   max={
                     (Array.isArray(sprintsData)
                       ? sprintsData
-                      : sprintsData?.data || []
+                      : (sprintsData as any)?.data || []
                     )
                       .find((s: any) => s.id === selectedSprint)
                       ?.endDate?.split("T")[0]
@@ -12055,32 +12056,7 @@ const ScrumPage: React.FC = () => {
 
                         {/* Acceptance Criteria */}
 
-                        {selectedTaskForDetails.acceptanceCriteria &&
-                          selectedTaskForDetails.acceptanceCriteria.length >
-                          0 && (
-                            <div>
-                              <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                                Acceptance Criteria
-                              </h3>
 
-                              <div className="space-y-2">
-                                {selectedTaskForDetails.acceptanceCriteria.map(
-                                  (criteria, index) => (
-                                    <div
-                                      key={index}
-                                      className="flex items-start space-x-2"
-                                    >
-                                      <CheckCircle2 className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-
-                                      <span className="text-sm text-gray-700">
-                                        {criteria}
-                                      </span>
-                                    </div>
-                                  ),
-                                )}
-                              </div>
-                            </div>
-                          )}
 
                         {/* Labels */}
 
@@ -14547,7 +14523,6 @@ const ScrumPage: React.FC = () => {
           projectId: story.projectId,
         }))}
         defaultStoryId={newTask.storyId || undefined}
-        projectId={selectedProject}
         users={users}
       />
     </DndProvider>

@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Checkbox } from './ui/checkbox';
-import { 
+import {
   Search,
   Filter,
   SortAsc,
@@ -97,12 +97,12 @@ const ScrumBoardEnhanced: React.FC<ScrumBoardEnhancedProps> = ({
       if (searchTerm && !item.title.toLowerCase().includes(searchTerm.toLowerCase())) {
         return false;
       }
-      
+
       // Priority filter
       if (priorityFilter !== 'all' && item.priority !== priorityFilter) {
         return false;
       }
-      
+
       // Assignee filter
       if (assigneeFilter !== 'all') {
         const itemAssignee = 'assignee' in item ? item.assignee : item.assignee;
@@ -110,7 +110,7 @@ const ScrumBoardEnhanced: React.FC<ScrumBoardEnhancedProps> = ({
           return false;
         }
       }
-      
+
       // Label filter
       if (labelFilter !== 'all') {
         const itemLabels = item.labels || [];
@@ -118,12 +118,12 @@ const ScrumBoardEnhanced: React.FC<ScrumBoardEnhancedProps> = ({
           return false;
         }
       }
-      
+
       // Type filter (for tasks)
-      if (typeFilter !== 'all' && 'type' in item && item.type !== typeFilter) {
+      if (typeFilter !== 'all' && 'type' in item && (item as Task).type !== typeFilter) {
         return false;
       }
-      
+
       return true;
     });
   }, [searchTerm, priorityFilter, assigneeFilter, labelFilter, typeFilter]);
@@ -137,12 +137,12 @@ const ScrumBoardEnhanced: React.FC<ScrumBoardEnhancedProps> = ({
         case 'title':
           return a.title.localeCompare(b.title);
         case 'assignee':
-          const aAssignee = 'assignee' in a ? a.assignee || '' : a.assignee;
-          const bAssignee = 'assignee' in b ? b.assignee || '' : b.assignee;
+          const aAssignee = a.assignee || '';
+          const bAssignee = b.assignee || '';
           return aAssignee.localeCompare(bAssignee);
         case 'points':
           if ('points' in a && 'points' in b) {
-            return b.points - a.points;
+            return (b as Story).points - (a as Story).points;
           }
           return 0;
         default:
@@ -153,10 +153,10 @@ const ScrumBoardEnhanced: React.FC<ScrumBoardEnhancedProps> = ({
 
   // Get filtered and sorted items by status
   const getItemsByStatus = (status: string, itemType: 'story' | 'task') => {
-    const items = itemType === 'story' 
+    const items = itemType === 'story'
       ? stories.filter(s => s.status === status)
       : tasks.filter(t => t.status === status);
-    
+
     return sortItems(filterItems(items));
   };
 
@@ -198,8 +198,8 @@ const ScrumBoardEnhanced: React.FC<ScrumBoardEnhancedProps> = ({
   };
 
   const handleItemSelect = (itemId: string) => {
-    setSelectedItems(prev => 
-      prev.includes(itemId) 
+    setSelectedItems(prev =>
+      prev.includes(itemId)
         ? prev.filter(id => id !== itemId)
         : [...prev, itemId]
     );
@@ -236,7 +236,7 @@ const ScrumBoardEnhanced: React.FC<ScrumBoardEnhancedProps> = ({
                   className="w-64"
                 />
               </div>
-              
+
               <Button
                 variant="outline"
                 size="sm"
@@ -404,12 +404,11 @@ const ScrumBoardEnhanced: React.FC<ScrumBoardEnhancedProps> = ({
               </Button>
             </div>
             <div className="space-y-3">
-              {getItemsByStatus('stories', 'story').map((story) => (
+              {(getItemsByStatus('stories', 'story') as Story[]).map((story) => (
                 <div
                   key={story.id}
-                  className={`p-3 bg-white border rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer ${
-                    selectedItems.includes(story.id) ? 'ring-2 ring-blue-500' : ''
-                  }`}
+                  className={`p-3 bg-white border rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer ${selectedItems.includes(story.id) ? 'ring-2 ring-blue-500' : ''
+                    }`}
                   onClick={() => handleItemSelect(story.id)}
                 >
                   <div className="flex items-start justify-between mb-2">
@@ -437,9 +436,9 @@ const ScrumBoardEnhanced: React.FC<ScrumBoardEnhancedProps> = ({
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
-                  
+
                   <h4 className="font-medium text-sm mb-2 line-clamp-2">{story.title}</h4>
-                  
+
                   {story.labels && story.labels.length > 0 && (
                     <div className="flex flex-wrap gap-1 mb-2">
                       {story.labels.map((label, index) => (
@@ -449,7 +448,7 @@ const ScrumBoardEnhanced: React.FC<ScrumBoardEnhancedProps> = ({
                       ))}
                     </div>
                   )}
-                  
+
                   <div className="flex items-center justify-between">
                     <Badge variant="secondary" className="text-xs">
                       {story.points} pts
@@ -496,87 +495,86 @@ const ScrumBoardEnhanced: React.FC<ScrumBoardEnhancedProps> = ({
                 </Button>
               </div>
               <div className="space-y-2">
-                {getItemsByStatus(status, 'task').map((task) => {
+                {(getItemsByStatus(status, 'task') as Task[]).map((task) => {
                   // Determine if it's a task or issue based on type or other criteria
                   const isIssue = task.type === 'bug' || task.type === 'issue' || task.labels?.includes('bug') || task.labels?.includes('issue');
-                  
+
                   return (
-                  <div
-                    key={task.id}
-                    className={`p-2 rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer ${
-                      selectedItems.includes(task.id) 
-                        ? 'ring-2 ring-blue-500' 
+                    <div
+                      key={task.id}
+                      className={`p-2 rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer ${selectedItems.includes(task.id)
+                        ? 'ring-2 ring-blue-500'
                         : ''
-                    }`}
-                    onClick={() => handleItemSelect(task.id)}
-                    style={{
-                      backgroundColor: isIssue ? '#ff0000' : '#00ff00',
-                      borderColor: isIssue ? '#cc0000' : '#00cc00',
-                      borderWidth: '4px',
-                      borderStyle: 'solid',
-                      backgroundImage: 'none !important',
-                      background: isIssue ? '#ff0000 !important' : '#00ff00 !important'
-                    }}
-                  >
-                    <div className="flex items-start justify-between mb-1">
-                      <div className="flex items-center space-x-1">
-                        <Checkbox
-                          checked={selectedItems.includes(task.id)}
-                          onChange={() => handleItemSelect(task.id)}
-                        />
-                        <span className="text-xs font-medium text-blue-600">{task.id}</span>
-                        <Badge variant="outline" className={`text-xs ${getPriorityColor(task.priority)}`}>
-                          {task.priority.charAt(0).toUpperCase()}
-                        </Badge>
-                      </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-4 w-4 p-0">
-                            <MoreHorizontal className="w-3 h-3" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>Edit Task</DropdownMenuItem>
-                          <DropdownMenuItem>View Details</DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-red-600">Delete</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                    
-                    <h5 className="font-medium text-xs mb-1 line-clamp-2">{task.title}</h5>
-                    
-                    {task.labels && task.labels.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-1">
-                        {task.labels.map((label, index) => (
-                          <Badge key={index} variant="outline" className="text-xs bg-purple-50 text-purple-700">
-                            {label}
+                        }`}
+                      onClick={() => handleItemSelect(task.id)}
+                      style={{
+                        backgroundColor: isIssue ? '#ff0000' : '#00ff00',
+                        borderColor: isIssue ? '#cc0000' : '#00cc00',
+                        borderWidth: '4px',
+                        borderStyle: 'solid',
+                        backgroundImage: 'none !important',
+                        background: isIssue ? '#ff0000 !important' : '#00ff00 !important'
+                      }}
+                    >
+                      <div className="flex items-start justify-between mb-1">
+                        <div className="flex items-center space-x-1">
+                          <Checkbox
+                            checked={selectedItems.includes(task.id)}
+                            onChange={() => handleItemSelect(task.id)}
+                          />
+                          <span className="text-xs font-medium text-blue-600">{task.id}</span>
+                          <Badge variant="outline" className={`text-xs ${getPriorityColor(task.priority)}`}>
+                            {task.priority.charAt(0).toUpperCase()}
                           </Badge>
-                        ))}
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-4 w-4 p-0">
+                              <MoreHorizontal className="w-3 h-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem>Edit Task</DropdownMenuItem>
+                            <DropdownMenuItem>View Details</DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="text-red-600">Delete</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
-                    )}
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-1">
-                        {task.type && (
-                          <Badge variant="outline" className={`text-xs ${getTypeColor(task.type)}`}>
-                            <div className="flex items-center space-x-1">
-                              {getTypeIcon(task.type)}
-                              <span className="capitalize">{task.type}</span>
-                            </div>
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <Avatar className="h-4 w-4">
-                          <AvatarFallback className="text-xs">{getInitials(task.assignee || 'Unassigned')}</AvatarFallback>
-                        </Avatar>
-                        <span className="text-xs">{task.assignee?.split(' ')[0] || 'Unassigned'}</span>
+
+                      <h5 className="font-medium text-xs mb-1 line-clamp-2">{task.title}</h5>
+
+                      {task.labels && task.labels.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-1">
+                          {task.labels.map((label, index) => (
+                            <Badge key={index} variant="outline" className="text-xs bg-purple-50 text-purple-700">
+                              {label}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-1">
+                          {task.type && (
+                            <Badge variant="outline" className={`text-xs ${getTypeColor(task.type)}`}>
+                              <div className="flex items-center space-x-1">
+                                {getTypeIcon(task.type)}
+                                <span className="capitalize">{task.type}</span>
+                              </div>
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Avatar className="h-4 w-4">
+                            <AvatarFallback className="text-xs">{getInitials(task.assignee || 'Unassigned')}</AvatarFallback>
+                          </Avatar>
+                          <span className="text-xs">{task.assignee?.split(' ')[0] || 'Unassigned'}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ));
-                })
+                  );
+                })}
               </div>
             </CardContent>
           </Card>

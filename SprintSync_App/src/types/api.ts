@@ -137,7 +137,7 @@ export interface Story extends BaseEntity {
   orderIndex?: number;
   dueDate?: string; // Date in YYYY-MM-DD format
   actualHours?: number;
-  dueDate?: string;
+
   isActive: boolean;
 }
 

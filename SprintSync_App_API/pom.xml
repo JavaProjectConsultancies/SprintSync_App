@@ -16,6 +16,7 @@
     <artifactId>sprintsync-api</artifactId>
     <version>1.0.0</version>
     <name>SprintSync API</name>
+    <packaging>war</packaging>
     <description>Spring Boot REST API for SprintSync Project Management Application</description>
 
     <properties>
