@@ -62,12 +62,12 @@ interface MenuItem {
 const AppSidebar: React.FC = () => {
   const { user, logout, hasPermission } = useAuth();
   const { navigationState, navigateTo } = useNavigation();
-  
+
   // Early return if user is not available (shouldn't happen, but safety check)
   if (!user) {
     return null;
   }
-  
+
   const allMenuItems: MenuItem[] = [
     {
       title: 'Dashboard',
@@ -201,7 +201,7 @@ const AppSidebar: React.FC = () => {
   const filteredMenuItems = menuItems.filter(item => {
     if (!item.permission) return true; // Items without permission requirements are always shown
     if (!user) return false; // No user, no access
-    
+
     try {
       return hasPermission(item.permission);
     } catch (error) {
@@ -262,7 +262,7 @@ const AppSidebar: React.FC = () => {
   return (
     <Sidebar>
       <SidebarHeader>
-        <div 
+        <div
           className="flex items-center space-x-3 px-2 py-3 cursor-pointer hover:bg-gray-50 rounded-lg transition-colors"
           onClick={() => {
             try {
@@ -279,9 +279,9 @@ const AppSidebar: React.FC = () => {
           title="Go to Dashboard"
         >
           <div className="relative">
-            <img 
-              src={sprintSyncLogo} 
-              alt="SprintSync Logo" 
+            <img
+              src={sprintSyncLogo}
+              alt="SprintSync Logo"
               className="w-10 h-10 object-contain"
             />
           </div>
@@ -307,7 +307,7 @@ const AppSidebar: React.FC = () => {
                       // So we just need to check permissions if they exist
                       if (!child.permission) return true;
                       if (!user) return false;
-                      
+
                       try {
                         return hasPermission(child.permission);
                       } catch (error) {
@@ -317,15 +317,15 @@ const AppSidebar: React.FC = () => {
                     })
                     .map((child) => (
                       <SidebarMenuItem key={child.title}>
-                        <SidebarMenuButton 
+                        <SidebarMenuButton
                           className={`group cursor-pointer ${navigationState.currentSection === child.id ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}`}
                           onClick={() => handleNavigation(child.id, child.title)}
                         >
                           <child.icon className="w-4 h-4" />
                           <span>{child.title}</span>
                           {child.badge && (
-                            <Badge 
-                              variant="secondary" 
+                            <Badge
+                              variant="secondary"
                               className="ml-auto text-xs bg-green-100 text-green-800 border-green-200"
                             >
                               {child.badge}
@@ -336,7 +336,7 @@ const AppSidebar: React.FC = () => {
                     ))
                 ) : (
                   <SidebarMenuItem>
-                    <SidebarMenuButton 
+                    <SidebarMenuButton
                       className={`cursor-pointer ${navigationState.currentSection === section.id ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}`}
                       onClick={() => handleNavigation(section.id, section.title)}
                     >
@@ -390,8 +390,8 @@ const AppSidebar: React.FC = () => {
                     <div className="space-y-1">
                       <p className="text-sm font-medium">{user?.name}</p>
                       <div className="flex items-center space-x-2">
-                        <Badge 
-                          variant="outline" 
+                        <Badge
+                          variant="outline"
                           className={`text-xs ${getRoleColor(user?.role || '')}`}
                         >
                           <RoleIcon className="w-3 h-3 mr-1" />
@@ -406,10 +406,6 @@ const AppSidebar: React.FC = () => {
                 <DropdownMenuItem onClick={() => handleNavigation('profile', 'Profile')}>
                   <User className="w-4 h-4 mr-2" />
                   Profile
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Settings className="w-4 h-4 mr-2" />
-                  Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={logout} className="text-red-600">

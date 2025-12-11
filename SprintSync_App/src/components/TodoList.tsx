@@ -29,10 +29,11 @@ const TodoList: React.FC = () => {
   } = useTasksByAssignee(user?.id || '', undefined);
 
   const [localTodos, setLocalTodos] = useState<TodoItemType[]>([]);
+  const [hiddenTaskIds, setHiddenTaskIds] = useState<Set<string>>(new Set());
   const [newTodo, setNewTodo] = useState('');
   const [newPriority, setNewPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [newCategory, setNewCategory] = useState<'work' | 'personal' | 'shopping' | 'health'>('work');
-  const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
+  const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('active');
   const [priorityFilter, setPriorityFilter] = useState<'all' | 'low' | 'medium' | 'high'>('all');
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'work' | 'personal' | 'shopping' | 'health'>('all');
 
@@ -145,24 +146,35 @@ const TodoList: React.FC = () => {
     return [...taskTodos, ...localTodos];
   }, [taskTodos, localTodos]);
 
-  // Load local todos from localStorage on component mount
+  // Load local todos from localStorage on component mount (user-specific)
   useEffect(() => {
-    const savedTodos = localStorage.getItem('sprintSync-todos');
-    if (savedTodos) {
-      const parsedTodos = JSON.parse(savedTodos).map((todo: any) => ({
-        ...todo,
-        createdAt: new Date(todo.createdAt),
-        updatedAt: new Date(todo.updatedAt),
-        completedAt: todo.completedAt ? new Date(todo.completedAt) : undefined
-      }));
-      setLocalTodos(parsedTodos);
-    }
-  }, []);
+    if (!user?.id) return; // Don't load if no user
 
-  // Save local todos to localStorage whenever they change
+    const storageKey = `sprintSync-todos-${user.id}`;
+    const savedTodos = localStorage.getItem(storageKey);
+    if (savedTodos) {
+      try {
+        const parsedTodos = JSON.parse(savedTodos).map((todo: any) => ({
+          ...todo,
+          createdAt: new Date(todo.createdAt),
+          updatedAt: new Date(todo.updatedAt),
+          completedAt: todo.completedAt ? new Date(todo.completedAt) : undefined
+        }));
+        setLocalTodos(parsedTodos);
+      } catch (error) {
+        console.error('Error loading user todos:', error);
+        setLocalTodos([]);
+      }
+    }
+  }, [user?.id]);
+
+  // Save local todos to localStorage whenever they change (user-specific)
   useEffect(() => {
-    localStorage.setItem('sprintSync-todos', JSON.stringify(localTodos));
-  }, [localTodos]);
+    if (!user?.id) return; // Don't save if no user
+
+    const storageKey = `sprintSync-todos-${user.id}`;
+    localStorage.setItem(storageKey, JSON.stringify(localTodos));
+  }, [localTodos, user?.id]);
 
   const addTodo = () => {
     if (!newTodo.trim()) return;
@@ -239,35 +251,20 @@ const TodoList: React.FC = () => {
     }
   };
 
-  const deleteTodo = async (id: string) => {
+  const deleteTodo = (id: string) => {
     // Check if it's a local todo or a task todo
     const isLocalTodo = id.startsWith('local-');
 
     if (isLocalTodo) {
-      // Delete local todo
+      // Actually delete local todos since they're not in the database
       setLocalTodos(prev => prev.filter(todo => todo.id !== id));
     } else {
-      // Delete task from database
-      try {
-        // Validate task exists before deletion
-        const task = assignedTasks.find((t: Task) => t.id === id);
-        if (!task) {
-          console.warn('Task not found for deletion:', id);
-          return;
-        }
-
-        console.log('[TodoList] Deleting task:', id);
-        await taskApiService.deleteTask(id);
-
-        // Refetch tasks to get updated data
-        if (refetchTasks) {
-          await refetchTasks();
-        }
-      } catch (error) {
-        console.error('Failed to delete task:', error);
-        // Show user-friendly error message
-        alert('Failed to delete task. Please try again.');
-      }
+      // For database tasks, just hide them from UI (don't delete from database)
+      setHiddenTaskIds(prev => {
+        const newSet = new Set(prev);
+        newSet.add(id);
+        return newSet;
+      });
     }
   };
 
@@ -314,8 +311,10 @@ const TodoList: React.FC = () => {
     }
   };
 
-  // Filter todos based on current filters
+  // Filter todos based on current filters and hidden state
   const filteredTodos = todos.filter(todo => {
+    // Hide tasks that are in the hidden list
+    if (hiddenTaskIds.has(todo.id)) return false;
     if (filter === 'active' && todo.completed) return false;
     if (filter === 'completed' && !todo.completed) return false;
     if (priorityFilter !== 'all' && todo.priority !== priorityFilter) return false;
@@ -513,8 +512,7 @@ const TodoList: React.FC = () => {
         <CardContent className="p-4">
           <Tabs value={filter} onValueChange={(value: 'all' | 'active' | 'completed') => setFilter(value)}>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-              <TabsList className="grid grid-cols-3 w-full md:w-auto">
-                <TabsTrigger value="all">All ({totalTodos})</TabsTrigger>
+              <TabsList className="grid grid-cols-2 w-full md:w-auto">
                 <TabsTrigger value="active">Active ({activeTodos})</TabsTrigger>
                 <TabsTrigger value="completed">Completed ({completedTodos})</TabsTrigger>
               </TabsList>
@@ -526,9 +524,9 @@ const TodoList: React.FC = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Priority</SelectItem>
-                    <SelectItem value="high">High ({priorityStats.high})</SelectItem>
-                    <SelectItem value="medium">Medium ({priorityStats.medium})</SelectItem>
-                    <SelectItem value="low">Low ({priorityStats.low})</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -538,10 +536,10 @@ const TodoList: React.FC = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Categories</SelectItem>
-                    <SelectItem value="work">Work ({categoryStats.work})</SelectItem>
-                    <SelectItem value="personal">Personal ({categoryStats.personal})</SelectItem>
-                    <SelectItem value="shopping">Shopping ({categoryStats.shopping})</SelectItem>
-                    <SelectItem value="health">Health ({categoryStats.health})</SelectItem>
+                    <SelectItem value="work">Work</SelectItem>
+                    <SelectItem value="personal">Personal</SelectItem>
+                    <SelectItem value="shopping">Shopping</SelectItem>
+                    <SelectItem value="health">Health</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -594,43 +592,64 @@ const TodoList: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Priority Breakdown</p>
-                <div className="space-y-1">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Overall Stats */}
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-gray-700 border-b pb-2">Overview</p>
+                <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Badge variant="destructive" className="text-xs">High</Badge>
-                    <span className="text-sm">{priorityStats.high}</span>
+                    <span className="text-sm text-gray-600">Total Tasks</span>
+                    <Badge variant="outline" className="text-sm font-semibold">{totalTodos}</Badge>
                   </div>
                   <div className="flex items-center justify-between">
-                    <Badge variant="outline" className="text-xs bg-yellow-100 text-yellow-700">Medium</Badge>
-                    <span className="text-sm">{priorityStats.medium}</span>
+                    <span className="text-sm text-gray-600">Active</span>
+                    <Badge variant="outline" className="text-sm font-semibold text-blue-600 bg-blue-50">{activeTodos}</Badge>
                   </div>
                   <div className="flex items-center justify-between">
-                    <Badge variant="secondary" className="text-xs">Low</Badge>
-                    <span className="text-sm">{priorityStats.low}</span>
+                    <span className="text-sm text-gray-600">Completed</span>
+                    <Badge variant="outline" className="text-sm font-semibold text-green-600 bg-green-50">{completedTodos}</Badge>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Category Breakdown</p>
-                <div className="space-y-1">
+              {/* Priority Breakdown */}
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-gray-700 border-b pb-2">Priority Breakdown</p>
+                <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs">Work</span>
-                    <span className="text-sm">{categoryStats.work}</span>
+                    <Badge variant="destructive" className="text-xs w-20">High</Badge>
+                    <span className="text-sm font-semibold text-gray-700">{priorityStats.high}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs">Personal</span>
-                    <span className="text-sm">{categoryStats.personal}</span>
+                    <Badge variant="outline" className="text-xs bg-yellow-100 text-yellow-700 border-yellow-300 w-20">Medium</Badge>
+                    <span className="text-sm font-semibold text-gray-700">{priorityStats.medium}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs">Shopping</span>
-                    <span className="text-sm">{categoryStats.shopping}</span>
+                    <Badge variant="secondary" className="text-xs w-20">Low</Badge>
+                    <span className="text-sm font-semibold text-gray-700">{priorityStats.low}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Category Breakdown */}
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-gray-700 border-b pb-2">Category Breakdown</p>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Work</span>
+                    <span className="text-sm font-semibold text-gray-700">{categoryStats.work}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs">Health</span>
-                    <span className="text-sm">{categoryStats.health}</span>
+                    <span className="text-sm text-gray-600">Personal</span>
+                    <span className="text-sm font-semibold text-gray-700">{categoryStats.personal}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Shopping</span>
+                    <span className="text-sm font-semibold text-gray-700">{categoryStats.shopping}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Health</span>
+                    <span className="text-sm font-semibold text-gray-700">{categoryStats.health}</span>
                   </div>
                 </div>
               </div>

@@ -226,7 +226,12 @@ const ProfilePage: React.FC = () => {
       : normalizedAvailability >= 80
         ? 'Mostly booked'
         : 'Space available';
-  const lastLoginRelative = formatRelativeTime(profile?.lastLogin);
+
+  // For Last Login - if user is currently logged in and viewing profile, show current time
+  // Otherwise show the stored lastLogin from database
+  const currentSessionTime = new Date().toISOString();
+  const lastLoginTime = authUser ? currentSessionTime : (profile?.lastLogin || null);
+  const lastLoginRelative = formatRelativeTime(lastLoginTime);
   const lastUpdatedRelative = formatRelativeTime(profile?.updatedAt);
   const createdRelative = formatRelativeTime(profile?.createdAt);
   const heroMetaDetails = [
@@ -284,12 +289,12 @@ const ProfilePage: React.FC = () => {
     },
     {
       label: 'Last Active',
-      value: profile?.lastLogin ? lastLoginRelative : 'Never',
+      value: 'Active now',
       icon: Clock,
-      detail: profile?.lastLogin ? formatDateTime(profile?.lastLogin) : 'No login recorded',
+      detail: 'Currently logged in',
     },
     {
-      label: 'Tenure',
+      label: 'Experience',
       value: tenureDisplay,
       icon: Calendar,
       detail: joiningDateRaw ? `Since ${formatDateOnly(joiningDateRaw)}` : 'Awaiting start date',
@@ -314,8 +319,10 @@ const ProfilePage: React.FC = () => {
       key: 'login',
       title: 'Last login',
       description: 'Most recent secure session',
-      date: profile?.lastLogin ? formatDateTime(profile?.lastLogin) : 'Never logged in',
-      meta: lastLoginRelative,
+      date: authUser
+        ? formatDateTime(currentSessionTime)
+        : (profile?.lastLogin ? formatDateTime(profile.lastLogin) : 'Never logged in'),
+      meta: authUser ? 'Just now' : lastLoginRelative,
     },
     {
       key: 'updated',
@@ -350,8 +357,12 @@ const ProfilePage: React.FC = () => {
         {
           icon: Clock,
           label: 'Last Login',
-          value: profile?.lastLogin ? formatDateTime(profile?.lastLogin) : 'Never logged in',
-          hint: lastLoginRelative,
+          value: authUser
+            ? formatDateTime(currentSessionTime)
+            : (profile?.lastLogin ? formatDateTime(profile.lastLogin) : 'Never'),
+          hint: authUser
+            ? 'Just now (Current session)'
+            : (profile?.lastLogin ? lastLoginRelative : 'No login history'),
         },
       ],
     },
@@ -395,7 +406,7 @@ const ProfilePage: React.FC = () => {
         },
         {
           icon: Calendar,
-          label: 'Tenure',
+          label: 'Experience',
           value: tenureDisplay,
           hint: joiningDateRaw ? formatRelativeTime(joiningDateRaw) : undefined,
         },

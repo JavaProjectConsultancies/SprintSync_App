@@ -26,27 +26,27 @@ import { Checkbox } from '../components/ui/checkbox';
 
 import { Progress } from '../components/ui/progress';
 
-import { 
+import {
 
-  Plus, 
+  Plus,
 
-  Search, 
+  Search,
 
-  Filter, 
+  Filter,
 
-  MoreVertical, 
+  MoreVertical,
 
-  Edit, 
+  Edit,
 
-  Trash2, 
+  Trash2,
 
-  Flag, 
+  Flag,
 
-  Target, 
+  Target,
 
-  User, 
+  User,
 
-  Calendar, 
+  Calendar,
 
   Clock,
 
@@ -160,9 +160,11 @@ const BacklogPage: React.FC = () => {
 
   const [storiesWithTasks, setStoriesWithTasks] = useState<StoryWithTasks[]>([]);
 
+  const [allStoriesWithTasks, setAllStoriesWithTasks] = useState<StoryWithTasks[]>([]); // Unfiltered version for stats
+
   const [tasksLoading, setTasksLoading] = useState(false);
 
-  
+
 
   const [selectedTaskForEffort, setSelectedTaskForEffort] = useState<Task | null>(null);
 
@@ -454,7 +456,7 @@ const BacklogPage: React.FC = () => {
 
       const token = localStorage.getItem('authToken') || '';
 
-      
+
 
       const storyTasksPromises = stories.map(async (story: Story) => {
 
@@ -472,7 +474,7 @@ const BacklogPage: React.FC = () => {
 
           });
 
-          
+
 
           if (response.ok) {
 
@@ -517,7 +519,7 @@ const BacklogPage: React.FC = () => {
         const inProgressTasks = storyTasks.filter(t => t.status === 'IN_PROGRESS').length;
         const qaTasks = storyTasks.filter(t => t.status === 'QA_REVIEW' || t.status === 'REVIEW').length;
         const doneTasks = storyTasks.filter(t => t.status === 'DONE').length;
-        
+
         console.log(`Story ${story.id} (${story.title}):`, {
           allTasksCount: storyTasks.length,
           storyTasks: storyTasks,
@@ -532,10 +534,11 @@ const BacklogPage: React.FC = () => {
       const allTasks = storiesWithTasksData.flatMap(s => s.tasks || []);
       const totalTasks = allTasks.length;
       const totalIssues = 0; // Backlog page doesn't fetch issues separately
-      
+
       console.log(`Fetched ${totalTasks} tasks and ${totalIssues} issues from ${storiesWithTasksData.length} stories`);
 
-
+      // Store unfiltered version for stats BEFORE role-based filtering
+      setAllStoriesWithTasks(storiesWithTasksData.map(s => ({ ...s, tasks: [...(s.tasks || [])] })));
 
       // Role-based filtering: Only managers see all tasks
 
@@ -561,7 +564,6 @@ const BacklogPage: React.FC = () => {
 
       }
 
-      
 
       setStoriesWithTasks(storiesWithTasksData);
 
@@ -700,7 +702,7 @@ const BacklogPage: React.FC = () => {
 
       const matchesSearch = story.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
 
-                           (story.description && story.description.toLowerCase().includes(searchTerm.toLowerCase()));
+        (story.description && story.description.toLowerCase().includes(searchTerm.toLowerCase()));
 
 
 
@@ -718,7 +720,7 @@ const BacklogPage: React.FC = () => {
 
       let aValue, bValue;
 
-      
+
 
       switch (sortBy) {
 
@@ -814,13 +816,35 @@ const BacklogPage: React.FC = () => {
 
   }, [filteredStories, taskPassesFilters]);
 
+  // Get ALL tasks from unfiltered stories (for stats - bypassing role-based filtering)
+  const allTasksForStats = useMemo(() => {
+    const allTasks: Task[] = [];
+    // Filter stories by selected sprint for stats
+    const storiesToUse = selectedSprint
+      ? allStoriesWithTasks.filter(s => s.sprintId === selectedSprint)
+      : allStoriesWithTasks;
+
+    storiesToUse.forEach(story => {
+      if (story.tasks && story.tasks.length > 0) {
+        allTasks.push(...story.tasks);
+      }
+    });
+    console.log('BacklogPage allTasksForStats:', {
+      totalTasks: allTasks.length,
+      doneTasks: allTasks.filter(t => (t.status || '').toUpperCase() === 'DONE').length,
+      storiesCount: storiesToUse.length,
+      selectedSprint
+    });
+    return allTasks;
+  }, [allStoriesWithTasks, selectedSprint]);
+
 
 
   const toggleTaskSelection = (taskId: string) => {
 
-    setSelectedTasks(prev => 
+    setSelectedTasks(prev =>
 
-      prev.includes(taskId) 
+      prev.includes(taskId)
 
         ? prev.filter(id => id !== taskId)
 
@@ -860,7 +884,7 @@ const BacklogPage: React.FC = () => {
     console.log('Task Title:', task.title);
     console.log('Task object:', task);
     console.log('========================================');
-    
+
     setTaskToView(task);
 
     setIsTaskDialogOpen(true);
@@ -1005,7 +1029,7 @@ const BacklogPage: React.FC = () => {
 
     today.setHours(0, 0, 0, 0);
 
-    
+
 
     const visibleTasks = (story.tasks || []).filter(taskPassesFilters);
 
@@ -1031,7 +1055,7 @@ const BacklogPage: React.FC = () => {
 
       <Card className="mb-4">
 
-        <CardHeader 
+        <CardHeader
 
           className="cursor-pointer hover:bg-muted/50 transition-colors"
 
@@ -1043,7 +1067,7 @@ const BacklogPage: React.FC = () => {
 
             <div className="flex items-center space-x-2">
 
-              <ChevronDown 
+              <ChevronDown
 
                 className={`w-4 h-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`}
 
@@ -1139,7 +1163,7 @@ const BacklogPage: React.FC = () => {
 
                     <div className="text-xs text-muted-foreground">
 
-                      {visibleTasks.filter(t => t.status === 'DONE').length} completed
+                      {visibleTasks.filter(t => (t.status || '').toUpperCase() === 'DONE').length} completed
 
                     </div>
 
@@ -1193,23 +1217,21 @@ const BacklogPage: React.FC = () => {
 
                       return (
 
-                        <Card 
+                        <Card
 
-                          key={task.id} 
+                          key={task.id}
 
-                          className={`border-l-4 ${
-
-                            isOverdueAndIncomplete ? 'border-l-red-500 bg-red-50' : 
+                          className={`border-l-4 ${isOverdueAndIncomplete ? 'border-l-red-500 bg-red-50' :
 
                             isDoneBeforeDue ? 'border-l-green-300 bg-green-50' :
 
-                            isTaskDoneStatus ? 'border-l-green-500 bg-green-50' :
+                              isTaskDoneStatus ? 'border-l-green-500 bg-green-50' :
 
-                            isUserAssigned ? 'border-l-purple-500 bg-purple-50' :
+                                isUserAssigned ? 'border-l-purple-500 bg-purple-50' :
 
-                            'border-l-blue-500'
+                                  'border-l-blue-500'
 
-                          }`}
+                            }`}
 
                         >
 
@@ -1279,7 +1301,7 @@ const BacklogPage: React.FC = () => {
 
                                         isDoneBeforeDue ? 'text-green-600 font-medium' :
 
-                                        isOverdue ? 'text-red-600 font-medium' : ''
+                                          isOverdue ? 'text-red-600 font-medium' : ''
 
                                       }>
 
@@ -1305,21 +1327,21 @@ const BacklogPage: React.FC = () => {
 
                                   )}
 
-                              {assigneeLabel && (
+                                  {assigneeLabel && (
 
-                                <div className="flex items-center space-x-1">
+                                    <div className="flex items-center space-x-1">
 
-                                  <User className="w-3 h-3" />
+                                      <User className="w-3 h-3" />
 
-                                  <span className="font-bold text-black">
+                                      <span className="font-bold text-black">
 
-                                    {assigneeLabel}
+                                        {assigneeLabel}
 
-                                  </span>
+                                      </span>
 
-                                </div>
+                                    </div>
 
-                              )}
+                                  )}
 
                                   {task.actualHours > 0 && (
 
@@ -1443,9 +1465,9 @@ const BacklogPage: React.FC = () => {
 
           {/* Sprint Selector */}
 
-          <Select 
+          <Select
 
-            value={selectedSprint || "all"} 
+            value={selectedSprint || "all"}
 
             onValueChange={(value) => setSelectedSprint(value === "all" ? "" : value)}
 
@@ -1727,7 +1749,7 @@ const BacklogPage: React.FC = () => {
 
             <div className="text-2xl font-semibold text-red-600">
 
-              {tasks.filter(t => {
+              {allTasksForStats.filter(t => {
 
                 if (!t.dueDate) return false;
 
@@ -1739,13 +1761,14 @@ const BacklogPage: React.FC = () => {
 
                 taskDueDate.setHours(0, 0, 0, 0);
 
-                return taskDueDate < today && t.status !== 'DONE' && t.status !== 'CANCELLED';
+                const statusUpper = (t.status || '').toUpperCase();
+                return taskDueDate < today && statusUpper !== 'CANCELLED';
 
               }).length}
 
             </div>
 
-            <div className="text-sm text-muted-foreground">Overdue Incomplete Tasks</div>
+            <div className="text-sm text-muted-foreground">Overdue Tasks</div>
 
           </CardContent>
 
@@ -1757,7 +1780,10 @@ const BacklogPage: React.FC = () => {
 
             <div className="text-2xl font-semibold text-yellow-600">
 
-              {tasks.filter(t => t.status === 'IN_PROGRESS' || t.status === 'TO_DO').length}
+              {allTasksForStats.filter(t => {
+                const statusUpper = (t.status || '').toUpperCase();
+                return statusUpper === 'IN_PROGRESS' || statusUpper === 'TO_DO' || statusUpper === 'TODO';
+              }).length}
 
             </div>
 
@@ -1773,7 +1799,16 @@ const BacklogPage: React.FC = () => {
 
             <div className="text-2xl font-semibold text-green-600">
 
-              {tasks.filter(t => t.status === 'DONE').length}
+              {allTasksForStats.filter(t => {
+                const statusUpper = (t.status || '').toUpperCase();
+                if (statusUpper !== 'DONE') return false;
+                if (!t.dueDate) return true;
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const dueDate = new Date(t.dueDate);
+                dueDate.setHours(0, 0, 0, 0);
+                return dueDate >= today;
+              }).length}
 
             </div>
 
@@ -1797,81 +1832,81 @@ const BacklogPage: React.FC = () => {
 
         <>
 
-        <div className="space-y-4">
+          <div className="space-y-4">
 
-          <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
 
-            <h3 className="font-medium">
+              <h3 className="font-medium">
 
-              {isManager ? 'All Stories' : 'Stories with My Assigned Tasks'} ({filteredStories.length})
+                {isManager ? 'All Stories' : 'Stories with My Assigned Tasks'} ({filteredStories.length})
 
-            </h3>
+              </h3>
 
-            <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2">
 
-              {filteredStories.reduce((sum, story) => sum + (story.storyPoints || 0), 0) > 0 && (
+                {filteredStories.reduce((sum, story) => sum + (story.storyPoints || 0), 0) > 0 && (
 
-                <Badge variant="secondary">
+                  <Badge variant="secondary">
 
-                  Total: {filteredStories.reduce((sum, story) => sum + (story.storyPoints || 0), 0)} points
+                    Total: {filteredStories.reduce((sum, story) => sum + (story.storyPoints || 0), 0)} points
 
-                </Badge>
+                  </Badge>
 
-              )}
+                )}
 
-            </div>
-
-          </div>
-
-
-
-          {filteredStories.length > 0 ? (
-
-            <div className="space-y-4">
-
-              {filteredStories.map(story => (
-
-                <StoryCard key={story.id} story={story} />
-
-              ))}
+              </div>
 
             </div>
 
-          ) : (
 
-            <Card>
 
-              <CardContent className="p-12 text-center">
+            {filteredStories.length > 0 ? (
 
-                <div className="text-muted-foreground space-y-2">
+              <div className="space-y-4">
 
-                  <Target className="w-12 h-12 mx-auto opacity-50" />
+                {filteredStories.map(story => (
 
-                  <p>{isManager ? 'No stories found' : 'No stories with your assigned tasks found'}</p>
+                  <StoryCard key={story.id} story={story} />
 
-                  <p className="text-sm">
+                ))}
 
-                    {selectedProject
+              </div>
 
-                      ? (isManager 
+            ) : (
 
-                          ? "No stories found for this project." 
+              <Card>
+
+                <CardContent className="p-12 text-center">
+
+                  <div className="text-muted-foreground space-y-2">
+
+                    <Target className="w-12 h-12 mx-auto opacity-50" />
+
+                    <p>{isManager ? 'No stories found' : 'No stories with your assigned tasks found'}</p>
+
+                    <p className="text-sm">
+
+                      {selectedProject
+
+                        ? (isManager
+
+                          ? "No stories found for this project."
 
                           : "You are not assigned to any tasks in stories for this project.")
 
-                      : "Please select a project to view stories."}
+                        : "Please select a project to view stories."}
 
-                  </p>
+                    </p>
 
-                </div>
+                  </div>
 
-              </CardContent>
+                </CardContent>
 
-            </Card>
+              </Card>
 
-          )}
+            )}
 
-        </div>
+          </div>
 
         </>
 
@@ -1901,7 +1936,7 @@ const BacklogPage: React.FC = () => {
 
       {/* Effort Manager */}
 
-      <EffortManager 
+      <EffortManager
 
         open={isEffortManagerOpen}
 
@@ -1909,9 +1944,9 @@ const BacklogPage: React.FC = () => {
 
         onLogEffort={handleLogEffort}
 
-        task={selectedTaskForEffort}
+        task={selectedTaskForEffort as any}
 
-        allTasks={tasks}
+        allTasks={tasks as any}
 
         allStories={[]}
 

@@ -38,11 +38,11 @@ import { userApiService } from '../services/api/entities/userApi';
 interface TeamMember {
   id: string;
   name: string;
-  role: 'manager' | 'developer' | 'analyst' | 'tester' | 'devops';
+  role: 'admin' | 'manager' | 'developer';
   skills: string[];
   availability: number; // percentage
   department: string;
-  experience: 'junior' | 'mid' | 'senior' | 'lead';
+  experience: 'E1' | 'E2' | 'M1' | 'M2' | 'M3' | 'L1' | 'L2' | 'L3' | 'S1';
   hourlyRate: number;
   avatar?: string;
   isTeamLead?: boolean;
@@ -101,12 +101,9 @@ const DraggableTeamMember = ({ member, isSelected, onSelect, onViewDetails }: {
 
   const getRoleColor = (role: string) => {
     switch (role) {
+      case 'admin': return 'bg-red-100 text-red-800 border-red-200';
       case 'manager': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'developer': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'qa': return 'bg-pink-100 text-pink-800 border-pink-200';
-      case 'analyst': return 'bg-green-100 text-green-800 border-green-200';
-      case 'tester': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'devops': return 'bg-red-100 text-red-800 border-red-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -170,7 +167,7 @@ const DraggableTeamMember = ({ member, isSelected, onSelect, onViewDetails }: {
       <div className="flex items-center justify-between text-xs text-gray-500 pl-12">
         <div className="flex items-center space-x-3">
           <span title="Experience" className="flex items-center">
-            {member.experience === 'senior' || member.experience === 'lead' ? (
+            {member.experience === 'S1' || member.experience.startsWith('L') ? (
               <Crown className="w-3 h-3 mr-1 text-yellow-500" />
             ) : (
               <Star className="w-3 h-3 mr-1 text-gray-400" />
@@ -430,11 +427,11 @@ const TeamManager = ({
             return {
               id: user.id,
               name: user.name,
-              role: user.role?.toLowerCase() || 'developer',
+              role: user.role || 'developer',
               skills: skillsArray,
               availability: user.availabilityPercentage || 100,
               department: user.departmentId || 'Unknown', // Use departmentId since department name might not be available
-              experience: user.experience?.toLowerCase() || 'mid',
+              experience: user.experience || 'M1',
               hourlyRate: user.hourlyRate || 0,
               avatar: user.avatarUrl || '',
               isTeamLead: false,
@@ -503,11 +500,11 @@ const TeamManager = ({
               const mappedUsers = data.content.map((user: any) => ({
                 id: user.id,
                 name: user.name,
-                role: user.role?.toLowerCase() || 'developer',
+                role: user.role || 'developer',
                 skills: user.skills ? (typeof user.skills === 'string' ? JSON.parse(user.skills) : user.skills) : [],
                 availability: user.availabilityPercentage || 100,
                 department: user.departmentId || 'Unknown',
-                experience: user.experience?.toLowerCase() || 'mid',
+                experience: user.experience || 'M1',
                 hourlyRate: user.hourlyRate || 0,
                 avatar: user.avatarUrl || '',
                 isTeamLead: false,
@@ -709,11 +706,11 @@ const TeamManager = ({
                             const mappedUsers = data.content.map((user: any) => ({
                               id: user.id,
                               name: user.name,
-                              role: user.role?.toLowerCase() || 'developer',
+                              role: user.role || 'developer',
                               skills: user.skills ? (typeof user.skills === 'string' ? JSON.parse(user.skills) : user.skills) : [],
                               availability: user.availabilityPercentage || 100,
                               department: user.departmentId || 'Unknown',
-                              experience: user.experience?.toLowerCase() || 'mid',
+                              experience: user.experience || 'M1',
                               hourlyRate: user.hourlyRate || 0,
                               avatar: user.avatarUrl || '',
                               isTeamLead: false,
@@ -756,11 +753,9 @@ const TeamManager = ({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Roles</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
                         <SelectItem value="manager">Manager</SelectItem>
                         <SelectItem value="developer">Developer</SelectItem>
-                        <SelectItem value="analyst">Analyst</SelectItem>
-                        <SelectItem value="tester">Tester</SelectItem>
-                        <SelectItem value="devops">DevOps</SelectItem>
                       </SelectContent>
                     </Select>
 
@@ -770,10 +765,15 @@ const TeamManager = ({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Levels</SelectItem>
-                        <SelectItem value="lead">Lead</SelectItem>
-                        <SelectItem value="senior">Senior</SelectItem>
-                        <SelectItem value="mid">Mid-level</SelectItem>
-                        <SelectItem value="junior">Junior</SelectItem>
+                        <SelectItem value="S1">S1 - Senior Level</SelectItem>
+                        <SelectItem value="L3">L3 - Lead Level 3</SelectItem>
+                        <SelectItem value="L2">L2 - Lead Level 2</SelectItem>
+                        <SelectItem value="L1">L1 - Lead Level 1</SelectItem>
+                        <SelectItem value="M3">M3 - Mid Level 3</SelectItem>
+                        <SelectItem value="M2">M2 - Mid Level 2</SelectItem>
+                        <SelectItem value="M1">M1 - Mid Level 1</SelectItem>
+                        <SelectItem value="E2">E2 - Entry Level 2</SelectItem>
+                        <SelectItem value="E1">E1 - Entry Level 1</SelectItem>
                       </SelectContent>
                     </Select>
 

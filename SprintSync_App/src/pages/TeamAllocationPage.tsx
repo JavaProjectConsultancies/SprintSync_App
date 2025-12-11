@@ -21,8 +21,8 @@ import { projectApiService } from '../services/api/entities/projectApi';
 import { useTeamMembers as useProjectTeamMembers } from '../hooks/api/useTeamMembers';
 import { useAuth } from '../contexts/AuthContextEnhanced';
 import { toast } from 'sonner';
-import { 
-  Users, 
+import {
+  Users,
   Plus,
   Calendar,
   Clock,
@@ -47,9 +47,9 @@ import {
   Building,
   Coffee,
   IndianRupee,
-    Award,
-    Loader2,
-    GripVertical
+  Award,
+  Loader2,
+  GripVertical
 } from 'lucide-react';
 
 interface TeamMember {
@@ -232,7 +232,7 @@ const TeamAllocationPage: React.FC = () => {
         });
         const membersResults = await Promise.all(memberPromises);
         const mapMembers: Record<string, any[]> = {};
-        membersResults.forEach(r => { 
+        membersResults.forEach(r => {
           // Normalize the data structure: ensure userId is set for all members
           const normalizedMembers = (r.members || []).map((m: any) => ({
             ...m,
@@ -296,9 +296,9 @@ const TeamAllocationPage: React.FC = () => {
   // This function must be defined before useMemo hooks and useEffect that use it
   const normalizeExperience = useCallback((experience: string | undefined | null): 'E1' | 'E2' | 'M1' | 'M2' | 'M3' | 'L1' | 'L2' | 'L3' | 'S1' => {
     if (!experience) return 'M1';
-    
+
     const exp = experience.toString().toUpperCase();
-    
+
     // Map old values to new enum values
     if (exp === 'JUNIOR' || exp === 'E1' || exp === 'E2') {
       return exp === 'E2' ? 'E2' : 'E1';
@@ -317,13 +317,13 @@ const TeamAllocationPage: React.FC = () => {
       if (exp === 'L3') return 'L3';
       return 'L2'; // Default lead level
     }
-    
+
     // If already in new format, return as is if valid
     const validValues: ('E1' | 'E2' | 'M1' | 'M2' | 'M3' | 'L1' | 'L2' | 'L3' | 'S1')[] = ['E1', 'E2', 'M1', 'M2', 'M3', 'L1', 'L2', 'L3', 'S1'];
     if (validValues.includes(exp as any)) {
       return exp as 'E1' | 'E2' | 'M1' | 'M2' | 'M3' | 'L1' | 'L2' | 'L3' | 'S1';
     }
-    
+
     return 'M1'; // Default fallback
   }, []);
 
@@ -381,7 +381,7 @@ const TeamAllocationPage: React.FC = () => {
   const handleUserSelection = useCallback(async (userId: string) => {
     const user = availableUsers.find(u => u.id === userId);
     if (!user) return;
-    
+
     // Fetch full user details from API to ensure we have all data including domain/department names
     let fullUserData = user;
     try {
@@ -392,49 +392,49 @@ const TeamAllocationPage: React.FC = () => {
     } catch (error) {
       console.warn('Failed to fetch full user details, using available data:', error);
     }
-    
+
     // Map domainId and departmentId to their actual names
     // First try to get from the mapping, if not found, try to get from the API data directly
     let domainName = '';
     let departmentName = '';
-    
+
     // Try to get domain name from the fetched user data first
     if (fullUserData.domainId) {
       // Try mapping first
       domainName = domainIdToName[fullUserData.domainId] || '';
-      
+
       // If mapping didn't work, try to find it directly from domainsData
       if (!domainName && domainsData && Array.isArray(domainsData)) {
         const domain = domainsData.find((d: any) => d.id === fullUserData.domainId);
         domainName = domain?.name || '';
       }
-      
+
       // If still not found, try to get it from the user object directly (if it has domain name)
       if (!domainName && (fullUserData as any).domain) {
         domainName = (fullUserData as any).domain;
       }
     }
-    
+
     // Try to get department name from the fetched user data first
     if (fullUserData.departmentId) {
       // Try mapping first
       departmentName = departmentIdToName[fullUserData.departmentId] || '';
-      
+
       // If mapping didn't work, try to find it directly from departmentsData
       if (!departmentName && departmentsData && Array.isArray(departmentsData)) {
         const department = departmentsData.find((d: any) => d.id === fullUserData.departmentId);
         departmentName = department?.name || '';
       }
-      
+
       // If still not found, try to get it from the user object directly (if it has department name)
       if (!departmentName && (fullUserData as any).department) {
         departmentName = (fullUserData as any).department;
       }
     }
-    
+
     // Normalize experience value
     const normalizedExperience = normalizeExperience(fullUserData.experience || user.experience);
-    
+
     setNewMember({
       name: fullUserData.name || user.name,
       email: fullUserData.email || user.email,
@@ -443,7 +443,7 @@ const TeamAllocationPage: React.FC = () => {
       department: departmentName,
       password: 'password123',
       hourlyRate: fullUserData.hourlyRate || user.hourlyRate || 0,
-      skills: fullUserData.skills ? (typeof fullUserData.skills === 'string' ? fullUserData.skills.split(',').map((s: string)=>s.trim()) : fullUserData.skills) : (user.skills ? (typeof user.skills === 'string' ? user.skills.split(',').map((s: string)=>s.trim()) : user.skills) : []),
+      skills: fullUserData.skills ? (typeof fullUserData.skills === 'string' ? fullUserData.skills.split(',').map((s: string) => s.trim()) : fullUserData.skills) : (user.skills ? (typeof user.skills === 'string' ? user.skills.split(',').map((s: string) => s.trim()) : user.skills) : []),
       budget: (fullUserData.hourlyRate || user.hourlyRate || 0) * 176,
       experience: normalizedExperience,
       availability: fullUserData.availabilityPercentage || user.availabilityPercentage || 100,
@@ -483,7 +483,7 @@ const TeamAllocationPage: React.FC = () => {
       managerName: null,
     };
   };
-  
+
   const normalizeRole = (role: string): string => {
     const r = (role || '').toUpperCase();
     switch (r) {
@@ -506,7 +506,7 @@ const TeamAllocationPage: React.FC = () => {
       const userRole = (user.role || '').toString().toUpperCase();
       return userRole !== 'ADMIN';
     });
-    
+
     return nonAdminUsers.map((user, index) => {
       // Resolve role and names
       const normalizedRole = normalizeRole((user as any).role as string);
@@ -517,7 +517,7 @@ const TeamAllocationPage: React.FC = () => {
       const baseCapacity = normalizedRole === 'admin' ? 35 : normalizedRole === 'manager' ? 35 : 40;
       const utilization = Math.floor(Math.random() * 30) + 70; // 70-100%
       const allocated = Math.floor((utilization / 100) * baseCapacity);
-      
+
       // Generate skills based on domain
       const getSkillsByDomain = (domain: string) => {
         const skillSets: { [key: string]: string[] } = {
@@ -543,9 +543,9 @@ const TeamAllocationPage: React.FC = () => {
           'Data Analytics Platform', 'Customer Portal', 'Inventory Management',
           'Payment Gateway', 'User Authentication System', 'Reporting Dashboard'
         ];
-        
+
         const assignments: Array<{ name: string; allocation: number; role: string }> = [];
-        
+
         // Create more realistic project distribution
         const projectDistribution = [
           { name: 'FinTech Mobile App', teamSize: 6, hasManager: true },
@@ -559,33 +559,33 @@ const TeamAllocationPage: React.FC = () => {
           { name: 'AI Chat Support', teamSize: 3, hasManager: false },
           { name: 'IoT Dashboard', teamSize: 4, hasManager: false }
         ];
-        
+
         // Assign user to 1-2 projects based on their role and availability
         const numProjects = normalizedRole === 'manager' ? 1 : Math.floor(Math.random() * 2) + 1;
-        const availableProjects = projectDistribution.filter(p => 
+        const availableProjects = projectDistribution.filter(p =>
           normalizedRole === 'manager' ? !p.hasManager : true
         );
-        
+
         for (let i = 0; i < Math.min(numProjects, availableProjects.length); i++) {
           const project = availableProjects[i];
-          const allocation = normalizedRole === 'manager' ? 
+          const allocation = normalizedRole === 'manager' ?
             Math.floor(Math.random() * 30) + 50 : // Managers get 50-80% allocation
             Math.floor(Math.random() * 40) + 30;  // Others get 30-70% allocation
-          
+
           assignments.push({
             name: project.name,
             allocation,
             role: getRoleInProject(normalizedRole || 'developer', resolvedDomain || '')
           });
         }
-        
+
         return assignments;
       };
 
       const getRoleInProject = (userRole: string, domain: string) => {
         if (userRole === 'admin') return 'System Administrator';
         if (userRole === 'manager') return 'Project Manager';
-        
+
         const devRoles: { [key: string]: string } = {
           'Angular': 'Frontend Developer',
           'Java': 'Backend Developer',
@@ -594,7 +594,7 @@ const TeamAllocationPage: React.FC = () => {
           'Implementation': 'DevOps Engineer',
           'Database': 'Database Developer'
         };
-        
+
         return devRoles[domain || ''] || 'Full Stack Developer';
       };
 
@@ -655,15 +655,15 @@ const TeamAllocationPage: React.FC = () => {
     return teamMembers.filter(member => {
       // Admin users are already excluded in teamMembers creation, so no need to check here
       // Show all users regardless of project assignment
-      
+
       const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           member.domain.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           (member.role as string).toLowerCase().includes(searchTerm.toLowerCase());
-      
+        member.domain.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (member.role as string).toLowerCase().includes(searchTerm.toLowerCase());
+
       const matchesDepartment = departmentFilter === 'all' || member.department === departmentFilter;
       const matchesDomain = domainFilter === 'all' || member.domain === domainFilter;
       const matchesRole = roleFilter === 'all' || (member.role as string) === roleFilter;
-      
+
       // Filter by project: if a specific project is selected, only show members in that project
       // Otherwise, show all members
       const matchesProject = projectFilter === 'all' || (() => {
@@ -672,7 +672,7 @@ const TeamAllocationPage: React.FC = () => {
         const projectMembers = projectIdToMembers[projectFilter] || [];
         return projectMembers.some((m: any) => (m.userId || m.id) === member.id);
       })();
-      
+
       return matchesSearch && matchesDepartment && matchesDomain && matchesRole && matchesProject;
     });
   }, [teamMembers, searchTerm, departmentFilter, domainFilter, roleFilter, projectFilter, projectIdToMembers]);
@@ -681,7 +681,7 @@ const TeamAllocationPage: React.FC = () => {
   // For admin: show total count of all team members, not just filtered
   // For others: show filtered count
   const stats = useMemo(() => {
-    const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'ADMIN';
+    const isAdmin = currentUser?.role === 'admin';
     // For admin, use total teamMembers count; for others, use filtered count
     const totalMembers = isAdmin ? teamMembers.length : filteredMembers.length;
     const membersForStats = isAdmin ? teamMembers : filteredMembers;
@@ -689,7 +689,7 @@ const TeamAllocationPage: React.FC = () => {
     const avgUtilization = membersForStats.length > 0 ? Math.round(totalUtilization / membersForStats.length) : 0;
     const availableHours = membersForStats.reduce((sum, member) => sum + (member.capacity - member.allocated), 0);
     const overloadedCount = membersForStats.filter(member => member.utilization > 100).length;
-    
+
     return { totalMembers, avgUtilization, availableHours, overloadedCount };
   }, [filteredMembers, teamMembers, currentUser]);
 
@@ -769,7 +769,7 @@ const TeamAllocationPage: React.FC = () => {
 
     // Generate email
     const email = `${firstName}.${lastName}@company.com`;
-    
+
     // Determine role based on name patterns
     let role: 'developer' | 'manager' | 'admin' = 'developer';
     let domain = '';
@@ -888,7 +888,7 @@ const TeamAllocationPage: React.FC = () => {
   // Handle name change with auto-population
   const handleNameChange = (name: string) => {
     setNewMember(prev => ({ ...prev, name }));
-    
+
     // Auto-populate after a short delay to avoid excessive calls
     const timeoutId = setTimeout(() => {
       autoPopulateFromName(name);
@@ -902,11 +902,9 @@ const TeamAllocationPage: React.FC = () => {
       newMember.name.trim() !== '' &&
       newMember.email.trim() !== '' &&
       selectedUserId !== '' &&
-      newMember.role !== '' &&
       newMember.domain !== '' &&
       newMember.department !== '' &&
-      newMember.hourlyRate > 0 &&
-      newMember.experience !== ''
+      newMember.hourlyRate > 0
     );
   }, [newMember, selectedUserId]);
 
@@ -982,7 +980,7 @@ const TeamAllocationPage: React.FC = () => {
     } catch (error: any) {
       const msg: string = error?.message || '';
       const duplicate = msg.includes('project_team_members_project_id_user_id_key') ||
-                       error?.details?.message?.includes('project_team_members_project_id_user_id_key');
+        error?.details?.message?.includes('project_team_members_project_id_user_id_key');
       if (duplicate) {
         toast.error('This user is already assigned to the selected project.');
       } else {
@@ -997,10 +995,10 @@ const TeamAllocationPage: React.FC = () => {
   // Drag and drop handler for moving team members between projects
   const handleDrop = useCallback(async (droppedMember: any, targetProjectId: string) => {
     // Find source project ID
-    const sourceProjectId = droppedMember.sourceProjectId || Object.keys(projectIdToMembers).find(pid => 
-      (projectIdToMembers[pid] ||  []).some((m: any) => (m.userId || m.id) === (droppedMember.userId || droppedMember.id))
+    const sourceProjectId = droppedMember.sourceProjectId || Object.keys(projectIdToMembers).find(pid =>
+      (projectIdToMembers[pid] || []).some((m: any) => (m.userId || m.id) === (droppedMember.userId || droppedMember.id))
     );
-    
+
     if (sourceProjectId === targetProjectId) {
       toast.info('User is already assigned to this project');
       return;
@@ -1023,15 +1021,15 @@ const TeamAllocationPage: React.FC = () => {
         isTeamLead: false,
         allocationPercentage: 100,
       });
-      
+
       // Then, remove from source project
       const key = `${sourceProjectId}_${userId}`;
       setRemovingMember(prev => ({ ...prev, [key]: true }));
       await teamMemberApi.removeTeamMemberFromProject(sourceProjectId, userId);
       setRemovingMember(prev => ({ ...prev, [key]: false }));
-      
+
       toast.success(`${droppedMember.name} transferred to ${projectIdToName[targetProjectId]}`);
-      
+
       // Refresh both project members (in parallel for better performance)
       await Promise.all([
         refreshMembersForProject(targetProjectId),
@@ -1053,9 +1051,9 @@ const TeamAllocationPage: React.FC = () => {
   const DraggableTeamMember: React.FC<{ member: any; projectId: string }> = ({ member, projectId }) => {
     const [{ isDragging }, drag] = useDrag(() => ({
       type: ItemTypes.TEAM_MEMBER,
-      item: { 
-        userId: member.userId || member.id, 
-        name: member.name, 
+      item: {
+        userId: member.userId || member.id,
+        name: member.name,
         role: member.role,
         sourceProjectId: projectId
       },
@@ -1070,10 +1068,9 @@ const TeamAllocationPage: React.FC = () => {
 
     return (
       <div
-        ref={drag}
-        className={`transition-all cursor-move ${
-          isDragging ? 'opacity-50 rotate-1 scale-105' : 'hover:scale-[1.01]'
-        }`}
+        ref={drag as unknown as React.Ref<HTMLDivElement>}
+        className={`transition-all cursor-move ${isDragging ? 'opacity-50 rotate-1 scale-105' : 'hover:scale-[1.01]'
+          }`}
       >
         <div className="flex items-center justify-between p-2 bg-gray-50 rounded border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all">
           <div className="flex items-center gap-2 min-w-0">
@@ -1081,7 +1078,7 @@ const TeamAllocationPage: React.FC = () => {
             <Avatar className="h-6 w-6">
               <AvatarImage src={member.avatar} alt={member.name} />
               <AvatarFallback className="text-[10px] bg-gradient-to-br from-green-100 to-cyan-100">
-                {String(member.name || '').split(' ').map((n: string) => n[0]).join('').slice(0,2) || 'U'}
+                {String(member.name || '').split(' ').map((n: string) => n[0]).join('').slice(0, 2) || 'U'}
               </AvatarFallback>
             </Avatar>
             <div className="truncate">
@@ -1091,8 +1088,8 @@ const TeamAllocationPage: React.FC = () => {
               )}
             </div>
           </div>
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
             variant="outline"
             className="h-7 px-2 text-red-600 border-red-200 hover:bg-red-50"
             disabled={isRemoving || projectRefreshing[projectId]}
@@ -1110,9 +1107,9 @@ const TeamAllocationPage: React.FC = () => {
   };
 
   // Drop Zone Component for Projects
-  const ProjectDropZone: React.FC<{ 
-    projectId: string; 
-    children: React.ReactNode; 
+  const ProjectDropZone: React.FC<{
+    projectId: string;
+    children: React.ReactNode;
   }> = ({ projectId, children }) => {
     const [{ isOver }, drop] = useDrop(() => ({
       accept: ItemTypes.TEAM_MEMBER,
@@ -1126,7 +1123,7 @@ const TeamAllocationPage: React.FC = () => {
 
     return (
       <div
-        ref={drop}
+        ref={drop as unknown as React.Ref<HTMLDivElement>}
         className={`transition-all ${isOver ? 'ring-2 ring-blue-400 bg-blue-50' : ''}`}
       >
         {children}
@@ -1150,1021 +1147,1029 @@ const TeamAllocationPage: React.FC = () => {
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold text-foreground">Team Allocation</h1>
-          <p className="text-muted-foreground">Manage team capacity and project assignments across all departments</p>
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-semibold text-foreground">Team Allocation</h1>
+            <p className="text-muted-foreground">Manage team capacity and project assignments across all departments</p>
+          </div>
+          {/* Capacity Report button hidden per request */}
         </div>
-        {/* Capacity Report button hidden per request */}
-      </div>
 
-      {/* Search and Filters */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-wrap items-end gap-6">
-            <div className="flex-1 min-w-[200px] space-y-2">
-              <Label htmlFor="search">Search Team Members</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  id="search"
-                  placeholder="Search by name, role, or domain..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            
-            <div className="flex-1 min-w-[180px] space-y-2">
-              <Label>Project</Label>
-              <Select value={projectFilter} onValueChange={setProjectFilter}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Projects</SelectItem>
-                  {projects?.map((project: any) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="flex-1 min-w-[160px] space-y-2">
-              <Label>Department</Label>
-              <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Departments</SelectItem>
-                  {departments.map(dept => (
-                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="flex-1 min-w-[160px] space-y-2">
-              <Label>Domain</Label>
-              <Select value={domainFilter} onValueChange={setDomainFilter}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Domains</SelectItem>
-                  {domains.map(domain => (
-                    <SelectItem key={domain} value={domain}>{domain}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="flex-1 min-w-[140px] space-y-2">
-              <Label>Role</Label>
-              <Select value={roleFilter} onValueChange={setRoleFilter}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Roles</SelectItem>
-                  {roles.map((role: string) => (
-                    <SelectItem key={role} value={role}>
-                      {role.charAt(0).toUpperCase() + role.slice(1)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label className="opacity-0">Clear</Label>
-              <Button
-                variant="outline"
-                size="default"
-                className="whitespace-nowrap text-red-600 border-red-300 hover:bg-red-50 h-10"
-                onClick={clearAllFilters}
-              >
-                Clear
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Team Overview Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Search and Filters */}
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Team Size</p>
-                <p className="text-2xl font-semibold">{stats.totalMembers}</p>
-                <p className="text-xs text-muted-foreground">Total: {teamMembers.length}</p>
-              </div>
-              <Users className="w-8 h-8 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Avg Utilization</p>
-                <p className={`text-2xl font-semibold ${getUtilizationColor(stats.avgUtilization)}`}>
-                  {stats.avgUtilization}%
-                </p>
-              </div>
-              <Target className="w-8 h-8 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Available Hours</p>
-                <p className="text-2xl font-semibold">{stats.availableHours}h</p>
-                <p className="text-xs text-muted-foreground">This week</p>
-              </div>
-              <Clock className="w-8 h-8 text-purple-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Overloaded</p>
-                <p className="text-2xl font-semibold text-red-600">{stats.overloadedCount}</p>
-                <p className="text-xs text-muted-foreground">Need attention</p>
-              </div>
-              <AlertTriangle className="w-8 h-8 text-red-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Team Allocation Tabs */}
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="overview">Team Overview</TabsTrigger>
-          <TabsTrigger value="projects">Project Allocation</TabsTrigger>
-          {/* Capacity Utilisation tab hidden for everyone */}
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-4 mt-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {filteredMembers.map((member) => {
-              const RoleIcon = getRoleIcon(member.role as string, member.domain as string);
-              return (
-                <Card 
-                  key={member.id} 
-                  className={`hover:shadow-md transition-shadow cursor-pointer ${
-                    selectedMember === member.name ? 'ring-2 ring-green-500' : ''
-                  }`}
-                  onClick={() => setSelectedMember(member.name)}
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start space-x-3">
-                      <Avatar className="h-12 w-12">
-                        <AvatarImage src={member.avatar} alt={member.name} />
-                        <AvatarFallback className="bg-gradient-to-br from-green-100 to-cyan-100 text-green-800">
-                          {getInitials(member.name)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center space-x-2">
-                          <CardTitle className="text-lg">{member.name}</CardTitle>
-                          <RoleIcon className="w-4 h-4 text-muted-foreground" />
-                        </div>
-                        <CardDescription>{member.domain} • {member.department}</CardDescription>
-                        <div className="flex items-center space-x-2">
-                          <Badge variant="outline" className={getStatusColor(member.status)}>
-                            {member.status.charAt(0).toUpperCase() + member.status.slice(1)}
-                          </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            {(member.role as string).charAt(0).toUpperCase() + (member.role as string).slice(1)}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Utilization */}
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Utilization</span>
-                        <span className={getUtilizationColor(member.utilization)}>
-                          {member.utilization}%
-                        </span>
-                      </div>
-                      <Progress value={Math.min(member.utilization, 100)} className="h-2" />
-                      <div className="text-xs text-muted-foreground">
-                        {member.allocated}h / {member.capacity}h allocated
-                      </div>
-                    </div>
-
-                    {/* Current Projects (from DB) */}
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Current Projects</p>
-                      <div className="space-y-1">
-                        {membersLoading && (
-                          <div className="text-xs text-muted-foreground flex items-center gap-2">
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            Loading assigned projects...
-                          </div>
-                        )}
-                        {(memberIdToProjects[member.id] || []).slice(0, 2).map((proj, index) => (
-                          <div key={index} className="text-xs">
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground truncate">{proj.name}</span>
-                              {proj.availability !== undefined && (
-                                <span>{proj.availability}%</span>
-                              )}
-                            </div>
-                            {proj.role && (
-                              <div className="text-muted-foreground">{proj.role}</div>
-                            )}
-                          </div>
-                        ))}
-                        {(memberIdToProjects[member.id] || []).length === 0 && (
-                          <div className="text-xs text-muted-foreground">No current projects</div>
-                        )}
-                        {(memberIdToProjects[member.id] || []).length > 2 && (
-                          <div className="text-xs text-muted-foreground">
-                            +{(memberIdToProjects[member.id] || []).length - 2} more projects
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Skills */}
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Key Skills</p>
-                      <div className="flex flex-wrap gap-1">
-                        {member.skills.slice(0, 3).map((skill) => (
-                          <Badge key={skill} variant="secondary" className="text-xs">
-                            {skill}
-                          </Badge>
-                        ))}
-                        {member.skills.length > 3 && (
-                          <Badge variant="secondary" className="text-xs">
-                            +{member.skills.length - 3}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* CTC and Hourly Rate Information */}
-                    <div className="space-y-2 pt-2 border-t">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium">CTC</span>
-                        <div className="text-right">
-                          <div className="text-sm font-medium text-green-600">
-                            {member.ctc ? `₹${member.ctc.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'Not Set'}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium">Hourly Rate</span>
-                        <div className="text-right">
-                          <div className="text-sm font-medium text-blue-600">
-                            {member.hourlyRate ? `₹${member.hourlyRate.toFixed(2)}` : 'Not Set'}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Experience</span>
-                        <Badge variant="outline" className="text-xs">
-                          {member.experience}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    {/* Performance Metrics */}
-                    <div className="space-y-2 pt-2 border-t">
-                      <div className="grid grid-cols-3 gap-2 text-xs">
-                        <div className="text-center">
-                          <div className="font-medium">{member.performance.velocity}</div>
-                          <div className="text-muted-foreground">Velocity</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="font-medium">{member.performance.quality}%</div>
-                          <div className="text-muted-foreground">Quality</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="font-medium">{member.performance.onTime}%</div>
-                          <div className="text-muted-foreground">On Time</div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="projects" className="space-y-4 mt-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {(projects || []).map((p) => (
-              <ProjectDropZone key={p.id} projectId={p.id}>
-                <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <Building className="w-5 h-5 text-blue-600" />
-                      <span className="text-lg font-semibold">{p.name}</span>
-                      {p.status && (
-                        <Badge variant="outline" className="text-xs capitalize">{String(p.status).toLowerCase()}</Badge>
-                      )}
-                    </div>
-                    <Button 
-                      size="sm"
-                      className="bg-gradient-primary border-0 text-white hover:opacity-90"
-                      onClick={() => {
-                        setSelectedProjectId(p.id);
-                        setIsAddMemberDialogOpen(true);
-                      }}
-                    >
-                      <UserPlus className="w-4 h-4 mr-1" />
-                      Add Member
-                    </Button>
-                  </div>
-                  {p.description && (
-                    <CardDescription>
-                      {p.description}
-                    </CardDescription>
-                  )}
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Progress */}
-                  <div>
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <span className="text-muted-foreground">Progress</span>
-                      <span className="font-medium">{(p as any).progressPercentage ?? (p as any).progress ?? 0}%</span>
-                    </div>
-                    <Progress value={(((p as any).progressPercentage ?? (p as any).progress ?? 0) as number)} className="h-2" />
-                  </div>
-
-                  {/* Key Metrics */}
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">Priority</p>
-                      <p className="font-medium capitalize">{String(p.priority || 'medium').toLowerCase()}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Budget</p>
-                      <div className="flex items-center space-x-1 font-medium">
-                        <IndianRupee className="w-4 h-4 text-green-600" />
-                        <span>{(Number(p.budget) || 0).toLocaleString()}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Methodology</p>
-                      <p className="font-medium">{p.methodology || '—'}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Manager</p>
-                      <p className="font-medium">{(p.managerId && managerIdToName[p.managerId]) || '—'}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Dates</p>
-                      <div className="flex items-center space-x-2">
-                        <Calendar className="w-4 h-4 text-blue-600" />
-                        <p className="font-medium truncate">
-                          {p.startDate ? String(p.startDate).slice(0, 10) : '—'}
-                          {' '}–{' '}
-                          {p.endDate ? String(p.endDate).slice(0, 10) : '—'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Team Members Preview */}
-                  <div className="pt-2 border-t">
-                    <div className="flex items-center justify-between text-sm mb-2">
-                      <span className="text-muted-foreground">Team Members</span>
-                      <span className="font-medium flex items-center gap-2">
-                        {(projectRefreshing[p.id]) && (
-                          <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                        )}
-                        {(projectIdToMembers[p.id] || []).length}
-                      </span>
-                    </div>
-                    <div className="flex -space-x-2 overflow-hidden">
-                      {(projectIdToMembers[p.id] || []).slice(0, 5).map((m: any) => (
-                        <Avatar key={m.id} className="h-7 w-7 ring-2 ring-white">
-                          <AvatarImage src={m.avatar} alt={m.name} />
-                          <AvatarFallback className="text-[10px] bg-gradient-to-br from-green-100 to-cyan-100">
-                            {String(m.name || '').split(' ').map((n: string) => n[0]).join('').slice(0,2) || 'U'}
-                          </AvatarFallback>
-                        </Avatar>
-                      ))}
-                      {((projectIdToMembers[p.id] || []).length > 5) && (
-                        <div className="h-7 w-7 rounded-full bg-gray-100 text-gray-600 text-[10px] flex items-center justify-center ring-2 ring-white">
-                          +{(projectIdToMembers[p.id] || []).length - 5}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Manage Members (Remove) */}
-                  <div className="space-y-2">
-                    {(projectIdToMembers[p.id] || []).length > 0 ? (
-                      <div className="mt-3 space-y-2">
-                        {(projectIdToMembers[p.id] || []).map((m: any) => (
-                          <DraggableTeamMember key={`${p.id}_${m.userId || m.id}`} member={m} projectId={p.id} />
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-muted-foreground mt-3">No team members assigned</div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-              </ProjectDropZone>
-            ))}
-          </div>
-        </TabsContent>
-
-        {/* Capacity Utilisation section hidden for everyone */}
-        {false && (
-          <TabsContent value="capacity" className="space-y-4 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Capacity Utilisation - Next 2 Weeks</CardTitle>
-                <CardDescription>Plan team allocation for upcoming sprints across all departments</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {filteredMembers.map((member) => (
-                    <div key={member.id} className="space-y-3 p-4 border rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <Avatar className="h-10 w-10">
-                            <AvatarImage src={member.avatar} alt={member.name} />
-                            <AvatarFallback className="bg-gradient-to-br from-green-100 to-cyan-100 text-green-800">
-                              {getInitials(member.name)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="font-medium">{member.name}</p>
-                            <p className="text-sm text-muted-foreground">{member.domain} • {member.department}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Badge variant="outline" className={getStatusColor(member.status)}>
-                            {member.status}
-                          </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            {member.role as string}
-                          </Badge>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="text-center">
-                          <p className="text-sm text-muted-foreground">This Week</p>
-                          <div className="space-y-1">
-                            <p className="font-medium">{member.availability.thisWeek}h</p>
-                            <Progress value={(member.availability.thisWeek / member.capacity) * 100} className="h-2" />
-                          </div>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-sm text-muted-foreground">Next Week</p>
-                          <div className="space-y-1">
-                            <p className="font-medium">{member.availability.nextWeek}h</p>
-                            <Progress value={(member.availability.nextWeek / member.capacity) * 100} className="h-2" />
-                          </div>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-sm text-muted-foreground">Week +2</p>
-                          <div className="space-y-1">
-                            <p className="font-medium">{member.availability.nextTwoWeeks}h</p>
-                            <Progress value={(member.availability.nextTwoWeeks / member.capacity) * 100} className="h-2" />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* CTC, Hourly Rate and Skills Info */}
-                      <div className="grid grid-cols-2 gap-4 pt-3 border-t">
-                        <div>
-                          <p className="text-sm font-medium text-muted-foreground mb-2">CTC & Hourly Rate</p>
-                          <div className="space-y-1">
-                            <div className="flex justify-between">
-                              <span className="text-sm">CTC:</span>
-                              <span className="text-sm font-medium text-green-600">
-                                {member.ctc ? `₹${member.ctc.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'Not Set'}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-sm">Hourly Rate:</span>
-                              <span className="text-sm font-medium text-blue-600">
-                                {member.hourlyRate ? `₹${member.hourlyRate.toFixed(2)}` : 'Not Set'}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-muted-foreground mb-2">Skills</p>
-                          <div className="flex flex-wrap gap-1">
-                            {member.skills.slice(0, 4).map((skill) => (
-                              <Badge key={skill} variant="secondary" className="text-xs">
-                                {skill}
-                              </Badge>
-                            ))}
-                            {member.skills.length > 4 && (
-                              <Badge variant="secondary" className="text-xs">
-                                +{member.skills.length - 4}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
-      </Tabs>
-
-      {/* Add Team Member Dialog */}
-      <Dialog open={isAddMemberDialogOpen} onOpenChange={(open) => {
-        setIsAddMemberDialogOpen(open);
-        if (!open) {
-          // Reset form state when dialog closes
-          setSelectedUserId('');
-          setNewMember({
-            name: '',
-            email: '',
-            role: 'developer',
-            domain: '',
-            department: '',
-            password: '',
-            hourlyRate: 0,
-            skills: [],
-            budget: 0,
-            experience: 'M1',
-            availability: 100,
-          });
-          setAutoPopulated({
-            email: false,
-            role: false,
-            domain: false,
-            department: false,
-            hourlyRate: false,
-            skills: false,
-            experience: false,
-          });
-        }
-      }}>
-        <DialogContent 
-          className="!max-w-none !w-[75vw] max-h-[95vh] flex flex-col"
-          style={{ maxWidth: '75vw', width: '75vw', display: 'flex', flexDirection: 'column' }}
-        >
-          <DialogHeader className="pb-6 border-b border-gray-200">
-            <DialogTitle className="flex items-center space-x-3 text-2xl font-semibold text-gray-900">
-              <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-lg">
-                <UserPlus className="w-6 h-6 text-blue-600" />
-              </div>
-              <span>Add Team Member to Project</span>
-            </DialogTitle>
-            <DialogDescription className="text-base text-gray-600 mt-2 ml-13">
-              Create a new team member profile with comprehensive information including skills, budget allocation, and availability.
-            </DialogDescription>
-            
-            {/* Team Status Summary */}
-            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center space-x-2">
-                    <Users className="w-4 h-4 text-gray-600" />
-                    <span className="text-sm font-medium text-gray-700">
-                      Team Size: {getTeamValidation().teamSize}/{getTeamValidation().maxMembers}
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Shield className="w-4 h-4 text-gray-600" />
-                    <span className="text-sm font-medium text-gray-700">
-                      Managers: {getTeamValidation().managerCount}/{getTeamValidation().maxManagers}
-                      {getTeamValidation().managerName && (
-                        <span className="text-xs text-gray-500 ml-1">
-                          ({getTeamValidation().managerName})
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  {selectedProjectId && projectRefreshing[selectedProjectId] && (
-                    <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                  )}
-                  {getTeamValidation().isAtCapacity ? (
-                    <Badge variant="destructive" className="text-xs">
-                      Team Full
-                    </Badge>
-                  ) : getTeamValidation().isNearCapacity ? (
-                    <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">
-                      Near Capacity
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-xs text-green-600 border-green-200">
-                      Space Available
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            </div>
-          </DialogHeader>
-          
-          <div className="flex-1 overflow-y-auto px-6">
-            <div className="grid gap-8 py-6">
-            {/* Basic Information Section */}
-            <div className="space-y-6">
-              <div className="flex items-center space-x-3 pb-3 border-b border-gray-200">
-                <div className="flex items-center justify-center w-8 h-8 bg-blue-50 rounded-md">
-                  <Users className="w-5 h-5 text-blue-600" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900">Basic Information</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="text-sm font-medium">Full Name *</Label>
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-end gap-6">
+              <div className="flex-1 min-w-[200px] space-y-2">
+                <Label htmlFor="search">Search Team Members</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
-                    id="name"
-                    placeholder="Enter full name (e.g., 'John Manager' or 'Sarah Angular Developer')"
-                    value={newMember.name}
-                    onChange={(e) => handleNameChange(e.target.value)}
-                    className="h-10"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    💡 Include role keywords in the name for auto-population (e.g., "Manager", "Angular", "Senior")
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm font-medium">
-                    Email * {autoPopulated.email && <span className="text-green-600 text-xs">(Auto-filled)</span>}
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="email@example.com"
-                    value={newMember.email}
-                    onChange={(e) => {
-                      setNewMember({ ...newMember, email: e.target.value });
-                      setAutoPopulated(prev => ({ ...prev, email: false }));
-                    }}
-                    className={`h-10 ${autoPopulated.email ? 'bg-green-50 border-green-200' : ''}`}
+                    id="search"
+                    placeholder="Search by name, role, or domain..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
                   />
                 </div>
               </div>
-            </div>
 
-            {/* User Picker Section */}
-            <div className="space-y-6">
-              <div className="flex items-center space-x-3 pb-3 border-b border-gray-200">
-                <div className="flex items-center justify-center w-8 h-8 bg-blue-50 rounded-md">
-                  <UserPlus className="w-5 h-5 text-blue-600" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900">Select Team Member</h3>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="user-picker" className="text-sm font-medium flex items-center gap-2">
-                  Team Member *
-                  {loadingUsers && <Loader2 className="w-3 h-3 animate-spin text-blue-600" />}
-                </Label>
-                <Select 
-                  value={selectedUserId} 
-                  onValueChange={(value) => {
-                    setSelectedUserId(value);
-                    // handleUserSelection will be called by the useEffect
-                  }}
-                  disabled={loadingUsers}
-                >
-                  <SelectTrigger id="user-picker" className="h-10">
-                    <SelectValue placeholder={loadingUsers ? "Loading users..." : "Select a team member"} />
+              <div className="flex-1 min-w-[180px] space-y-2">
+                <Label>Project</Label>
+                <Select value={projectFilter} onValueChange={setProjectFilter}>
+                  <SelectTrigger>
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableUsers.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        <div className="flex items-center space-x-2">
-                          <span>{user.name}</span>
-                          <span className="text-sm text-gray-500">({user.email})</span>
-                          <Badge variant="secondary" className="text-xs">
-                            {user.role}
-                          </Badge>
-                        </div>
+                    <SelectItem value="all">All Projects</SelectItem>
+                    {projects?.map((project: any) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-500">
-                  Select a user to auto-populate all fields with their information
-                </p>
+              </div>
+
+              <div className="flex-1 min-w-[160px] space-y-2">
+                <Label>Department</Label>
+                <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Departments</SelectItem>
+                    {departments.map(dept => (
+                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex-1 min-w-[160px] space-y-2">
+                <Label>Domain</Label>
+                <Select value={domainFilter} onValueChange={setDomainFilter}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Domains</SelectItem>
+                    {domains.map(domain => (
+                      <SelectItem key={domain} value={domain}>{domain}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex-1 min-w-[140px] space-y-2">
+                <Label>Role</Label>
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Roles</SelectItem>
+                    {roles.map((role: string) => (
+                      <SelectItem key={role} value={role}>
+                        {role.charAt(0).toUpperCase() + role.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="opacity-0">Clear</Label>
+                <Button
+                  variant="outline"
+                  size="default"
+                  className="whitespace-nowrap text-red-600 border-red-300 hover:bg-red-50 h-10"
+                  onClick={clearAllFilters}
+                >
+                  Clear
+                </Button>
               </div>
             </div>
+          </CardContent>
+        </Card>
 
-            {/* Role & Department Section */}
-            <div className="space-y-6">
-              <div className="flex items-center space-x-3 pb-3 border-b border-gray-200">
-                <div className="flex items-center justify-center w-8 h-8 bg-green-50 rounded-md">
-                  <Briefcase className="w-5 h-5 text-green-600" />
+        {/* Team Overview Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Team Size</p>
+                  <p className="text-2xl font-semibold">{stats.totalMembers}</p>
+                  <p className="text-xs text-muted-foreground">Total: {teamMembers.length}</p>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900">Role & Department</h3>
+                <Users className="w-8 h-8 text-blue-600" />
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="role" className="text-sm font-medium">
-                    Role * {autoPopulated.role && <span className="text-green-600 text-xs">(Auto-filled)</span>}
-                  </Label>
-                  <Select 
-                    value={newMember.role} 
-                    onValueChange={(value: any) => {
-                      setNewMember({ ...newMember, role: value });
-                      setAutoPopulated(prev => ({ ...prev, role: false }));
-                    }}
-                  >
-                    <SelectTrigger id="role" className={`h-10 ${autoPopulated.role ? 'bg-green-50 border-green-200' : ''}`}>
-                      <SelectValue placeholder="Select role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="developer">Developer</SelectItem>
-                      <SelectItem value="manager">Manager</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="domain" className="text-sm font-medium">
-                    Domain * {autoPopulated.domain && <span className="text-green-600 text-xs">(Auto-filled)</span>}
-                  </Label>
-                  <Select 
-                    value={newMember.domain} 
-                    onValueChange={(value) => {
-                      setNewMember({ ...newMember, domain: value });
-                      setAutoPopulated(prev => ({ ...prev, domain: false }));
-                    }}
-                  >
-                    <SelectTrigger id="domain" className={`h-10 ${autoPopulated.domain ? 'bg-green-50 border-green-200' : ''}`}>
-                      <SelectValue placeholder="Select domain" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {domainsData?.map((domain: any) => (
-                        <SelectItem key={domain.id} value={domain.name}>{domain.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="department" className="text-sm font-medium">
-                    Department * {autoPopulated.department && <span className="text-green-600 text-xs">(Auto-filled)</span>}
-                  </Label>
-                  <Select 
-                    value={newMember.department} 
-                    onValueChange={(value) => {
-                      setNewMember({ ...newMember, department: value });
-                      setAutoPopulated(prev => ({ ...prev, department: false }));
-                    }}
-                  >
-                    <SelectTrigger id="department" className={`h-10 ${autoPopulated.department ? 'bg-green-50 border-green-200' : ''}`}>
-                      <SelectValue placeholder="Select department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departmentsData?.map((department: any) => (
-                        <SelectItem key={department.id} value={department.name}>{department.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-
-            {/* Budget & Experience Section */}
-            <div className="space-y-6">
-              <div className="flex items-center space-x-3 pb-3 border-b border-gray-200">
-                <div className="flex items-center justify-center w-8 h-8 bg-green-50 rounded-md">
-                  <IndianRupee className="w-5 h-5 text-green-600" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900">Budget & Experience</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="hourlyRate" className="text-sm font-medium">
-                    Hourly Rate (₹) * {autoPopulated.hourlyRate && <span className="text-green-600 text-xs">(Auto-filled)</span>}
-                  </Label>
-                  <Input
-                    id="hourlyRate"
-                    type="number"
-                    placeholder="1800"
-                    value={newMember.hourlyRate}
-                    readOnly={autoPopulated.hourlyRate}
-                    onChange={(e) => {
-                      setNewMember({ ...newMember, hourlyRate: Number(e.target.value) });
-                      setAutoPopulated(prev => ({ ...prev, hourlyRate: false }));
-                    }}
-                    className={`h-10 ${autoPopulated.hourlyRate ? 'bg-green-50 border-green-200' : ''}`}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="budget" className="text-sm font-medium">Monthly Budget (₹)</Label>
-                  <Input
-                    id="budget"
-                    type="number"
-                    placeholder="Auto-calculated"
-                    value={newMember.budget}
-                    onChange={(e) => setNewMember({ ...newMember, budget: Number(e.target.value) })}
-                    className="h-10"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Auto-calculated if empty
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Avg Utilization</p>
+                  <p className={`text-2xl font-semibold ${getUtilizationColor(stats.avgUtilization)}`}>
+                    {stats.avgUtilization}%
                   </p>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="experience" className="text-sm font-medium">
-                    Experience * {autoPopulated.experience && <span className="text-green-600 text-xs">(Auto-filled)</span>}
-                  </Label>
-                  <Select 
-                    value={newMember.experience} 
-                    onValueChange={(value: 'E1' | 'E2' | 'M1' | 'M2' | 'M3' | 'L1' | 'L2' | 'L3' | 'S1') => {
-                      setNewMember({ ...newMember, experience: value });
-                      setAutoPopulated(prev => ({ ...prev, experience: false }));
-                    }}
+                <Target className="w-8 h-8 text-green-600" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Available Hours</p>
+                  <p className="text-2xl font-semibold">{stats.availableHours}h</p>
+                  <p className="text-xs text-muted-foreground">This week</p>
+                </div>
+                <Clock className="w-8 h-8 text-purple-600" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Overloaded</p>
+                  <p className="text-2xl font-semibold text-red-600">{stats.overloadedCount}</p>
+                  <p className="text-xs text-muted-foreground">Need attention</p>
+                </div>
+                <AlertTriangle className="w-8 h-8 text-red-600" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Team Allocation Tabs */}
+        <Tabs defaultValue="overview" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="overview">Team Overview</TabsTrigger>
+            <TabsTrigger value="projects">Project Allocation</TabsTrigger>
+            {/* Capacity Utilisation tab hidden for everyone */}
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-4 mt-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+              {filteredMembers.map((member) => {
+                const RoleIcon = getRoleIcon(member.role as string, member.domain as string);
+                return (
+                  <Card
+                    key={member.id}
+                    className={`hover:shadow-md transition-shadow cursor-pointer ${selectedMember === member.name ? 'ring-2 ring-green-500' : ''
+                      }`}
+                    onClick={() => setSelectedMember(member.name)}
                   >
-                    <SelectTrigger id="experience" className={`h-10 ${autoPopulated.experience ? 'bg-green-50 border-green-200' : ''}`}>
-                      <SelectValue placeholder="Select level" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="E1">E1 - Entry Level</SelectItem>
-                      <SelectItem value="E2">E2 - Entry Level 2</SelectItem>
-                      <SelectItem value="M1">M1 - Mid Level</SelectItem>
-                      <SelectItem value="M2">M2 - Mid Level 2</SelectItem>
-                      <SelectItem value="M3">M3 - Mid Level 3</SelectItem>
-                      <SelectItem value="S1">S1 - Senior</SelectItem>
-                      <SelectItem value="L1">L1 - Lead</SelectItem>
-                      <SelectItem value="L2">L2 - Lead 2</SelectItem>
-                      <SelectItem value="L3">L3 - Lead 3</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start space-x-3">
+                        <Avatar className="h-12 w-12">
+                          <AvatarImage src={member.avatar} alt={member.name} />
+                          <AvatarFallback className="bg-gradient-to-br from-green-100 to-cyan-100 text-green-800">
+                            {getInitials(member.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-center space-x-2">
+                            <CardTitle className="text-lg">{member.name}</CardTitle>
+                            <RoleIcon className="w-4 h-4 text-muted-foreground" />
+                          </div>
+                          <CardDescription>{member.domain} • {member.department}</CardDescription>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant="outline" className={getStatusColor(member.status)}>
+                              {member.status.charAt(0).toUpperCase() + member.status.slice(1)}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              {(member.role as string).charAt(0).toUpperCase() + (member.role as string).slice(1)}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {/* Utilization */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Utilization</span>
+                          <span className={getUtilizationColor(member.utilization)}>
+                            {member.utilization}%
+                          </span>
+                        </div>
+                        <Progress value={Math.min(member.utilization, 100)} className="h-2" />
+                        <div className="text-xs text-muted-foreground">
+                          {member.allocated}h / {member.capacity}h allocated
+                        </div>
+                      </div>
+
+                      {/* Current Projects (from DB) */}
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Current Projects</p>
+                        <div className="space-y-1">
+                          {membersLoading && (
+                            <div className="text-xs text-muted-foreground flex items-center gap-2">
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              Loading assigned projects...
+                            </div>
+                          )}
+                          {(memberIdToProjects[member.id] || []).slice(0, 2).map((proj, index) => (
+                            <div key={index} className="text-xs">
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground truncate">{proj.name}</span>
+                                {proj.availability !== undefined && (
+                                  <span>{proj.availability}%</span>
+                                )}
+                              </div>
+                              {proj.role && (
+                                <div className="text-muted-foreground">{proj.role}</div>
+                              )}
+                            </div>
+                          ))}
+                          {(memberIdToProjects[member.id] || []).length === 0 && (
+                            <div className="text-xs text-muted-foreground">No current projects</div>
+                          )}
+                          {(memberIdToProjects[member.id] || []).length > 2 && (
+                            <div className="text-xs text-muted-foreground">
+                              +{(memberIdToProjects[member.id] || []).length - 2} more projects
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Skills */}
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Key Skills</p>
+                        <div className="flex flex-wrap gap-1">
+                          {member.skills.slice(0, 3).map((skill) => (
+                            <Badge key={skill} variant="secondary" className="text-xs">
+                              {skill}
+                            </Badge>
+                          ))}
+                          {member.skills.length > 3 && (
+                            <Badge variant="secondary" className="text-xs">
+                              +{member.skills.length - 3}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* CTC and Hourly Rate Information */}
+                      <div className="space-y-2 pt-2 border-t">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">CTC</span>
+                          <div className="text-right">
+                            <div className="text-sm font-medium text-green-600">
+                              {member.ctc ? `₹${member.ctc.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'Not Set'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">Hourly Rate</span>
+                          <div className="text-right">
+                            <div className="text-sm font-medium text-blue-600">
+                              {member.hourlyRate ? `₹${member.hourlyRate.toFixed(2)}` : 'Not Set'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-muted-foreground">Experience</span>
+                          <Badge variant="outline" className="text-xs">
+                            {member.experience}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      {/* Performance Metrics */}
+                      <div className="space-y-2 pt-2 border-t">
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          <div className="text-center">
+                            <div className="font-medium">{member.performance.velocity}</div>
+                            <div className="text-muted-foreground">Velocity</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="font-medium">{member.performance.quality}%</div>
+                            <div className="text-muted-foreground">Quality</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="font-medium">{member.performance.onTime}%</div>
+                            <div className="text-muted-foreground">On Time</div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="projects" className="space-y-4 mt-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {(projects || []).map((p) => (
+                <ProjectDropZone key={p.id} projectId={p.id}>
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <Building className="w-5 h-5 text-blue-600" />
+                          <span className="text-lg font-semibold">{p.name}</span>
+                          {p.status && (
+                            <Badge variant="outline" className="text-xs capitalize">{String(p.status).toLowerCase()}</Badge>
+                          )}
+                        </div>
+                        <Button
+                          size="sm"
+                          className="bg-gradient-primary border-0 text-white hover:opacity-90"
+                          onClick={() => {
+                            setSelectedProjectId(p.id);
+                            setIsAddMemberDialogOpen(true);
+                          }}
+                        >
+                          <UserPlus className="w-4 h-4 mr-1" />
+                          Add Member
+                        </Button>
+                      </div>
+                      {p.description && (
+                        <CardDescription>
+                          {p.description}
+                        </CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {/* Progress */}
+                      <div>
+                        <div className="flex items-center justify-between text-sm mb-1">
+                          <span className="text-muted-foreground">Progress</span>
+                          <span className="font-medium">
+                            {(p as any).sprints > 0
+                              ? Math.round(((p as any).completedSprints / (p as any).sprints) * 100)
+                              : 0}%
+                          </span>
+                        </div>
+                        <Progress
+                          value={(p as any).sprints > 0
+                            ? Math.round(((p as any).completedSprints / (p as any).sprints) * 100)
+                            : 0}
+                          className="h-2"
+                        />
+                      </div>
+
+                      {/* Key Metrics */}
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">Priority</p>
+                          <p className="font-medium capitalize">{String(p.priority || 'medium').toLowerCase()}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Budget</p>
+                          <div className="flex items-center space-x-1 font-medium">
+                            <IndianRupee className="w-4 h-4 text-green-600" />
+                            <span>{(Number(p.budget) || 0).toLocaleString()}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Methodology</p>
+                          <p className="font-medium">{p.methodology || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Manager</p>
+                          <p className="font-medium">{(p.managerId && managerIdToName[p.managerId]) || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Dates</p>
+                          <div className="flex items-center space-x-2">
+                            <Calendar className="w-4 h-4 text-blue-600" />
+                            <p className="font-medium truncate">
+                              {p.startDate ? String(p.startDate).slice(0, 10) : '—'}
+                              {' '}–{' '}
+                              {p.endDate ? String(p.endDate).slice(0, 10) : '—'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Team Members Preview */}
+                      <div className="pt-2 border-t">
+                        <div className="flex items-center justify-between text-sm mb-2">
+                          <span className="text-muted-foreground">Team Members</span>
+                          <span className="font-medium flex items-center gap-2">
+                            {(projectRefreshing[p.id]) && (
+                              <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                            )}
+                            {(projectIdToMembers[p.id] || []).length}
+                          </span>
+                        </div>
+                        <div className="flex -space-x-2 overflow-hidden">
+                          {(projectIdToMembers[p.id] || []).slice(0, 5).map((m: any) => (
+                            <Avatar key={m.id} className="h-7 w-7 ring-2 ring-white">
+                              <AvatarImage src={m.avatar} alt={m.name} />
+                              <AvatarFallback className="text-[10px] bg-gradient-to-br from-green-100 to-cyan-100">
+                                {String(m.name || '').split(' ').map((n: string) => n[0]).join('').slice(0, 2) || 'U'}
+                              </AvatarFallback>
+                            </Avatar>
+                          ))}
+                          {((projectIdToMembers[p.id] || []).length > 5) && (
+                            <div className="h-7 w-7 rounded-full bg-gray-100 text-gray-600 text-[10px] flex items-center justify-center ring-2 ring-white">
+                              +{(projectIdToMembers[p.id] || []).length - 5}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Manage Members (Remove) */}
+                      <div className="space-y-2">
+                        {(projectIdToMembers[p.id] || []).length > 0 ? (
+                          <div className="mt-3 space-y-2">
+                            {(projectIdToMembers[p.id] || []).map((m: any) => (
+                              <DraggableTeamMember key={`${p.id}_${m.userId || m.id}`} member={m} projectId={p.id} />
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-muted-foreground mt-3">No team members assigned</div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </ProjectDropZone>
+              ))}
+            </div>
+          </TabsContent>
+
+          {/* Capacity Utilisation section hidden for everyone */}
+          {false && (
+            <TabsContent value="capacity" className="space-y-4 mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Capacity Utilisation - Next 2 Weeks</CardTitle>
+                  <CardDescription>Plan team allocation for upcoming sprints across all departments</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {filteredMembers.map((member) => (
+                      <div key={member.id} className="space-y-3 p-4 border rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage src={member.avatar} alt={member.name} />
+                              <AvatarFallback className="bg-gradient-to-br from-green-100 to-cyan-100 text-green-800">
+                                {getInitials(member.name)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="font-medium">{member.name}</p>
+                              <p className="text-sm text-muted-foreground">{member.domain} • {member.department}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant="outline" className={getStatusColor(member.status)}>
+                              {member.status}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              {member.role as string}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="text-center">
+                            <p className="text-sm text-muted-foreground">This Week</p>
+                            <div className="space-y-1">
+                              <p className="font-medium">{member.availability.thisWeek}h</p>
+                              <Progress value={(member.availability.thisWeek / member.capacity) * 100} className="h-2" />
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm text-muted-foreground">Next Week</p>
+                            <div className="space-y-1">
+                              <p className="font-medium">{member.availability.nextWeek}h</p>
+                              <Progress value={(member.availability.nextWeek / member.capacity) * 100} className="h-2" />
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm text-muted-foreground">Week +2</p>
+                            <div className="space-y-1">
+                              <p className="font-medium">{member.availability.nextTwoWeeks}h</p>
+                              <Progress value={(member.availability.nextTwoWeeks / member.capacity) * 100} className="h-2" />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* CTC, Hourly Rate and Skills Info */}
+                        <div className="grid grid-cols-2 gap-4 pt-3 border-t">
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground mb-2">CTC & Hourly Rate</p>
+                            <div className="space-y-1">
+                              <div className="flex justify-between">
+                                <span className="text-sm">CTC:</span>
+                                <span className="text-sm font-medium text-green-600">
+                                  {member.ctc ? `₹${member.ctc.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'Not Set'}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-sm">Hourly Rate:</span>
+                                <span className="text-sm font-medium text-blue-600">
+                                  {member.hourlyRate ? `₹${member.hourlyRate.toFixed(2)}` : 'Not Set'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground mb-2">Skills</p>
+                            <div className="flex flex-wrap gap-1">
+                              {member.skills.slice(0, 4).map((skill) => (
+                                <Badge key={skill} variant="secondary" className="text-xs">
+                                  {skill}
+                                </Badge>
+                              ))}
+                              {member.skills.length > 4 && (
+                                <Badge variant="secondary" className="text-xs">
+                                  +{member.skills.length - 4}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+        </Tabs>
+
+        {/* Add Team Member Dialog */}
+        <Dialog open={isAddMemberDialogOpen} onOpenChange={(open) => {
+          setIsAddMemberDialogOpen(open);
+          if (!open) {
+            // Reset form state when dialog closes
+            setSelectedUserId('');
+            setNewMember({
+              name: '',
+              email: '',
+              role: 'developer',
+              domain: '',
+              department: '',
+              password: '',
+              hourlyRate: 0,
+              skills: [],
+              budget: 0,
+              experience: 'M1',
+              availability: 100,
+            });
+            setAutoPopulated({
+              email: false,
+              role: false,
+              domain: false,
+              department: false,
+              hourlyRate: false,
+              skills: false,
+              experience: false,
+            });
+          }
+        }}>
+          <DialogContent
+            className="!max-w-none !w-[75vw] max-h-[95vh] flex flex-col"
+            style={{ maxWidth: '75vw', width: '75vw', display: 'flex', flexDirection: 'column' }}
+          >
+            <DialogHeader className="pb-6 border-b border-gray-200">
+              <DialogTitle className="flex items-center space-x-3 text-2xl font-semibold text-gray-900">
+                <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-lg">
+                  <UserPlus className="w-6 h-6 text-blue-600" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="availability" className="text-sm font-medium">Availability (%)</Label>
-                  <Input
-                    id="availability"
-                    type="number"
-                    min="0"
-                    max="100"
-                    placeholder="100"
-                    value={newMember.availability}
-                    onChange={(e) => setNewMember({ ...newMember, availability: Number(e.target.value) })}
-                    className="h-10"
-                  />
+                <span>Add Team Member to Project</span>
+              </DialogTitle>
+              <DialogDescription className="text-base text-gray-600 mt-2 ml-13">
+                Create a new team member profile with comprehensive information including skills, budget allocation, and availability.
+              </DialogDescription>
+
+              {/* Team Status Summary */}
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-2">
+                      <Users className="w-4 h-4 text-gray-600" />
+                      <span className="text-sm font-medium text-gray-700">
+                        Team Size: {getTeamValidation().teamSize}/{getTeamValidation().maxMembers}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Shield className="w-4 h-4 text-gray-600" />
+                      <span className="text-sm font-medium text-gray-700">
+                        Managers: {getTeamValidation().managerCount}/{getTeamValidation().maxManagers}
+                        {getTeamValidation().managerName && (
+                          <span className="text-xs text-gray-500 ml-1">
+                            ({getTeamValidation().managerName})
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {selectedProjectId && projectRefreshing[selectedProjectId] && (
+                      <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                    )}
+                    {getTeamValidation().isAtCapacity ? (
+                      <Badge variant="destructive" className="text-xs">
+                        Team Full
+                      </Badge>
+                    ) : getTeamValidation().isNearCapacity ? (
+                      <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">
+                        Near Capacity
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs text-green-600 border-green-200">
+                        Space Available
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="flex-1 overflow-y-auto px-6">
+              <div className="grid gap-8 py-6">
+                {/* Basic Information Section */}
+                <div className="space-y-6">
+                  <div className="flex items-center space-x-3 pb-3 border-b border-gray-200">
+                    <div className="flex items-center justify-center w-8 h-8 bg-blue-50 rounded-md">
+                      <Users className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900">Basic Information</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="name" className="text-sm font-medium">Full Name *</Label>
+                      <Input
+                        id="name"
+                        placeholder="Enter full name (e.g., 'John Manager' or 'Sarah Angular Developer')"
+                        value={newMember.name}
+                        onChange={(e) => handleNameChange(e.target.value)}
+                        className="h-10"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        💡 Include role keywords in the name for auto-population (e.g., "Manager", "Angular", "Senior")
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="email" className="text-sm font-medium">
+                        Email * {autoPopulated.email && <span className="text-green-600 text-xs">(Auto-filled)</span>}
+                      </Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="email@example.com"
+                        value={newMember.email}
+                        onChange={(e) => {
+                          setNewMember({ ...newMember, email: e.target.value });
+                          setAutoPopulated(prev => ({ ...prev, email: false }));
+                        }}
+                        className={`h-10 ${autoPopulated.email ? 'bg-green-50 border-green-200' : ''}`}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* User Picker Section */}
+                <div className="space-y-6">
+                  <div className="flex items-center space-x-3 pb-3 border-b border-gray-200">
+                    <div className="flex items-center justify-center w-8 h-8 bg-blue-50 rounded-md">
+                      <UserPlus className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900">Select Team Member</h3>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="user-picker" className="text-sm font-medium flex items-center gap-2">
+                      Team Member *
+                      {loadingUsers && <Loader2 className="w-3 h-3 animate-spin text-blue-600" />}
+                    </Label>
+                    <Select
+                      value={selectedUserId}
+                      onValueChange={(value) => {
+                        setSelectedUserId(value);
+                        // handleUserSelection will be called by the useEffect
+                      }}
+                      disabled={loadingUsers}
+                    >
+                      <SelectTrigger id="user-picker" className="h-10">
+                        <SelectValue placeholder={loadingUsers ? "Loading users..." : "Select a team member"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableUsers.map((user) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            <div className="flex items-center space-x-2">
+                              <span>{user.name}</span>
+                              <span className="text-sm text-gray-500">({user.email})</span>
+                              <Badge variant="secondary" className="text-xs">
+                                {user.role}
+                              </Badge>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-500">
+                      Select a user to auto-populate all fields with their information
+                    </p>
+                  </div>
+                </div>
+
+                {/* Role & Department Section */}
+                <div className="space-y-6">
+                  <div className="flex items-center space-x-3 pb-3 border-b border-gray-200">
+                    <div className="flex items-center justify-center w-8 h-8 bg-green-50 rounded-md">
+                      <Briefcase className="w-5 h-5 text-green-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900">Role & Department</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="role" className="text-sm font-medium">
+                        Role * {autoPopulated.role && <span className="text-green-600 text-xs">(Auto-filled)</span>}
+                      </Label>
+                      <Select
+                        value={newMember.role}
+                        onValueChange={(value: any) => {
+                          setNewMember({ ...newMember, role: value });
+                          setAutoPopulated(prev => ({ ...prev, role: false }));
+                        }}
+                      >
+                        <SelectTrigger id="role" className={`h-10 ${autoPopulated.role ? 'bg-green-50 border-green-200' : ''}`}>
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="developer">Developer</SelectItem>
+                          <SelectItem value="manager">Manager</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="domain" className="text-sm font-medium">
+                        Domain * {autoPopulated.domain && <span className="text-green-600 text-xs">(Auto-filled)</span>}
+                      </Label>
+                      <Select
+                        value={newMember.domain}
+                        onValueChange={(value) => {
+                          setNewMember({ ...newMember, domain: value });
+                          setAutoPopulated(prev => ({ ...prev, domain: false }));
+                        }}
+                      >
+                        <SelectTrigger id="domain" className={`h-10 ${autoPopulated.domain ? 'bg-green-50 border-green-200' : ''}`}>
+                          <SelectValue placeholder="Select domain" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {domainsData?.map((domain: any) => (
+                            <SelectItem key={domain.id} value={domain.name}>{domain.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="department" className="text-sm font-medium">
+                        Department * {autoPopulated.department && <span className="text-green-600 text-xs">(Auto-filled)</span>}
+                      </Label>
+                      <Select
+                        value={newMember.department}
+                        onValueChange={(value) => {
+                          setNewMember({ ...newMember, department: value });
+                          setAutoPopulated(prev => ({ ...prev, department: false }));
+                        }}
+                      >
+                        <SelectTrigger id="department" className={`h-10 ${autoPopulated.department ? 'bg-green-50 border-green-200' : ''}`}>
+                          <SelectValue placeholder="Select department" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {departmentsData?.map((department: any) => (
+                            <SelectItem key={department.id} value={department.name}>{department.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Budget & Experience Section */}
+                <div className="space-y-6">
+                  <div className="flex items-center space-x-3 pb-3 border-b border-gray-200">
+                    <div className="flex items-center justify-center w-8 h-8 bg-green-50 rounded-md">
+                      <IndianRupee className="w-5 h-5 text-green-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900">Budget & Experience</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="hourlyRate" className="text-sm font-medium">
+                        Hourly Rate (₹) * {autoPopulated.hourlyRate && <span className="text-green-600 text-xs">(Auto-filled)</span>}
+                      </Label>
+                      <Input
+                        id="hourlyRate"
+                        type="number"
+                        placeholder="1800"
+                        value={newMember.hourlyRate}
+                        readOnly={autoPopulated.hourlyRate}
+                        onChange={(e) => {
+                          setNewMember({ ...newMember, hourlyRate: Number(e.target.value) });
+                          setAutoPopulated(prev => ({ ...prev, hourlyRate: false }));
+                        }}
+                        className={`h-10 ${autoPopulated.hourlyRate ? 'bg-green-50 border-green-200' : ''}`}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="budget" className="text-sm font-medium">Monthly Budget (₹)</Label>
+                      <Input
+                        id="budget"
+                        type="number"
+                        placeholder="Auto-calculated"
+                        value={newMember.budget}
+                        onChange={(e) => setNewMember({ ...newMember, budget: Number(e.target.value) })}
+                        className="h-10"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Auto-calculated if empty
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="experience" className="text-sm font-medium">
+                        Experience * {autoPopulated.experience && <span className="text-green-600 text-xs">(Auto-filled)</span>}
+                      </Label>
+                      <Select
+                        value={newMember.experience}
+                        onValueChange={(value: 'E1' | 'E2' | 'M1' | 'M2' | 'M3' | 'L1' | 'L2' | 'L3' | 'S1') => {
+                          setNewMember({ ...newMember, experience: value });
+                          setAutoPopulated(prev => ({ ...prev, experience: false }));
+                        }}
+                      >
+                        <SelectTrigger id="experience" className={`h-10 ${autoPopulated.experience ? 'bg-green-50 border-green-200' : ''}`}>
+                          <SelectValue placeholder="Select level" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="E1">E1 - Entry Level</SelectItem>
+                          <SelectItem value="E2">E2 - Entry Level 2</SelectItem>
+                          <SelectItem value="M1">M1 - Mid Level</SelectItem>
+                          <SelectItem value="M2">M2 - Mid Level 2</SelectItem>
+                          <SelectItem value="M3">M3 - Mid Level 3</SelectItem>
+                          <SelectItem value="S1">S1 - Senior</SelectItem>
+                          <SelectItem value="L1">L1 - Lead</SelectItem>
+                          <SelectItem value="L2">L2 - Lead 2</SelectItem>
+                          <SelectItem value="L3">L3 - Lead 3</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="availability" className="text-sm font-medium">Availability (%)</Label>
+                      <Input
+                        id="availability"
+                        type="number"
+                        min="0"
+                        max="100"
+                        placeholder="100"
+                        value={newMember.availability}
+                        onChange={(e) => setNewMember({ ...newMember, availability: Number(e.target.value) })}
+                        className="h-10"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Skills Section */}
+                <div className="space-y-6">
+                  <div className="flex items-center space-x-3 pb-3 border-b border-gray-200">
+                    <div className="flex items-center justify-center w-8 h-8 bg-purple-50 rounded-md">
+                      <Award className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900">Skills & Expertise</h3>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="skills" className="text-sm font-medium">
+                      Skills (comma-separated) {autoPopulated.skills && <span className="text-green-600 text-xs">(Auto-filled)</span>}
+                    </Label>
+                    <Input
+                      id="skills"
+                      placeholder="e.g., React, TypeScript, Node.js, PostgreSQL"
+                      value={newMember.skills.join(', ')}
+                      onChange={(e) => {
+                        setNewMember({
+                          ...newMember,
+                          skills: e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                        });
+                        setAutoPopulated(prev => ({ ...prev, skills: false }));
+                      }}
+                      className={`h-10 ${autoPopulated.skills ? 'bg-green-50 border-green-200' : ''}`}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Enter skills separated by commas. Skills will be used for project matching.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Password Section */}
+                <div className="space-y-6">
+                  <div className="flex items-center space-x-3 pb-3 border-b border-gray-200">
+                    <div className="flex items-center justify-center w-8 h-8 bg-orange-50 rounded-md">
+                      <Shield className="w-5 h-5 text-orange-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900">Account Access</h3>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password" className="text-sm font-medium">Password (optional)</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="Leave blank for default password"
+                      value={newMember.password}
+                      onChange={(e) => setNewMember({ ...newMember, password: e.target.value })}
+                      className="h-10"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Default password: password123
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Skills Section */}
-            <div className="space-y-6">
-              <div className="flex items-center space-x-3 pb-3 border-b border-gray-200">
-                <div className="flex items-center justify-center w-8 h-8 bg-purple-50 rounded-md">
-                  <Award className="w-5 h-5 text-purple-600" />
+            {/* Dialog Footer */}
+            <div className="flex-shrink-0 pt-6 border-t border-gray-200 bg-gray-50 px-6 py-4 mt-auto">
+              <div className="flex justify-between items-center w-full">
+                <div className="text-sm text-gray-500">
+                  All fields marked with * are required
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900">Skills & Expertise</h3>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="skills" className="text-sm font-medium">
-                  Skills (comma-separated) {autoPopulated.skills && <span className="text-green-600 text-xs">(Auto-filled)</span>}
-                </Label>
-                <Input
-                  id="skills"
-                  placeholder="e.g., React, TypeScript, Node.js, PostgreSQL"
-                  value={newMember.skills.join(', ')}
-                  onChange={(e) => {
-                    setNewMember({ 
-                      ...newMember, 
-                      skills: e.target.value.split(',').map(s => s.trim()).filter(s => s) 
-                    });
-                    setAutoPopulated(prev => ({ ...prev, skills: false }));
-                  }}
-                  className={`h-10 ${autoPopulated.skills ? 'bg-green-50 border-green-200' : ''}`}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Enter skills separated by commas. Skills will be used for project matching.
-                </p>
-              </div>
-            </div>
-
-            {/* Password Section */}
-            <div className="space-y-6">
-              <div className="flex items-center space-x-3 pb-3 border-b border-gray-200">
-                <div className="flex items-center justify-center w-8 h-8 bg-orange-50 rounded-md">
-                  <Shield className="w-5 h-5 text-orange-600" />
+                <div className="flex space-x-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsAddMemberDialogOpen(false);
+                      setSelectedUserId('');
+                      setNewMember({
+                        name: '',
+                        email: '',
+                        role: 'developer',
+                        domain: '',
+                        department: '',
+                        password: '',
+                        hourlyRate: 0,
+                        skills: [],
+                        budget: 0,
+                        experience: 'M1',
+                        availability: 100
+                      });
+                      setAutoPopulated({
+                        email: false,
+                        role: false,
+                        domain: false,
+                        department: false,
+                        hourlyRate: false,
+                        skills: false,
+                        experience: false
+                      });
+                    }}
+                    className="px-6 py-2 h-10 font-medium"
+                  >
+                    Cancel
+                  </Button>
+                  <button
+                    onClick={() => {
+                      if (isFormValid && !isAddingMember) {
+                        handleAddMember();
+                      }
+                    }}
+                    className="inline-flex items-center justify-center gap-2 px-8 py-3 h-12 font-medium text-lg shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed rounded-md"
+                    style={{
+                      minWidth: '200px',
+                      background: !isFormValid
+                        ? 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)'
+                        : isAddingMember
+                          ? 'linear-gradient(135deg, #81d5e8 0%, #5fb9c9 100%)'
+                          : 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      cursor: (!isFormValid || isAddingMember) ? 'not-allowed' : 'pointer'
+                    }}
+                    disabled={!isFormValid || isAddingMember}
+                  >
+                    {isAddingMember ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                        Adding...
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="w-5 h-5 mr-2" />
+                        Add Team Member
+                      </>
+                    )}
+                  </button>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900">Account Access</h3>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-sm font-medium">Password (optional)</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Leave blank for default password"
-                  value={newMember.password}
-                  onChange={(e) => setNewMember({ ...newMember, password: e.target.value })}
-                  className="h-10"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Default password: password123
-                </p>
               </div>
             </div>
-            </div>
-          </div>
-
-          {/* Dialog Footer */}
-          <div className="flex-shrink-0 pt-6 border-t border-gray-200 bg-gray-50 px-6 py-4 mt-auto">
-            <div className="flex justify-between items-center w-full">
-              <div className="text-sm text-gray-500">
-                All fields marked with * are required
-              </div>
-              <div className="flex space-x-3">
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    setIsAddMemberDialogOpen(false);
-                    setSelectedUserId('');
-                    setNewMember({
-                      name: '',
-                      email: '',
-                      role: 'developer',
-                      domain: '',
-                      department: '',
-                      password: '',
-                      hourlyRate: 0,
-                      skills: [],
-                      budget: 0,
-                      experience: 'M1',
-                      availability: 100
-                    });
-                    setAutoPopulated({
-                      email: false,
-                      role: false,
-                      domain: false,
-                      department: false,
-                      hourlyRate: false,
-                      skills: false,
-                      experience: false
-                    });
-                  }}
-                  className="px-6 py-2 h-10 font-medium"
-                >
-                  Cancel
-                </Button>
-                <button
-                  onClick={() => {
-                    if (isFormValid && !isAddingMember) {
-                      handleAddMember();
-                    }
-                  }}
-                  className="inline-flex items-center justify-center gap-2 px-8 py-3 h-12 font-medium text-lg shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed rounded-md"
-                  style={{ 
-                    minWidth: '200px',
-                    background: !isFormValid
-                      ? 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)'
-                      : isAddingMember 
-                        ? 'linear-gradient(135deg, #81d5e8 0%, #5fb9c9 100%)'
-                        : 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
-                    color: '#ffffff',
-                    border: 'none',
-                    cursor: (!isFormValid || isAddingMember) ? 'not-allowed' : 'pointer'
-                  }}
-                  disabled={!isFormValid || isAddingMember}
-                >
-                  {isAddingMember ? (
-                    <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                      Adding...
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus className="w-5 h-5 mr-2" />
-                      Add Team Member
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+          </DialogContent>
+        </Dialog>
+      </div>
     </DndProvider>
   );
 };

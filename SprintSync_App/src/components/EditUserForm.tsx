@@ -17,14 +17,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
-import { 
-  UserPlus, 
-  User as UserIcon, 
-  Shield, 
-  Briefcase, 
-  Image, 
-  Loader2, 
-  Save, 
+import {
+  UserPlus,
+  User as UserIcon,
+  Shield,
+  Briefcase,
+  Image,
+  Loader2,
+  Save,
   AlertCircle,
   CheckCircle2,
   Eye,
@@ -237,16 +237,16 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
   // Role validation and conversion logic
   const validateAndConvertRole = (selectedRole: string): string => {
     // Define accepted roles in the exact case expected by database (lowercase)
-    const acceptedRoles = ['admin', 'manager', 'developer', 'tester', 'analyst'];
-    
+    const acceptedRoles = ['admin', 'manager', 'developer'];
+
     // Normalize the selected role to lowercase
     const normalizedRole = selectedRole.toLowerCase();
-    
+
     // Check if the normalized role exists in accepted roles
     if (!acceptedRoles.includes(normalizedRole)) {
       throw new Error(`Invalid role selected: ${selectedRole}. Please choose a valid role.`);
     }
-    
+
     // Return the normalized role (lowercase) for database compatibility
     return normalizedRole;
   };
@@ -266,13 +266,13 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
     email: (value: string) => isString(value) && isEmail(value),
     password: (value: string) => value === '' || (isString(value) && value.length >= 6),
     confirmPassword: (value: string) => isString(value),
-    
+
     // Role & Organization Section
     role: (value: string) => isString(value) && allowedRoles.includes(value as any),
     departmentId: (value: string) => isString(value),
     domainId: (value: string) => isString(value),
     isActive: (value: boolean) => isBoolean(value),
-    
+
     // Professional Details Section
     hourlyRate: (value: string) => value === '' || (isString(value) && !isNaN(Number(value)) && Number(value) >= 0),
     ctc: (value: string) => value === '' || (isString(value) && !isNaN(Number(value)) && Number(value) >= 0),
@@ -281,7 +281,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
     skills: (value: string) => isString(value),
     reportingManager: (value: string) => value === '' || (isString(value) && value.trim().length >= 2 && value.trim().length <= 100),
     dateOfJoining: (value: string) => value === '' || (isString(value) && !isNaN(Date.parse(value)) && Date.parse(value) <= Date.now()),
-    
+
     // Profile Section
     avatarUrl: (value: string) => value === '' || (isString(value) && isUrl(value))
   };
@@ -359,7 +359,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
     // Validate each field using the comprehensive schema
     Object.entries(validationSchema).forEach(([field, validator]) => {
       const value = formData[field as keyof FormData];
-      
+
       if (!validator(value)) {
         switch (field) {
           case 'firstName':
@@ -384,7 +384,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
             newErrors.ctc = 'CTC must be a positive number';
             break;
           case 'availabilityPercentage':
-      newErrors.availabilityPercentage = 'Availability must be between 0 and 100';
+            newErrors.availabilityPercentage = 'Availability must be between 0 and 100';
             break;
           case 'experience':
             newErrors.experience = 'Please select a valid experience level';
@@ -521,11 +521,11 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
           email: userData.email,
           role: userData.role
         };
-        
+
         console.log('🔄 Trying essential fields update...', essentialFields);
         await updateUserMutation.mutate({ id: user.id, user: essentialFields });
         console.log('✅ Essential fields updated successfully');
-        
+
         // If essential fields work, try adding safe fields one by one
         const safeFields = {
           ...essentialFields,
@@ -540,37 +540,37 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
           reportingManager: userData.reportingManager,
           dateOfJoining: userData.dateOfJoining
         };
-        
+
         console.log('🔄 Trying safe fields update...', safeFields);
         await updateUserMutation.mutate({ id: user.id, user: safeFields });
         console.log('✅ Safe fields updated successfully');
 
-      console.log('✅ User updated successfully');
-        
+        console.log('✅ User updated successfully');
+
       } catch (apiError) {
         console.error('❌ API Error details:', apiError);
-        
+
         // If even essential fields fail, try with absolute minimum
         try {
           console.warn('⚠️ Safe fields failed, trying absolute minimum...');
-          
+
           const minimalData = {
             name: userData.name,
             email: userData.email
           };
-          
+
           console.log('🔄 Trying minimal update...', minimalData);
           await updateUserMutation.mutate({ id: user.id, user: minimalData });
           console.log('✅ Minimal update successful');
-          
+
           alert('User updated with basic information only. Some fields could not be saved.');
-          
+
         } catch (minimalError) {
           console.error('❌ Even minimal update failed:', minimalError);
           throw apiError; // Re-throw the original error
         }
       }
-      
+
       // Reset form and close dialog
       setFormData({
         firstName: '',
@@ -592,15 +592,15 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
         isActive: true
       });
       setErrors({});
-      
+
       onSuccess?.();
       onClose();
     } catch (error: any) {
       console.error('❌ Failed to update user:', error);
-      
+
       // Show specific error message to user
       let errorMessage = 'Failed to update user. Please try again.';
-      
+
       if (error?.message) {
         if (error.message.includes('experience') || error.message.includes('experi')) {
           errorMessage = 'There was an issue with the experience field. Please try again or contact support.';
@@ -614,7 +614,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
           errorMessage = error.message;
         }
       }
-      
+
       alert(`Error: ${errorMessage}`);
     } finally {
       setIsSubmitting(false);
@@ -666,7 +666,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                 <UserIcon className="edit-user-section-icon text-blue-600" />
                 <h3>Basic Information</h3>
               </div>
-              
+
               <div className="edit-user-form-grid">
                 {/* First Name */}
                 <div className="edit-user-form-field space-y-2">
@@ -677,9 +677,8 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                     id="editFirstName"
                     value={formData.firstName}
                     onChange={(e) => handleInputChange('firstName', e.target.value)}
-                    className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                      errors.firstName ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                    }`}
+                    className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.firstName ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                      }`}
                     placeholder="Enter first name"
                   />
                   {errors.firstName && (
@@ -699,9 +698,8 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                     id="editLastName"
                     value={formData.lastName}
                     onChange={(e) => handleInputChange('lastName', e.target.value)}
-                    className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                      errors.lastName ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                    }`}
+                    className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.lastName ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                      }`}
                     placeholder="Enter last name"
                   />
                   {errors.lastName && (
@@ -722,9 +720,8 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                     type="email"
                     value={formData.email}
                     onChange={(e) => handleInputChange('email', e.target.value)}
-                    className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                      errors.email ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                    }`}
+                    className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.email ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                      }`}
                     placeholder="user@company.com"
                   />
                   {errors.email && (
@@ -746,9 +743,8 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                       type={showPassword ? 'text' : 'password'}
                       value={formData.password}
                       onChange={(e) => handleInputChange('password', e.target.value)}
-                      className={`w-full h-10 px-3 pr-10 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                        errors.password ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                      }`}
+                      className={`w-full h-10 px-3 pr-10 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.password ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                        }`}
                       placeholder="Leave blank to keep current password"
                     />
                     <button
@@ -782,9 +778,8 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                         type={showConfirmPassword ? 'text' : 'password'}
                         value={formData.confirmPassword}
                         onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                        className={`w-full h-10 px-3 pr-10 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                          errors.confirmPassword ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                        }`}
+                        className={`w-full h-10 px-3 pr-10 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.confirmPassword ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                          }`}
                         placeholder="Confirm new password"
                       />
                       <button
@@ -812,7 +807,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                 <Shield className="edit-user-section-icon text-blue-600" />
                 <h3>Role & Organization</h3>
               </div>
-              
+
               <div className="edit-user-form-grid">
                 {/* Role */}
                 <div className="edit-user-form-field space-y-2">
@@ -932,67 +927,65 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
               </div>
             </div>
 
-          {/* Reporting & Joining Section */}
-          <div className="space-y-3">
-            <div className="edit-user-section-header flex items-center gap-2">
-              <Calendar className="edit-user-section-icon text-emerald-600" />
-              <h3>Reporting & Joining</h3>
-            </div>
-
-            <div className="edit-user-form-grid">
-              {/* Reporting Manager */}
-              <div className="edit-user-form-field space-y-2">
-                <Label htmlFor="editReportingManager" className="text-sm font-semibold text-gray-700">
-                  Reporting Manager
-                </Label>
-                <Input
-                  id="editReportingManager"
-                  value={formData.reportingManager}
-                  onChange={(e) => handleInputChange('reportingManager', e.target.value)}
-                  className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                    errors.reportingManager ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                  }`}
-                  placeholder="Enter reporting manager name"
-                  maxLength={100}
-                />
-                {errors.reportingManager && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="w-4 h-4" />
-                    {errors.reportingManager}
-                  </p>
-                )}
-                <p className="text-xs text-gray-500">
-                  Stored as plain text so everyone can quickly see who the user reports to.
-                </p>
+            {/* Reporting & Joining Section */}
+            <div className="space-y-3">
+              <div className="edit-user-section-header flex items-center gap-2">
+                <Calendar className="edit-user-section-icon text-emerald-600" />
+                <h3>Reporting & Joining</h3>
               </div>
 
-              {/* Date of Joining */}
-              <div className="edit-user-form-field space-y-2">
-                <Label htmlFor="editDateOfJoining" className="text-sm font-semibold text-gray-700">
-                  Date of Joining
-                </Label>
-                <Input
-                  id="editDateOfJoining"
-                  type="date"
-                  value={formData.dateOfJoining}
-                  onChange={(e) => handleInputChange('dateOfJoining', e.target.value)}
-                  className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                    errors.dateOfJoining ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                  }`}
-                  max={maxJoiningDate}
-                />
-                {errors.dateOfJoining && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="w-4 h-4" />
-                    {errors.dateOfJoining}
+              <div className="edit-user-form-grid">
+                {/* Reporting Manager */}
+                <div className="edit-user-form-field space-y-2">
+                  <Label htmlFor="editReportingManager" className="text-sm font-semibold text-gray-700">
+                    Reporting Manager
+                  </Label>
+                  <Input
+                    id="editReportingManager"
+                    value={formData.reportingManager}
+                    onChange={(e) => handleInputChange('reportingManager', e.target.value)}
+                    className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.reportingManager ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                      }`}
+                    placeholder="Enter reporting manager name"
+                    maxLength={100}
+                  />
+                  {errors.reportingManager && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.reportingManager}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-500">
+                    Stored as plain text so everyone can quickly see who the user reports to.
                   </p>
-                )}
-                <p className="text-xs text-gray-500">
-                  Use the calendar picker to align with the actual onboarding date.
-                </p>
+                </div>
+
+                {/* Date of Joining */}
+                <div className="edit-user-form-field space-y-2">
+                  <Label htmlFor="editDateOfJoining" className="text-sm font-semibold text-gray-700">
+                    Date of Joining
+                  </Label>
+                  <Input
+                    id="editDateOfJoining"
+                    type="date"
+                    value={formData.dateOfJoining}
+                    onChange={(e) => handleInputChange('dateOfJoining', e.target.value)}
+                    className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.dateOfJoining ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                      }`}
+                    max={maxJoiningDate}
+                  />
+                  {errors.dateOfJoining && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.dateOfJoining}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-500">
+                    Use the calendar picker to align with the actual onboarding date.
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
 
             {/* Professional Details Section */}
             <div className="space-y-3">
@@ -1000,7 +993,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                 <Briefcase className="edit-user-section-icon text-blue-600" />
                 <h3>Professional Details</h3>
               </div>
-              
+
               <div className="edit-user-form-grid">
                 {/* Hourly Rate */}
                 <div className="edit-user-form-field space-y-2">
@@ -1016,9 +1009,8 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                       min="0"
                       value={formData.hourlyRate || ''}
                       onChange={(e) => handleInputChange('hourlyRate', e.target.value)}
-                      className={`w-full h-10 pl-8 pr-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                        errors.hourlyRate ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                      }`}
+                      className={`w-full h-10 pl-8 pr-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.hourlyRate ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                        }`}
                       placeholder="1000.00"
                     />
                   </div>
@@ -1047,9 +1039,8 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                       min="0"
                       value={formData.ctc || ''}
                       onChange={(e) => handleInputChange('ctc', e.target.value)}
-                      className={`w-full h-10 pl-8 pr-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                        errors.ctc ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                      }`}
+                      className={`w-full h-10 pl-8 pr-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.ctc ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                        }`}
                       placeholder="500000.00"
                     />
                   </div>
@@ -1077,9 +1068,8 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                       max="100"
                       value={formData.availabilityPercentage || '100'}
                       onChange={(e) => handleInputChange('availabilityPercentage', e.target.value)}
-                      className={`w-full h-10 px-3 pr-8 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                        errors.availabilityPercentage ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                      }`}
+                      className={`w-full h-10 px-3 pr-8 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.availabilityPercentage ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                        }`}
                       placeholder="100"
                     />
                     <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">%</span>
@@ -1150,7 +1140,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                 <Image className="edit-user-section-icon text-blue-600" />
                 <h3>Profile</h3>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="editAvatarUrl" className="text-sm font-semibold text-gray-700">
                   Avatar URL
@@ -1159,9 +1149,8 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                   id="editAvatarUrl"
                   value={formData.avatarUrl}
                   onChange={(e) => handleInputChange('avatarUrl', e.target.value)}
-                  className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                    errors.avatarUrl ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                  }`}
+                  className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.avatarUrl ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                    }`}
                   placeholder="https://example.com/avatar.jpg"
                 />
                 {errors.avatarUrl && (
@@ -1210,10 +1199,10 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
           </div>
         </DialogFooter>
       </DialogContent>
-      
+
       {/* Scroll to Top Button */}
-      <EnhancedScrollToTopButton 
-        targetId="edit-user-form-content" 
+      <EnhancedScrollToTopButton
+        targetId="edit-user-form-content"
         threshold={200}
         showOnFormScroll={true}
         showOnPageScroll={false}

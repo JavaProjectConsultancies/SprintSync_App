@@ -50,6 +50,9 @@ import UserTasks from './UserTasks';
 import { useProjects, useUsers, useDepartments, useDomains, useEpics, useReleases, useSprints, useStories, useTasks, useAllSprints, useAllStories, useAllTasks } from '../hooks/api';
 import { apiClient } from '../services/api/client';
 import { prefetchProjects } from '../hooks/api/useProjects';
+import { prefetchSprints } from '../hooks/api/useSprints';
+import { prefetchStories } from '../hooks/api/useStories';
+import { prefetchTasks } from '../hooks/api/useTasks';
 import LoadingSpinner from './LoadingSpinner';
 
 const Dashboard: React.FC = () => {
@@ -59,12 +62,19 @@ const Dashboard: React.FC = () => {
   // API authentication is now handled by AuthContext
   // No need for demo auth setup
 
-  // Prefetch projects immediately when Dashboard mounts (for faster loading)
+  // Prefetch ALL entities in parallel when Dashboard mounts (for dramatically faster loading)
   useEffect(() => {
     if (user?.id) {
-      // Prefetch projects in background for dashboard
-      prefetchProjects(user.id).catch(() => {
-        // Silently fail - projects will be fetched by hook
+      // Prefetch all entities in parallel - single network waterfall
+      Promise.all([
+        prefetchProjects(user.id),
+        prefetchSprints(user.id),
+        prefetchStories(user.id),
+        prefetchTasks(user.id),
+        // Users, Departments, Domains, Epics, Releases don't have prefetch yet
+        // but their hooks will fetch normally - can be added later for further optimization
+      ]).catch(() => {
+        // Silently fail - individual hooks will fetch if prefetch fails
       });
     }
   }, [user?.id]);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -17,8 +17,10 @@ import { useProjectById } from '../hooks/api/useProjectById';
 import { useRequirements } from '../hooks/api/useRequirements';
 import { useTeamMembers } from '../hooks/api/useTeamMembers';
 import { useProjectActivities } from '../hooks/api/useActivityLogs';
+import { useAllStories } from '../hooks/api/useStories';
 import EpicManager from '../components/EpicManager';
 import TeamManager from '../components/TeamManager';
+import MilestoneDialog from '../components/MilestoneDialog';
 import { useAuth } from '../contexts/AuthContextEnhanced';
 import { attachmentApiService } from '../services/api';
 import { epicApiService } from '../services/api/entities/epicApi';
@@ -49,7 +51,8 @@ import {
   Upload,
   Download,
   Trash2,
-  Eye
+  Eye,
+  Loader2
 } from 'lucide-react';
 
 interface Milestone {
@@ -161,6 +164,9 @@ const ProjectDetailsPage = () => {
     refreshTeamMembers
   } = useTeamMembers(id || '');
 
+  // Fetch all stories to calculate epic progress
+  const { data: allStories, loading: storiesLoading } = useAllStories();
+
   // Fetch all project-related activity logs (includes project creation and all activities)
   const {
     activityLogs,
@@ -178,6 +184,10 @@ const ProjectDetailsPage = () => {
   // Team management state
   const [isTeamManagerOpen, setIsTeamManagerOpen] = useState(false);
   const [localTeamMembers, setLocalTeamMembers] = useState<any[]>([]);
+
+  // Milestone management state
+  const [isMilestoneDialogOpen, setIsMilestoneDialogOpen] = useState(false);
+  const [editingMilestone, setEditingMilestone] = useState<any | null>(null);
 
   // Attachment state
   const [attachments, setAttachments] = useState<any[]>([]);
@@ -241,6 +251,48 @@ const ProjectDetailsPage = () => {
       fetchEpicsFromApi();
     }
   }, [id, fetchEpicsFromApi]); // Fetch epics directly from API, not from project.epics to avoid duplicates
+
+  // Calculate epic progress based on stories
+  const epicsWithProgress = useMemo(() => {
+    if (!allStories || allStories.length === 0) {
+      return localEpics;
+    }
+
+    return localEpics.map(epic => {
+      // Filter stories that belong to this epic
+      const epicStories = allStories.filter(story => story.epicId === epic.id);
+
+      if (epicStories.length === 0) {
+        // No stories linked, keep current progress
+        return epic;
+      }
+
+      // Count completed stories (status is "DONE" or "REVIEW")
+      const completedStories = epicStories.filter(story =>
+        story.status === 'DONE' || story.status === 'REVIEW'
+      );
+
+      const totalStories = epicStories.length;
+      const completedCount = completedStories.length;
+
+      // Calculate progress percentage
+      const calculatedProgress = totalStories > 0
+        ? Math.round((completedCount / totalStories) * 100)
+        : 0;
+
+      // Calculate story points
+      const totalStoryPoints = epicStories.reduce((sum, story) => sum + (story.storyPoints || 0), 0);
+      const completedStoryPoints = completedStories.reduce((sum, story) => sum + (story.storyPoints || 0), 0);
+
+      return {
+        ...epic,
+        progress: calculatedProgress,
+        storyPoints: totalStoryPoints,
+        completedStoryPoints: completedStoryPoints,
+        linkedStories: epicStories.map(s => s.id)
+      };
+    });
+  }, [localEpics, allStories]);
 
   // Update local requirements when API data changes
   useEffect(() => {
@@ -361,38 +413,55 @@ const ProjectDetailsPage = () => {
         } else {
           toast.error('Failed to add URL');
         }
+
+        // URL upload is complete, turn off loader
+        setIsUploading(false);
       } else if (isFileUpload && selectedFile) {
         // Read file as base64 for now (in production, use proper file storage)
         const reader = new FileReader();
+
+        reader.onerror = () => {
+          toast.error('Failed to read file');
+          setIsUploading(false);
+        };
+
         reader.onloadend = async () => {
-          const base64Data = reader.result as string;
+          try {
+            const base64Data = reader.result as string;
 
-          // Create file attachment record
-          const attachmentData = {
-            uploadedBy: user.id,
-            entityType: 'project',
-            entityId: id,
-            fileName: selectedFile.name,
-            fileSize: selectedFile.size,
-            fileType: selectedFile.type,
-            fileUrl: base64Data, // Store as base64, in production use proper storage URL
-            attachmentType: 'file' as const,
-            isPublic: false
-          };
+            // Create file attachment record
+            const attachmentData = {
+              uploadedBy: user.id,
+              entityType: 'project',
+              entityId: id,
+              fileName: selectedFile.name,
+              fileSize: selectedFile.size,
+              fileType: selectedFile.type,
+              fileUrl: base64Data, // Store as base64, in production use proper storage URL
+              attachmentType: 'file' as const,
+              isPublic: false
+            };
 
-          const response = await attachmentApiService.createAttachment(attachmentData);
+            const response = await attachmentApiService.createAttachment(attachmentData);
 
-          if (response.success) {
-            toast.success('File uploaded successfully');
-            setSelectedFile(null);
+            if (response.success) {
+              toast.success('File uploaded successfully');
+              setSelectedFile(null);
 
-            // Reload attachments
-            const refreshResponse = await attachmentApiService.getAttachmentsByEntity('project', id);
-            if (refreshResponse.data) {
-              setAttachments(refreshResponse.data);
+              // Reload attachments
+              const refreshResponse = await attachmentApiService.getAttachmentsByEntity('project', id);
+              if (refreshResponse.data) {
+                setAttachments(refreshResponse.data);
+              }
+            } else {
+              toast.error('Failed to upload file');
             }
-          } else {
-            toast.error('Failed to upload file');
+          } catch (error) {
+            console.error('Error uploading file:', error);
+            toast.error('Failed to upload file. Please try again.');
+          } finally {
+            // File upload is complete, turn off loader
+            setIsUploading(false);
           }
         };
 
@@ -401,7 +470,6 @@ const ProjectDetailsPage = () => {
     } catch (error) {
       console.error('Error uploading attachment:', error);
       toast.error('Failed to upload attachment. Please try again.');
-    } finally {
       setIsUploading(false);
     }
   };
@@ -778,21 +846,30 @@ const ProjectDetailsPage = () => {
     }
 
     return {
+      id: member.id || member.userId || '', // Add id property
       name: member.name || 'Unknown Member',
       role: member.role || 'Team Member',
       avatar: member.avatar || member.avatarUrl || '',
       workload: Math.max(0, Math.min(100, Number(workloadValue) || 0)), // Clamp between 0-100
       performance: Math.max(0, Math.min(100, Number(performanceValue) || 85)), // Clamp between 0-100
       department: member.department || 'Unassigned',
-      experience: (member.experience || 'mid').toLowerCase(),
+      experience: member.experience || 'M1', // Keep backend enum value as-is
       hourlyRate: Number(member.hourlyRate) || 0,
-      availability: Math.max(0, Math.min(100, Number(availabilityValue) || 100)), // Clamp between 0-100
-      isTeamLead: member.isTeamLead === true || member.isTeamLead === 'true' || member.isTeamLead === 1,
-      skills: skillsArray.length > 0 ? skillsArray : [],
-      id: member.id || member.userId || `member-${Date.now()}-${Math.random()}`
+      isTeamLead: member.isTeamLead || false, // Add isTeamLead property
+      skills: skillsArray, // Add skills property (processed above)
+      availability: Math.max(0, Math.min(100, Number(availabilityValue) || 100)), // Add availability property (processed above), clamped between 0-100
     };
   });
 
+  // Milestone management handlers
+  const handleSaveMilestone = (milestone: any) => {
+    console.log('Saving milestone:', milestone);
+    // TODO: Integrate with milestone API when available
+    // For now, just close the dialog
+    toast.success(editingMilestone ? 'Milestone updated' : 'Milestone created');
+    setIsMilestoneDialogOpen(false);
+    setEditingMilestone(null);
+  };
 
   const getRiskColor = (level: string) => {
     switch (level) {
@@ -864,10 +941,6 @@ const ProjectDetailsPage = () => {
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          <Button variant="outline">
-            <Settings className="w-4 h-4 mr-2" />
-            Settings
-          </Button>
           <Button
             className="bg-gradient-primary text-white"
             onClick={() => {
@@ -951,10 +1024,7 @@ const ProjectDetailsPage = () => {
           <TabsTrigger value="attachments">Attachments</TabsTrigger>
           <TabsTrigger value="milestones">Milestones</TabsTrigger>
           <TabsTrigger value="team">Team</TabsTrigger>
-          <TabsTrigger value="stakeholders">Stakeholders</TabsTrigger>
-          <TabsTrigger value="risks">Risks</TabsTrigger>
           <TabsTrigger value="reports">Reports</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-8">
@@ -1190,19 +1260,15 @@ const ProjectDetailsPage = () => {
             </div>
           </div>
           <EpicManager
-            epics={localEpics}
+            epics={epicsWithProgress}
             projectId={id || ''}
             currentUserId={user?.id || ''}
             onAddEpic={async (epic) => {
               console.log('Adding epic:', epic);
               // Add the new epic to local state immediately for real-time update
               setLocalEpics(prev => {
-                // Check if epic already exists to avoid duplicates
-                const exists = prev.some(e => e.id === epic.id);
-                if (exists) {
-                  return prev; // Don't add duplicate
-                }
-                return [...prev, epic];
+                // Epic doesn't have id yet, just add it
+                return [...prev, epic as any];
               });
               // Refresh activities to show the new epic creation
               setTimeout(() => {
@@ -1465,14 +1531,21 @@ const ProjectDetailsPage = () => {
         <TabsContent value="milestones" className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold">Project Milestones</h3>
-            <Button variant="outline" size="sm">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setEditingMilestone(null);
+                setIsMilestoneDialogOpen(true);
+              }}
+            >
               <Plus className="w-4 h-4 mr-2" />
               Add Milestone
             </Button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {milestones.map(milestone => (
+            {(project?.milestones || []).map((milestone: any) => (
               <Card key={milestone.id} className="hover:shadow-md transition-shadow">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
@@ -1585,22 +1658,6 @@ const ProjectDetailsPage = () => {
                         </div>
 
                         <div className="space-y-2">
-                          <div>
-                            <div className="flex justify-between text-xs mb-1">
-                              <span className="text-muted-foreground">Workload</span>
-                              <span>{member.workload}%</span>
-                            </div>
-                            <Progress value={member.workload} className="h-1" />
-                          </div>
-
-                          <div>
-                            <div className="flex justify-between text-xs mb-1">
-                              <span className="text-muted-foreground">Performance</span>
-                              <span className="text-green-600">{member.performance}%</span>
-                            </div>
-                            <Progress value={member.performance} className="h-1" />
-                          </div>
-
                           <div>
                             <div className="flex justify-between text-xs mb-1">
                               <span className="text-muted-foreground">Availability</span>
@@ -1925,8 +1982,8 @@ const ProjectDetailsPage = () => {
       {/* Add Requirement/Attachment Dialog */}
       <Dialog open={isAddRequirementDialogOpen} onOpenChange={setIsAddRequirementDialogOpen}>
         <DialogContent
-          className={`max-w-[90vw] w-[90vw] ${dialogMode === 'attachment' ? 'h-[90vh] max-h-[90vh]' : 'max-h-[80vh]'} flex flex-col`}
-          style={{ width: '90vw', maxWidth: '90vw', ...(dialogMode === 'attachment' ? { height: '90vh', maxHeight: '90vh' } : { maxHeight: '80vh' }) }}
+          className="max-w-[50vw] w-[50vw] h-[60vh] max-h-[60vh] flex flex-col"
+          style={{ width: '50vw', maxWidth: '50vw', height: '60vh', maxHeight: '60vh' }}
         >
           <DialogHeader>
             <DialogTitle className="text-xl">
@@ -2154,8 +2211,8 @@ const ProjectDetailsPage = () => {
               <Button onClick={handleUploadFile} disabled={(!selectedFile && !attachmentUrl.trim()) || isUploading}>
                 {isUploading ? (
                   <>
-                    <Upload className="w-4 h-4 mr-2 animate-pulse" />
-                    {selectedFile ? 'Uploading...' : 'Adding...'}
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    {selectedFile ? 'Uploading...' : 'Adding URL...'}
                   </>
                 ) : (
                   <>
@@ -2192,7 +2249,7 @@ const ProjectDetailsPage = () => {
               selectedMembers={localTeamMembers}
               onMembersChange={handleTeamMembersChange}
               projectBudget={project?.budget || 0}
-              projectDuration={project?.duration || 30}
+              projectDuration={30}
               projectId={id || ''}
               onAddMember={handleAddTeamMember}
               onRemoveMember={handleRemoveTeamMember}
@@ -2205,6 +2262,16 @@ const ProjectDetailsPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Milestone Dialog */}
+      <MilestoneDialog
+        open={isMilestoneDialogOpen}
+        onOpenChange={setIsMilestoneDialogOpen}
+        milestone={editingMilestone}
+        projectId={id || ''}
+        onSave={handleSaveMilestone}
+        availableEpics={epicsWithProgress}
+      />
     </div>
   );
 

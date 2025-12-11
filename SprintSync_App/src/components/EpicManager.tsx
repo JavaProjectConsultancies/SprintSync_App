@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { useCreateEpic, useDeleteEpic, useUpdateEpic } from '../hooks/api/useEpics';
 import { useUsers } from '../hooks/api/useUsers';
 import { Epic as ApiEpic } from '../types/api';
-import { 
+import {
   Plus,
   Search,
   Filter,
@@ -73,7 +73,7 @@ const EpicManager = ({
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'planned' | 'in-progress' | 'completed'>('all');
   const [priorityFilter, setPriorityFilter] = useState<'all' | 'low' | 'medium' | 'high' | 'critical'>('all');
   const [selectedTemplate, setSelectedTemplate] = useState<EpicTemplate | null>(null);
-  
+
   // API integration
   const { createEpic: createEpicApi, loading: createLoading, error: createError } = useCreateEpic();
   const { updateEpic: updateEpicApi, loading: updateLoading, error: updateError } = useUpdateEpic();
@@ -98,13 +98,13 @@ const EpicManager = ({
   // Filter epics based on search and filters
   const filteredEpics = epics.filter(epic => {
     if (!epic) return false;
-    
+
     const matchesSearch = (epic.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-                         (epic.description?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-                         (epic.theme?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+      (epic.description?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (epic.theme?.toLowerCase() || '').includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || epic.status === statusFilter;
     const matchesPriority = priorityFilter === 'all' || epic.priority === priorityFilter;
-    
+
     return matchesSearch && matchesStatus && matchesPriority;
   });
 
@@ -239,7 +239,7 @@ const EpicManager = ({
       try {
         // Create epic from template (local format)
         const templateEpic = createEpicFromTemplate(selectedTemplate, projectId, currentUserId);
-        
+
         // Map template epic data to API structure
         const apiEpicData: Omit<ApiEpic, 'id' | 'createdAt' | 'updatedAt'> = {
           title: templateEpic.title || selectedTemplate.title,
@@ -262,13 +262,13 @@ const EpicManager = ({
         // Save epic to database via API
         const createdEpicResponse = await createEpicApi(apiEpicData);
         console.log('Epic created from template successfully:', createdEpicResponse);
-        
+
         // Convert API epic to local format for display
         const localEpic = convertApiEpicToLocal(createdEpicResponse.data);
-        
+
         // Call the parent callback to refresh the epic list with the created epic
         onAddEpic(localEpic);
-        
+
         // Reset template selection and close dialog
         setSelectedTemplate(null);
         setShowTemplateDialog(false);
@@ -304,15 +304,15 @@ const EpicManager = ({
 
         const createdEpicResponse = await createEpicApi(apiEpicData);
         console.log('Epic created successfully:', createdEpicResponse);
-        
+
         // Convert API epic to local format for display
         const localEpic = convertApiEpicToLocal(createdEpicResponse.data);
-        
+
         // Call the parent callback to refresh the epic list with the created epic
         onAddEpic(localEpic);
-        
+
         setShowAddDialog(false);
-        
+
         // Reset form
         setNewEpic({
           name: '',
@@ -388,6 +388,20 @@ const EpicManager = ({
   // Handle edit epic
   const handleEditClick = (epic: Epic) => {
     setEpicToEdit(epic);
+
+    // Map API status to form status
+    const mapStatusToForm = (status: EpicStatus): 'draft' | 'planned' | 'in-progress' | 'completed' => {
+      switch (status) {
+        case 'backlog': return 'draft';
+        case 'planning': return 'planned';
+        case 'in-progress': return 'in-progress';
+        case 'review': return 'in-progress';
+        case 'completed': return 'completed';
+        case 'cancelled': return 'draft';
+        default: return 'draft';
+      }
+    };
+
     // Populate form with epic data
     setNewEpic({
       name: epic.title,
@@ -396,7 +410,7 @@ const EpicManager = ({
       theme: epic.theme || '',
       businessValue: epic.businessValue || '',
       priority: epic.priority,
-      status: epic.status,
+      status: mapStatusToForm(epic.status),
       startDate: epic.startDate ? new Date(epic.startDate).toISOString().split('T')[0] : '',
       endDate: epic.endDate ? new Date(epic.endDate).toISOString().split('T')[0] : '',
       assigneeId: epic.assigneeId || 'unassigned',
@@ -426,16 +440,16 @@ const EpicManager = ({
 
       const updatedEpicResponse = await updateEpicApi(epicToEdit.id, apiEpicData);
       console.log('Epic updated successfully:', updatedEpicResponse);
-      
+
       // Convert API epic to local format for display
       const localEpic = convertApiEpicToLocal(updatedEpicResponse.data);
-      
+
       // Call the parent callback to refresh the epic list
       onUpdateEpic(localEpic);
-      
+
       setShowEditDialog(false);
       setEpicToEdit(null);
-      
+
       // Reset form
       setNewEpic({
         name: '',
@@ -450,7 +464,7 @@ const EpicManager = ({
         assigneeId: 'unassigned',
         storyPoints: 0
       });
-      
+
       toast.success('Epic updated successfully');
     } catch (error: any) {
       console.error('Failed to update epic:', error);
@@ -487,14 +501,6 @@ const EpicManager = ({
             <div className="flex space-x-2">
               <Button
                 variant="outline"
-                onClick={() => setShowTemplateDialog(true)}
-                className="border-blue-300 text-blue-700 hover:bg-blue-50"
-              >
-                <FileText className="w-4 h-4 mr-2" />
-                From Template
-              </Button>
-              <Button
-                variant="outline"
                 onClick={() => setShowAddDialog(true)}
                 className="border-blue-300 text-blue-700 hover:bg-blue-50"
               >
@@ -524,7 +530,7 @@ const EpicManager = ({
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-indigo-600">
-                {epicStats.totalStoryPoints > 0 
+                {epicStats.totalStoryPoints > 0
                   ? Math.round((epicStats.completedStoryPoints / epicStats.totalStoryPoints) * 100)
                   : 0}%
               </div>
@@ -586,147 +592,147 @@ const EpicManager = ({
         {filteredEpics.map((epic, index) => {
           // Create a unique key - use ID with index to ensure uniqueness even if IDs are duplicated
           // The index ensures each rendered item has a unique key
-          const uniqueKey = epic.id 
-            ? `${epic.id}-${index}` 
-            : (epic as any)._id 
-              ? `${(epic as any)._id}-${index}` 
+          const uniqueKey = epic.id
+            ? `${epic.id}-${index}`
+            : (epic as any)._id
+              ? `${(epic as any)._id}-${index}`
               : `epic-${index}-${epic.title || 'unknown'}`;
           return (
-          <Card key={uniqueKey} className="hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <CardTitle className="text-lg leading-tight mb-2">{epic.title}</CardTitle>
-                  <div className="flex items-center space-x-2 mb-2">
-                    <Badge variant="outline" className={`text-xs ${getStatusColor(epic.status)}`}>
-                      {epic.status.replace('-', ' ')}
-                    </Badge>
-                    <Badge variant="outline" className={`text-xs ${getPriorityColor(epic.priority)}`}>
-                      {epic.priority}
+            <Card key={uniqueKey} className="hover:shadow-lg transition-shadow">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <CardTitle className="text-lg leading-tight mb-2">{epic.title}</CardTitle>
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Badge variant="outline" className={`text-xs ${getStatusColor(epic.status)}`}>
+                        {epic.status.replace('-', ' ')}
+                      </Badge>
+                      <Badge variant="outline" className={`text-xs ${getPriorityColor(epic.priority)}`}>
+                        {epic.priority}
+                      </Badge>
+                    </div>
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <MoreHorizontal className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        className="cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditClick(epic);
+                        }}
+                      >
+                        Edit Epic
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewClick(epic);
+                        }}
+                      >
+                        View Details
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="cursor-pointer">
+                        Link Stories
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-red-600 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteClick(epic);
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Description */}
+                <p className="text-sm text-gray-600 line-clamp-2">{epic.summary}</p>
+
+                {/* Theme and Business Value */}
+                {epic.theme && (
+                  <div className="flex items-center space-x-2">
+                    <Flag className="w-4 h-4 text-purple-600" />
+                    <Badge variant="outline" className="bg-purple-50 text-purple-700">
+                      {epic.theme}
                     </Badge>
                   </div>
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                      <MoreHorizontal className="w-4 h-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem 
-                      className="cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEditClick(epic);
-                      }}
-                    >
-                      Edit Epic
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      className="cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleViewClick(epic);
-                      }}
-                    >
-                      View Details
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="cursor-pointer">
-                      Link Stories
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem 
-                      className="text-red-600 cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteClick(epic);
-                      }}
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Description */}
-              <p className="text-sm text-gray-600 line-clamp-2">{epic.summary}</p>
-
-              {/* Theme and Business Value */}
-              {epic.theme && (
-                <div className="flex items-center space-x-2">
-                  <Flag className="w-4 h-4 text-purple-600" />
-                  <Badge variant="outline" className="bg-purple-50 text-purple-700">
-                    {epic.theme}
-                  </Badge>
-                </div>
-              )}
-
-              {/* Progress */}
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Progress</span>
-                  <span>{epic.progress}%</span>
-                </div>
-                <Progress 
-                  value={epic.progress} 
-                  className="h-2"
-                />
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>{epic.completedStoryPoints || 0}/{epic.storyPoints || 0} points</span>
-                  <span>{epic.linkedStories?.length || 0} stories</span>
-                </div>
-              </div>
-
-              {/* Timeline */}
-              <div className="flex items-center space-x-4 text-sm text-gray-600">
-                <div className="flex items-center space-x-1">
-                  <CalendarIcon className="w-4 h-4" />
-                  <span>{new Date(epic.startDate).toLocaleDateString()}</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <Clock className="w-4 h-4" />
-                  <span>{new Date(epic.endDate).toLocaleDateString()}</span>
-                </div>
-              </div>
-
-              {/* Owner */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Avatar className="h-6 w-6">
-                    <AvatarFallback className="text-xs">
-                      {getInitials(apiUsers?.find(u => u.id === epic.owner)?.name || 'Unknown')}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-sm text-gray-600">
-                    {apiUsers?.find(u => u.id === epic.owner)?.name || 'Unknown'}
-                  </span>
-                </div>
-                {(epic.linkedMilestones?.length || 0) > 0 && (
-                  <Badge variant="outline" className="text-xs">
-                    {epic.linkedMilestones?.length || 0} milestones
-                  </Badge>
                 )}
-              </div>
 
-              {/* Labels */}
-              {(epic.labels?.length || 0) > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {epic.labels?.slice(0, 3).map((label, index) => (
-                    <Badge key={index} variant="outline" className="text-xs bg-gray-50">
-                      {label}
-                    </Badge>
-                  ))}
-                  {(epic.labels?.length || 0) > 3 && (
-                    <Badge variant="outline" className="text-xs bg-gray-50">
-                      +{(epic.labels?.length || 0) - 3}
+                {/* Progress */}
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Progress</span>
+                    <span>{epic.progress}%</span>
+                  </div>
+                  <Progress
+                    value={epic.progress}
+                    className="h-2"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>{epic.completedStoryPoints || 0}/{epic.storyPoints || 0} points</span>
+                    <span>{epic.linkedStories?.length || 0} stories</span>
+                  </div>
+                </div>
+
+                {/* Timeline */}
+                <div className="flex items-center space-x-4 text-sm text-gray-600">
+                  <div className="flex items-center space-x-1">
+                    <CalendarIcon className="w-4 h-4" />
+                    <span>{new Date(epic.startDate).toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <Clock className="w-4 h-4" />
+                    <span>{new Date(epic.endDate).toLocaleDateString()}</span>
+                  </div>
+                </div>
+
+                {/* Owner */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Avatar className="h-6 w-6">
+                      <AvatarFallback className="text-xs">
+                        {getInitials(apiUsers?.find(u => u.id === epic.owner)?.name || 'Unknown')}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm text-gray-600">
+                      {apiUsers?.find(u => u.id === epic.owner)?.name || 'Unknown'}
+                    </span>
+                  </div>
+                  {(epic.linkedMilestones?.length || 0) > 0 && (
+                    <Badge variant="outline" className="text-xs">
+                      {epic.linkedMilestones?.length || 0} milestones
                     </Badge>
                   )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
+
+                {/* Labels */}
+                {(epic.labels?.length || 0) > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {epic.labels?.slice(0, 3).map((label, index) => (
+                      <Badge key={index} variant="outline" className="text-xs bg-gray-50">
+                        {label}
+                      </Badge>
+                    ))}
+                    {(epic.labels?.length || 0) > 3 && (
+                      <Badge variant="outline" className="text-xs bg-gray-50">
+                        +{(epic.labels?.length || 0) - 3}
+                      </Badge>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           );
         })}
       </div>
@@ -767,11 +773,10 @@ const EpicManager = ({
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
             {epicTemplates.map((template) => (
-              <Card 
-                key={template.id} 
-                className={`cursor-pointer transition-all hover:shadow-md ${
-                  selectedTemplate?.id === template.id ? 'ring-2 ring-blue-500 bg-blue-50' : ''
-                }`}
+              <Card
+                key={template.id}
+                className={`cursor-pointer transition-all hover:shadow-md ${selectedTemplate?.id === template.id ? 'ring-2 ring-blue-500 bg-blue-50' : ''
+                  }`}
                 onClick={() => setSelectedTemplate(template)}
               >
                 <CardHeader className="pb-3">
@@ -806,14 +811,14 @@ const EpicManager = ({
             ))}
           </div>
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setShowTemplateDialog(false)}
               disabled={createLoading}
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={handleCreateFromTemplate}
               disabled={!selectedTemplate || createLoading}
             >
@@ -1135,8 +1140,8 @@ const EpicManager = ({
             </div>
           </div>
           <DialogFooter className="flex-shrink-0 px-6 pb-6 pt-4 border-t bg-white">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setShowEditDialog(false);
                 setEpicToEdit(null);
@@ -1277,8 +1282,8 @@ const EpicManager = ({
             </div>
           )}
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setShowDeleteDialog(false);
                 setEpicToDelete(null);
@@ -1287,8 +1292,8 @@ const EpicManager = ({
             >
               Cancel
             </Button>
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               onClick={handleConfirmDelete}
               disabled={deleteLoading}
             >

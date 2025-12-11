@@ -16,11 +16,11 @@ import { ScrollArea } from '../components/ui/scroll-area';
 import { Switch } from '../components/ui/switch';
 import { Checkbox } from '../components/ui/checkbox';
 import { Separator } from '../components/ui/separator';
-import { 
-  FolderKanban, 
-  Plus, 
-  Calendar, 
-  Users, 
+import {
+  FolderKanban,
+  Plus,
+  Calendar,
+  Users,
   Target,
   Clock,
   AlertCircle,
@@ -55,7 +55,6 @@ import {
   Eye
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../components/ui/dropdown-menu';
-import TeamManager from '../components/TeamManager';
 import MilestoneWidget from '../components/MilestoneWidget';
 import MilestoneDialog from '../components/MilestoneDialog';
 import EpicManager from '../components/EpicManager';
@@ -181,7 +180,7 @@ const ProjectsPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  
+
   // API authentication is now handled by AuthContext
   // No need for demo auth setup
 
@@ -189,7 +188,7 @@ const ProjectsPage: React.FC = () => {
   const { data: apiProjects, loading: projectsLoading, error: projectsError, deleteProject, refetch } = useProjects();
   const { data: apiUsers, loading: usersLoading, error: usersError, refetch: refetchUsers } = useUsers({ page: 0, size: 1000 });
   const { data: apiDepartments, loading: departmentsLoading, error: departmentsError } = useDepartments();
-  
+
   useEffect(() => {
     const unsubscribe = subscribeToProjectBudgetUpdates(() => {
       refetch();
@@ -614,9 +613,9 @@ const ProjectsPage: React.FC = () => {
     if (!selectedProjectId) {
       return;
     }
-    const updated = projects.find((project) => project.id === selectedProjectId);
-    if (updated && (updated.spent !== selectedProjectSpent || updated.budget !== selectedProjectBudget)) {
-      setSelectedProject(updated);
+    const updated = projects.find((project) => String(project.id) === String(selectedProjectId));
+    if (updated && (String(updated.spent) !== String(selectedProjectSpent) || String(updated.budget) !== String(selectedProjectBudget))) {
+      setSelectedProject(updated as any);
     }
   }, [projects, selectedProjectId, selectedProjectBudget, selectedProjectSpent]);
 
@@ -678,7 +677,17 @@ const ProjectsPage: React.FC = () => {
       releaseNotes: '',
       risks: '',
       dependencies: '',
-      createdBy: ''
+      createdBy: '',
+      progress: 0,
+      linkedEpics: '',
+      linkedStories: '',
+      linkedSprints: '',
+      completedAt: '',
+      risksList: [],
+      dependenciesList: [],
+      newRisk: '',
+      newDependency: '',
+      selectedEpics: []
     });
     setCurrentRisk({
       title: '',
@@ -700,7 +709,7 @@ const ProjectsPage: React.FC = () => {
   const handleTemplateChange = (templateId: string) => {
     const template = projectTemplates.find(t => t.id === templateId);
     if (template) {
-  setNewProject((prev: typeof newProject) => ({
+      setNewProject((prev: typeof newProject) => ({
         ...prev,
         template: templateId,
         projectType: templateId,
@@ -731,44 +740,44 @@ const ProjectsPage: React.FC = () => {
     try {
       setIsCreatingProject(true);
       console.log('Creating comprehensive project:', newProject);
-      
+
       // Validate required fields
       if (!newProject.teamLead) {
         alert('Please select a team lead before creating the project.');
         setIsCreatingProject(false);
         return;
       }
-      
+
       if (!newProject.department) {
         alert('Please select a department before creating the project.');
         setIsCreatingProject(false);
         return;
       }
-      
+
       // Debug: Log the team lead value before sending
       console.log('Team Lead Selection Debug:', {
         teamLead: newProject.teamLead,
         teamLeadType: typeof newProject.teamLead,
-  selectedUser: apiUsers?.find((u: any) => u.id === newProject.teamLead),
-  allUsers: apiUsers?.map((u: any) => ({ id: u.id, name: u.name, role: u.role }))
+        selectedUser: apiUsers?.find((u: any) => u.id === newProject.teamLead),
+        allUsers: apiUsers?.map((u: any) => ({ id: u.id, name: u.name, role: u.role }))
       });
-      
+
       // Validate that team lead is selected and exists
       if (!newProject.teamLead || newProject.teamLead.trim() === '') {
         alert('Please select a team lead before creating the project.');
         setIsCreatingProject(false);
         return;
       }
-      
+
       // Verify the selected team lead exists in the users list
-  const selectedTeamLeadUser = apiUsers?.find((u: any) => u.id === newProject.teamLead);
+      const selectedTeamLeadUser = apiUsers?.find((u: any) => u.id === newProject.teamLead);
       if (!selectedTeamLeadUser) {
         console.error('Selected team lead not found in users list:', newProject.teamLead);
         alert(`Error: Selected team lead (${newProject.teamLead}) not found. Please select a valid team lead.`);
         setIsCreatingProject(false);
         return;
       }
-      
+
       // Prepare comprehensive project data for the new API
       const comprehensiveProjectData = {
         name: newProject.name,
@@ -787,9 +796,9 @@ const ProjectsPage: React.FC = () => {
         status: 'planning',
         progress: 0,
         spent: '0',
-        
+
         // Requirements
-    requirements: newProject.requirements.map((req: any) => {
+        requirements: newProject.requirements.map((req: any) => {
           // Normalize requirement type: backend expects "functional", "non-functional", "technical"
           let reqType = req.type?.toLowerCase() || 'functional';
           // Convert common variations to backend format
@@ -800,7 +809,7 @@ const ProjectsPage: React.FC = () => {
           } else if (reqType !== 'functional' && reqType !== 'technical') {
             reqType = 'functional'; // Default fallback
           }
-          
+
           // Normalize requirement status - backend expects: draft, approved, in-development, completed, pending
           let reqStatus = req.status?.toLowerCase() || 'draft';
           if (reqStatus === 'in_progress' || reqStatus === 'inprogress') {
@@ -808,13 +817,13 @@ const ProjectsPage: React.FC = () => {
           } else if (!['draft', 'approved', 'in-development', 'completed', 'pending'].includes(reqStatus)) {
             reqStatus = 'draft'; // Default fallback
           }
-          
+
           // Normalize priority - backend expects: low, medium, high, critical
           let reqPriority = req.priority?.toLowerCase() || 'medium';
           if (!['low', 'medium', 'high', 'critical'].includes(reqPriority)) {
             reqPriority = 'medium'; // Default fallback
           }
-          
+
           return {
             title: req.title,
             description: req.description || '',
@@ -828,7 +837,7 @@ const ProjectsPage: React.FC = () => {
         }),
 
         // Risks
-    risks: newProject.risks.map((risk: any) => ({
+        risks: newProject.risks.map((risk: any) => ({
           title: risk.title,
           description: risk.description || '',
           probability: risk.probability?.toLowerCase(),
@@ -839,7 +848,7 @@ const ProjectsPage: React.FC = () => {
         })),
 
         // Stakeholders
-    stakeholders: newProject.stakeholders.map((stakeholder: any) => ({
+        stakeholders: newProject.stakeholders.map((stakeholder: any) => ({
           name: stakeholder.name,
           role: stakeholder.role,
           email: stakeholder.email || '',
@@ -850,7 +859,7 @@ const ProjectsPage: React.FC = () => {
         teamMembers: (() => {
           const existingTeamMembers = newProject.teamMembers || [];
           const teamLeadInList = existingTeamMembers.find((m: any) => (m.id || m.name) === newProject.teamLead);
-          
+
           // If team lead is not in the list, add them
           if (newProject.teamLead && !teamLeadInList) {
             const teamLeadUser = apiUsers?.find((u: any) => u.id === newProject.teamLead);
@@ -875,7 +884,7 @@ const ProjectsPage: React.FC = () => {
               ];
             }
           }
-          
+
           // If team lead is already in list, ensure isTeamLead is set correctly
           return existingTeamMembers.map((member: any) => ({
             userId: member.id || member.name,
@@ -888,7 +897,7 @@ const ProjectsPage: React.FC = () => {
         })(),
 
         // Epics
-    epics: newProject.epics.map((epic: any) => ({
+        epics: newProject.epics.map((epic: any) => ({
           title: epic.title || epic.name,
           description: epic.description || '',
           summary: epic.summary || '',
@@ -905,7 +914,7 @@ const ProjectsPage: React.FC = () => {
         })),
 
         // Releases
-    releases: newProject.releases.map((release: any) => ({
+        releases: newProject.releases.map((release: any) => ({
           name: release.name,
           description: release.description || '',
           version: release.version || '1.0.0',
@@ -931,19 +940,19 @@ const ProjectsPage: React.FC = () => {
       console.log('Sending comprehensive project data:', comprehensiveProjectData);
       console.log('Team Lead being sent:', {
         managerId: comprehensiveProjectData.managerId,
-  teamMembersWithLead: comprehensiveProjectData.teamMembers?.filter((tm: any) => tm.isTeamLead),
+        teamMembersWithLead: comprehensiveProjectData.teamMembers?.filter((tm: any) => tm.isTeamLead),
         totalTeamMembers: comprehensiveProjectData.teamMembers?.length || 0
       });
 
       // Create project with all related entities in one API call
       const response = await projectApiService.createProjectComprehensive(comprehensiveProjectData);
-      
+
       if (response && response.success) {
         console.log('Project and all entities created successfully:', response);
-        
+
         // Get the created project ID
         const createdProjectId = response.data?.project?.id || response.data?.projectId;
-        
+
         // Upload pending attachments if any
         if (createdProjectId && pendingAttachments.length > 0 && user) {
           try {
@@ -959,7 +968,7 @@ const ProjectsPage: React.FC = () => {
                 fileUrl: attachment.url, // Base64 data
                 isPublic: false
               };
-              
+
               const attachmentResponse = await attachmentApiService.createAttachment(attachmentData);
               if (attachmentResponse.success) {
                 console.log('Attachment uploaded successfully:', attachment.name);
@@ -973,17 +982,17 @@ const ProjectsPage: React.FC = () => {
             // Don't fail the project creation if attachment upload fails
           }
         }
-        
+
         // Close dialog and reset form
-    setIsNewProjectDialogOpen(false);
-    resetNewProjectForm();
-        
+        setIsNewProjectDialogOpen(false);
+        resetNewProjectForm();
+
         // Show success message
         alert(`Project and all related entities created successfully! Total entities created: ${response.data?.totalEntitiesCreated || 'Unknown'}`);
-        
+
         // Optionally refresh the projects list
         window.location.reload(); // Simple refresh for now
-        
+
       } else {
         console.error('Failed to create comprehensive project:', response);
         alert(`Failed to create project: ${response.message || 'Unknown error'}`);
@@ -1021,7 +1030,7 @@ const ProjectsPage: React.FC = () => {
           acceptanceCriteria: JSON.stringify(req.acceptanceCriteria || []),
           effortPoints: req.effort || 0
         }));
-        
+
         console.log('Requirements data to send:', requirementsData);
         await apiClient.post(`/requirements/project/${projectId}/batch`, requirementsData);
         console.log('Requirements created successfully');
@@ -1039,7 +1048,7 @@ const ProjectsPage: React.FC = () => {
           status: risk.status?.toUpperCase(),
           owner: risk.owner || newProject.teamLead // Default to project manager
         }));
-        
+
         await apiClient.post(`/risks/project/${projectId}/batch`, risksData);
         console.log('Risks created successfully');
       }
@@ -1054,7 +1063,7 @@ const ProjectsPage: React.FC = () => {
           responsibilities: JSON.stringify(stakeholder.responsibilities || []),
           avatarUrl: stakeholder.avatar || ''
         }));
-        
+
         await apiClient.post(`/stakeholders/project/${projectId}/batch`, stakeholdersData);
         console.log('Stakeholders created successfully');
       }
@@ -1070,7 +1079,7 @@ const ProjectsPage: React.FC = () => {
           startDate: '',
           endDate: ''
         }));
-        
+
         await apiClient.post(`/project-team-members/project/${projectId}/batch`, teamMembersData);
         console.log('Team members created successfully');
       }
@@ -1079,7 +1088,7 @@ const ProjectsPage: React.FC = () => {
       if (epics && epics.length > 0) {
         console.log('Creating epics for project:', projectId);
         console.log('Epics to create:', epics);
-        
+
         const epicsData = epics.map(epic => ({
           projectId: projectId,
           title: epic.title || epic.name, // Backend uses 'title' not 'name'
@@ -1096,9 +1105,9 @@ const ProjectsPage: React.FC = () => {
           progress: epic.progress || 0,
           storyPoints: epic.storyPoints || 0
         }));
-        
+
         console.log('Epics data to send:', epicsData);
-        
+
         await apiClient.post(`/epics/project/${projectId}/batch`, epicsData);
         console.log('Epics created successfully');
       } else {
@@ -1128,7 +1137,7 @@ const ProjectsPage: React.FC = () => {
           completedAt: release.completedAt || null
         }));
         console.log('Releases data to send:', releasesData);
-        
+
         await apiClient.post(`/releases/project/${projectId}/batch`, releasesData);
         console.log('Releases created successfully');
       } else {
@@ -1177,10 +1186,10 @@ const ProjectsPage: React.FC = () => {
         progress: 0,
         storyPoints: currentEpic.storyPoints || 0
       };
-      
+
       console.log('Adding epic:', newEpic);
-      
-  setNewProject((prev: typeof newProject) => {
+
+      setNewProject((prev: typeof newProject) => {
         const updatedProject = {
           ...prev,
           epics: [...prev.epics, newEpic]
@@ -1188,23 +1197,28 @@ const ProjectsPage: React.FC = () => {
         console.log('Updated project epics:', updatedProject.epics);
         return updatedProject;
       });
-      
+
       setIsEpicDialogOpen(false);
       setCurrentEpic({
         name: '',
         description: '',
+        summary: '',
+        theme: '',
+        businessValue: '',
         priority: 'medium',
         status: 'draft',
         startDate: '',
-        endDate: ''
+        endDate: '',
+        assigneeId: '',
+        storyPoints: 0
       });
     }
   };
 
   const removeEpic = (index: number) => {
-  setNewProject((prev: typeof newProject) => ({
-        ...prev,
-  epics: prev.epics.filter((_: any, i: number) => i !== index)
+    setNewProject((prev: typeof newProject) => ({
+      ...prev,
+      epics: prev.epics.filter((_: any, i: number) => i !== index)
     }));
   };
 
@@ -1238,7 +1252,7 @@ const ProjectsPage: React.FC = () => {
 
   const saveRelease = () => {
     if (currentRelease.name.trim()) {
-  setNewProject((prev: typeof newProject) => ({
+      setNewProject((prev: typeof newProject) => ({
         ...prev,
         releases: [...prev.releases, {
           id: `release-${Date.now()}`,
@@ -1287,9 +1301,9 @@ const ProjectsPage: React.FC = () => {
   };
 
   const removeRelease = (index: number) => {
-  setNewProject((prev: typeof newProject) => ({
+    setNewProject((prev: typeof newProject) => ({
       ...prev,
-  releases: prev.releases.filter((_: any, i: number) => i !== index)
+      releases: prev.releases.filter((_: any, i: number) => i !== index)
     }));
   };
 
@@ -1309,16 +1323,16 @@ const ProjectsPage: React.FC = () => {
 
   const saveRisk = () => {
     if (currentRisk.title.trim()) {
-  setNewProject((prev: typeof newProject) => ({
+      setNewProject((prev: typeof newProject) => ({
         ...prev,
         risks: [...prev.risks, {
           id: `risk-${Date.now()}`,
           title: currentRisk.title.trim(),
           description: currentRisk.description.trim(),
-          probability: currentRisk.probability,
-          impact: currentRisk.impact,
+          probability: currentRisk.probability as 'low' | 'medium' | 'high',
+          impact: currentRisk.impact as 'low' | 'medium' | 'high',
           mitigation: currentRisk.mitigation.trim(),
-          status: currentRisk.status,
+          status: currentRisk.status as 'identified' | 'mitigated' | 'closed',
           owner: currentRisk.owner || newProject.teamLead || ''
         }]
       }));
@@ -1336,9 +1350,9 @@ const ProjectsPage: React.FC = () => {
   };
 
   const removeRisk = (index: number) => {
-  setNewProject((prev: typeof newProject) => ({
+    setNewProject((prev: typeof newProject) => ({
       ...prev,
-  risks: prev.risks.filter((_: any, i: number) => i !== index)
+      risks: prev.risks.filter((_: any, i: number) => i !== index)
     }));
   };
 
@@ -1346,7 +1360,7 @@ const ProjectsPage: React.FC = () => {
   const addRequirement = () => {
     if (newRequirement.trim()) {
       setHasUserAddedRequirements(true); // Mark that user has added requirements
-  setNewProject((prev: typeof newProject) => ({
+      setNewProject((prev: typeof newProject) => ({
         ...prev,
         requirements: [...prev.requirements, {
           id: `req-${Date.now()}`,
@@ -1366,8 +1380,8 @@ const ProjectsPage: React.FC = () => {
 
   // Remove Requirement
   const removeRequirement = (index: number) => {
-  setNewProject((prev: typeof newProject) => {
-  const newRequirements = prev.requirements.filter((_: any, i: number) => i !== index);
+    setNewProject((prev: typeof newProject) => {
+      const newRequirements = prev.requirements.filter((_: any, i: number) => i !== index);
       // If no requirements left, reset the flag so template can populate defaults
       if (newRequirements.length === 0) {
         setHasUserAddedRequirements(false);
@@ -1400,21 +1414,21 @@ const ProjectsPage: React.FC = () => {
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64Data = reader.result as string;
-        
+
         // Add to pending attachments
-    setPendingAttachments((prev: typeof pendingAttachments) => [...prev, {
+        setPendingAttachments((prev: typeof pendingAttachments) => [...prev, {
           file: selectedFile,
           name: selectedFile.name,
           size: selectedFile.size,
           type: selectedFile.type,
           url: base64Data
         }]);
-        
+
         setSelectedFile(null);
         setIsUploading(false);
         toast.success('File added successfully');
       };
-      
+
       reader.readAsDataURL(selectedFile);
     } catch (error) {
       console.error('Error reading file:', error);
@@ -1425,7 +1439,7 @@ const ProjectsPage: React.FC = () => {
 
   const handleDeletePendingFile = (index: number) => {
     if (confirm('Are you sure you want to remove this file?')) {
-    setPendingAttachments((prev: typeof pendingAttachments) => prev.filter((_: any, i: number) => i !== index));
+      setPendingAttachments((prev: typeof pendingAttachments) => prev.filter((_: any, i: number) => i !== index));
       toast.success('File removed successfully');
     }
   };
@@ -1451,7 +1465,7 @@ const ProjectsPage: React.FC = () => {
 
   const saveStakeholder = () => {
     if (currentStakeholder.name.trim()) {
-  setNewProject((prev: typeof newProject) => ({
+      setNewProject((prev: typeof newProject) => ({
         ...prev,
         stakeholders: [...prev.stakeholders, {
           id: `stakeholder-${Date.now()}`,
@@ -1475,7 +1489,7 @@ const ProjectsPage: React.FC = () => {
   // Add Objective
   const addObjective = () => {
     if (newObjective.trim() && !newProject.objectives.includes(newObjective.trim())) {
-  setNewProject((prev: typeof newProject) => ({
+      setNewProject((prev: typeof newProject) => ({
         ...prev,
         objectives: [...prev.objectives, newObjective.trim()]
       }));
@@ -1486,7 +1500,7 @@ const ProjectsPage: React.FC = () => {
   // Add Success Criteria
   const addSuccessCriteria = () => {
     if (newSuccessCriteria.trim() && !newProject.successCriteria.includes(newSuccessCriteria.trim())) {
-  setNewProject((prev: typeof newProject) => ({
+      setNewProject((prev: typeof newProject) => ({
         ...prev,
         successCriteria: [...prev.successCriteria, newSuccessCriteria.trim()]
       }));
@@ -1496,29 +1510,29 @@ const ProjectsPage: React.FC = () => {
 
   // Remove functions
   const removeObjective = (index: number) => {
-  setNewProject((prev: typeof newProject) => ({
+    setNewProject((prev: typeof newProject) => ({
       ...prev,
-  objectives: prev.objectives.filter((_: any, i: number) => i !== index)
+      objectives: prev.objectives.filter((_: any, i: number) => i !== index)
     }));
   };
 
   const removeSuccessCriteria = (index: number) => {
-  setNewProject((prev: typeof newProject) => ({
+    setNewProject((prev: typeof newProject) => ({
       ...prev,
-  successCriteria: prev.successCriteria.filter((_: any, i: number) => i !== index)
+      successCriteria: prev.successCriteria.filter((_: any, i: number) => i !== index)
     }));
   };
 
   const removeStakeholder = (index: number) => {
-  setNewProject((prev: typeof newProject) => ({
+    setNewProject((prev: typeof newProject) => ({
       ...prev,
-  stakeholders: prev.stakeholders.filter((_: any, i: number) => i !== index)
+      stakeholders: prev.stakeholders.filter((_: any, i: number) => i !== index)
     }));
   };
 
 
   const toggleIntegration = (integrationId: string) => {
-  setNewProject((prev: typeof newProject) => ({
+    setNewProject((prev: typeof newProject) => ({
       ...prev,
       integrations: prev.integrations.map((integration: any) =>
         integration.id === integrationId
@@ -1568,10 +1582,10 @@ const ProjectsPage: React.FC = () => {
   };
 
   const handleMilestoneSave = (milestone: Milestone) => {
-  setProjectMilestones((prev: typeof projectMilestones) => {
-  const existing = prev.find((m: any) => m.id === milestone.id);
+    setProjectMilestones((prev: typeof projectMilestones) => {
+      const existing = prev.find((m: any) => m.id === milestone.id);
       if (existing) {
-  return prev.map((m: any) => m.id === milestone.id ? milestone : m);
+        return prev.map((m: any) => m.id === milestone.id ? milestone : m);
       } else {
         return [...prev, milestone];
       }
@@ -1615,7 +1629,7 @@ const ProjectsPage: React.FC = () => {
   const [projectSprintsState, setProjectSprintsState] = useState<Record<string, { total: number; completed: number; loading: boolean }>>({});
   const ensureProjectSprintsLoaded = async (projectId: string) => {
     if (projectSprintsState[projectId]?.loading || projectSprintsState[projectId]?.total !== undefined) return;
-  setProjectSprintsState((prev: typeof projectSprintsState) => ({ ...prev, [projectId]: { total: 0, completed: 0, loading: true } }));
+    setProjectSprintsState((prev: typeof projectSprintsState) => ({ ...prev, [projectId]: { total: 0, completed: 0, loading: true } }));
     try {
       const resp = await sprintApiService.getSprintsByProject(projectId);
       const sprints = resp.data || [];
@@ -1624,9 +1638,9 @@ const ProjectsPage: React.FC = () => {
         const st = (s.status || '').toString().toLowerCase();
         return st === 'completed' || st === 'closed' || st === 'done';
       }).length;
-  setProjectSprintsState((prev: typeof projectSprintsState) => ({ ...prev, [projectId]: { total, completed, loading: false } }));
+      setProjectSprintsState((prev: typeof projectSprintsState) => ({ ...prev, [projectId]: { total, completed, loading: false } }));
     } catch (e) {
-  setProjectSprintsState((prev: typeof projectSprintsState) => ({ ...prev, [projectId]: { total: 0, completed: 0, loading: false } }));
+      setProjectSprintsState((prev: typeof projectSprintsState) => ({ ...prev, [projectId]: { total: 0, completed: 0, loading: false } }));
     }
   };
 
@@ -1639,24 +1653,24 @@ const ProjectsPage: React.FC = () => {
 
   const handleConfirmDelete = async () => {
     if (!projectToDelete) return;
-    
+
     try {
       setIsDeleting(true);
       await deleteProject(projectToDelete.id.toString());
-      
+
       // Close dialogs and reset state
       setIsDeleteDialogOpen(false);
       setProjectToDelete(null);
-      
+
       // Refresh projects list
       refetch();
-      
+
       // Close project details if it was the deleted project
       if (selectedProject && selectedProject.id === projectToDelete.id) {
         setSelectedProject(null);
         setShowProjectDetails(false);
       }
-      
+
       // Show success message (you can use toast if available)
       alert(`Project "${projectToDelete.name}" has been deleted successfully.`);
     } catch (error: any) {
@@ -1668,7 +1682,7 @@ const ProjectsPage: React.FC = () => {
   };
 
   const getProjectMilestones = (projectId: number) => {
-  return projectMilestones.filter((m: any) => m.projectId === `proj-${projectId}`);
+    return projectMilestones.filter((m: any) => m.projectId === `proj-${projectId}`);
   };
 
 
@@ -1677,7 +1691,7 @@ const ProjectsPage: React.FC = () => {
     // For debugging: show all projects regardless of user role
     // TODO: Restore proper filtering once user authentication is working
     return projects;
-    
+
     // Original filtering logic (commented out for debugging):
     /*
     if (!user) return [];
@@ -1696,7 +1710,7 @@ const ProjectsPage: React.FC = () => {
   };
 
   const filteredProjects = getFilteredProjects();
-  
+
   // Debug logging
   console.log('ProjectsPage Debug:', {
     user: user,
@@ -1711,7 +1725,7 @@ const ProjectsPage: React.FC = () => {
     const fallback = (() => { try { return sessionStorage.getItem('openProjectId') || ''; } catch { return ''; } })();
     const wanted = target || fallback;
     if (!wanted) return;
-    
+
     // Handle both string IDs (from Dashboard) and numeric IDs
     let match: any = undefined;
     if (wanted.startsWith('proj-')) {
@@ -1723,10 +1737,10 @@ const ProjectsPage: React.FC = () => {
       const numericId = parseInt(wanted);
       match = filteredProjects.find((p: any) => p.id === numericId || p.id.toString() === wanted);
     }
-    
+
     if (match) {
       handleProjectClick(match);
-      try { sessionStorage.removeItem('openProjectId'); } catch {}
+      try { sessionStorage.removeItem('openProjectId'); } catch { }
       // Clean the URL so sidebar nav back to Projects doesn't re-open details
       navigate('/projects', { replace: true });
     }
@@ -1750,8 +1764,8 @@ const ProjectsPage: React.FC = () => {
   // Check if any API is still loading, but only if data is not already present
   const isLoadingAny = useMemo(() => {
     return (projectsLoading && apiProjects === null && !projectsError) ||
-           (usersLoading && apiUsers === null && !usersError) ||
-           (departmentsLoading && apiDepartments === null && !departmentsError);
+      (usersLoading && apiUsers === null && !usersError) ||
+      (departmentsLoading && apiDepartments === null && !departmentsError);
   }, [
     projectsLoading, apiProjects, projectsError,
     usersLoading, apiUsers, usersError,
@@ -1808,7 +1822,7 @@ const ProjectsPage: React.FC = () => {
                     </Badge>
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label>Progress</Label>
                   <div className="flex items-center space-x-2">
@@ -1839,25 +1853,25 @@ const ProjectsPage: React.FC = () => {
                   </div>
                 </div>
 
-                  <div className="space-y-2">
-                    <Label>Team Members</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {(selectedProject.teamMembers || []).length > 0 ? (
-                        (selectedProject.teamMembers || []).map((member: any, index: number) => (
-                          <div key={index} className="flex items-center space-x-2 bg-muted/50 rounded-lg px-3 py-2">
-                            <Avatar className="w-6 h-6">
-                              <AvatarImage src={member.avatar} alt={member.name} />
-                              <AvatarFallback className="text-xs">{getInitials(member.name)}</AvatarFallback>
-                            </Avatar>
-                            <span className="text-sm">{member.name}</span>
-                            <Badge variant="outline" className="text-xs">{member.role}</Badge>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No team members assigned</p>
-                      )}
-                    </div>
+                <div className="space-y-2">
+                  <Label>Team Members</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {(selectedProject.teamMembers || []).length > 0 ? (
+                      (selectedProject.teamMembers || []).map((member: any, index: number) => (
+                        <div key={index} className="flex items-center space-x-2 bg-muted/50 rounded-lg px-3 py-2">
+                          <Avatar className="w-6 h-6">
+                            <AvatarImage src={member.avatar} alt={member.name} />
+                            <AvatarFallback className="text-xs">{getInitials(member.name)}</AvatarFallback>
+                          </Avatar>
+                          <span className="text-sm">{member.name}</span>
+                          <Badge variant="outline" className="text-xs">{member.role}</Badge>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No team members assigned</p>
+                    )}
                   </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -1865,10 +1879,26 @@ const ProjectsPage: React.FC = () => {
             <Card>
               <CardHeader>
                 <CardTitle>Team Management</CardTitle>
-                <CardDescription>Manage project team members and assignments</CardDescription>
+                <CardDescription>Project team members</CardDescription>
               </CardHeader>
               <CardContent>
-                <TeamManager projectId={selectedProject.id.toString()} />
+                <div className="space-y-2">
+                  {selectedProject.teamMembers && selectedProject.teamMembers.length > 0 ? (
+                    selectedProject.teamMembers.map((member: any, idx: number) => (
+                      <div key={idx} className="flex items-center gap-2 p-2 border rounded">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback>{member.name?.substring(0, 2).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="text-sm font-medium">{member.name}</p>
+                          <p className="text-xs text-muted-foreground">{member.role}</p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No team members assigned yet.</p>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -1956,12 +1986,11 @@ const ProjectsPage: React.FC = () => {
                                 <Badge variant="outline" className="bg-green-50 text-green-700">
                                   {epic.storyPoints} pts
                                 </Badge>
-                                <Badge variant="outline" className={`${
-                                  epic.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                <Badge variant="outline" className={`${epic.status === 'completed' ? 'bg-green-100 text-green-800' :
                                   epic.status === 'in-progress' ? 'bg-orange-100 text-orange-800' :
-                                  epic.status === 'planning' ? 'bg-blue-100 text-blue-800' :
-                                  'bg-gray-100 text-gray-800'
-                                }`}>
+                                    epic.status === 'planning' ? 'bg-blue-100 text-blue-800' :
+                                      'bg-gray-100 text-gray-800'
+                                  }`}>
                                   {epic.status.replace('-', ' ')}
                                 </Badge>
                               </div>
@@ -1975,8 +2004,8 @@ const ProjectsPage: React.FC = () => {
                                 <div className="flex items-center space-x-2">
                                   <span className="text-xs text-gray-500">{epic.progress}%</span>
                                   <div className="w-16 h-1 bg-gray-200 rounded-full overflow-hidden">
-                                    <div 
-                                      className="h-full bg-blue-500 transition-all" 
+                                    <div
+                                      className="h-full bg-blue-500 transition-all"
                                       style={{ width: `${epic.progress}%` }}
                                     />
                                   </div>
@@ -2035,13 +2064,12 @@ const ProjectsPage: React.FC = () => {
                                 <Badge variant="outline" className="bg-purple-50 text-purple-700">
                                   {release.version}
                                 </Badge>
-                                <Badge variant="outline" className={`${
-                                  release.status === 'released' ? 'bg-green-100 text-green-800' :
+                                <Badge variant="outline" className={`${release.status === 'released' ? 'bg-green-100 text-green-800' :
                                   release.status === 'development' ? 'bg-orange-100 text-orange-800' :
-                                  release.status === 'testing' ? 'bg-purple-100 text-purple-800' :
-                                  release.status === 'planning' ? 'bg-blue-100 text-blue-800' :
-                                  'bg-gray-100 text-gray-800'
-                                }`}>
+                                    release.status === 'testing' ? 'bg-purple-100 text-purple-800' :
+                                      release.status === 'planning' ? 'bg-blue-100 text-blue-800' :
+                                        'bg-gray-100 text-gray-800'
+                                  }`}>
                                   {release.status.replace('-', ' ')}
                                 </Badge>
                               </div>
@@ -2056,8 +2084,8 @@ const ProjectsPage: React.FC = () => {
                                 <div className="flex items-center space-x-2">
                                   <span className="text-xs text-gray-500">{release.progress}%</span>
                                   <div className="w-16 h-1 bg-gray-200 rounded-full overflow-hidden">
-                                    <div 
-                                      className="h-full bg-purple-500 transition-all" 
+                                    <div
+                                      className="h-full bg-purple-500 transition-all"
                                       style={{ width: `${release.progress}%` }}
                                     />
                                   </div>
@@ -2096,20 +2124,20 @@ const ProjectsPage: React.FC = () => {
                   <span className="text-sm text-muted-foreground">Sprint Progress</span>
                   <span className="font-medium">{selectedProject.completedSprints} / {selectedProject.sprints}</span>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Budget Utilization</span>
                   <span className="font-medium">
-                    {selectedProject.spent && selectedProject.budget ? 
+                    {selectedProject.spent && selectedProject.budget ?
                       Math.round((parseInt(selectedProject.spent.replace(/[^\d]/g, '')) / parseInt(selectedProject.budget.replace(/[^\d]/g, ''))) * 100) : 0}%
                   </span>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Team Size</span>
                   <span className="font-medium">{selectedProject.teamMembers.length}</span>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Methodology</span>
                   <div className="flex items-center space-x-1">
@@ -2202,7 +2230,7 @@ const ProjectsPage: React.FC = () => {
               {user?.role === 'developer' ? 'No Projects Assigned' : 'No Projects Yet'}
             </h3>
             <p className="text-muted-foreground text-center mb-6 max-w-sm">
-              {user?.role === 'developer' 
+              {user?.role === 'developer'
                 ? 'You haven\'t been assigned to any projects yet. Contact your manager to get assigned to projects.'
                 : 'Get started by creating your first project to organize your work and track progress.'
               }
@@ -2218,8 +2246,8 @@ const ProjectsPage: React.FC = () => {
       ) : (
         <div className={view === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6' : 'space-y-4'}>
           {filteredProjects.map((project) => (
-            <Card 
-              key={project.id} 
+            <Card
+              key={project.id}
               className={`cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02] ${view === 'list' ? 'p-6' : ''}`}
               onClick={() => handleProjectClick(project)}
             >
@@ -2239,7 +2267,7 @@ const ProjectsPage: React.FC = () => {
                             const derived = computeDerivedStatus(project);
                             return (
                               <Badge variant="outline" className={`mt-1 ${getStatusColor(derived)}`}>
-                                {derived.slice(0,1).toUpperCase() + derived.slice(1)}
+                                {derived.slice(0, 1).toUpperCase() + derived.slice(1)}
                               </Badge>
                             );
                           })()}
@@ -2264,7 +2292,7 @@ const ProjectsPage: React.FC = () => {
                                 Manage Team
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 onClick={(e) => handleDeleteClick(project, e)}
                                 className="text-gray-900 hover:text-gray-900 hover:bg-red-50 focus:text-gray-900 focus:bg-red-50"
                               >
@@ -2279,7 +2307,7 @@ const ProjectsPage: React.FC = () => {
                     <CardDescription className="text-sm line-clamp-2 mt-2">
                       {project.description}
                     </CardDescription>
-                    </CardHeader>
+                  </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Progress */}
                     <div className="space-y-2">
@@ -2381,7 +2409,7 @@ const ProjectsPage: React.FC = () => {
                           const derived = computeDerivedStatus(project);
                           return (
                             <Badge variant="outline" className={getStatusColor(derived)}>
-                              {derived.slice(0,1).toUpperCase() + derived.slice(1)}
+                              {derived.slice(0, 1).toUpperCase() + derived.slice(1)}
                             </Badge>
                           );
                         })()}
@@ -2435,7 +2463,7 @@ const ProjectsPage: React.FC = () => {
                 Fill out the project details to get started with your new project.
               </DialogDescription>
             </DialogHeader>
-            
+
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
               <TabsList className="grid w-full grid-cols-6">
                 <TabsTrigger value="basic">Basic Info</TabsTrigger>
@@ -2585,56 +2613,56 @@ const ProjectsPage: React.FC = () => {
                   <div className="text-sm text-gray-600 mb-4">
                     Define large features and initiatives that will be broken down into stories and tasks.
                   </div>
-                  
+
                   {newProject.epics.length > 0 ? (
-                      <div className="space-y-3">
+                    <div className="space-y-3">
                       {newProject.epics.map((epic, index) => (
-                          <Card key={epic.id} className="p-4">
-                            <div className="flex items-start justify-between">
-                              <div className="space-y-2">
-                                <div className="flex items-center space-x-2">
-                                  <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                        <Card key={epic.id} className="p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-2">
+                              <div className="flex items-center space-x-2">
+                                <Badge variant="outline" className="bg-blue-50 text-blue-700">
                                   {epic.priority || 'medium'}
-                                  </Badge>
-                                  <Badge variant="outline" className="bg-green-50 text-green-700">
+                                </Badge>
+                                <Badge variant="outline" className="bg-green-50 text-green-700">
                                   {epic.status || 'draft'}
-                                  </Badge>
-                                </div>
-                                <h5 className="font-medium">{epic.title}</h5>
+                                </Badge>
+                              </div>
+                              <h5 className="font-medium">{epic.title}</h5>
                               <p className="text-sm text-gray-600 line-clamp-2">{epic.summary || epic.description || 'No description provided'}</p>
-                                <div className="flex items-center space-x-4 text-xs text-gray-500">
+                              <div className="flex items-center space-x-4 text-xs text-gray-500">
                                 <span>Status: {epic.status || 'draft'}</span>
                                 <span>Priority: {epic.priority || 'medium'}</span>
                                 {epic.storyPoints > 0 && <span>{epic.storyPoints} pts</span>}
                                 {epic.theme && <span>Theme: {epic.theme}</span>}
-                                </div>
+                              </div>
                               {(epic.startDate || epic.endDate) && (
                                 <div className="flex items-center space-x-4 text-xs text-gray-500 mt-1">
                                   {epic.startDate && <span>Start: {epic.startDate}</span>}
                                   {epic.endDate && <span>End: {epic.endDate}</span>}
-                              </div>
+                                </div>
                               )}
                             </div>
                             <Button variant="ghost" size="sm" onClick={() => removeEpic(index)}>
                               <X className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </Card>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-gray-500">
-                        <Flag className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                        <p>No epics defined yet. Create epics to organize large features.</p>
+                            </Button>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <Flag className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                      <p>No epics defined yet. Create epics to organize large features.</p>
                     </div>
                   )}
 
                   <div className="flex justify-center mt-6">
                     <Button variant="outline" onClick={addEpic}>
-                          <Plus className="w-4 h-4 mr-2" />
-                          Add Epic
-                        </Button>
-                      </div>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Epic
+                    </Button>
+                  </div>
 
                 </div>
               </TabsContent>
@@ -2645,61 +2673,60 @@ const ProjectsPage: React.FC = () => {
                   <div className="text-sm text-gray-600 mb-4">
                     Define product releases and deployment cycles for your project.
                   </div>
-                  
+
                   {newProject.releases.length > 0 ? (
-                      <div className="space-y-3">
+                    <div className="space-y-3">
                       {newProject.releases.map((release, index) => (
-                          <Card key={release.id} className="p-4">
-                            <div className="flex items-start justify-between">
-                              <div className="space-y-2">
-                                <div className="flex items-center space-x-2">
-                                  <Badge variant="outline" className="bg-purple-50 text-purple-700">
+                        <Card key={release.id} className="p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-2">
+                              <div className="flex items-center space-x-2">
+                                <Badge variant="outline" className="bg-purple-50 text-purple-700">
                                   {release.version || '1.0.0'}
-                                  </Badge>
-                                  <Badge variant="outline" className={`${
-                                    release.status === 'released' ? 'bg-green-100 text-green-800' :
-                                    release.status === 'development' ? 'bg-orange-100 text-orange-800' :
+                                </Badge>
+                                <Badge variant="outline" className={`${release.status === 'released' ? 'bg-green-100 text-green-800' :
+                                  release.status === 'development' ? 'bg-orange-100 text-orange-800' :
                                     release.status === 'testing' ? 'bg-purple-100 text-purple-800' :
-                                  release.status === 'planned' ? 'bg-blue-100 text-blue-800' :
-                                    'bg-gray-100 text-gray-800'
+                                      release.status === 'planned' ? 'bg-blue-100 text-blue-800' :
+                                        'bg-gray-100 text-gray-800'
                                   }`}>
                                   {release.status || 'planned'}
-                                  </Badge>
-                                </div>
-                                <h5 className="font-medium">{release.name}</h5>
+                                </Badge>
+                              </div>
+                              <h5 className="font-medium">{release.name}</h5>
                               <p className="text-sm text-gray-600 line-clamp-2">{release.releaseNotes || release.description || 'No description provided'}</p>
-                                <div className="flex items-center space-x-4 text-xs text-gray-500">
+                              <div className="flex items-center space-x-4 text-xs text-gray-500">
                                 <span>Status: {release.status || 'planned'}</span>
                                 <span>Version: {release.version || '1.0.0'}</span>
                                 {release.createdBy && <span>By: {release.createdBy}</span>}
-                                </div>
+                              </div>
                               {(release.targetDate || release.releaseDate) && (
                                 <div className="flex items-center space-x-4 text-xs text-gray-500 mt-1">
                                   {release.targetDate && <span>Target: {release.targetDate}</span>}
                                   {release.releaseDate && <span>Release: {release.releaseDate}</span>}
-                              </div>
+                                </div>
                               )}
                             </div>
                             <Button variant="ghost" size="sm" onClick={() => removeRelease(index)}>
                               <X className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </Card>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-gray-500">
-                        <Rocket className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                        <p>No releases defined yet. Create releases to organize product deployments.</p>
+                            </Button>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <Rocket className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                      <p>No releases defined yet. Create releases to organize product deployments.</p>
                     </div>
                   )}
 
                   <div className="flex justify-center mt-6">
                     <Button variant="outline" onClick={addRelease}>
-                          <Plus className="w-4 h-4 mr-2" />
-                          Add Release
-                        </Button>
-                      </div>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Release
+                    </Button>
+                  </div>
 
                 </div>
               </TabsContent>
@@ -2708,7 +2735,7 @@ const ProjectsPage: React.FC = () => {
                 <div className="space-y-6">
                   <h4 className="font-medium text-xl">Project Attachments</h4>
                   <p className="text-base text-gray-600">Upload files to attach to this project. All file types are supported.</p>
-                  
+
                   {pendingAttachments.length === 0 ? (
                     <Card>
                       <CardContent className="py-12">
@@ -2767,63 +2794,63 @@ const ProjectsPage: React.FC = () => {
 
                   <Separator className="my-6" />
 
-                    <h5 className="font-medium">Success Criteria</h5>
-                    <div className="flex space-x-3">
-                      <Input
-                        placeholder="Add success criteria"
-                        value={newSuccessCriteria}
-                        onChange={(e) => setNewSuccessCriteria(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && addSuccessCriteria()}
-                      />
-                      <Button type="button" onClick={addSuccessCriteria}>
-                        <Plus className="w-4 h-4" />
-                      </Button>
+                  <h5 className="font-medium">Success Criteria</h5>
+                  <div className="flex space-x-3">
+                    <Input
+                      placeholder="Add success criteria"
+                      value={newSuccessCriteria}
+                      onChange={(e) => setNewSuccessCriteria(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && addSuccessCriteria()}
+                    />
+                    <Button type="button" onClick={addSuccessCriteria}>
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  {newProject.successCriteria.length > 0 && (
+                    <div className="space-y-3">
+                      {newProject.successCriteria.map((criteria, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                          <span className="text-sm">{criteria}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeSuccessCriteria(index)}
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ))}
                     </div>
-                    {newProject.successCriteria.length > 0 && (
-                      <div className="space-y-3">
-                        {newProject.successCriteria.map((criteria, index) => (
-                          <div key={index} className="flex items-center justify-between p-2 bg-muted/50 rounded">
-                            <span className="text-sm">{criteria}</span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeSuccessCriteria(index)}
-                            >
-                              <X className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                  )}
 
-                    <h5 className="font-medium">Objectives</h5>
-                    <div className="flex space-x-3">
-                      <Input
-                        placeholder="Add project objective"
-                        value={newObjective}
-                        onChange={(e) => setNewObjective(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && addObjective()}
-                      />
-                      <Button type="button" onClick={addObjective}>
-                        <Plus className="w-4 h-4" />
-                      </Button>
+                  <h5 className="font-medium">Objectives</h5>
+                  <div className="flex space-x-3">
+                    <Input
+                      placeholder="Add project objective"
+                      value={newObjective}
+                      onChange={(e) => setNewObjective(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && addObjective()}
+                    />
+                    <Button type="button" onClick={addObjective}>
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  {newProject.objectives.length > 0 && (
+                    <div className="space-y-3">
+                      {newProject.objectives.map((objective, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                          <span className="text-sm">{objective}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeObjective(index)}
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ))}
                     </div>
-                    {newProject.objectives.length > 0 && (
-                      <div className="space-y-3">
-                        {newProject.objectives.map((objective, index) => (
-                          <div key={index} className="flex items-center justify-between p-2 bg-muted/50 rounded">
-                            <span className="text-sm">{objective}</span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeObjective(index)}
-                            >
-                              <X className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                  )}
                 </div>
               </TabsContent>
 
@@ -2836,7 +2863,7 @@ const ProjectsPage: React.FC = () => {
 
                   <div className="space-y-2">
                     <Label htmlFor="teamLead">Team Lead *</Label>
-                    <Select 
+                    <Select
                       value={newProject.teamLead}
                       onValueChange={(value) => {
                         console.log('Team lead selected:', value);
@@ -2846,9 +2873,9 @@ const ProjectsPage: React.FC = () => {
                     >
                       <SelectTrigger>
                         <SelectValue placeholder={
-                          usersLoading ? 'Loading users...' : 
-                          !apiUsers || apiUsers.length === 0 ? 'No users available' : 
-                          'Select team lead'
+                          usersLoading ? 'Loading users...' :
+                            !apiUsers || apiUsers.length === 0 ? 'No users available' :
+                              'Select team lead'
                         } />
                       </SelectTrigger>
                       <SelectContent>
@@ -2875,7 +2902,7 @@ const ProjectsPage: React.FC = () => {
                   <p className="text-sm text-muted-foreground">
                     Identify key stakeholders and their roles in the project.
                   </p>
-                  
+
                   {newProject.stakeholders.length > 0 && (
                     <div className="space-y-3">
                       {newProject.stakeholders.map((stakeholder, index) => (
@@ -2885,7 +2912,7 @@ const ProjectsPage: React.FC = () => {
                               <span className="font-medium">{stakeholder.name}</span>
                               <Badge variant="outline">{stakeholder.role || 'Stakeholder'}</Badge>
                             </div>
-                            <p className="text-sm text-muted-foreground">{stakeholder.email || 'No email provided'}</p>
+
                           </div>
                           <Button
                             variant="ghost"
@@ -2914,7 +2941,7 @@ const ProjectsPage: React.FC = () => {
                   <p className="text-sm text-muted-foreground">
                     Identify and plan mitigation strategies for potential project risks.
                   </p>
-                  
+
                   {newProject.risks.length > 0 && (
                     <div className="space-y-3">
                       {newProject.risks.map((risk, index) => (
@@ -2996,7 +3023,7 @@ const ProjectsPage: React.FC = () => {
               <Button variant="outline" onClick={() => setIsNewProjectDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={handleCreateProject}
                 disabled={!newProject.name || !newProject.description || !newProject.priority || isCreatingProject}
                 className="bg-gradient-to-r from-green-600 to-cyan-600 hover:from-green-700 hover:to-cyan-700"
@@ -3237,7 +3264,7 @@ const ProjectsPage: React.FC = () => {
                 rows={3}
               />
             </div>
-            
+
             {/* Risks List */}
             <div className="space-y-2">
               <Label>Risks</Label>
@@ -3394,7 +3421,7 @@ const ProjectsPage: React.FC = () => {
               />
               <p className="text-xs text-muted-foreground">Progress starts at 0% during project creation</p>
             </div>
-            
+
             {/* Linked Epics Selection */}
             <div className="space-y-2">
               <Label>Linked Epics</Label>
@@ -3562,7 +3589,7 @@ const ProjectsPage: React.FC = () => {
               Add a new stakeholder to the project with their role and responsibilities.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="flex-1 overflow-y-auto space-y-4 px-6 max-h-[60vh]">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -3584,7 +3611,7 @@ const ProjectsPage: React.FC = () => {
                 />
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <Label>Responsibilities</Label>
               <div className="space-y-2">
@@ -3636,7 +3663,7 @@ const ProjectsPage: React.FC = () => {
               </div>
             </div>
           </div>
-          
+
           <DialogFooter className="flex-shrink-0 px-6 pb-6 pt-4 border-t bg-white">
             <Button variant="outline" onClick={() => setIsStakeholderDialogOpen(false)}>
               Cancel
@@ -3650,7 +3677,7 @@ const ProjectsPage: React.FC = () => {
 
       {/* Add Attachment Dialog */}
       <Dialog open={isAddAttachmentDialogOpen} onOpenChange={setIsAddAttachmentDialogOpen}>
-        <DialogContent 
+        <DialogContent
           className="max-w-[90vw] w-[90vw] h-[90vh] max-h-[90vh] flex flex-col"
           style={{ width: '90vw', height: '90vh', maxWidth: '90vw', maxHeight: '90vh' }}
         >
@@ -3660,7 +3687,7 @@ const ProjectsPage: React.FC = () => {
               Upload files to attach to this project. All file types are supported.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="flex-1 space-y-4 overflow-y-auto">
             <div className="space-y-2">
               <Label htmlFor="file-upload">Select File</Label>
@@ -3687,7 +3714,7 @@ const ProjectsPage: React.FC = () => {
               )}
             </div>
           </div>
-          
+
           <DialogFooter className="flex-shrink-0">
             <Button variant="outline" onClick={() => {
               setIsAddAttachmentDialogOpen(false);
@@ -3744,8 +3771,8 @@ const ProjectsPage: React.FC = () => {
             </div>
           </div>
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setIsDeleteDialogOpen(false);
                 setProjectToDelete(null);
@@ -3754,8 +3781,8 @@ const ProjectsPage: React.FC = () => {
             >
               Cancel
             </Button>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={handleConfirmDelete}
               disabled={isDeleting}
               className="bg-white hover:bg-red-50 text-black hover:text-black border-2 border-red-300 hover:border-red-400 font-medium"

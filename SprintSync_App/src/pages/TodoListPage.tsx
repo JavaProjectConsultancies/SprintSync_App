@@ -20,7 +20,7 @@ const TodoListPage: React.FC = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="hidden md:flex items-center space-x-2">
           <Badge variant="outline" className="bg-gradient-to-r from-green-50 to-cyan-50 border-green-200">
             <ListTodo className="w-3 h-3 mr-1" />
@@ -66,30 +66,6 @@ const TodoListPage: React.FC = () => {
 
       {/* Todo List Component */}
       <TodoList />
-
-      {/* Integration Info */}
-      <Card className="bg-gradient-to-r from-green-50 to-cyan-50 border-green-200">
-        <CardContent className="p-6">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-white" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-medium text-green-600">Task Management</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                View all tasks assigned to you from your projects. You can mark tasks as complete, update priorities, and manage your workload. 
-                Personal todos can also be added and stored locally in your browser.
-              </p>
-            </div>
-            <div className="hidden md:flex items-center space-x-2">
-              <Badge variant="secondary" className="bg-white/50">
-                <Clock className="w-3 h-3 mr-1" />
-                Real-time Updates
-              </Badge>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };

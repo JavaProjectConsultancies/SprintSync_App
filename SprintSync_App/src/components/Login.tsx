@@ -7,13 +7,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Alert, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
-import { 
-  Users, 
-  Lock, 
-  Mail, 
-  Target, 
-  Sparkles, 
-  Eye, 
+import {
+  Users,
+  Lock,
+  Mail,
+  Target,
+  Sparkles,
+  Eye,
   EyeOff,
   UserPlus,
   Shield,
@@ -84,34 +84,34 @@ const Login: React.FC = () => {
   };
 
   const demoAccounts = [
-    { 
-      email: 'admin@demo.com', 
-      role: 'Admin', 
-      name: 'Arjun Sharma', 
+    {
+      email: 'admin@demo.com',
+      role: 'Admin',
+      name: 'Arjun Sharma',
       color: 'bg-red-100 text-red-800 border-red-200',
       icon: Shield,
       description: 'Dashboard, Projects, Team, Reports'
     },
-    { 
-      email: 'priya@demo.com', 
-      role: 'Manager', 
-      name: 'Priya Mehta', 
+    {
+      email: 'priya@demo.com',
+      role: 'Manager',
+      name: 'Priya Mehta',
       color: 'bg-blue-100 text-blue-800 border-blue-200',
       icon: Settings,
       description: 'Full access to all features'
     },
-    { 
-      email: 'rohit@demo.com', 
-      role: 'Developer', 
-      name: 'Rohit Kumar', 
+    {
+      email: 'rohit@demo.com',
+      role: 'Developer',
+      name: 'Rohit Kumar',
       color: 'bg-green-100 text-green-800 border-green-200',
       icon: Code,
       description: 'All except admin panel'
     },
-    { 
-      email: 'sneha@demo.com', 
-      role: 'Designer', 
-      name: 'Sneha Patel', 
+    {
+      email: 'sneha@demo.com',
+      role: 'Designer',
+      name: 'Sneha Patel',
       color: 'bg-purple-100 text-purple-800 border-purple-200',
       icon: Palette,
       description: 'All except admin panel'
@@ -119,28 +119,28 @@ const Login: React.FC = () => {
   ];
 
   const featureStats = [
-    { 
-      label: 'Teams', 
-      value: '120+', 
-      icon: Users, 
+    {
+      label: 'Teams',
+      value: '120+',
+      icon: Users,
       subtext: 'Collaborating daily',
       gradient: 'from-emerald-50/90 via-white to-cyan-50/70',
       accent: 'text-emerald-600',
       iconBg: 'bg-emerald-100/80'
     },
-    { 
-      label: 'Sprints shipped', 
-      value: '2.8K', 
-      icon: Target, 
+    {
+      label: 'Sprints shipped',
+      value: '2.8K',
+      icon: Target,
       subtext: 'This quarter',
       gradient: 'from-cyan-50/90 via-white to-teal-50/70',
       accent: 'text-cyan-600',
       iconBg: 'bg-cyan-100/80'
     },
-    { 
-      label: 'Automation saves', 
-      value: '14 hrs', 
-      icon: TrendingUp, 
+    {
+      label: 'Automation saves',
+      value: '14 hrs',
+      icon: TrendingUp,
       subtext: 'Per manager / week',
       gradient: 'from-teal-50/90 via-white to-emerald-50/70',
       accent: 'text-teal-600',
@@ -175,22 +175,11 @@ const Login: React.FC = () => {
           {/* Inspiration Panel */}
           <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 lg:p-8 shadow-lg border border-white/60 flex flex-col justify-between space-y-6">
             <div className="space-y-6">
-              <div className="flex items-center space-x-3">
-                <img src={sprintSyncLogo} alt="SprintSync logo" className="h-14 w-14 rounded-2xl border border-emerald-100 shadow-inner" />
-                <div>
-                  <p className="text-sm uppercase tracking-[0.3em] text-emerald-500">SprintSync</p>
-                  <h1 className="text-3xl lg:text-4xl font-semibold text-slate-900 leading-tight">Your Agile Success Command Center</h1>
-                  <p className="text-slate-500 mt-1 flex items-center space-x-2">
-                    <Sparkles className="w-4 h-4" />
-                    <span>Powered by AI &amp; Indian product craftsmanship</span>
-                  </p>
-                </div>
-              </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {featureStats.map((item) => (
-                  <div 
-                    key={item.label} 
+                  <div
+                    key={item.label}
                     className={`rounded-2xl border border-white/70 bg-gradient-to-br ${item.gradient} p-4 shadow-lg shadow-emerald-100/40`}
                   >
                     <div className={`w-9 h-9 rounded-xl ${item.iconBg} flex items-center justify-center mb-3`}>
@@ -237,21 +226,6 @@ const Login: React.FC = () => {
           {/* Auth Card */}
           <Card className="border-0 bg-white/90 backdrop-blur-xl shadow-2xl rounded-[26px]">
             <CardHeader className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <p className="text-xs uppercase tracking-[0.4em] text-emerald-500">{isSignUpMode ? 'Welcome to the tribe' : 'Happy to see you again'}</p>
-                  <CardTitle className="text-2xl">{isSignUpMode ? 'Create your SprintSync account' : 'Sign in to SprintSync'}</CardTitle>
-                  <CardDescription className="text-sm text-slate-500">
-                    {isSignUpMode 
-                      ? 'Set up your workspace in under 2 minutes.'
-                      : 'Secure access to your dashboards, boards & releases.'
-                    }
-                  </CardDescription>
-                </div>
-                <div className="bg-emerald-50 text-emerald-600 text-xs px-3 py-1 rounded-full font-medium">
-                  v2.6 Nimbus
-                </div>
-              </div>
 
               <div className="flex items-center bg-slate-100 rounded-full p-1 text-sm font-medium">
                 <button
@@ -288,215 +262,215 @@ const Login: React.FC = () => {
             </CardHeader>
 
             <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {isSignUpMode && (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="fullName">Full Name</Label>
-                    <div className="relative">
-                      <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                      <Input
-                        id="fullName"
-                        type="text"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        className="pl-10"
-                        placeholder="Arjun Kumar Sharma"
-                        required
-                      />
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {isSignUpMode && (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="fullName">Full Name</Label>
+                      <div className="relative">
+                        <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                        <Input
+                          id="fullName"
+                          type="text"
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
+                          className="pl-10"
+                          placeholder="Arjun Kumar Sharma"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="role">Role</Label>
+                      <div className="relative">
+                        <Settings className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                        <select
+                          id="role"
+                          value={role}
+                          onChange={(e) => setRole(e.target.value)}
+                          className="w-full pl-10 pr-3 py-2 border border-input rounded-md bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200"
+                          required
+                        >
+                          <option value="developer">Developer</option>
+                          <option value="designer">Designer</option>
+                          <option value="manager">Project Manager</option>
+                          <option value="admin">Administrator</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
+                )}
 
-                  <div className="space-y-2">
-                    <Label htmlFor="role">Role</Label>
-                    <div className="relative">
-                      <Settings className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                      <select
-                        id="role"
-                        value={role}
-                        onChange={(e) => setRole(e.target.value)}
-                        className="w-full pl-10 pr-3 py-2 border border-input rounded-md bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200"
-                        required
-                      >
-                        <option value="developer">Developer</option>
-                        <option value="designer">Designer</option>
-                        <option value="manager">Project Manager</option>
-                        <option value="admin">Administrator</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                  <Input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10"
-                    placeholder={isSignUpMode ? "arjun.sharma@company.com" : "Enter your email"}
-                    required
-                  />
-                </div>
-              </div>
-
-              {isSignUpMode && (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="department">Department / Project</Label>
-                    <div className="relative">
-                      <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                      <select
-                        id="department"
-                        value={department}
-                        onChange={(e) => setDepartment(e.target.value)}
-                        className="w-full pl-10 pr-3 py-2 border border-input rounded-md bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200"
-                        required
-                      >
-                        <option value="">Select Department/Project</option>
-                        <option value="ERP & Strategic Technology">ERP & Strategic Technology</option>
-                        <option value="HIMS & Pharma ZIP">HIMS & Pharma ZIP</option>
-                        <option value="Pharma Old">Pharma Old</option>
-                        <option value="Infrastructure Management">Infrastructure Management</option>
-                        <option value="Implementation">Implementation</option>
-                        <option value="Administration">Administration</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="domain">Domain / Specialization</Label>
-                    <div className="relative">
-                      <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                      <select
-                        id="domain"
-                        value={domain}
-                        onChange={(e) => setDomain(e.target.value)}
-                        className="w-full pl-10 pr-3 py-2 border border-input rounded-md bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200"
-                        required
-                      >
-                        <option value="">Select Domain/Specialization</option>
-                        {domains.map((domainItem) => (
-                          <option key={domainItem.id} value={domainItem.id}>
-                            {domainItem.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-10"
-                    placeholder="Enter your password"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {isSignUpMode && (
                 <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <Label htmlFor="email">Email</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                     <Input
-                      id="confirmPassword"
-                      type={showPassword ? "text" : "password"}
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       className="pl-10"
-                      placeholder="Confirm your password"
+                      placeholder={isSignUpMode ? "arjun.sharma@company.com" : "Enter your email"}
                       required
                     />
                   </div>
                 </div>
-              )}
 
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-              {!isSignUpMode && (
-                <div className="flex items-center justify-between text-xs text-slate-500">
-                  <div className="flex items-center space-x-2">
-                    <input type="checkbox" id="remember" className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-200" />
-                    <label htmlFor="remember">Remember me</label>
-                  </div>
-                  <button type="button" className="text-emerald-600 hover:underline">Forgot password?</button>
-                </div>
-              )}
-              <Button 
-                type="submit" 
-                className="w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:shadow-xl hover:-translate-y-0.5 transition-all border-0 text-white font-medium" 
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  'Processing...'
-                ) : (
-                  <span className="flex items-center justify-center space-x-2">
-                    {isSignUpMode ? <UserPlus className="w-4 h-4" /> : <Target className="w-4 h-4" />}
-                    <span>{isSignUpMode ? 'Create Account' : 'Sign In'}</span>
-                  </span>
-                )}
-              </Button>
-            </form>
-
-            <div className="mt-4 text-center">
-              <Button
-                variant="link"
-                onClick={() => setIsSignUpMode(!isSignUpMode)}
-                className="text-sm"
-              >
-                {isSignUpMode 
-                  ? "Already have an account? Sign in here"
-                  : "Don't have an account? Create one here"
-                }
-              </Button>
-            </div>
-
-            <div className="mt-8 space-y-3">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Need a quick tour?</p>
-              <div className="grid sm:grid-cols-2 gap-3">
-                {demoAccounts.map((account) => (
-                  <button
-                    key={account.email}
-                    type="button"
-                    onClick={() => handleDemoLogin(account.email)}
-                    className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white px-4 py-3 text-left shadow-sm hover:border-emerald-200 hover:-translate-y-0.5 transition-all"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">{account.name}</p>
-                      <p className="text-xs text-slate-500">{account.role}</p>
+                {isSignUpMode && (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="department">Department / Project</Label>
+                      <div className="relative">
+                        <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                        <select
+                          id="department"
+                          value={department}
+                          onChange={(e) => setDepartment(e.target.value)}
+                          className="w-full pl-10 pr-3 py-2 border border-input rounded-md bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200"
+                          required
+                        >
+                          <option value="">Select Department/Project</option>
+                          <option value="ERP & Strategic Technology">ERP & Strategic Technology</option>
+                          <option value="HIMS & Pharma ZIP">HIMS & Pharma ZIP</option>
+                          <option value="Pharma Old">Pharma Old</option>
+                          <option value="Infrastructure Management">Infrastructure Management</option>
+                          <option value="Implementation">Implementation</option>
+                          <option value="Administration">Administration</option>
+                        </select>
+                      </div>
                     </div>
-                    <account.icon className="w-4 h-4 text-emerald-500" />
-                  </button>
-                ))}
+
+                    <div className="space-y-2">
+                      <Label htmlFor="domain">Domain / Specialization</Label>
+                      <div className="relative">
+                        <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                        <select
+                          id="domain"
+                          value={domain}
+                          onChange={(e) => setDomain(e.target.value)}
+                          className="w-full pl-10 pr-3 py-2 border border-input rounded-md bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200"
+                          required
+                        >
+                          <option value="">Select Domain/Specialization</option>
+                          {domains.map((domainItem) => (
+                            <option key={domainItem.id} value={domainItem.id}>
+                              {domainItem.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pl-10 pr-10"
+                      placeholder="Enter your password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {isSignUpMode && (
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword">Confirm Password</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                      <Input
+                        id="confirmPassword"
+                        type={showPassword ? "text" : "password"}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="pl-10"
+                        placeholder="Confirm your password"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+                {!isSignUpMode && (
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <div className="flex items-center space-x-2">
+                      <input type="checkbox" id="remember" className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-200" />
+                      <label htmlFor="remember">Remember me</label>
+                    </div>
+                    <button type="button" className="text-emerald-600 hover:underline">Forgot password?</button>
+                  </div>
+                )}
+                <Button
+                  type="submit"
+                  className="w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:shadow-xl hover:-translate-y-0.5 transition-all border-0 text-white font-medium"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    'Processing...'
+                  ) : (
+                    <span className="flex items-center justify-center space-x-2">
+                      {isSignUpMode ? <UserPlus className="w-4 h-4" /> : <Target className="w-4 h-4" />}
+                      <span>{isSignUpMode ? 'Create Account' : 'Sign In'}</span>
+                    </span>
+                  )}
+                </Button>
+              </form>
+
+              <div className="mt-4 text-center">
+                <Button
+                  variant="link"
+                  onClick={() => setIsSignUpMode(!isSignUpMode)}
+                  className="text-sm"
+                >
+                  {isSignUpMode
+                    ? "Already have an account? Sign in here"
+                    : "Don't have an account? Create one here"
+                  }
+                </Button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+
+              <div className="mt-8 space-y-3">
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Need a quick tour?</p>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {demoAccounts.map((account) => (
+                    <button
+                      key={account.email}
+                      type="button"
+                      onClick={() => handleDemoLogin(account.email)}
+                      className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white px-4 py-3 text-left shadow-sm hover:border-emerald-200 hover:-translate-y-0.5 transition-all"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{account.name}</p>
+                        <p className="text-xs text-slate-500">{account.role}</p>
+                      </div>
+                      <account.icon className="w-4 h-4 text-emerald-500" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         <div className="mt-10 text-center text-xs text-slate-500">
           <div className="flex items-center justify-center space-x-4">

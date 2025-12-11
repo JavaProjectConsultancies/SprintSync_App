@@ -498,6 +498,7 @@ const ScrumPage: React.FC = () => {
   const [backlogStoriesWithTasks, setBacklogStoriesWithTasks] = useState<
     Array<Story & { tasks: Task[] }>
   >([]);
+  const [allBacklogStoriesWithTasks, setAllBacklogStoriesWithTasks] = useState<Array<Story & { tasks: Task[] }>>([]);  // Unfiltered for stats
   const [backlogTasksLoading, setBacklogTasksLoading] = useState(false);
   const [expandedBacklogStories, setExpandedBacklogStories] = useState<
     Set<string>
@@ -6853,6 +6854,9 @@ const ScrumPage: React.FC = () => {
             })).filter(story => (story.tasks || []).length > 0);
           }
 
+          // Store unfiltered version for stats
+          setAllBacklogStoriesWithTasks(storiesWithTasksData);
+
           setBacklogStoriesWithTasks(filteredStoriesWithTasks);
         } catch (error) {
           console.error('Error fetching backlog tasks:', error);
@@ -6959,6 +6963,29 @@ const ScrumPage: React.FC = () => {
     });
     return allTasks;
   }, [allBacklogStoriesForDisplay, backlogTaskPassesFilters]);
+
+  // Get ALL backlog tasks for stats (bypassing role-based filtering)
+  const allBacklogTasksForStats = useMemo(() => {
+    const allTasks: Task[] = [];
+    // Filter stories by selected sprint for stats
+    const storiesToUse = selectedSprint
+      ? allBacklogStoriesWithTasks.filter((s: Story & { tasks: Task[] }) => s.sprintId === selectedSprint)
+      : allBacklogStoriesWithTasks;
+
+    storiesToUse.forEach((story: Story & { tasks: Task[] }) => {
+      if (story.tasks && story.tasks.length > 0) {
+        allTasks.push(...story.tasks);
+      }
+    });
+    console.log('ScrumPage allBacklogTasksForStats:', {
+      totalTasks: allTasks.length,
+      doneTasks: allTasks.filter(t => (t.status || '').toUpperCase() === 'DONE').length,
+      storiesCount: storiesToUse.length,
+      selectedSprint
+    });
+    return allTasks;
+  }, [allBacklogStoriesWithTasks, selectedSprint]);
+
 
   // Handler functions for backlog
   const handleOpenBacklogEffortManager = (task: Task) => {
@@ -7604,23 +7631,27 @@ const ScrumPage: React.FC = () => {
               <Card>
                 <CardContent className="p-4 text-center">
                   <div className="text-2xl font-semibold text-red-600">
-                    {backlogTasks.filter(t => {
+                    {allBacklogTasksForStats.filter(t => {
                       if (!t.dueDate) return false;
                       const today = new Date();
                       today.setHours(0, 0, 0, 0);
                       const taskDueDate = new Date(t.dueDate);
                       taskDueDate.setHours(0, 0, 0, 0);
-                      return taskDueDate < today && t.status !== 'DONE' && t.status !== 'CANCELLED';
+                      const statusUpper = (t.status || '').toUpperCase();
+                      return taskDueDate < today && statusUpper !== 'CANCELLED';
                     }).length}
                   </div>
-                  <div className="text-sm text-muted-foreground">Overdue Incomplete Tasks</div>
+                  <div className="text-sm text-muted-foreground">Overdue Tasks</div>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardContent className="p-4 text-center">
                   <div className="text-2xl font-semibold text-yellow-600">
-                    {backlogTasks.filter(t => t.status === 'IN_PROGRESS' || t.status === 'TO_DO').length}
+                    {allBacklogTasksForStats.filter(t => {
+                      const statusUpper = (t.status || '').toUpperCase();
+                      return statusUpper === 'IN_PROGRESS' || statusUpper === 'TO_DO' || statusUpper === 'TODO';
+                    }).length}
                   </div>
                   <div className="text-sm text-muted-foreground">Incomplete Tasks</div>
                 </CardContent>
@@ -7629,7 +7660,16 @@ const ScrumPage: React.FC = () => {
               <Card>
                 <CardContent className="p-4 text-center">
                   <div className="text-2xl font-semibold text-green-600">
-                    {backlogTasks.filter(t => t.status === 'DONE').length}
+                    {allBacklogTasksForStats.filter(t => {
+                      const statusUpper = (t.status || '').toUpperCase();
+                      if (statusUpper !== 'DONE') return false;
+                      if (!t.dueDate) return true;
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      const dueDate = new Date(t.dueDate);
+                      dueDate.setHours(0, 0, 0, 0);
+                      return dueDate >= today;
+                    }).length}
                   </div>
                   <div className="text-sm text-muted-foreground">Completed Tasks</div>
                 </CardContent>
@@ -7892,17 +7932,6 @@ const ScrumPage: React.FC = () => {
                                                       </DropdownMenuTrigger>
 
                                                       <DropdownMenuContent align="end">
-                                                        <DropdownMenuItem
-                                                          onClick={() =>
-                                                            handleOpenBacklogEffortManager(
-                                                              task,
-                                                            )
-                                                          }
-                                                        >
-                                                          <Clock className="w-4 h-4 mr-2" />
-                                                          Manage Efforts
-                                                        </DropdownMenuItem>
-
                                                         <DropdownMenuItem
                                                           onClick={() => {
                                                             setBacklogTaskToView(task);
