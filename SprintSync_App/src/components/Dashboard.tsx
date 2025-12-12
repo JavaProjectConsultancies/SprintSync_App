@@ -54,6 +54,12 @@ import { prefetchSprints } from '../hooks/api/useSprints';
 import { prefetchStories } from '../hooks/api/useStories';
 import { prefetchTasks } from '../hooks/api/useTasks';
 import LoadingSpinner from './LoadingSpinner';
+import projectsGif from '../assets/projects.gif';
+import tasksCompletedIconGif from '../assets/tasks_completed_icon.gif';
+import userGif from '../assets/user.gif';
+import sprintCardGif from '../assets/sprintcard.gif';
+import performanceGif from '../assets/performance.gif.gif';
+import taskChartGif from '../assets/taskchart.gif.gif';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -1165,7 +1171,7 @@ const Dashboard: React.FC = () => {
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Projects</CardTitle>
-            <FolderKanban className="h-4 w-4 text-blue-600" />
+            <img src={projectsGif} alt="Active Projects" className="h-12 w-12 object-contain" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-900">{metrics.projectCount}</div>
@@ -1182,7 +1188,7 @@ const Dashboard: React.FC = () => {
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Tasks Complete</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600" />
+            <img src={tasksCompletedIconGif} alt="Tasks Complete" className="h-12 w-12 object-contain" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-900">{metrics.taskCompletion}%</div>
@@ -1199,7 +1205,7 @@ const Dashboard: React.FC = () => {
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-            <Users className="h-4 w-4 text-purple-600" />
+            <img src={userGif} alt="Total Users" className="h-12 w-12 object-contain" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-purple-900">{metrics.teamMembers}</div>
@@ -1216,7 +1222,7 @@ const Dashboard: React.FC = () => {
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Sprint Progress</CardTitle>
-            <Zap className="h-4 w-4 text-orange-600" />
+            <img src={sprintCardGif} alt="Sprint Progress" className="h-12 w-12 object-contain" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-900">{metrics.sprintProgress}%</div>
@@ -1282,7 +1288,7 @@ const Dashboard: React.FC = () => {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <TrendingUp className="w-5 h-5 text-yellow-600" />
+                    <img src={performanceGif} alt="Performance" className="h-8 w-8 object-contain" />
                     <span>{getSprintChartInfo().title}</span>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -1335,7 +1341,7 @@ const Dashboard: React.FC = () => {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <Target className="w-5 h-5 text-cyan-600" />
+                    <img src={taskChartGif} alt="Task Distribution" className="h-8 w-8 object-contain" />
                     <span>{getTaskChartInfo().title}</span>
                   </div>
                   <div className="flex items-center space-x-2">
