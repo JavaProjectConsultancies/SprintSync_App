@@ -143,11 +143,11 @@
             <artifactId>caffeine</artifactId>
         </dependency>
         
-        <!-- Tomcat for WAR deployment -->
+        <!-- Tomcat for WAR deployment - included for standalone execution -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-tomcat</artifactId>
-            <scope>provided</scope>
+            <!-- scope removed to include embedded tomcat for java -jar execution -->
         </dependency>
     </dependencies>
 
@@ -166,7 +166,15 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
                 <configuration>
+                    <mainClass>com.sprintsync.api.SprintSyncApiApplication</mainClass>
                     <excludes>
                         <exclude>
                             <groupId>org.projectlombok</groupId>
