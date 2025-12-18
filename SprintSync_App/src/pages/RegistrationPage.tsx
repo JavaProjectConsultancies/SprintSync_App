@@ -12,11 +12,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
-import { 
-  Eye, 
-  EyeOff, 
-  Mail, 
-  Lock, 
+import {
+  Eye,
+  EyeOff,
+  Mail,
+  Lock,
   User,
   ArrowLeft,
   Loader2
@@ -100,7 +100,7 @@ const RegistrationPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
@@ -140,8 +140,8 @@ const RegistrationPage: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Registration error:', error);
-      setErrors({ 
-        submit: error.message || 'Registration failed. Please try again.' 
+      setErrors({
+        submit: error.message || 'Registration failed. Please try again.'
       });
     } finally {
       setIsSubmitting(false);
@@ -154,9 +154,9 @@ const RegistrationPage: React.FC = () => {
         {/* Header */}
         <div className="text-center mb-6">
           <div className="flex justify-center mb-4">
-            <img 
-              src={sprintSyncLogo} 
-              alt="SprintSync" 
+            <img
+              src={sprintSyncLogo}
+              alt="SprintSync"
               className="w-16 h-16 object-contain"
             />
           </div>

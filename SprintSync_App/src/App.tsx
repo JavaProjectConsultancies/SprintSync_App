@@ -333,255 +333,259 @@ const AppContent: React.FC = () => {
               }
             `}</style>
 
-            {/* Logo and Title */}
-            <div className="text-center mb-8 animate-fade-in-up relative z-10">
-              <div className="flex justify-center mb-4">
-                <img
-                  src={sprintSyncLogo}
-                  alt="SprintSync"
-                  className="w-32 h-32 object-contain animate-logo-pulse"
-                />
+            {/* Scaled Content Container */}
+            <div className="w-full h-full flex flex-col items-center justify-center origin-center transition-transform duration-500">
+              {/* Logo and Title */}
+              <div className="text-center mb-8 animate-fade-in-up relative z-10">
+                <div className="flex justify-center mb-4">
+                  <img
+                    src={sprintSyncLogo}
+                    alt="SprintSync"
+                    className="w-32 h-32 object-contain animate-logo-pulse"
+                  />
+                </div>
               </div>
-            </div>
 
-            {/* Sliding Container */}
-            <div className="sliding-container animate-scale-in relative z-10" style={{ animationDelay: '0.2s', opacity: 0 }}>
-              <style>{`
-                .sliding-container {
-                  background-color: #fff;
-                  border-radius: 16px;
-                  box-shadow: 0 14px 28px rgba(16, 185, 129, 0.15), 
-                          0 10px 10px rgba(16, 185, 129, 0.1);
-                  position: relative;
-                  overflow: hidden;
-                  width: 850px;
-                  max-width: 100%;
-                  min-height: 550px;
-                }
+              {/* Sliding Container */}
+              <div className="sliding-container animate-scale-in relative z-10" style={{ animationDelay: '0.2s', opacity: 0 }}>
+                <style>{`
+                  .sliding-container {
+                    background-color: #fff;
+                    border-radius: 16px;
+                    box-shadow: 0 14px 28px rgba(16, 185, 129, 0.15), 
+                            0 10px 10px rgba(16, 185, 129, 0.1);
+                    position: relative;
+                    overflow: hidden;
+                    width: 750px;
+                    max-width: 100%;
+                    min-height: 480px;
+                  }
 
-                .form-container {
-                  position: absolute;
-                  top: 0;
-                  height: 100%;
-                  transition: all 0.6s ease-in-out;
-                }
+                  .form-container {
+                    position: absolute;
+                    top: 0;
+                    height: 100%;
+                    transition: all 0.6s ease-in-out;
+                  }
 
-                .sign-in-container {
-                  left: 0;
-                  width: 50%;
-                  z-index: 2;
-                }
+                  .sign-in-container {
+                    left: 0;
+                    width: 50%;
+                    z-index: 2;
+                  }
 
-                .sliding-container.right-panel-active .sign-in-container {
-                  transform: translateX(100%);
-                }
+                  .sliding-container.right-panel-active .sign-in-container {
+                    transform: translateX(100%);
+                  }
 
-                .sign-up-container {
-                  left: 0;
-                  width: 50%;
-                  opacity: 0;
-                  z-index: 1;
-                }
-
-                .sliding-container.right-panel-active .sign-up-container {
-                  transform: translateX(100%);
-                  opacity: 1;
-                  z-index: 5;
-                  animation: show 0.6s;
-                }
-
-                @keyframes show {
-                  0%, 49.99% {
+                  .sign-up-container {
+                    left: 0;
+                    width: 50%;
                     opacity: 0;
                     z-index: 1;
                   }
-                  50%, 100% {
+
+                  .sliding-container.right-panel-active .sign-up-container {
+                    transform: translateX(100%);
                     opacity: 1;
                     z-index: 5;
+                    animation: show 0.6s;
                   }
-                }
 
-                .overlay-container {
-                  position: absolute;
-                  top: 0;
-                  left: 50%;
-                  width: 50%;
-                  height: 100%;
-                  overflow: hidden;
-                  transition: transform 0.6s ease-in-out;
-                  z-index: 100;
-                }
+                  @keyframes show {
+                    0%, 49.99% {
+                      opacity: 0;
+                      z-index: 1;
+                    }
+                    50%, 100% {
+                      opacity: 1;
+                      z-index: 5;
+                    }
+                  }
 
-                .sliding-container.right-panel-active .overlay-container {
-                  transform: translateX(-100%);
-                }
+                  .overlay-container {
+                    position: absolute;
+                    top: 0;
+                    left: 50%;
+                    width: 50%;
+                    height: 100%;
+                    overflow: hidden;
+                    transition: transform 0.6s ease-in-out;
+                    z-index: 100;
+                  }
 
-                .overlay {
-                  background: linear-gradient(135deg, #10b981 0%, #34d399 50%, #a7f3d0 100%);
-                  background-size: cover;
-                  background-position: 0 0;
-                  color: #FFFFFF;
-                  position: relative;
-                  left: -100%;
-                  height: 100%;
-                  width: 200%;
-                  transform: translateX(0);
-                  transition: transform 0.6s ease-in-out;
-                }
+                  .sliding-container.right-panel-active .overlay-container {
+                    transform: translateX(-100%);
+                  }
 
-                .sliding-container.right-panel-active .overlay {
-                  transform: translateX(50%);
-                }
+                  .overlay {
+                    background: linear-gradient(135deg, #10b981 0%, #34d399 50%, #a7f3d0 100%);
+                    background-size: cover;
+                    background-position: 0 0;
+                    color: #FFFFFF;
+                    position: relative;
+                    left: -100%;
+                    height: 100%;
+                    width: 200%;
+                    transform: translateX(0);
+                    transition: transform 0.6s ease-in-out;
+                  }
 
-                .overlay-panel {
-                  position: absolute;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  flex-direction: column;
-                  padding: 0 40px;
-                  text-align: center;
-                  top: 0;
-                  height: 100%;
-                  width: 50%;
-                  transform: translateX(0);
-                  transition: transform 0.6s ease-in-out;
-                }
+                  .sliding-container.right-panel-active .overlay {
+                    transform: translateX(50%);
+                  }
 
-                .overlay-left {
-                  transform: translateX(-20%);
-                }
+                  .overlay-panel {
+                    position: absolute;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    flex-direction: column;
+                    padding: 0 40px;
+                    text-align: center;
+                    top: 0;
+                    height: 100%;
+                    width: 50%;
+                    transform: translateX(0);
+                    transition: transform 0.6s ease-in-out;
+                  }
 
-                .sliding-container.right-panel-active .overlay-left {
-                  transform: translateX(0);
-                }
+                  .overlay-left {
+                    transform: translateX(-20%);
+                  }
 
-                .overlay-right {
-                  right: 0;
-                  transform: translateX(0);
-                }
+                  .sliding-container.right-panel-active .overlay-left {
+                    transform: translateX(0);
+                  }
 
-                .sliding-container.right-panel-active .overlay-right {
-                  transform: translateX(20%);
-                }
+                  .overlay-right {
+                    right: 0;
+                    transform: translateX(0);
+                  }
 
-                .form-inner {
-                  background-color: #FFFFFF;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  flex-direction: column;
-                  padding: 0 50px;
-                  height: 100%;
-                  text-align: center;
-                }
+                  .sliding-container.right-panel-active .overlay-right {
+                    transform: translateX(20%);
+                  }
 
-                .form-input {
-                  background-color: #f0fdf4;
-                  border: 1px solid #d1fae5;
-                  padding: 14px 20px;
-                  margin: 8px 0;
-                  width: 100%;
-                  border-radius: 8px;
-                  font-size: 14px;
-                  transition: all 0.3s ease;
-                }
+                  .form-inner {
+                    background-color: #FFFFFF;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    flex-direction: column;
+                    padding: 0 50px;
+                    height: 100%;
+                    text-align: center;
+                  }
 
-                .form-input:focus {
-                  outline: none;
-                  border-color: #10b981;
-                  background-color: #ffffff;
-                  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
-                }
+                  .form-input {
+                    background-color: #f0fdf4;
+                    border: 1px solid #d1fae5;
+                    padding: 14px 20px;
+                    margin: 8px 0;
+                    width: 100%;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    transition: all 0.3s ease;
+                  }
 
-                .form-button {
-                  border-radius: 24px;
-                  border: 1px solid #10b981;
-                  background: linear-gradient(135deg, #10b981, #059669);
-                  color: #FFFFFF;
-                  font-size: 13px;
-                  font-weight: 600;
-                  padding: 14px 50px;
-                  letter-spacing: 1px;
-                  text-transform: uppercase;
-                  transition: all 0.2s ease;
-                  cursor: pointer;
-                  margin-top: 10px;
-                }
+                  .form-input:focus {
+                    outline: none;
+                    border-color: #10b981;
+                    background-color: #ffffff;
+                    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+                  }
 
-                .form-button:hover {
-                  background: linear-gradient(135deg, #059669, #047857);
-                  transform: translateY(-2px);
-                  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
-                }
+                  .form-button {
+                    border-radius: 24px;
+                    border: 1px solid #10b981;
+                    background: linear-gradient(135deg, #10b981, #059669);
+                    color: #FFFFFF;
+                    font-size: 13px;
+                    font-weight: 600;
+                    padding: 14px 50px;
+                    letter-spacing: 1px;
+                    text-transform: uppercase;
+                    transition: all 0.2s ease;
+                    cursor: pointer;
+                    margin-top: 10px;
+                  }
 
-                .form-button:active {
-                  transform: scale(0.98);
-                }
+                  .form-button:hover {
+                    background: linear-gradient(135deg, #059669, #047857);
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
+                  }
 
-                .ghost-button {
-                  background-color: transparent;
-                  border: 2px solid #FFFFFF;
-                  color: #FFFFFF;
-                }
+                  .form-button:active {
+                    transform: scale(0.98);
+                  }
 
-                .ghost-button:hover {
-                  background-color: rgba(255, 255, 255, 0.1);
-                }
+                  .ghost-button {
+                    background-color: transparent;
+                    border: 2px solid #FFFFFF;
+                    color: #FFFFFF;
+                  }
 
-                .form-title {
-                  font-weight: 700;
-                  margin: 0 0 20px 0;
-                  font-size: 32px;
-                  background: linear-gradient(135deg, #10b981, #059669);
-                  background-clip: text;
-                  -webkit-background-clip: text;
-                  -webkit-text-fill-color: transparent;
-                }
+                  .ghost-button:hover {
+                    background-color: rgba(255, 255, 255, 0.1);
+                  }
 
-                .overlay-title {
-                  font-weight: 700;
-                  margin: 0;
-                  font-size: 32px;
-                  color: white;
-                }
+                  .form-title {
+                    font-weight: 700;
+                    margin: 0 0 20px 0;
+                    font-size: 32px;
+                    background: linear-gradient(135deg, #10b981, #059669);
+                    background-clip: text;
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                  }
 
-                .overlay-text {
-                  font-size: 15px;
-                  font-weight: 400;
-                  line-height: 22px;
-                  letter-spacing: 0.5px;
-                  margin: 20px 0 30px;
-                }
+                  .overlay-title {
+                    font-weight: 700;
+                    margin: 0;
+                    font-size: 32px;
+                    color: white;
+                  }
 
-                .form-label {
-                  font-size: 13px;
-                  color: #6b7280;
-                  margin: 15px 0 5px 0;
-                }
-              `}</style>
+                  .overlay-text {
+                    font-size: 15px;
+                    font-weight: 400;
+                    line-height: 22px;
+                    letter-spacing: 0.5px;
+                    margin: 20px 0 30px;
+                  }
 
-              <LoginForm
-                onLoginSuccess={(token, userData) => {
-                  setAuthState(token, userData);
-                  setTimeout(() => navigate('/'), 100);
-                }}
-                onLoginError={(error) => {
-                  console.error('Login failed:', error);
-                }}
-                isLoading={isLoading}
-              />
+                  .form-label {
+                    font-size: 13px;
+                    color: #6b7280;
+                    margin: 15px 0 5px 0;
+                  }
+                `}</style>
 
-              {loginError && (
-                <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-[200] w-full max-w-md px-4">
-                  <Alert className="border-red-200 bg-red-50/95 backdrop-blur-sm shadow-lg">
-                    <AlertDescription className="text-red-800 text-center">
-                      {loginError}
-                    </AlertDescription>
-                  </Alert>
-                </div>
-              )}
+                <LoginForm
+                  onLoginSuccess={(token, userData) => {
+                    setAuthState(token, userData);
+                    setTimeout(() => navigate('/'), 100);
+                  }}
+                  onLoginError={(error) => {
+                    console.error('Login failed:', error);
+                  }}
+                  isLoading={isLoading}
+                />
+
+                {loginError && (
+                  <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-[200] w-full max-w-md px-4">
+                    <Alert className="border-red-200 bg-red-50/95 backdrop-blur-sm shadow-lg">
+                      <AlertDescription className="text-red-800 text-center">
+                        {loginError}
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                )}
+              </div>
             </div>
+
           </div>
         } />
       </Routes>

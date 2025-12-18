@@ -161,7 +161,7 @@ const Login: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-cyan-50 relative overflow-hidden">
+    <div className="h-screen bg-gradient-to-br from-emerald-50 via-white to-cyan-50 relative overflow-hidden flex items-center justify-center">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.22),transparent_55%)] opacity-80 pointer-events-none"></div>
       <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(16,185,129,0.08) 25%,transparent 25%,transparent 50%,rgba(6,182,212,0.08) 50%,rgba(6,182,212,0.08) 75%,transparent 75%)] bg-[length:22px_22px] mix-blend-multiply opacity-20 pointer-events-none"></div>
       <div className="absolute inset-0 opacity-60">
@@ -170,7 +170,7 @@ const Login: React.FC = () => {
         <div className="absolute bottom-0 right-10 w-80 h-80 bg-gradient-to-br from-green-300 to-cyan-200 rounded-full blur-3xl opacity-70"></div>
       </div>
 
-      <div className="relative z-10 max-w-6xl mx-auto px-4 py-10 lg:py-16">
+      <div className="relative z-10 max-w-6xl mx-auto px-4 w-full">
         <div className="grid gap-8 lg:grid-cols-2">
           {/* Inspiration Panel */}
           <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 lg:p-8 shadow-lg border border-white/60 flex flex-col justify-between space-y-6">
@@ -488,6 +488,16 @@ const Login: React.FC = () => {
             </span>
           </div>
           <p className="mt-3">© {new Date().getFullYear()} SprintSync. Designed for agile enterprises.</p>
+        </div>
+
+
+      </div>
+
+      {/* Crafted By Badge */}
+      <div className="fixed bottom-6 right-6 z-[9999]">
+        <div className="bg-emerald-600 border border-emerald-500 shadow-2xl px-5 py-2.5 rounded-full flex items-center space-x-2 transition-transform hover:scale-105 hover:bg-emerald-500 cursor-default">
+          <span className="text-xs text-emerald-100 font-medium">Crafted by</span>
+          <span className="text-xs font-bold text-white">Parimal Bawane</span>
         </div>
       </div>
     </div>

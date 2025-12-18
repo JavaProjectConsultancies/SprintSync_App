@@ -1266,13 +1266,9 @@ const BacklogPage: React.FC = () => {
                                   )}
 
                                   {isDoneAfterDue && (
-
                                     <Badge variant="destructive" className="text-xs">
-
                                       Overdue
-
                                     </Badge>
-
                                   )}
 
                                 </div>
@@ -1511,15 +1507,15 @@ const BacklogPage: React.FC = () => {
 
       {/* Filters and Search */}
 
-      <Card>
+      <Card className="mb-6 mt-6">
 
-        <CardContent className="p-4">
+        <CardContent className="p-6">
 
-          <div className="flex items-center gap-x-8 lg:gap-x-10 flex-nowrap">
+          <div className="flex items-center gap-6 flex-nowrap">
 
             {/* Search */}
 
-            <div className="relative flex-1 min-w-[260px] mr-6">
+            <div className="relative flex-1 min-w-[260px]">
 
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
 
@@ -1541,7 +1537,7 @@ const BacklogPage: React.FC = () => {
 
             {/* Filters */}
 
-            <div className="shrink-0 ml-6">
+            <div className="shrink-0">
 
               <Select value={statusFilter} onValueChange={setStatusFilter}>
 
@@ -1573,7 +1569,7 @@ const BacklogPage: React.FC = () => {
 
 
 
-            <div className="shrink-0 ml-6">
+            <div className="shrink-0">
 
               <Select value={priorityFilter} onValueChange={setPriorityFilter}>
 
@@ -1603,7 +1599,7 @@ const BacklogPage: React.FC = () => {
 
 
 
-            <div className="shrink-0 ml-6">
+            <div className="shrink-0">
 
               <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
 
@@ -1645,7 +1641,7 @@ const BacklogPage: React.FC = () => {
 
             {/* Sort */}
 
-            <div className="flex items-center space-x-2 ml-6">
+            <div className="flex items-center space-x-4">
 
               <Select value={sortBy} onValueChange={setSortBy}>
 

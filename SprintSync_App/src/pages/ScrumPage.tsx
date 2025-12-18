@@ -7043,6 +7043,22 @@ const ScrumPage: React.FC = () => {
     return sprint.status;
   };
 
+  const getSprintStatusColor = (status: string) => {
+    switch (status?.toUpperCase()) {
+      case "ACTIVE":
+      case "IN_PROGRESS":
+        return "bg-green-100 text-green-800 border-green-200";
+      case "PLANNING":
+      case "CREATED":
+        return "bg-blue-100 text-blue-800 border-blue-200";
+      case "COMPLETED":
+      case "CLOSED":
+        return "bg-gray-100 text-gray-800 border-gray-200";
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200";
+    }
+  };
+
   return (
     <DndProvider backend={HTML5Backend}>
       <Tabs
@@ -7162,20 +7178,23 @@ const ScrumPage: React.FC = () => {
                       );
                     }
 
-                    return projectSprints.map((sprint) => (
-                      <SelectItem key={sprint.id} value={sprint.id}>
-                        <div className="flex items-center space-x-2">
-                          <Badge
-                            variant="outline"
-                            className={getStatusColor(sprint.status)}
-                          >
-                            {sprint.status}
-                          </Badge>
+                    return projectSprints.map((sprint) => {
+                      const computedStatus = getSprintComputedStatus(sprint);
+                      return (
+                        <SelectItem key={sprint.id} value={sprint.id}>
+                          <div className="flex items-center space-x-2">
+                            <Badge
+                              variant="outline"
+                              className={getSprintStatusColor(computedStatus)}
+                            >
+                              {computedStatus}
+                            </Badge>
 
-                          <span>{sprint.name}</span>
-                        </div>
-                      </SelectItem>
-                    ));
+                            <span>{sprint.name}</span>
+                          </div>
+                        </SelectItem>
+                      );
+                    });
                   })()}
                 </SelectContent>
               </Select>
@@ -7465,8 +7484,8 @@ const ScrumPage: React.FC = () => {
 
             {/* Filters and Search */}
 
-            <Card>
-              <CardContent className="p-4">
+            <Card className="mb-6">
+              <CardContent className="p-6">
                 <div className="flex items-center gap-x-8 lg:gap-x-10 flex-nowrap">
                   {/* Search */}
 

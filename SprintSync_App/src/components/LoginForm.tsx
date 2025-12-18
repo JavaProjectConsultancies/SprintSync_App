@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -46,6 +47,23 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
   const [signUpErrors, setSignUpErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPanelActive, setIsPanelActive] = useState(false);
+
+  // Rotating creators logic
+  const creators = ["Mayuresh Gajbhiye", "Sanika Sapkale", "Sudhanshu Nakhate"];
+  const [currentCreatorIndex, setCurrentCreatorIndex] = useState(0);
+  const [fadeOpacity, setFadeOpacity] = useState(1);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setFadeOpacity(0); // Fade out
+      setTimeout(() => {
+        setCurrentCreatorIndex((prev) => (prev + 1) % creators.length);
+        setFadeOpacity(1); // Fade in
+      }, 500); // Wait for fade out transition
+    }, 3000); // Change every 3 seconds
+
+    return () => clearInterval(interval);
+  }, []);
 
   const { data: departmentsData } = useDepartments();
   const { data: domainsData } = useDomains();
@@ -504,6 +522,38 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
           </div>
         </div>
       </div>
+      {createPortal(
+        <div style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          zIndex: 2147483647,
+          display: 'flex',
+          alignItems: 'center',
+          backgroundColor: 'rgba(255, 255, 255, 0.8)',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          border: '1px solid rgba(16, 185, 129, 0.2)',
+          borderRadius: '9999px',
+          padding: '10px 20px',
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+          cursor: 'default',
+          pointerEvents: 'auto'
+        }}>
+          <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500, marginRight: '8px' }}>Crafted by</span>
+          <span style={{
+            fontSize: '12px',
+            fontWeight: 'bold',
+            color: '#059669',
+            opacity: fadeOpacity,
+            transition: 'opacity 0.5s ease-in-out',
+            minWidth: '120px' // Prevent layout jump
+          }}>
+            {creators[currentCreatorIndex]}
+          </span>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };
