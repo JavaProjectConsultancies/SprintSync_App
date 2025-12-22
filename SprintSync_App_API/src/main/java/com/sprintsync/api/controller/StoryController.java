@@ -37,12 +37,14 @@ public class StoryController {
      * @return ResponseEntity containing the created story
      */
     @PostMapping
-    public ResponseEntity<Story> createStory(@RequestBody Story story) {
+    public ResponseEntity<?> createStory(@RequestBody Story story) {
         try {
             Story createdStory = storyService.createStory(story);
             return ResponseEntity.status(HttpStatus.CREATED).body(createdStory);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
+            System.err.println("Error creating story: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body("Error creating story: " + e.getMessage());
         }
     }
 
@@ -56,15 +58,15 @@ public class StoryController {
     public ResponseEntity<Story> getStoryById(@PathVariable String id) {
         Optional<Story> story = storyService.findById(id);
         return story.map(ResponseEntity::ok)
-                   .orElse(ResponseEntity.notFound().build());
+                .orElse(ResponseEntity.notFound().build());
     }
 
     /**
      * Get all stories with pagination.
      * 
-     * @param page page number (default: 0)
-     * @param size page size (default: 10)
-     * @param sortBy sort field (default: title)
+     * @param page    page number (default: 0)
+     * @param size    page size (default: 10)
+     * @param sortBy  sort field (default: title)
      * @param sortDir sort direction (default: asc)
      * @return ResponseEntity containing page of stories
      */
@@ -74,7 +76,7 @@ public class StoryController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "title") String sortBy,
             @RequestParam(defaultValue = "asc") String sortDir) {
-        
+
         org.springframework.data.domain.Page<Story> stories = storyService.getAllStories(page, size, sortBy, sortDir);
         return ResponseEntity.ok(stories);
     }
@@ -211,11 +213,11 @@ public class StoryController {
     /**
      * Get stories by multiple criteria.
      * 
-     * @param projectId the project ID (optional)
-     * @param sprintId the sprint ID (optional)
-     * @param epicId the epic ID (optional)
-     * @param status the story status (optional)
-     * @param priority the story priority (optional)
+     * @param projectId  the project ID (optional)
+     * @param sprintId   the sprint ID (optional)
+     * @param epicId     the epic ID (optional)
+     * @param status     the story status (optional)
+     * @param priority   the story priority (optional)
      * @param assigneeId the assignee ID (optional)
      * @return ResponseEntity containing list of stories matching the criteria
      */
@@ -227,15 +229,16 @@ public class StoryController {
             @RequestParam(required = false) StoryStatus status,
             @RequestParam(required = false) StoryPriority priority,
             @RequestParam(required = false) String assigneeId) {
-        
-        List<Story> stories = storyService.findStoriesByCriteria(projectId, sprintId, epicId, status, priority, assigneeId);
+
+        List<Story> stories = storyService.findStoriesByCriteria(projectId, sprintId, epicId, status, priority,
+                assigneeId);
         return ResponseEntity.ok(stories);
     }
 
     /**
      * Update an existing story.
      * 
-     * @param id the story ID
+     * @param id           the story ID
      * @param storyDetails the updated story details
      * @return ResponseEntity containing the updated story
      */
@@ -253,7 +256,7 @@ public class StoryController {
     /**
      * Update story status.
      * 
-     * @param id the story ID
+     * @param id     the story ID
      * @param status the new status
      * @return ResponseEntity containing the updated story
      */
@@ -270,7 +273,7 @@ public class StoryController {
     /**
      * Assign story to user.
      * 
-     * @param id the story ID
+     * @param id         the story ID
      * @param assigneeId the assignee ID
      * @return ResponseEntity containing the updated story
      */
@@ -287,7 +290,7 @@ public class StoryController {
     /**
      * Move story to sprint.
      * 
-     * @param id the story ID
+     * @param id       the story ID
      * @param sprintId the sprint ID
      * @return ResponseEntity containing the updated story
      */
@@ -366,11 +369,13 @@ public class StoryController {
     }
 
     /**
-     * Create a new story from a previous sprint story with new ID and copy only overdue, in-progress, and incomplete tasks.
+     * Create a new story from a previous sprint story with new ID and copy only
+     * overdue, in-progress, and incomplete tasks.
      * 
-     * @param sourceStoryId the source story ID to duplicate (from previous sprint)
+     * @param sourceStoryId  the source story ID to duplicate (from previous sprint)
      * @param targetSprintId the target sprint ID to assign the new story to
-     * @param userId the user ID performing the action (for activity logging)
+     * @param userId         the user ID performing the action (for activity
+     *                       logging)
      * @return ResponseEntity containing the newly created story
      */
     @PostMapping("/from-sprint")
@@ -388,6 +393,3 @@ public class StoryController {
         }
     }
 }
-
-
-

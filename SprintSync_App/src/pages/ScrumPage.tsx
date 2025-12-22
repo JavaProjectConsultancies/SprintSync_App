@@ -162,12 +162,15 @@ import {
 import {
   useIssuesByStory,
   useCreateIssue,
+  useUpdateIssue,
   useUpdateIssueStatus,
 } from "../hooks/api/useIssues";
 
 import { subtaskApiService } from "../services/api/entities/subtaskApi";
 
 import { taskApiService } from "../services/api/entities/taskApi";
+
+import { issueApiService } from "../services/api/entities/issueApi";
 
 import { timeEntryApiService } from "../services/api/entities/timeEntryApi";
 
@@ -474,6 +477,9 @@ const ScrumPage: React.FC = () => {
 
     endTime: "",
   });
+
+  // State for effort log attachments
+  const [effortLogAttachments, setEffortLogAttachments] = useState<File[]>([]);
 
   // Task details modal state (JIRA-style)
 
@@ -1035,6 +1041,8 @@ const ScrumPage: React.FC = () => {
   const { mutate: updateTaskStatusMutate } = useUpdateTaskStatus();
 
   const { mutate: updateIssueStatusMutate } = useUpdateIssueStatus();
+
+  const { mutate: updateIssueMutate } = useUpdateIssue();
 
   // Fetch all tasks for all stories in the current sprint
 
@@ -3259,6 +3267,8 @@ const ScrumPage: React.FC = () => {
       isActive: true,
     };
 
+    console.log('[DEBUG] Story creation - sending data:', JSON.stringify(storyData, null, 2));
+
     const createdStory = await createStoryMutate(storyData as any);
 
     // Upload attachments if any
@@ -3337,19 +3347,12 @@ const ScrumPage: React.FC = () => {
 
   const moveItem = useCallback(
     async (id: string, newStatus: string, itemType: string) => {
-      // Prevent developers from moving tasks/issues to Done column only
-      // Developers can add tasks to all other lanes including manager-created lanes
-      if (isDeveloper) {
-        if (newStatus === "done") {
-          toast.error("Developers cannot move tasks/issues to Done column");
-          return;
-        }
-        // Check if the status maps to DONE
-        const mappedStatus = mapColumnToTaskStatus(newStatus);
-        if (mappedStatus === "DONE") {
-          toast.error("Developers cannot move tasks/issues to Done column");
-          return;
-        }
+      const mappedNewStatus = mapColumnToTaskStatus(newStatus);
+
+      // === RULE 1: Only MANAGER can move tasks TO DONE column ===
+      if (mappedNewStatus === "DONE" && !isManager) {
+        toast.error("Only managers can move tasks to the Done column");
+        return;
       }
 
       if (itemType === ItemTypes.TASK) {
@@ -3363,16 +3366,96 @@ const ScrumPage: React.FC = () => {
 
         if (validStatuses.includes(newStatus) || isCustomLane) {
           const task = allTasks.find((t) => t.id === id);
-
           const oldStatus = task?.status;
 
-          // Prevent non-managers from moving tasks from "In Progress" back to "To Do"
+          // === RULE 2: Tasks in DONE - Only MANAGERS can move, and ONLY to TODO ===
+          if (oldStatus === "DONE") {
+            // First check: only managers can move from DONE
+            if (!isManager) {
+              toast.error("Only managers can move tasks from Done column");
+              try {
+                await activityLogApiService.createActivityLog({
+                  userId: user?.id || "",
+                  entityType: "tasks",
+                  entityId: id,
+                  action: "status_change_blocked",
+                  description: `Non-manager attempted to move task from DONE (blocked - manager only)`,
+                  oldValues: JSON.stringify({ status: oldStatus }),
+                  newValues: JSON.stringify({ status: mappedNewStatus }),
+                  ipAddress: undefined,
+                  userAgent: undefined,
+                });
+              } catch (error) {
+                console.error("Failed to log blocked activity:", error);
+              }
+              return;
+            }
+            // Second check: even managers can only move to TODO
+            if (newStatus !== "todo") {
+              toast.error("Done tasks can only be moved back to To Do");
+              try {
+                await activityLogApiService.createActivityLog({
+                  userId: user?.id || "",
+                  entityType: "tasks",
+                  entityId: id,
+                  action: "status_change_blocked",
+                  description: `Attempted to move task from DONE to ${mappedNewStatus} (blocked - can only go to TODO)`,
+                  oldValues: JSON.stringify({ status: oldStatus }),
+                  newValues: JSON.stringify({ status: mappedNewStatus }),
+                  ipAddress: undefined,
+                  userAgent: undefined,
+                });
+              } catch (error) {
+                console.error("Failed to log blocked activity:", error);
+              }
+              return;
+            }
+          }
+
+          // === RULE 3: TODO → IN_PROGRESS requires effort logged ===
+          const isMovingFromTodoToInProgress =
+            oldStatus === "TO_DO" && newStatus === "inprogress";
+
+          if (isMovingFromTodoToInProgress) {
+            // Check if task has any time entries logged
+            try {
+              const response = await timeEntryApiService.getTimeEntriesByTask(id);
+              const entries = Array.isArray(response.data)
+                ? response.data
+                : (Array.isArray(response) ? response : []);
+
+              if (entries.length === 0) {
+                toast.error("Log effort at least once before moving to In Progress");
+                try {
+                  await activityLogApiService.createActivityLog({
+                    userId: user?.id || "",
+                    entityType: "tasks",
+                    entityId: id,
+                    action: "status_change_blocked",
+                    description: `Attempted to move task from TODO to IN_PROGRESS (blocked - no effort logged)`,
+                    oldValues: JSON.stringify({ status: oldStatus }),
+                    newValues: JSON.stringify({ status: "IN_PROGRESS" }),
+                    ipAddress: undefined,
+                    userAgent: undefined,
+                  });
+                } catch (logError) {
+                  console.error("Failed to log blocked activity:", logError);
+                }
+                return;
+              }
+            } catch (error) {
+              console.error("Failed to check time entries:", error);
+              toast.error("Unable to verify effort logs. Please try again.");
+              return;
+            }
+          }
+
+          // === RULE 4: Only managers can move tasks from In Progress back to To Do ===
           const isMovingFromInProgressToTodo =
             oldStatus === "IN_PROGRESS" && newStatus === "todo";
 
           if (isMovingFromInProgressToTodo && !canManageSprintsAndStories) {
             toast.error("Only managers can move tasks from In Progress back to To Do");
-            // Log blocked attempt
             try {
               await activityLogApiService.createActivityLog({
                 userId: user?.id || "",
@@ -3382,31 +3465,6 @@ const ScrumPage: React.FC = () => {
                 description: `Attempted to move task from ${oldStatus} to TODO (blocked - manager only)`,
                 oldValues: JSON.stringify({ status: oldStatus }),
                 newValues: JSON.stringify({ status: "TODO" }),
-                ipAddress: undefined,
-                userAgent: undefined,
-              });
-            } catch (error) {
-              console.error("Failed to log blocked activity:", error);
-            }
-            return;
-          }
-
-          // Prevent non-managers from moving tasks from "To Do" to "In Progress"
-          const isMovingFromTodoToInProgress =
-            oldStatus === "TO_DO" && newStatus === "inprogress";
-
-          if (isMovingFromTodoToInProgress && !canManageSprintsAndStories) {
-            toast.error("Only managers can move tasks from To Do to In Progress");
-            // Log blocked attempt
-            try {
-              await activityLogApiService.createActivityLog({
-                userId: user?.id || "",
-                entityType: "tasks",
-                entityId: id,
-                action: "status_change_blocked",
-                description: `Attempted to move task from ${oldStatus} to IN_PROGRESS (blocked - manager only)`,
-                oldValues: JSON.stringify({ status: oldStatus }),
-                newValues: JSON.stringify({ status: "IN_PROGRESS" }),
                 ipAddress: undefined,
                 userAgent: undefined,
               });
@@ -3468,16 +3526,89 @@ const ScrumPage: React.FC = () => {
 
         if (validStatuses.includes(newStatus) || isCustomLane) {
           const issue = allIssues.find((i) => i.id === id);
-
           const oldStatus = issue?.status;
 
-          // Prevent non-managers from moving issues from "In Progress" back to "To Do"
+          // === RULE 2: Issues in DONE - Only MANAGERS can move, and ONLY to TODO ===
+          if (oldStatus === "DONE") {
+            // First check: only managers can move from DONE
+            if (!isManager) {
+              toast.error("Only managers can move issues from Done column");
+              try {
+                await activityLogApiService.createActivityLog({
+                  userId: user?.id || "",
+                  entityType: "issues",
+                  entityId: id,
+                  action: "status_change_blocked",
+                  description: `Non-manager attempted to move issue from DONE (blocked - manager only)`,
+                  oldValues: JSON.stringify({ status: oldStatus }),
+                  newValues: JSON.stringify({ status: mappedNewStatus }),
+                  ipAddress: undefined,
+                  userAgent: undefined,
+                });
+              } catch (error) {
+                console.error("Failed to log blocked activity:", error);
+              }
+              return;
+            }
+            // Second check: even managers can only move to TODO
+            if (newStatus !== "todo") {
+              toast.error("Done issues can only be moved back to To Do");
+              try {
+                await activityLogApiService.createActivityLog({
+                  userId: user?.id || "",
+                  entityType: "issues",
+                  entityId: id,
+                  action: "status_change_blocked",
+                  description: `Attempted to move issue from DONE to ${mappedNewStatus} (blocked - can only go to TODO)`,
+                  oldValues: JSON.stringify({ status: oldStatus }),
+                  newValues: JSON.stringify({ status: mappedNewStatus }),
+                  ipAddress: undefined,
+                  userAgent: undefined,
+                });
+              } catch (error) {
+                console.error("Failed to log blocked activity:", error);
+              }
+              return;
+            }
+          }
+
+          // === RULE 3: TODO → IN_PROGRESS requires effort logged (for issues) ===
+          const isMovingFromTodoToInProgress =
+            oldStatus === "TO_DO" && newStatus === "inprogress";
+
+          if (isMovingFromTodoToInProgress) {
+            // Check if issue has any time entries logged (via attached task or subtask)
+            // For issues, we'll check if there's any effort directly - for now allow move
+            // Note: If issues also need effort tracking, this can be added later
+            // Currently, issues don't have direct time entries, so we'll allow the move
+            // but require managers to approve TODO→IN_PROGRESS
+            if (!canManageSprintsAndStories) {
+              toast.error("Log effort or get manager approval to move to In Progress");
+              try {
+                await activityLogApiService.createActivityLog({
+                  userId: user?.id || "",
+                  entityType: "issues",
+                  entityId: id,
+                  action: "status_change_blocked",
+                  description: `Attempted to move issue from TODO to IN_PROGRESS (blocked - no effort/manager approval)`,
+                  oldValues: JSON.stringify({ status: oldStatus }),
+                  newValues: JSON.stringify({ status: "IN_PROGRESS" }),
+                  ipAddress: undefined,
+                  userAgent: undefined,
+                });
+              } catch (logError) {
+                console.error("Failed to log blocked activity:", logError);
+              }
+              return;
+            }
+          }
+
+          // === RULE 4: Only managers can move issues from In Progress back to To Do ===
           const isMovingFromInProgressToTodo =
             oldStatus === "IN_PROGRESS" && newStatus === "todo";
 
           if (isMovingFromInProgressToTodo && !canManageSprintsAndStories) {
             toast.error("Only managers can move issues from In Progress back to To Do");
-            // Log blocked attempt
             try {
               await activityLogApiService.createActivityLog({
                 userId: user?.id || "",
@@ -3487,31 +3618,6 @@ const ScrumPage: React.FC = () => {
                 description: `Attempted to move issue from ${oldStatus} to TODO (blocked - manager only)`,
                 oldValues: JSON.stringify({ status: oldStatus }),
                 newValues: JSON.stringify({ status: "TODO" }),
-                ipAddress: undefined,
-                userAgent: undefined,
-              });
-            } catch (error) {
-              console.error("Failed to log blocked activity:", error);
-            }
-            return;
-          }
-
-          // Prevent non-managers from moving issues from "To Do" to "In Progress"
-          const isMovingFromTodoToInProgress =
-            oldStatus === "TO_DO" && newStatus === "inprogress";
-
-          if (isMovingFromTodoToInProgress && !canManageSprintsAndStories) {
-            toast.error("Only managers can move issues from To Do to In Progress");
-            // Log blocked attempt
-            try {
-              await activityLogApiService.createActivityLog({
-                userId: user?.id || "",
-                entityType: "issues",
-                entityId: id,
-                action: "status_change_blocked",
-                description: `Attempted to move issue from ${oldStatus} to IN_PROGRESS (blocked - manager only)`,
-                oldValues: JSON.stringify({ status: oldStatus }),
-                newValues: JSON.stringify({ status: "IN_PROGRESS" }),
                 ipAddress: undefined,
                 userAgent: undefined,
               });
@@ -3732,33 +3838,26 @@ const ScrumPage: React.FC = () => {
       return;
     }
 
+    // Convert acceptanceCriteria string to array (backend expects List<String>)
+    const acceptanceCriteriaArray = newStory.acceptanceCriteria
+      ? newStory.acceptanceCriteria.split('\n').filter((line: string) => line.trim() !== '')
+      : [];
+
     const createdStory = await createStoryMutate({
       projectId: selectedProject,
-
       title: newStory.title,
-
-      description: newStory.description,
-
-      acceptanceCriteria: newStory.acceptanceCriteria,
-
-      storyPoints: newStory.storyPoints,
-
-      priority: newStory.priority,
-
-      epicId: newStory.epicId || "",
-
-      releaseId: newStory.releaseId || "",
-
-      sprintId: activeView === "backlog" ? "" : selectedSprint,
-
-      assigneeId: "",
-
-      status:
-        activeView === "backlog"
-          ? ("BACKLOG" as StoryStatus)
-          : ("TODO" as StoryStatus),
-
-      isActive: true,
+      description: newStory.description || null,
+      acceptanceCriteria: acceptanceCriteriaArray,
+      storyPoints: newStory.storyPoints || null,
+      priority: newStory.priority || "MEDIUM",
+      epicId: newStory.epicId || null,
+      releaseId: newStory.releaseId || null,
+      sprintId: activeView === "backlog" ? null : (selectedSprint || null),
+      assigneeId: newStory.assigneeId || null,
+      reporterId: user?.id || null,
+      status: activeView === "backlog" ? "BACKLOG" : "TODO",
+      labels: newStory.labels || [],
+      dueDate: newStory.dueDate || null,
     } as any);
 
     // Upload attachments if any
@@ -5610,6 +5709,98 @@ const ScrumPage: React.FC = () => {
     );
   };
 
+  // Task Effort Logs Component - Shows effort log entries in Details section
+  const TaskEffortLogs: React.FC<{ taskId: string }> = ({ taskId }) => {
+    const { activityLogs, loading, error } = useRecentActivityByEntity(
+      "tasks",
+      taskId,
+      30,
+    );
+
+    // Filter only TIME_LOGGED entries
+    const effortLogs = activityLogs.filter(log =>
+      log.action === 'TIME_LOGGED'
+    );
+
+    const formatActivityTime = (timestamp: string) => {
+      const date = new Date(timestamp);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+
+      if (diffMins < 1) return "just now";
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffDays < 7) return `${diffDays}d ago`;
+      return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
+    };
+
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+          <span className="ml-2 text-xs text-gray-500">Loading...</span>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="text-center py-4 text-xs text-gray-500">
+          Failed to load effort logs
+        </div>
+      );
+    }
+
+    if (effortLogs.length === 0) {
+      return (
+        <div className="text-center py-4">
+          <Clock className="w-6 h-6 mx-auto mb-2 text-gray-300" />
+          <p className="text-xs text-gray-500">No effort logged yet</p>
+          <p className="text-xs text-gray-400 mt-1">
+            Log effort via My Tasks page
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-2 max-h-[200px] overflow-y-auto">
+        {effortLogs.slice(0, 5).map((log) => (
+          <div
+            key={log.id}
+            className="p-2 bg-white rounded border border-gray-200 hover:border-green-300 transition-colors"
+          >
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center space-x-1">
+                <Timer className="w-3 h-3 text-green-600" />
+                <span className="text-xs font-medium text-gray-700">
+                  {log.userId ? getUserName(log.userId) : "Unknown"}
+                </span>
+              </div>
+              <span className="text-xs text-gray-400">
+                {formatActivityTime(log.createdAt)}
+              </span>
+            </div>
+            <p className="text-xs text-gray-600 line-clamp-2">
+              {log.description || "Time logged"}
+            </p>
+          </div>
+        ))}
+        {effortLogs.length > 5 && (
+          <p className="text-xs text-center text-gray-400 pt-1">
+            +{effortLogs.length - 5} more entries
+          </p>
+        )}
+      </div>
+    );
+  };
+
   // Log Effort Handler (JIRA-style: log on subtasks)
 
   const handleLogEffort = async () => {
@@ -5779,6 +5970,19 @@ const ScrumPage: React.FC = () => {
         `Logged ${effortLog.hours}h effort on subtask successfully`,
       );
 
+      // Upload any attachments if present
+      if (effortLogAttachments.length > 0 && selectedSubtaskForEffort?.id) {
+        try {
+          for (const file of effortLogAttachments) {
+            await uploadFileAndCreateAttachment(file, 'subtask', selectedSubtaskForEffort.id);
+          }
+          toast.success(`${effortLogAttachments.length} attachment(s) uploaded`);
+        } catch (attachError) {
+          console.error("Error uploading attachments:", attachError);
+          toast.error("Effort logged, but some attachments failed to upload");
+        }
+      }
+
       // Refresh tasks and subtasks
 
       if (sprintStories.length > 0) {
@@ -5796,6 +6000,9 @@ const ScrumPage: React.FC = () => {
 
         endTime: "",
       });
+
+      // Clear attachments
+      setEffortLogAttachments([]);
 
       setIsLogEffortDialogOpen(false);
 
@@ -7010,15 +7217,46 @@ const ScrumPage: React.FC = () => {
 
   if (!selectedProject && projects.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Card className="w-96">
-          <CardHeader>
-            <CardTitle>No Projects Found</CardTitle>
-
-            <CardDescription>
-              Create a project first to use the Scrum board
+      <div className="flex items-center justify-center h-full bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+        <Card className="w-[480px] shadow-xl border-0 bg-white/80 backdrop-blur-sm dark:bg-slate-800/80">
+          <CardHeader className="text-center pb-2">
+            <div className="mx-auto mb-4 w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-lg">
+              <Layers3 className="w-10 h-10 text-white" />
+            </div>
+            <CardTitle className="text-2xl font-bold text-slate-800 dark:text-slate-100">
+              No Projects Found
+            </CardTitle>
+            <CardDescription className="text-base text-slate-600 dark:text-slate-400 mt-2">
+              Create your first project to start using the Scrum Management features
             </CardDescription>
           </CardHeader>
+          <CardContent className="text-center pt-4">
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-center gap-6 py-4">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-12 h-12 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <Target className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Sprints</span>
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-12 h-12 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                    <BookOpen className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Stories</span>
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-12 h-12 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                    <CheckSquare className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Tasks</span>
+                </div>
+              </div>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Get started by creating a project from the Projects page
+              </p>
+            </div>
+          </CardContent>
         </Card>
       </div>
     );
@@ -8117,48 +8355,62 @@ const ScrumPage: React.FC = () => {
               </div>
             </div>
           ) : !selectedProject ? (
-            <div className="flex items-center justify-center py-12">
-              <Card className="w-96">
-                <CardHeader>
-                  <CardTitle>No Project Selected</CardTitle>
-
-                  <CardDescription>
-                    Please select a project to view the Scrum board
+            <div className="flex items-center justify-center py-16">
+              <Card className="w-[480px] shadow-xl border-0 bg-white/90 backdrop-blur-sm dark:bg-slate-800/90">
+                <CardHeader className="text-center pb-2">
+                  <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center shadow-lg">
+                    <Layers3 className="w-8 h-8 text-white" />
+                  </div>
+                  <CardTitle className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                    No Project Selected
+                  </CardTitle>
+                  <CardDescription className="text-base text-slate-600 dark:text-slate-400 mt-2">
+                    Select a project from the dropdown above to view the Scrum board
                   </CardDescription>
                 </CardHeader>
+                <CardContent className="text-center pt-2 pb-6">
+                  <div className="flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                    <ChevronLeft className="w-4 h-4" />
+                    <span>Use the project selector in the header</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </div>
+                </CardContent>
               </Card>
             </div>
           ) : !selectedSprint || !currentSprint ? (
-            <div className="flex items-center justify-center py-12">
-              <Card className="w-96">
-                <CardHeader>
-                  <CardTitle>No Sprint Selected</CardTitle>
-
-                  <CardDescription>
+            <div className="flex items-center justify-center py-16">
+              <Card className="w-[480px] shadow-xl border-0 bg-white/90 backdrop-blur-sm dark:bg-slate-800/90">
+                <CardHeader className="text-center pb-2">
+                  <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-gradient-to-br from-orange-400 to-rose-500 flex items-center justify-center shadow-lg">
+                    <Target className="w-8 h-8 text-white" />
+                  </div>
+                  <CardTitle className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                    No Sprint Selected
+                  </CardTitle>
+                  <CardDescription className="text-base text-slate-600 dark:text-slate-400 mt-2">
                     {sprints.filter(
                       (s: Sprint) => s.projectId === selectedProject,
                     ).length === 0
-                      ? "No sprints found for this project. Create a sprint to view the Scrum board."
-                      : "Please select a sprint to view the Scrum board."}
+                      ? "This project doesn't have any sprints yet. Create your first sprint to get started."
+                      : "Select a sprint from the sprint selector to view the Scrum board."}
                   </CardDescription>
                 </CardHeader>
-
-                {canManageSprintsAndStories &&
-                  sprints.filter((s: Sprint) => s.projectId === selectedProject)
-                    .length === 0 && (
-                    <CardContent>
+                <CardContent className="text-center pt-4 pb-6">
+                  {canManageSprintsAndStories &&
+                    sprints.filter((s: Sprint) => s.projectId === selectedProject)
+                      .length === 0 && (
                       <Button
+                        className="bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white shadow-lg"
                         onClick={() => {
                           setActiveView("sprint-management");
-
                           setIsSprintDialogOpen(true);
                         }}
                       >
                         <Plus className="w-4 h-4 mr-2" />
-                        Create Sprint
+                        Create First Sprint
                       </Button>
-                    </CardContent>
-                  )}
+                    )}
+                </CardContent>
               </Card>
             </div>
           ) : (
@@ -10254,7 +10506,7 @@ const ScrumPage: React.FC = () => {
                 <div className="space-y-2">
                   <Label htmlFor="due-date">Due Date</Label>
 
-                  <Popover open={isDueDatePopoverOpen} onOpenChange={setIsDueDatePopoverOpen} modal={false}>
+                  <Popover open={isDueDatePopoverOpen} onOpenChange={setIsDueDatePopoverOpen} modal={true}>
                     <PopoverTrigger asChild>
                       <Button
                         id="due-date"
@@ -10272,7 +10524,7 @@ const ScrumPage: React.FC = () => {
                         )}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 !z-[9999]" align="start" side="bottom" sideOffset={5} style={{ zIndex: 9999 }}>
+                    <PopoverContent className="w-auto p-0 z-[9999]" align="start" side="top" sideOffset={5}>
                       <Calendar
                         mode="single"
                         selected={typeof newStory.dueDate === 'string' ? new Date(newStory.dueDate) : newStory.dueDate}
@@ -11684,6 +11936,50 @@ const ScrumPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Attachment Upload Section */}
+              <div className="border rounded-lg p-3 bg-gray-50">
+                <Label className="flex items-center gap-2 mb-2">
+                  <Paperclip className="w-4 h-4" />
+                  Attachments (Optional)
+                </Label>
+                <div className="space-y-2">
+                  <Input
+                    type="file"
+                    multiple
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      setEffortLogAttachments((prev) => [...prev, ...files]);
+                      e.target.value = ''; // Reset input for re-selection
+                    }}
+                    className="cursor-pointer"
+                  />
+                  {effortLogAttachments.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {effortLogAttachments.map((file, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center gap-1 bg-white border rounded px-2 py-1 text-xs"
+                        >
+                          <Paperclip className="w-3 h-3 text-gray-500" />
+                          <span className="max-w-[120px] truncate">{file.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEffortLogAttachments((prev) =>
+                                prev.filter((_, i) => i !== index)
+                              );
+                            }}
+                            className="ml-1 text-red-500 hover:text-red-700"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Current Time Stats */}
               {selectedSubtaskForEffort && (
                 <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
@@ -11802,6 +12098,7 @@ const ScrumPage: React.FC = () => {
                   setSelectedSubtaskForEffort(null);
                   setSelectedTaskForEffort(null);
                   setSelectedIssueForEffort(null);
+                  setEffortLogAttachments([]);
 
                   setEffortLog({
                     hours: 0,
@@ -12082,6 +12379,15 @@ const ScrumPage: React.FC = () => {
                             </div>
                           )}
                         </div>
+
+                        {/* Effort Logs from My Tasks Page */}
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                            Effort Logs (from My Tasks)
+                          </h3>
+                          <TaskEffortLogs taskId={selectedTaskForDetails.id} />
+                        </div>
+
                         {/* Description */}
 
                         <div>
@@ -12790,6 +13096,100 @@ const ScrumPage: React.FC = () => {
 
                         <Settings className="w-4 h-4 text-gray-400" />
                       </div>
+
+                      {/* Manager-Only Dropdowns Section */}
+                      {canManageSprintsAndStories && (
+                        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Shield className="w-4 h-4 text-blue-600" />
+                            <h4 className="text-xs font-semibold text-blue-800">Manager Controls</h4>
+                          </div>
+                          <div className="space-y-3">
+                            {/* Assignee Dropdown */}
+                            <div>
+                              <label className="text-xs font-medium text-gray-900 block mb-1">
+                                Assignee
+                              </label>
+                              <Select
+                                value={selectedTaskForDetails.assigneeId || "unassigned"}
+                                onValueChange={async (value) => {
+                                  const newAssigneeId = value === "unassigned" ? "" : value;
+                                  try {
+                                    await taskApiService.updateTaskAssignee(selectedTaskForDetails.id, newAssigneeId || "");
+                                    setSelectedTaskForDetails((prev) =>
+                                      prev ? { ...prev, assigneeId: newAssigneeId } : prev
+                                    );
+                                    setAllTasks((prev) =>
+                                      prev.map((t) =>
+                                        t.id === selectedTaskForDetails.id
+                                          ? { ...t, assigneeId: newAssigneeId }
+                                          : t
+                                      )
+                                    );
+                                    toast.success("Assignee updated");
+                                  } catch (error) {
+                                    console.error("Failed to update assignee:", error);
+                                    toast.error("Failed to update assignee");
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="h-8 text-xs bg-white text-black font-medium">
+                                  <SelectValue placeholder="Select assignee" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-white text-black">
+                                  <SelectItem value="unassigned" className="!text-black" style={{ color: 'black' }}>
+                                    Unassigned
+                                  </SelectItem>
+                                  {availableUsersForAssignment.map((user: any) => (
+                                    <SelectItem key={user.id} value={user.id} className="!text-black" style={{ color: 'black' }}>
+                                      {user.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {/* Estimation Hours Input */}
+                            <div>
+                              <label className="text-xs font-medium text-gray-900 block mb-1">
+                                Estimation Hours
+                              </label>
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.5"
+                                  className="h-8 text-sm bg-white text-black w-20"
+                                  defaultValue={selectedTaskForDetails.estimatedHours || 0}
+                                  onBlur={async (e) => {
+                                    const newHours = parseFloat(e.target.value) || 0;
+                                    if (newHours !== selectedTaskForDetails.estimatedHours) {
+                                      try {
+                                        await taskApiService.updateTaskEstimatedHours(selectedTaskForDetails.id, newHours);
+                                        setSelectedTaskForDetails((prev) =>
+                                          prev ? { ...prev, estimatedHours: newHours } : prev
+                                        );
+                                        setAllTasks((prev) =>
+                                          prev.map((t) =>
+                                            t.id === selectedTaskForDetails.id
+                                              ? { ...t, estimatedHours: newHours }
+                                              : t
+                                          )
+                                        );
+                                        toast.success("Estimation updated");
+                                      } catch (error) {
+                                        console.error("Failed to update estimation:", error);
+                                        toast.error("Failed to update estimation");
+                                      }
+                                    }
+                                  }}
+                                />
+                                <span className="text-xs text-gray-600">hours</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       <div className="space-y-4">
                         {/* Assignee */}
@@ -13786,6 +14186,100 @@ const ScrumPage: React.FC = () => {
 
                       <Settings className="w-4 h-4 text-gray-400" />
                     </div>
+
+                    {/* Manager-Only Dropdowns Section */}
+                    {canManageSprintsAndStories && (
+                      <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Shield className="w-4 h-4 text-red-600" />
+                          <h4 className="text-xs font-semibold text-red-800">Manager Controls</h4>
+                        </div>
+                        <div className="space-y-3">
+                          {/* Assignee Dropdown */}
+                          <div>
+                            <label className="text-xs font-medium text-gray-900 block mb-1">
+                              Assignee
+                            </label>
+                            <Select
+                              value={selectedIssueForDetails.assigneeId || "unassigned"}
+                              onValueChange={async (value) => {
+                                const newAssigneeId = value === "unassigned" ? "" : value;
+                                try {
+                                  await issueApiService.updateIssueAssignee(selectedIssueForDetails.id, newAssigneeId || "");
+                                  setSelectedIssueForDetails((prev: any) =>
+                                    prev ? { ...prev, assigneeId: newAssigneeId } : prev
+                                  );
+                                  setAllIssues((prev) =>
+                                    prev.map((i) =>
+                                      i.id === selectedIssueForDetails.id
+                                        ? { ...i, assigneeId: newAssigneeId }
+                                        : i
+                                    )
+                                  );
+                                  toast.success("Assignee updated");
+                                } catch (error) {
+                                  console.error("Failed to update assignee:", error);
+                                  toast.error("Failed to update assignee");
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="h-8 text-xs bg-white text-black font-medium">
+                                <SelectValue placeholder="Select assignee" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-white text-black">
+                                <SelectItem value="unassigned" className="!text-black" style={{ color: 'black' }}>
+                                  Unassigned
+                                </SelectItem>
+                                {availableUsersForAssignment.map((user: any) => (
+                                  <SelectItem key={user.id} value={user.id} className="!text-black" style={{ color: 'black' }}>
+                                    {user.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Estimation Hours Input */}
+                          <div>
+                            <label className="text-xs font-medium text-gray-900 block mb-1">
+                              Estimation Hours
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.5"
+                                className="h-8 text-sm bg-white text-black w-20"
+                                defaultValue={selectedIssueForDetails.estimatedHours || 0}
+                                onBlur={async (e) => {
+                                  const newHours = parseFloat(e.target.value) || 0;
+                                  if (newHours !== selectedIssueForDetails.estimatedHours) {
+                                    try {
+                                      await issueApiService.updateIssueEstimatedHours(selectedIssueForDetails.id, newHours);
+                                      setSelectedIssueForDetails((prev: any) =>
+                                        prev ? { ...prev, estimatedHours: newHours } : prev
+                                      );
+                                      setAllIssues((prev) =>
+                                        prev.map((i) =>
+                                          i.id === selectedIssueForDetails.id
+                                            ? { ...i, estimatedHours: newHours }
+                                            : i
+                                        )
+                                      );
+                                      toast.success("Estimation updated");
+                                    } catch (error) {
+                                      console.error("Failed to update estimation:", error);
+                                      toast.error("Failed to update estimation");
+                                    }
+                                  }
+                                }}
+                              />
+                              <span className="text-xs text-gray-600">hours</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="space-y-4">
                       {/* Assignee */}

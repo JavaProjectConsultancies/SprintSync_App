@@ -771,7 +771,7 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                               {formData.dueDate ? format(formData.dueDate, "PPP") : "Pick a date"}
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0 !z-[9999]" align="start" side="bottom" sideOffset={5} style={{ zIndex: 9999 }}>
+                          <PopoverContent className="w-auto p-0 !z-[9999]" align="start" side="top" sideOffset={5} style={{ zIndex: 9999 }}>
                             <Calendar
                               mode="single"
                               selected={formData.dueDate}

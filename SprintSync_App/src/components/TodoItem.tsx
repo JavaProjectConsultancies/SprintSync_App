@@ -6,25 +6,28 @@ import { Badge } from './ui/badge';
 import { Checkbox } from './ui/checkbox';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Trash2, Edit3, Save, X, Flag, Calendar, User, ExternalLink } from 'lucide-react';
+import { Trash2, Edit3, Save, X, Flag, Calendar, User, ExternalLink, Clock } from 'lucide-react';
 import { TodoItem as TodoItemType } from '../types';
+import TaskLogDialog from './TaskLogDialog';
 
 interface TodoItemProps {
   item: TodoItemType;
   onUpdate: (id: string, updates: Partial<TodoItemType>) => void;
   onDelete: (id: string) => void;
+  onTaskUpdated?: () => void;
 }
 
-const TodoItem: React.FC<TodoItemProps> = ({ item, onUpdate, onDelete }) => {
+const TodoItem: React.FC<TodoItemProps> = ({ item, onUpdate, onDelete, onTaskUpdated }) => {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(item.text);
   const [editPriority, setEditPriority] = useState(item.priority);
   const [editCategory, setEditCategory] = useState(item.category);
-  
+  const [showLogDialog, setShowLogDialog] = useState(false);
+
   // Check if this is a task from the database (not a local todo)
   const isTaskFromDatabase = !item.id.startsWith('local-');
-  
+
   const handleViewTask = () => {
     if (isTaskFromDatabase) {
       navigate(`/scrum?taskId=${item.id}`);
@@ -85,11 +88,10 @@ const TodoItem: React.FC<TodoItemProps> = ({ item, onUpdate, onDelete }) => {
   };
 
   return (
-    <Card className={`p-4 transition-all duration-200 hover:shadow-md ${
-      item.completed 
-        ? 'bg-gradient-to-r from-green-50 to-cyan-50 border-green-200 opacity-75' 
-        : 'bg-white border-gray-200 hover:border-green-300'
-    }`}>
+    <Card className={`p-4 transition-all duration-200 hover:shadow-md ${item.completed
+      ? 'bg-gradient-to-r from-green-50 to-cyan-50 border-green-200 opacity-75'
+      : 'bg-white border-gray-200 hover:border-green-300'
+      }`}>
       <div className="flex items-start space-x-3">
         {/* Checkbox */}
         <div className="flex-shrink-0 mt-1">
@@ -171,7 +173,13 @@ const TodoItem: React.FC<TodoItemProps> = ({ item, onUpdate, onDelete }) => {
                   </Badge>
                 </div>
 
-                <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                <div className="flex items-center space-x-3 text-xs text-muted-foreground">
+                  {item.dueDate && (
+                    <span className="flex items-center space-x-1 text-orange-600 font-medium">
+                      <Calendar className="w-3 h-3" />
+                      <span>Due: {formatDate(item.dueDate)}</span>
+                    </span>
+                  )}
                   <span className="flex items-center space-x-1">
                     <Calendar className="w-3 h-3" />
                     <span>{formatDate(item.createdAt)}</span>
@@ -191,19 +199,47 @@ const TodoItem: React.FC<TodoItemProps> = ({ item, onUpdate, onDelete }) => {
         {!isEditing && (
           <div className="flex-shrink-0 flex space-x-1">
             {isTaskFromDatabase && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleViewTask}
-                className="h-8 px-3 text-xs hover:bg-green-100 text-green-700 border-green-300"
-              >
-                <ExternalLink className="w-3 h-3 mr-1" />
-                Task
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowLogDialog(true)}
+                  className="h-8 px-3 text-xs hover:bg-blue-100 text-blue-700 border-blue-300"
+                >
+                  <Clock className="w-3 h-3 mr-1" />
+                  Log
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleViewTask}
+                  className="h-8 px-3 text-xs hover:bg-green-100 text-green-700 border-green-300"
+                >
+                  <ExternalLink className="w-3 h-3 mr-1" />
+                  Task
+                </Button>
+              </>
             )}
           </div>
         )}
       </div>
+
+      {/* Log Dialog */}
+      {isTaskFromDatabase && (
+        <TaskLogDialog
+          open={showLogDialog}
+          onOpenChange={setShowLogDialog}
+          task={{
+            id: item.id,
+            text: item.text,
+            priority: item.priority,
+            category: item.category,
+            dueDate: item.dueDate,
+            createdAt: item.createdAt
+          }}
+          onTaskUpdated={onTaskUpdated}
+        />
+      )}
     </Card>
   );
 };

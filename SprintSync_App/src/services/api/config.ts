@@ -2,14 +2,14 @@
 // Use environment variable if available, otherwise default to localhost
 const getApiBaseUrl = () => {
   // Check for Vite environment variable (VITE_API_BASE_URL)
-  if (import.meta.env?.VITE_API_BASE_URL) {
-    return import.meta.env.VITE_API_BASE_URL;
-  }
-  // Check for React environment variable (REACT_APP_API_BASE_URL)
-  if ((window as any).process?.env?.REACT_APP_API_BASE_URL) {
-    return (window as any).process.env.REACT_APP_API_BASE_URL;
-  }
-  // Default to localhost
+  // if (import.meta.env?.VITE_API_BASE_URL) {
+  //   return import.meta.env.VITE_API_BASE_URL;
+  // }
+  // // Check for React environment variable (REACT_APP_API_BASE_URL)
+  // if ((window as any).process?.env?.REACT_APP_API_BASE_URL) {
+  //   return (window as any).process.env.REACT_APP_API_BASE_URL;
+  // }
+  // Default to server - backend WAR deploys at /sprintsync-1.0/ context path
   return 'http://localhost:8080/api';
 };
 
@@ -33,12 +33,12 @@ console.log('API Configuration:', {
 export const API_ENDPOINTS = {
   // Authentication
   AUTH: '/auth',
-  
+
   // Master Tables
   USERS: '/users',
   DEPARTMENTS: '/departments',
   DOMAINS: '/domains',
-  
+
   // Core Entities
   PROJECTS: '/projects',
   EPICS: '/epics',
@@ -47,16 +47,16 @@ export const API_ENDPOINTS = {
   STORIES: '/stories',
   TASKS: '/tasks',
   SUBTASKS: '/subtasks',
-  
+
   // Utility APIs
   DASHBOARD: '/dashboard',
   REPORTS: '/reports',
   SEARCH: '/search',
   BATCH_OPERATIONS: '/batch',
-  
+
   // Time Tracking
   TIME_ENTRIES: '/time-entries',
-  
+
   // Attachments
   ATTACHMENTS: '/attachments',
 } as const;

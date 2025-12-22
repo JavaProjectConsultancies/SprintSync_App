@@ -24,6 +24,7 @@ export { issueApiService } from './entities/issueApi';
 export { subtaskApiService } from './entities/subtaskApi';
 export { attachmentApiService } from './entities/attachmentApi';
 export { workflowLaneApiService } from './entities/workflowLaneApi';
+export { activityLogApiService } from './entities/activityLogApi';
 export type { WorkflowLane } from './entities/workflowLaneApi';
 
 // Utility API Services

@@ -13,7 +13,7 @@
     </parent>
 
     <groupId>com.sprintsync</groupId>
-    <artifactId>sprintsync-api</artifactId>
+    <artifactId>sprintsync-1.0</artifactId>
     <version>1.0.0</version>
     <name>SprintSync API</name>
     <packaging>war</packaging>

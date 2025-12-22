@@ -375,6 +375,20 @@ public class TaskService {
     }
 
     /**
+     * Update task estimated hours (for manager controls)
+     */
+    public Task updateTaskEstimatedHours(String id, java.math.BigDecimal estimatedHours) {
+        Optional<Task> optionalTask = taskRepository.findById(id);
+        if (optionalTask.isPresent()) {
+            Task task = optionalTask.get();
+            task.setEstimatedHours(estimatedHours);
+            task.setUpdatedAt(LocalDateTime.now());
+            return taskRepository.save(task);
+        }
+        return null;
+    }
+
+    /**
      * Get task statistics
      */
     public Map<String, Object> getTaskStatistics() {

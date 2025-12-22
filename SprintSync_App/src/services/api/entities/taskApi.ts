@@ -81,6 +81,9 @@ export const taskApiService = {
   updateTaskActualHours: (id: string, actualHours: number) =>
     apiClient.patch<Task>(`${BASE_URL}/${id}/actual-hours`, { actualHours }),
 
+  updateTaskEstimatedHours: (id: string, estimatedHours: number) =>
+    apiClient.patch<Task>(`${BASE_URL}/${id}/estimated-hours`, { estimatedHours }),
+
   // Statistics
   getTaskStatistics: (id: string) =>
     apiClient.get<any>(`${BASE_URL}/${id}/statistics`),

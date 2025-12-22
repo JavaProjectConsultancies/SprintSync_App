@@ -7,11 +7,15 @@ const BASE_URL = '/stories';
 const sanitizeStoryData = (story: any) => {
   return {
     ...story,
+    // Normalize priority to lowercase (backend expects lowercase)
+    priority: story.priority ? story.priority.toLowerCase() : 'medium',
+    // Normalize status to uppercase (backend expects uppercase)
+    status: story.status ? story.status.toUpperCase() : 'BACKLOG',
     // Convert acceptanceCriteria to array if it's a string
-    acceptanceCriteria: story.acceptanceCriteria 
-      ? (typeof story.acceptanceCriteria === 'string' 
-          ? story.acceptanceCriteria.split('\n').filter((line: string) => line.trim())
-          : story.acceptanceCriteria)
+    acceptanceCriteria: story.acceptanceCriteria
+      ? (typeof story.acceptanceCriteria === 'string'
+        ? story.acceptanceCriteria.split('\n').filter((line: string) => line.trim())
+        : story.acceptanceCriteria)
       : [],
     // Convert empty strings to null for optional fields
     epicId: story.epicId || null,
@@ -27,88 +31,88 @@ const sanitizeStoryData = (story: any) => {
 
 export const storyApiService = {
   // Basic CRUD operations
-  createStory: (story: Story) => 
+  createStory: (story: Story) =>
     apiClient.post<Story>(BASE_URL, sanitizeStoryData(story)),
-  
-  getStoryById: (id: string) => 
+
+  getStoryById: (id: string) =>
     apiClient.get<Story>(`${BASE_URL}/${id}`),
-  
-  getStories: (params?: any) => 
+
+  getStories: (params?: any) =>
     apiClient.get<Story[]>(BASE_URL, params),
-  
-  getAllStories: () => 
+
+  getAllStories: () =>
     apiClient.get<Story[]>(`${BASE_URL}/all`),
-  
-  updateStory: (id: string, story: Partial<Story>) => 
+
+  updateStory: (id: string, story: Partial<Story>) =>
     apiClient.put<Story>(`${BASE_URL}/${id}`, sanitizeStoryData(story)),
-  
-  deleteStory: (id: string) => 
+
+  deleteStory: (id: string) =>
     apiClient.delete<void>(`${BASE_URL}/${id}`),
 
   // Project-specific operations
-  getStoriesByProject: (projectId: string, params?: any) => 
+  getStoriesByProject: (projectId: string, params?: any) =>
     apiClient.get<Story[]>(`${BASE_URL}/project/${projectId}`, { params }),
 
   // Sprint-specific operations
-  getStoriesBySprint: (sprintId: string, params?: any) => 
+  getStoriesBySprint: (sprintId: string, params?: any) =>
     apiClient.get<Story[]>(`${BASE_URL}/sprint/${sprintId}`, { params }),
 
   // Epic-specific operations
-  getStoriesByEpic: (epicId: string, params?: any) => 
+  getStoriesByEpic: (epicId: string, params?: any) =>
     apiClient.get<Story[]>(`${BASE_URL}/epic/${epicId}`, { params }),
 
   // Search and filter operations
-  searchStories: (query: string, params?: any) => 
-    apiClient.get<Story[]>(`${BASE_URL}/search`, { 
-      params: { ...params, query } 
+  searchStories: (query: string, params?: any) =>
+    apiClient.get<Story[]>(`${BASE_URL}/search`, {
+      params: { ...params, query }
     }),
 
   // Status operations
-  updateStoryStatus: (id: string, status: string) => 
+  updateStoryStatus: (id: string, status: string) =>
     apiClient.patch<Story>(`${BASE_URL}/${id}/status`, { status }),
 
-  getStoriesByStatus: (status: string, params?: any) => 
+  getStoriesByStatus: (status: string, params?: any) =>
     apiClient.get<Story[]>(`${BASE_URL}/status/${status}`, { params }),
 
   // Assignee operations
-  updateStoryAssignee: (id: string, assigneeId: string) => 
+  updateStoryAssignee: (id: string, assigneeId: string) =>
     apiClient.patch<Story>(`${BASE_URL}/${id}/assignee`, { assigneeId }),
 
-  getStoriesByAssignee: (assigneeId: string, params?: any) => 
+  getStoriesByAssignee: (assigneeId: string, params?: any) =>
     apiClient.get<Story[]>(`${BASE_URL}/assignee/${assigneeId}`, { params }),
 
   // Priority operations
-  getStoriesByPriority: (priority: string, params?: any) => 
+  getStoriesByPriority: (priority: string, params?: any) =>
     apiClient.get<Story[]>(`${BASE_URL}/priority/${priority}`, { params }),
 
   // Date operations
-  getStoriesByDateRange: (startDate: string, endDate: string, params?: any) => 
-    apiClient.get<Story[]>(`${BASE_URL}/date-range`, { 
-      params: { ...params, startDate, endDate } 
+  getStoriesByDateRange: (startDate: string, endDate: string, params?: any) =>
+    apiClient.get<Story[]>(`${BASE_URL}/date-range`, {
+      params: { ...params, startDate, endDate }
     }),
 
-  getOverdueStories: (params?: any) => 
+  getOverdueStories: (params?: any) =>
     apiClient.get<Story[]>(`${BASE_URL}/overdue`, { params }),
 
-  getStoriesDueSoon: (days: number = 7, params?: any) => 
-    apiClient.get<Story[]>(`${BASE_URL}/due-soon`, { 
-      params: { ...params, days } 
+  getStoriesDueSoon: (days: number = 7, params?: any) =>
+    apiClient.get<Story[]>(`${BASE_URL}/due-soon`, {
+      params: { ...params, days }
     }),
 
   // Statistics
-  getStoryStatistics: (id: string) => 
+  getStoryStatistics: (id: string) =>
     apiClient.get<any>(`${BASE_URL}/${id}/statistics`),
 
   // Release operations
-  getStoriesByRelease: (releaseId: string, params?: any) => 
+  getStoriesByRelease: (releaseId: string, params?: any) =>
     apiClient.get<Story[]>(`${BASE_URL}/release/${releaseId}`, { params }),
 
   // Backlog operations
-  getBacklogStories: (projectId: string, params?: any) => 
+  getBacklogStories: (projectId: string, params?: any) =>
     apiClient.get<Story[]>(`${BASE_URL}/project/${projectId}/without-sprint`, { params }),
 
   // Sprint assignment
-  moveStoryToSprint: (id: string, sprintId: string) => 
+  moveStoryToSprint: (id: string, sprintId: string) =>
     apiClient.patch<Story>(`${BASE_URL}/${id}/move-to-sprint`, null, { sprintId }),
 
   // Create story from previous sprint (duplicates with new ID and copies tasks)

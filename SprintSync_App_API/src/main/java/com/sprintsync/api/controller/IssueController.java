@@ -150,11 +150,12 @@ public class IssueController {
      * Supports both TaskStatus enum values and custom lane status strings
      */
     @PatchMapping("/{id}/status")
-    public ResponseEntity<Issue> updateIssueStatus(@PathVariable String id, @RequestBody Map<String, Object> statusUpdate) {
+    public ResponseEntity<Issue> updateIssueStatus(@PathVariable String id,
+            @RequestBody Map<String, Object> statusUpdate) {
         try {
             Object statusObj = statusUpdate.get("status");
             Issue updatedIssue;
-            
+
             if (statusObj instanceof String) {
                 // Handle custom lane status strings or enum string values
                 String statusValue = (String) statusObj;
@@ -166,7 +167,7 @@ public class IssueController {
             } else {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
             }
-            
+
             if (updatedIssue != null) {
                 return ResponseEntity.ok(updatedIssue);
             } else {
@@ -194,8 +195,36 @@ public class IssueController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
     }
+
+    /**
+     * Update issue estimated hours (for manager controls)
+     */
+    @PatchMapping("/{id}/estimated-hours")
+    public ResponseEntity<Issue> updateIssueEstimatedHours(@PathVariable String id,
+            @RequestBody Map<String, Object> update) {
+        try {
+            Object estimatedHoursObj = update.get("estimatedHours");
+            java.math.BigDecimal estimatedHours;
+
+            // Convert to BigDecimal, handling both Integer and Double types
+            if (estimatedHoursObj instanceof Integer) {
+                estimatedHours = java.math.BigDecimal.valueOf((Integer) estimatedHoursObj);
+            } else if (estimatedHoursObj instanceof Double) {
+                estimatedHours = java.math.BigDecimal.valueOf((Double) estimatedHoursObj);
+            } else if (estimatedHoursObj instanceof java.math.BigDecimal) {
+                estimatedHours = (java.math.BigDecimal) estimatedHoursObj;
+            } else {
+                return ResponseEntity.badRequest().build();
+            }
+
+            Issue updatedIssue = issueService.updateIssueEstimatedHours(id, estimatedHours);
+            if (updatedIssue != null) {
+                return ResponseEntity.ok(updatedIssue);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
 }
-
-
-
-

@@ -263,6 +263,7 @@ export interface TodoItem {
   completed: boolean;
   priority: 'low' | 'medium' | 'high';
   category: 'work' | 'personal' | 'shopping' | 'health';
+  dueDate?: Date;
   createdAt: Date;
   updatedAt: Date;
   completedAt?: Date;

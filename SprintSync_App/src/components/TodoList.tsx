@@ -33,6 +33,7 @@ const TodoList: React.FC = () => {
   const [newTodo, setNewTodo] = useState('');
   const [newPriority, setNewPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [newCategory, setNewCategory] = useState<'work' | 'personal' | 'shopping' | 'health'>('work');
+  const [newDueDate, setNewDueDate] = useState<string>('');
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('active');
   const [priorityFilter, setPriorityFilter] = useState<'all' | 'low' | 'medium' | 'high'>('all');
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'work' | 'personal' | 'shopping' | 'health'>('all');
@@ -111,6 +112,7 @@ const TodoList: React.FC = () => {
         completed: isCompleted,
         priority: priority,
         category: 'work', // Default to work for assigned tasks
+        dueDate: task.dueDate ? new Date(task.dueDate) : undefined,
         createdAt,
         updatedAt,
         completedAt
@@ -158,7 +160,8 @@ const TodoList: React.FC = () => {
           ...todo,
           createdAt: new Date(todo.createdAt),
           updatedAt: new Date(todo.updatedAt),
-          completedAt: todo.completedAt ? new Date(todo.completedAt) : undefined
+          completedAt: todo.completedAt ? new Date(todo.completedAt) : undefined,
+          dueDate: todo.dueDate ? new Date(todo.dueDate) : undefined
         }));
         setLocalTodos(parsedTodos);
       } catch (error) {
@@ -185,12 +188,14 @@ const TodoList: React.FC = () => {
       completed: false,
       priority: newPriority,
       category: newCategory,
+      dueDate: newDueDate ? new Date(newDueDate) : undefined,
       createdAt: new Date(),
       updatedAt: new Date()
     };
 
     setLocalTodos(prev => [todo, ...prev]);
     setNewTodo('');
+    setNewDueDate('');
   };
 
   const updateTodo = async (id: string, updates: Partial<TodoItemType>) => {
@@ -462,22 +467,21 @@ const TodoList: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
-            <Plus className="w-5 h-5 text-green-600" />
             <span>Add New Task</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-2">
+          <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-2 items-center">
             <Input
               placeholder="What needs to be done?"
               value={newTodo}
               onChange={(e) => setNewTodo(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && addTodo()}
-              className="flex-1"
+              className="flex-1 min-w-[300px]"
             />
 
             <Select value={newPriority} onValueChange={(value: 'low' | 'medium' | 'high') => setNewPriority(value)}>
-              <SelectTrigger className="w-full md:w-32">
+              <SelectTrigger className="w-24">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -488,7 +492,7 @@ const TodoList: React.FC = () => {
             </Select>
 
             <Select value={newCategory} onValueChange={(value: 'work' | 'personal' | 'shopping' | 'health') => setNewCategory(value)}>
-              <SelectTrigger className="w-full md:w-32">
+              <SelectTrigger className="w-24">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -499,8 +503,14 @@ const TodoList: React.FC = () => {
               </SelectContent>
             </Select>
 
-            <Button onClick={addTodo} className="bg-green-600 hover:bg-green-700 text-white">
-              <Plus className="w-4 h-4 mr-2" />
+            <Input
+              type="date"
+              className="w-36"
+              value={newDueDate}
+              onChange={(e) => setNewDueDate(e.target.value)}
+            />
+
+            <Button onClick={addTodo} className="bg-green-600 hover:bg-green-700 text-white px-6">
               Add Task
             </Button>
           </div>
@@ -577,6 +587,7 @@ const TodoList: React.FC = () => {
               item={todo}
               onUpdate={updateTodo}
               onDelete={deleteTodo}
+              onTaskUpdated={refetchTasks}
             />
           ))
         )}

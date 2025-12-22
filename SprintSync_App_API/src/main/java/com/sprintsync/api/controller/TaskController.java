@@ -77,7 +77,7 @@ public class TaskController {
      * Create a new task
      */
     @PostMapping
-    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
+    @CacheEvict(value = { "projects", "projects-summary" }, allEntries = true)
     public ResponseEntity<Task> createTask(@Valid @RequestBody Task task) {
         try {
             Task createdTask = taskService.createTask(task);
@@ -91,7 +91,7 @@ public class TaskController {
      * Update an existing task
      */
     @PutMapping("/{id}")
-    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
+    @CacheEvict(value = { "projects", "projects-summary" }, allEntries = true)
     public ResponseEntity<Task> updateTask(@PathVariable String id, @Valid @RequestBody Task task) {
         try {
             task.setId(id);
@@ -110,7 +110,7 @@ public class TaskController {
      * Delete a task
      */
     @DeleteMapping("/{id}")
-    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
+    @CacheEvict(value = { "projects", "projects-summary" }, allEntries = true)
     public ResponseEntity<Void> deleteTask(@PathVariable String id) {
         try {
             boolean deleted = taskService.deleteTask(id);
@@ -181,12 +181,13 @@ public class TaskController {
      * Supports both TaskStatus enum values and custom lane status strings
      */
     @PatchMapping("/{id}/status")
-    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
-    public ResponseEntity<Task> updateTaskStatus(@PathVariable String id, @RequestBody Map<String, Object> statusUpdate) {
+    @CacheEvict(value = { "projects", "projects-summary" }, allEntries = true)
+    public ResponseEntity<Task> updateTaskStatus(@PathVariable String id,
+            @RequestBody Map<String, Object> statusUpdate) {
         try {
             Object statusObj = statusUpdate.get("status");
             Task updatedTask;
-            
+
             if (statusObj instanceof String) {
                 // Handle custom lane status strings
                 String statusValue = (String) statusObj;
@@ -198,7 +199,7 @@ public class TaskController {
             } else {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
             }
-            
+
             if (updatedTask != null) {
                 return ResponseEntity.ok(updatedTask);
             } else {
@@ -213,7 +214,7 @@ public class TaskController {
      * Assign task to user
      */
     @PatchMapping("/{id}/assign")
-    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
+    @CacheEvict(value = { "projects", "projects-summary" }, allEntries = true)
     public ResponseEntity<Task> assignTask(@PathVariable String id, @RequestBody Map<String, String> assignment) {
         try {
             String assigneeId = assignment.get("assigneeId");
@@ -232,8 +233,9 @@ public class TaskController {
      * Update task assignee (alternative endpoint)
      */
     @PatchMapping("/{id}/assignee")
-    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
-    public ResponseEntity<Task> updateTaskAssignee(@PathVariable String id, @RequestBody Map<String, String> assignment) {
+    @CacheEvict(value = { "projects", "projects-summary" }, allEntries = true)
+    public ResponseEntity<Task> updateTaskAssignee(@PathVariable String id,
+            @RequestBody Map<String, String> assignment) {
         try {
             String assigneeId = assignment.get("assigneeId");
             Task updatedTask = taskService.assignTask(id, assigneeId);
@@ -251,12 +253,13 @@ public class TaskController {
      * Update task actual hours (for effort logging)
      */
     @PatchMapping("/{id}/actual-hours")
-    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
-    public ResponseEntity<Task> updateTaskActualHours(@PathVariable String id, @RequestBody Map<String, Object> update) {
+    @CacheEvict(value = { "projects", "projects-summary" }, allEntries = true)
+    public ResponseEntity<Task> updateTaskActualHours(@PathVariable String id,
+            @RequestBody Map<String, Object> update) {
         try {
             Object actualHoursObj = update.get("actualHours");
             BigDecimal actualHours;
-            
+
             // Convert to BigDecimal, handling both Integer and Double types
             if (actualHoursObj instanceof Integer) {
                 actualHours = BigDecimal.valueOf((Integer) actualHoursObj);
@@ -267,8 +270,41 @@ public class TaskController {
             } else {
                 return ResponseEntity.badRequest().build();
             }
-            
+
             Task updatedTask = taskService.updateTaskActualHours(id, actualHours);
+            if (updatedTask != null) {
+                return ResponseEntity.ok(updatedTask);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
+
+    /**
+     * Update task estimated hours (for manager controls)
+     */
+    @PatchMapping("/{id}/estimated-hours")
+    @CacheEvict(value = { "projects", "projects-summary" }, allEntries = true)
+    public ResponseEntity<Task> updateTaskEstimatedHours(@PathVariable String id,
+            @RequestBody Map<String, Object> update) {
+        try {
+            Object estimatedHoursObj = update.get("estimatedHours");
+            BigDecimal estimatedHours;
+
+            // Convert to BigDecimal, handling both Integer and Double types
+            if (estimatedHoursObj instanceof Integer) {
+                estimatedHours = BigDecimal.valueOf((Integer) estimatedHoursObj);
+            } else if (estimatedHoursObj instanceof Double) {
+                estimatedHours = BigDecimal.valueOf((Double) estimatedHoursObj);
+            } else if (estimatedHoursObj instanceof BigDecimal) {
+                estimatedHours = (BigDecimal) estimatedHoursObj;
+            } else {
+                return ResponseEntity.badRequest().build();
+            }
+
+            Task updatedTask = taskService.updateTaskEstimatedHours(id, estimatedHours);
             if (updatedTask != null) {
                 return ResponseEntity.ok(updatedTask);
             } else {
@@ -399,6 +435,3 @@ public class TaskController {
         }
     }
 }
-
-
-

@@ -76,12 +76,12 @@ public class IssueService {
         if (issue.getStoryId() == null || issue.getStoryId().trim().isEmpty()) {
             throw new IllegalArgumentException("Issue must be linked to a story. Story ID is required.");
         }
-        
+
         if (issue.getId() == null) {
             // Generate issue ID similar to task ID
             issue.setId(idGenerationService.generateIssueId());
         }
-        
+
         // Auto-assign issue number
         if ((issue.getIssueNumber() == null || issue.getIssueNumber() == 0) && issue.getStoryId() != null) {
             Integer maxIssueNumber = issueRepository.findMaxIssueNumberByStoryId(issue.getStoryId());
@@ -90,29 +90,28 @@ public class IssueService {
             }
             issue.setIssueNumber(maxIssueNumber + 1);
         }
-        
+
         issue.setCreatedAt(LocalDateTime.now());
         issue.setUpdatedAt(LocalDateTime.now());
         Issue savedIssue = issueRepository.save(issue);
-        
+
         // Create notification if issue is created with an assignee
         if (savedIssue.getAssigneeId() != null && !savedIssue.getAssigneeId().isEmpty()) {
             try {
                 String title = "New Issue Assignment";
                 String message = "You have been assigned to issue: " + savedIssue.getTitle();
                 notificationService.createNotification(
-                    savedIssue.getAssigneeId(),
-                    title,
-                    message,
-                    "issue",
-                    "issue",
-                    savedIssue.getId()
-                );
+                        savedIssue.getAssigneeId(),
+                        title,
+                        message,
+                        "issue",
+                        "issue",
+                        savedIssue.getId());
             } catch (Exception e) {
                 System.err.println("Failed to create notification for issue creation: " + e.getMessage());
             }
         }
-        
+
         return savedIssue;
     }
 
@@ -126,27 +125,26 @@ public class IssueService {
                 Issue existingIssue = existingIssueOpt.get();
                 String oldAssigneeId = existingIssue.getAssigneeId();
                 String newAssigneeId = issue.getAssigneeId();
-                
+
                 // Check if assignee changed and create notification
-                if (newAssigneeId != null && !newAssigneeId.isEmpty() && 
-                    !newAssigneeId.equals(oldAssigneeId)) {
+                if (newAssigneeId != null && !newAssigneeId.isEmpty() &&
+                        !newAssigneeId.equals(oldAssigneeId)) {
                     try {
                         String title = "New Issue Assignment";
                         String message = "You have been assigned to issue: " + issue.getTitle();
                         notificationService.createNotification(
-                            newAssigneeId,
-                            title,
-                            message,
-                            "issue",
-                            "issue",
-                            issue.getId()
-                        );
+                                newAssigneeId,
+                                title,
+                                message,
+                                "issue",
+                                "issue",
+                                issue.getId());
                     } catch (Exception e) {
                         System.err.println("Failed to create notification for issue assignment: " + e.getMessage());
                     }
                 }
             }
-            
+
             issue.setUpdatedAt(LocalDateTime.now());
             return issueRepository.save(issue);
         }
@@ -169,7 +167,7 @@ public class IssueService {
      */
     public List<Issue> getIssuesByStoryId(String storyId) {
         List<Issue> issues = issueRepository.findByStoryId(storyId);
-        
+
         issues.forEach(issue -> {
             try {
                 String rawStatus = issueRepository.findStatusById(issue.getId());
@@ -191,7 +189,7 @@ public class IssueService {
                 System.err.println("Error getting raw status for issue " + issue.getId() + ": " + e.getMessage());
             }
         });
-        
+
         return issues;
     }
 
@@ -222,7 +220,7 @@ public class IssueService {
         }
         return null;
     }
-    
+
     /**
      * Update issue status (with String - supports custom lane statuses)
      */
@@ -256,34 +254,40 @@ public class IssueService {
             String oldAssigneeId = issue.getAssigneeId();
             issue.setAssigneeId(assigneeId);
             issue.setUpdatedAt(LocalDateTime.now());
-            
+
             // Create notification if assignee changed
             if (assigneeId != null && !assigneeId.isEmpty() && !assigneeId.equals(oldAssigneeId)) {
                 try {
                     String title = "New Issue Assignment";
                     String message = "You have been assigned to issue: " + issue.getTitle();
                     notificationService.createNotification(
-                        assigneeId,
-                        title,
-                        message,
-                        "issue",
-                        "issue",
-                        issue.getId()
-                    );
+                            assigneeId,
+                            title,
+                            message,
+                            "issue",
+                            "issue",
+                            issue.getId());
                 } catch (Exception e) {
                     System.err.println("Failed to create notification for issue assignment: " + e.getMessage());
                 }
             }
-            
+
+            return issueRepository.save(issue);
+        }
+        return null;
+    }
+
+    /**
+     * Update issue estimated hours (for manager controls)
+     */
+    public Issue updateIssueEstimatedHours(String id, java.math.BigDecimal estimatedHours) {
+        Optional<Issue> issueOpt = issueRepository.findById(id);
+        if (issueOpt.isPresent()) {
+            Issue issue = issueOpt.get();
+            issue.setEstimatedHours(estimatedHours);
+            issue.setUpdatedAt(LocalDateTime.now());
             return issueRepository.save(issue);
         }
         return null;
     }
 }
-
-
-
-
-
-
-

@@ -79,7 +79,7 @@ public class StoryService {
         if (activityLogService != null) {
             try {
                 activityLogService.logActivity(
-                        "system", // TODO: Get current user
+                        null, // Use null to avoid FK constraint when no user context
                         "story",
                         savedStory.getId(),
                         "created",
@@ -125,7 +125,7 @@ public class StoryService {
         if (activityLogService != null) {
             try {
                 activityLogService.logActivity(
-                        "system", // TODO: Get current user
+                        null, // Use null to avoid FK constraint when no user context
                         "story",
                         savedStory.getId(),
                         "updated",
@@ -373,7 +373,7 @@ public class StoryService {
             if (activityLogService != null) {
                 try {
                     activityLogService.logActivity(
-                            "system", // TODO: Get current user
+                            null, // Use null to avoid FK constraint when no user context
                             "story",
                             savedStory.getId(),
                             "status_updated",
