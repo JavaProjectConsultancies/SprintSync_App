@@ -9517,7 +9517,7 @@ const ScrumPage: React.FC = () => {
             ) : sprints.length === 0 ? (
               <Card>
                 <CardContent className="p-12 text-center">
-                  <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50 text-muted-foreground" />
+                  <CalendarDays className="w-12 h-12 mx-auto mb-4 opacity-50 text-muted-foreground" />
 
                   <h3 className="font-medium mb-2">No Sprints Found</h3>
 
@@ -13947,7 +13947,7 @@ const ScrumPage: React.FC = () => {
 
                                     {subtask.dueDate && (
                                       <div className="flex items-center space-x-1">
-                                        <Calendar className="w-3 h-3" />
+                                        <CalendarIcon className="w-3 h-3" />
 
                                         <span>
                                           {new Date(
@@ -14030,7 +14030,7 @@ const ScrumPage: React.FC = () => {
                         <div className="space-y-4">
                           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                             <div className="flex items-center space-x-2 mb-2">
-                              <Calendar className="w-4 h-4 text-gray-600" />
+                              <CalendarIcon className="w-4 h-4 text-gray-600" />
 
                               <span className="text-sm font-medium text-gray-900">
                                 Issue Due Date
@@ -14339,7 +14339,7 @@ const ScrumPage: React.FC = () => {
                         </label>
 
                         <div className="flex items-center space-x-2 text-sm text-gray-700">
-                          <Calendar className="w-4 h-4" />
+                          <CalendarIcon className="w-4 h-4" />
 
                           <span>
                             {selectedIssueForDetails.dueDate

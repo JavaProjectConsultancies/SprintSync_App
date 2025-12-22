@@ -1,4 +1,5 @@
 import { API_CONFIG, API_ENDPOINTS, ApiResponse, ApiError, PaginationParams } from './config';
+import { toast } from 'sonner';
 
 // HTTP Client for API calls
 class ApiClient {
@@ -342,6 +343,10 @@ class ApiClient {
           code: data.code || `HTTP_${response.status}`,
           details: data,
         };
+        // Show global error toast for non-401/404 errors (or all if desired)
+        // User requested "all pages wherever api failed".
+        // Often 401 is handled by redirect, but showing a toast is safe.
+        toast.error(errorMessage);
         throw error;
       }
 
@@ -381,6 +386,13 @@ class ApiClient {
             originalError: error.message,
           },
         } as ApiError;
+      }
+
+      // Show toast for network errors
+      if (error instanceof Error) {
+        toast.error(error.message || 'An unexpected error occurred');
+      } else {
+        toast.error('An unexpected error occurred');
       }
 
       throw error;

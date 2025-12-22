@@ -336,15 +336,7 @@ const AppContent: React.FC = () => {
             {/* Scaled Content Container */}
             <div className="w-full h-full flex flex-col items-center justify-center origin-center transition-transform duration-500">
               {/* Logo and Title */}
-              <div className="text-center mb-8 animate-fade-in-up relative z-10">
-                <div className="flex justify-center mb-4">
-                  <img
-                    src={sprintSyncLogo}
-                    alt="SprintSync"
-                    className="w-32 h-32 object-contain animate-logo-pulse"
-                  />
-                </div>
-              </div>
+
 
               {/* Sliding Container */}
               <div className="sliding-container animate-scale-in relative z-10" style={{ animationDelay: '0.2s', opacity: 0 }}>
@@ -358,7 +350,14 @@ const AppContent: React.FC = () => {
                     overflow: hidden;
                     width: 750px;
                     max-width: 100%;
-                    min-height: 480px;
+                    min-height: 550px;
+                  }
+
+                  @media (max-width: 768px) {
+                    .sliding-container {
+                      width: 95%;
+                      min-height: 500px;
+                    }
                   }
 
                   .form-container {

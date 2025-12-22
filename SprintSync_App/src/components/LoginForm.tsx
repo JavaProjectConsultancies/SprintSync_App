@@ -18,6 +18,7 @@ import { authApiService, LoginRequest } from '../services/api/authApi';
 import LoadingSpinner from './LoadingSpinner';
 import { useDepartments } from '../hooks/api/useDepartments';
 import { useDomains } from '../hooks/api/useDomains';
+import ssLogo from '../assets/ss_logo.gif';
 
 interface LoginFormProps {
   onLoginSuccess: (token: string, user: any) => void;
@@ -37,7 +38,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'developer',
+    role: 'none',
     department: 'none',
     domain: 'none'
   });
@@ -47,6 +48,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
   const [signUpErrors, setSignUpErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPanelActive, setIsPanelActive] = useState(false);
+  const [loginErrorMessage, setLoginErrorMessage] = useState('');
 
   // Rotating creators logic
   const creators = ["Mayuresh Gajbhiye", "Sanika Sapkale", "Sudhanshu Nakhate"];
@@ -120,17 +122,18 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
       let errorMessage = 'Login failed. Please try again.';
 
       if (error.status === 401) {
-        errorMessage = 'Invalid email or password.';
+        errorMessage = 'Invalid Email / Password';
       } else if (error.status === 403) {
-        errorMessage = 'Account is disabled. Please contact administrator.';
+        errorMessage = 'Account Disabled';
       } else if (error.status === 404) {
-        errorMessage = 'User not found. Please check your email.';
+        errorMessage = 'User Not Found';
       } else if (error.status === 500) {
-        errorMessage = 'Server error. Please try again later.';
+        errorMessage = 'Server Error';
       } else if (error.message) {
         errorMessage = error.message;
       }
 
+      setLoginErrorMessage(errorMessage);
       onLoginError(errorMessage);
     } finally {
       setIsSubmitting(false);
@@ -217,10 +220,27 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
     }
   };
 
+  const handleClear = () => {
+    setSignUpData({
+      firstName: '',
+      lastName: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+      role: 'none',
+      department: 'none',
+      domain: 'none'
+    });
+    setSignUpErrors({});
+  };
+
   const handleInputChange = (field: keyof LoginRequest, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: undefined }));
+    }
+    if (loginErrorMessage) {
+      setLoginErrorMessage('');
     }
   };
 
@@ -290,8 +310,14 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
               <p style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>{errors.password}</p>
             )}
 
+            {loginErrorMessage && (
+              <p style={{ color: '#ef4444', fontSize: '13px', marginBottom: '10px', textAlign: 'center' }}>
+                {loginErrorMessage}
+              </p>
+            )}
+
             <button type="submit" className="form-button" disabled={isSubmitting}>
-              Sign In
+              {isSubmitting ? 'Signing In...' : 'Sign In'}
             </button>
           </form>
         </div>
@@ -299,7 +325,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
 
       {/* Sign Up Form */}
       <div className="form-container sign-up-container">
-        <div className="form-inner" style={{ padding: '30px 40px', overflowY: 'auto' }}>
+        <div className="form-inner" style={{ padding: '20px 30px' }}>
           <div style={{ marginBottom: '20px' }}>
             <h1 className="form-title" style={{ fontSize: '28px', marginBottom: '8px' }}>Create Your Account</h1>
             <span className="form-label">Join SprintSync - Fill in your details below</span>
@@ -444,6 +470,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
                   <SelectValue placeholder="Role" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">Select Role</SelectItem>
                   <SelectItem value="developer">Developer</SelectItem>
                   <SelectItem value="manager">Manager</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
@@ -451,44 +478,76 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
               </Select>
 
               <Select
-                value={signUpData.department}
-                onValueChange={(value) => setSignUpData(prev => ({ ...prev, department: value }))}
+                value={signUpData.domain}
+                onValueChange={(value) => setSignUpData(prev => ({ ...prev, domain: value }))}
               >
                 <SelectTrigger className="form-input" style={{ height: '46px', padding: '14px 20px' }}>
-                  <SelectValue placeholder="Department" />
+                  <SelectValue placeholder="Domain" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {departments.map((dept: any) => (
-                    <SelectItem key={dept.id} value={dept.id}>
-                      {dept.name}
+                  <SelectItem value="none">Select Domain</SelectItem>
+                  {domains.map((domain: any) => (
+                    <SelectItem key={domain.id} value={domain.id}>
+                      {domain.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Domain */}
+            {/* Department */}
             <Select
-              value={signUpData.domain}
-              onValueChange={(value) => setSignUpData(prev => ({ ...prev, domain: value }))}
+              value={signUpData.department}
+              onValueChange={(value) => setSignUpData(prev => ({ ...prev, department: value }))}
             >
               <SelectTrigger className="form-input" style={{ height: '46px', padding: '14px 20px', margin: '4px 0' }}>
-                <SelectValue placeholder="Select domain" />
+                <SelectValue placeholder="Select Department" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {domains.map((domain: any) => (
-                  <SelectItem key={domain.id} value={domain.id}>
-                    {domain.name}
+                <SelectItem value="none">Select Department</SelectItem>
+                {departments.map((dept: any) => (
+                  <SelectItem key={dept.id} value={dept.id}>
+                    {dept.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
 
-            <button type="submit" className="form-button" style={{ marginTop: '12px' }} disabled={isSubmitting}>
-              {isSubmitting ? 'Creating Account...' : 'Sign Up'}
-            </button>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+              <button
+                type="submit"
+                className="form-button"
+                style={{
+                  flex: 1,
+                  margin: 0,
+                  padding: '14px 10px'
+                }}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Creating...' : 'Sign Up'}
+              </button>
+              <button
+                type="button"
+                className="form-button"
+                style={{
+                  background: 'transparent',
+                  border: '1px solid #ef4444',
+                  color: '#ef4444',
+                  width: 'auto',
+                  padding: '0 20px',
+                  fontSize: '11px',
+                  height: '46px', // Match height of select inputs/other buttons roughly, or slightly smaller
+                  margin: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                onClick={handleClear}
+                disabled={isSubmitting}
+              >
+                Clear
+              </button>
+            </div>
           </form>
         </div>
       </div>
@@ -497,6 +556,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
       <div className="overlay-container">
         <div className="overlay">
           <div className="overlay-panel overlay-left">
+            <img src={ssLogo} alt="SprintSync" className="w-48 h-48 mb-4 object-contain" />
             <h1 className="overlay-title">Welcome Back!</h1>
             <p className="overlay-text">
               To keep connected with us please login with your personal info
@@ -509,6 +569,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
             </button>
           </div>
           <div className="overlay-panel overlay-right">
+            <img src={ssLogo} alt="SprintSync" className="w-48 h-48 mb-4 object-contain" />
             <h1 className="overlay-title">Hello, Friend!</h1>
             <p className="overlay-text">
               Enter your personal details and start your journey with SprintSync
