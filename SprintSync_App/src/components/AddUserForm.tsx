@@ -18,14 +18,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
-import { 
-  UserPlus, 
-  User as UserIcon, 
-  Shield, 
-  Briefcase, 
-  Image, 
-  Loader2, 
-  Save, 
+import {
+  UserPlus,
+  User as UserIcon,
+  Shield,
+  Briefcase,
+  Image,
+  Loader2,
+  Save,
   AlertCircle,
   CheckCircle2,
   Eye,
@@ -349,7 +349,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
@@ -367,7 +367,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
         name: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
         role: formData.role.toLowerCase() as any, // Convert to lowercase to match backend enum
         isActive: formData.isActive,
-        
+
         // Optional fields (matching database nullable columns)
         departmentId: formData.departmentId === 'none' ? undefined : formData.departmentId,
         domainId: formData.domainId === 'none' ? undefined : formData.domainId,
@@ -389,12 +389,12 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
           // No password provided - use approve endpoint which uses existing password hash
           console.log('Approving pending registration without password change - using existing password hash');
           const approvedUser = await approvePendingMutation.mutate(pendingRegistrationId);
-          
+
           // After approval, update user with additional details entered in form
           // Extract user ID from response (structure may vary)
           const approvedUserData = approvedUser?.data?.data || approvedUser?.data;
           const userId = approvedUserData?.id;
-          
+
           if (userId) {
             const updateData: Partial<User> = {
               ...userData,
@@ -402,7 +402,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
             };
             // Remove password hash from update data since we're keeping existing one
             delete updateData.passwordHash;
-            
+
             console.log('Updating approved user with additional details:', updateData);
             await updateUserMutation.mutate({
               id: userId,
@@ -413,7 +413,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
           // Password provided - create user with new password, then delete pending registration
           console.log('Approving pending registration with new password - creating user with data:', userData);
           await createUserMutation.mutate(userData);
-          
+
           // Delete pending registration after successful user creation
           await deletePendingMutation.mutate(pendingRegistrationId);
         }
@@ -424,7 +424,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
         await createUserMutation.mutate(userData);
         console.log('✅ User created successfully');
       }
-      
+
       // Reset form and close dialog
       setFormData({
         firstName: '',
@@ -446,7 +446,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
         isActive: true
       });
       setErrors({});
-      
+
       onSuccess?.();
       onClose();
     } catch (error) {
@@ -511,7 +511,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                 <UserIcon className="add-user-section-icon text-blue-600" />
                 <h3>Basic Information</h3>
               </div>
-              
+
               <div className="add-user-form-grid">
                 {/* First Name */}
                 <div className="add-user-form-field space-y-2">
@@ -522,9 +522,8 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                     id="firstName"
                     value={formData.firstName}
                     onChange={(e) => handleInputChange('firstName', e.target.value)}
-                    className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                      errors.firstName ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                    }`}
+                    className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.firstName ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                      }`}
                     placeholder="Enter first name"
                   />
                   {errors.firstName && (
@@ -544,9 +543,8 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                     id="lastName"
                     value={formData.lastName}
                     onChange={(e) => handleInputChange('lastName', e.target.value)}
-                    className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                      errors.lastName ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                    }`}
+                    className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.lastName ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                      }`}
                     placeholder="Enter last name"
                   />
                   {errors.lastName && (
@@ -567,9 +565,8 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                     type="email"
                     value={formData.email}
                     onChange={(e) => handleInputChange('email', e.target.value)}
-                    className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                      errors.email ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                    }`}
+                    className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.email ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                      }`}
                     placeholder="user@company.com"
                   />
                   {errors.email && (
@@ -591,9 +588,8 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                       type={showPassword ? 'text' : 'password'}
                       value={formData.password}
                       onChange={(e) => handleInputChange('password', e.target.value)}
-                      className={`w-full h-10 px-3 pr-10 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                        errors.password ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                      }`}
+                      className={`w-full h-10 px-3 pr-10 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.password ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                        }`}
                       placeholder={pendingRegistrationId ? "Leave empty to use password from registration" : "Enter password"}
                     />
                     <Button
@@ -613,7 +609,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                     </p>
                   )}
                   <p className="text-xs text-gray-500">
-                    {pendingRegistrationId 
+                    {pendingRegistrationId
                       ? 'Leave empty to keep the password from registration. If provided, password must be at least 6 characters.'
                       : 'Password must be at least 6 characters (will be hashed in database)'
                     }
@@ -631,9 +627,8 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                       type={showConfirmPassword ? 'text' : 'password'}
                       value={formData.confirmPassword}
                       onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                      className={`w-full h-10 px-3 pr-10 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                        errors.confirmPassword ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                      }`}
+                      className={`w-full h-10 px-3 pr-10 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.confirmPassword ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                        }`}
                       placeholder="Confirm password"
                     />
                     <Button
@@ -662,7 +657,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                 <Shield className="add-user-section-icon text-green-600" />
                 <h3>Role & Organization</h3>
               </div>
-              
+
               <div className="add-user-form-grid">
                 {/* Role */}
                 <div className="add-user-form-field space-y-2">
@@ -673,15 +668,16 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                     value={formData.role}
                     onValueChange={(value) => handleInputChange('role', value)}
                   >
-                    <SelectTrigger className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                      errors.role ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                    }`}>
+                    <SelectTrigger className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.role ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                      }`}>
                       <SelectValue placeholder="Select role" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="admin">Admin</SelectItem>
                       <SelectItem value="manager">Manager</SelectItem>
                       <SelectItem value="developer">Developer</SelectItem>
+                      <SelectItem value="qa_manager">QA Manager</SelectItem>
+                      <SelectItem value="qa_developer">QA Developer</SelectItem>
                     </SelectContent>
                   </Select>
                   {errors.role && (
@@ -783,67 +779,65 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
               </div>
             </div>
 
-          {/* Reporting & Joining Section */}
-          <div className="space-y-3">
-            <div className="add-user-section-header flex items-center gap-2">
-              <Calendar className="add-user-section-icon text-emerald-600" />
-              <h3>Reporting & Joining</h3>
-            </div>
-
-            <div className="add-user-form-grid">
-              {/* Reporting Manager */}
-              <div className="add-user-form-field space-y-2">
-                <Label htmlFor="reportingManager" className="text-sm font-semibold text-gray-700">
-                  Reporting Manager
-                </Label>
-                <Input
-                  id="reportingManager"
-                  value={formData.reportingManager}
-                  onChange={(e) => handleInputChange('reportingManager', e.target.value)}
-                  className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                    errors.reportingManager ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                  }`}
-                  placeholder="Enter reporting manager name"
-                  maxLength={100}
-                />
-                {errors.reportingManager && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="w-4 h-4" />
-                    {errors.reportingManager}
-                  </p>
-                )}
-                <p className="text-xs text-gray-500">
-                  This will be stored as plain text to reference who the user reports to.
-                </p>
+            {/* Reporting & Joining Section */}
+            <div className="space-y-3">
+              <div className="add-user-section-header flex items-center gap-2">
+                <Calendar className="add-user-section-icon text-emerald-600" />
+                <h3>Reporting & Joining</h3>
               </div>
 
-              {/* Date of Joining */}
-              <div className="add-user-form-field space-y-2">
-                <Label htmlFor="dateOfJoining" className="text-sm font-semibold text-gray-700">
-                  Date of Joining
-                </Label>
-                <Input
-                  id="dateOfJoining"
-                  type="date"
-                  value={formData.dateOfJoining}
-                  onChange={(e) => handleInputChange('dateOfJoining', e.target.value)}
-                  className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                    errors.dateOfJoining ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                  }`}
-                  max={maxJoiningDate}
-                />
-                {errors.dateOfJoining && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="w-4 h-4" />
-                    {errors.dateOfJoining}
+              <div className="add-user-form-grid">
+                {/* Reporting Manager */}
+                <div className="add-user-form-field space-y-2">
+                  <Label htmlFor="reportingManager" className="text-sm font-semibold text-gray-700">
+                    Reporting Manager
+                  </Label>
+                  <Input
+                    id="reportingManager"
+                    value={formData.reportingManager}
+                    onChange={(e) => handleInputChange('reportingManager', e.target.value)}
+                    className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.reportingManager ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                      }`}
+                    placeholder="Enter reporting manager name"
+                    maxLength={100}
+                  />
+                  {errors.reportingManager && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.reportingManager}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-500">
+                    This will be stored as plain text to reference who the user reports to.
                   </p>
-                )}
-                <p className="text-xs text-gray-500">
-                  Pick the onboarding date using the calendar picker; it will sync with the database.
-                </p>
+                </div>
+
+                {/* Date of Joining */}
+                <div className="add-user-form-field space-y-2">
+                  <Label htmlFor="dateOfJoining" className="text-sm font-semibold text-gray-700">
+                    Date of Joining
+                  </Label>
+                  <Input
+                    id="dateOfJoining"
+                    type="date"
+                    value={formData.dateOfJoining}
+                    onChange={(e) => handleInputChange('dateOfJoining', e.target.value)}
+                    className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.dateOfJoining ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                      }`}
+                    max={maxJoiningDate}
+                  />
+                  {errors.dateOfJoining && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.dateOfJoining}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-500">
+                    Pick the onboarding date using the calendar picker; it will sync with the database.
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
 
             {/* Professional Details Section */}
             <div className="space-y-3">
@@ -851,7 +845,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                 <Briefcase className="add-user-section-icon text-purple-600" />
                 <h3>Professional Details</h3>
               </div>
-              
+
               <div className="add-user-form-grid">
                 {/* Hourly Rate */}
                 <div className="add-user-form-field space-y-2">
@@ -865,9 +859,8 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                       type="number"
                       value={formData.hourlyRate}
                       onChange={(e) => handleInputChange('hourlyRate', e.target.value)}
-                      className={`w-full h-10 pl-8 pr-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                        errors.hourlyRate ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                      }`}
+                      className={`w-full h-10 pl-8 pr-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.hourlyRate ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                        }`}
                       placeholder="1000.00"
                       step="0.01"
                       min="0"
@@ -896,9 +889,8 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                       type="number"
                       value={formData.ctc}
                       onChange={(e) => handleInputChange('ctc', e.target.value)}
-                      className={`w-full h-10 pl-8 pr-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                        errors.ctc ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                      }`}
+                      className={`w-full h-10 pl-8 pr-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.ctc ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                        }`}
                       placeholder="500000.00"
                       step="0.01"
                       min="0"
@@ -926,9 +918,8 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                       type="number"
                       value={formData.availabilityPercentage}
                       onChange={(e) => handleInputChange('availabilityPercentage', e.target.value)}
-                      className={`w-full h-10 px-3 pr-8 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                        errors.availabilityPercentage ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                      }`}
+                      className={`w-full h-10 px-3 pr-8 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.availabilityPercentage ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                        }`}
                       placeholder="100"
                       min="0"
                       max="100"
@@ -988,9 +979,8 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                     id="skills"
                     value={formData.skills}
                     onChange={(e) => handleInputChange('skills', e.target.value)}
-                    className={`w-full h-10 px-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                      errors.skills ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                    }`}
+                    className={`w-full h-10 px-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.skills ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                      }`}
                     placeholder="JavaScript, React, Node.js"
                     maxLength={1000}
                   />
@@ -1013,7 +1003,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                 <Image className="add-user-section-icon text-orange-600" />
                 <h3>Profile</h3>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="avatarUrl" className="text-sm font-semibold text-gray-700">
                   Avatar URL
@@ -1022,9 +1012,8 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                   id="avatarUrl"
                   value={formData.avatarUrl}
                   onChange={(e) => handleInputChange('avatarUrl', e.target.value)}
-                  className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${
-                    errors.avatarUrl ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                  }`}
+                  className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.avatarUrl ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                    }`}
                   placeholder="https://example.com/avatar.jpg"
                 />
                 {errors.avatarUrl && (
@@ -1033,9 +1022,9 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                     {errors.avatarUrl}
                   </p>
                 )}
-                  <p className="text-xs text-gray-500">
-                    Enter a valid image URL for the user's profile picture (stored as TEXT in database)
-                  </p>
+                <p className="text-xs text-gray-500">
+                  Enter a valid image URL for the user's profile picture (stored as TEXT in database)
+                </p>
               </div>
             </div>
           </div>
@@ -1073,10 +1062,10 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
           </div>
         </DialogFooter>
       </DialogContent>
-      
+
       {/* Scroll to Top Button */}
-      <EnhancedScrollToTopButton 
-        targetId="add-user-form-content" 
+      <EnhancedScrollToTopButton
+        targetId="add-user-form-content"
         threshold={200}
         showOnFormScroll={true}
         showOnPageScroll={false}

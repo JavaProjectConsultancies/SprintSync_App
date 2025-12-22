@@ -9,7 +9,8 @@ const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   admin: ['view_projects', 'manage_projects', 'view_team', 'manage_users', 'view_analytics', 'manage_system'],
   manager: ['view_projects', 'manage_projects', 'view_team', 'view_analytics'],
   developer: ['view_projects', 'view_team'],
-  qa: ['view_projects', 'manage_projects', 'view_team', 'view_analytics']
+  qa_manager: ['view_projects', 'manage_projects', 'view_team', 'view_analytics'],
+  qa_developer: ['view_projects', 'view_team']
 };
 
 interface AuthContextType {
@@ -32,15 +33,15 @@ const defaultAuthContext: AuthContextType = {
   user: null,
   token: null,
   login: async () => false,
-  logout: () => {},
+  logout: () => { },
   hasPermission: () => false,
   canAccessProject: () => false,
   isLoading: true,
   isAuthenticated: false,
   loginError: null,
-  clearLoginError: () => {},
-  refreshUser: async () => {},
-  setAuthState: () => {},
+  clearLoginError: () => { },
+  refreshUser: async () => { },
+  setAuthState: () => { },
 };
 
 const AuthContext = createContext<AuthContextType>(defaultAuthContext);
@@ -76,12 +77,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const initializeAuth = async () => {
       const { token: storedToken, user: storedUser } = getStoredAuthData();
-      
+
       if (storedToken && storedUser) {
         setToken(storedToken);
         setUser(storedUser);
         apiClient.setAuthToken(storedToken);
-        
+
         // Verify token is still valid
         try {
           await refreshUser();
@@ -90,7 +91,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           logout();
         }
       }
-      
+
       setIsLoading(false);
     };
 
@@ -104,15 +105,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       console.log('Attempting login with API...');
       const response = await authApiService.login({ email, password });
-      
+
       if (response.success && response.data) {
         const { token: authToken, user: userData } = response.data;
-        
+
         // Extract name with fallbacks
-        const userName = userData.name || 
-                        (userData as any).fullName || 
-                        (userData.email ? userData.email.split('@')[0] : 'User');
-        
+        const userName = userData.name ||
+          (userData as any).fullName ||
+          (userData.email ? userData.email.split('@')[0] : 'User');
+
         // Convert API user format to local User format
         const localUser: User = {
           id: userData.id,
@@ -124,14 +125,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           domain: userData.domainId || userData.domain,
           assignedProjects: [], // This would come from a separate API call
         };
-        
+
         console.log('[AuthContext] Login - Setting user:', localUser);
 
         setToken(authToken);
         setUser(localUser);
         saveAuthData(authToken, localUser);
         apiClient.setAuthToken(authToken);
-        
+
         // Prefetch projects immediately after login for faster page loads
         import('../hooks/api/useProjects').then(({ prefetchProjects, invalidateProjectsCache }) => {
           invalidateProjectsCache(localUser.id);
@@ -139,21 +140,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             // Silently fail - projects will be fetched when needed
           });
         });
-        
+
         console.log('Login successful:', localUser);
-        
+
         // Note: Navigation to dashboard should be handled by the component calling login
         // This ensures all users are redirected to dashboard after login
-        
+
         return true;
       } else {
         throw new Error(response.message || 'Login failed');
       }
     } catch (error: any) {
       console.error('Login error:', error);
-      
+
       let errorMessage = 'Login failed. Please try again.';
-      
+
       if (error.status === 401) {
         errorMessage = 'Invalid email or password.';
       } else if (error.status === 403) {
@@ -165,7 +166,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
+
       setLoginError(errorMessage);
       return false;
     } finally {
@@ -178,7 +179,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     import('../hooks/api/useProjects').then(({ invalidateProjectsCache }) => {
       invalidateProjectsCache();
     });
-    
+
     setUser(null);
     setToken(null);
     clearAuthData();
@@ -193,21 +194,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const response = await authApiService.getCurrentUser();
       console.log('[AuthContext] Full API response:', JSON.stringify(response, null, 2));
-      
+
       if (response.success && response.data) {
         // Handle nested data structure: response.data.data or response.data
         // The API might return: {success: true, data: {data: {user object}}}
         // Or: {success: true, data: {user object}}
         let userData = response.data;
-        
+
         // Check if data is nested
         if ((userData as any).data && typeof (userData as any).data === 'object') {
           console.log('[AuthContext] Found nested data structure, extracting...');
           userData = (userData as any).data;
         }
-        
+
         console.log('[AuthContext] Extracted user data:', JSON.stringify(userData, null, 2));
-        
+
         if (!userData || (typeof userData === 'object' && !userData.id && !userData.email)) {
           console.error('[AuthContext] Invalid user data structure:', userData);
           console.error('[AuthContext] Response structure:', {
@@ -217,7 +218,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           });
           return;
         }
-        
+
         // Safely handle role conversion with fallback
         let userRole: string = 'developer'; // Default role
         if (userData.role) {
@@ -227,13 +228,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             userRole = String(userData.role).toLowerCase();
           }
         }
-        
+
         // Extract name with better fallbacks
-        const userName = userData.name || 
-                        userData.fullName || 
-                        (userData.email ? userData.email.split('@')[0] : null) ||
-                        'User';
-        
+        const userName = userData.name ||
+          userData.fullName ||
+          (userData.email ? userData.email.split('@')[0] : null) ||
+          'User';
+
         const localUser: User = {
           id: userData.id,
           name: userName,
@@ -244,7 +245,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           domain: userData.domain || userData.domainId,
           assignedProjects: [],
         };
-        
+
         console.log('[AuthContext] Setting user:', localUser);
         setUser(localUser);
         saveAuthData(token, localUser);
@@ -265,10 +266,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const canAccessProject = (projectId: string): boolean => {
     if (!user) return false;
-    
+
     // Admin and Manager can access all projects
     if (user.role === 'admin' || user.role === 'manager') return true;
-    
+
     // Other roles can only access assigned projects
     return user.assignedProjects?.includes(projectId) || false;
   };
@@ -280,12 +281,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const setAuthState = (authToken: string, userData: any) => {
     console.log('Setting auth state with token:', authToken);
     console.log('Setting auth state with user data:', userData);
-    
+
     // Extract name with fallbacks
-    const userName = userData.name || 
-                    userData.fullName || 
-                    (userData.email ? userData.email.split('@')[0] : 'User');
-    
+    const userName = userData.name ||
+      userData.fullName ||
+      (userData.email ? userData.email.split('@')[0] : 'User');
+
     // Convert API user format to local User format
     const localUser: User = {
       id: userData.id,
@@ -302,7 +303,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUser(localUser);
     saveAuthData(authToken, localUser);
     apiClient.setAuthToken(authToken);
-    
+
     // Prefetch projects immediately after setting auth state
     import('../hooks/api/useProjects').then(({ prefetchProjects, invalidateProjectsCache }) => {
       invalidateProjectsCache(localUser.id);
@@ -310,9 +311,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // Silently fail - projects will be fetched when needed
       });
     });
-    
+
     setLoginError(null);
-    
+
     console.log('Auth state set successfully');
   };
 

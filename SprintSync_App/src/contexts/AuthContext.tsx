@@ -6,7 +6,8 @@ const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   admin: ['view_projects', 'manage_projects', 'view_team', 'manage_users', 'view_analytics', 'manage_system'],
   manager: ['view_projects', 'manage_projects', 'view_team', 'view_analytics'],
   developer: ['view_projects', 'view_team'],
-  qa: ['view_projects', 'manage_projects', 'view_team', 'view_analytics']
+  qa_manager: ['view_projects', 'manage_projects', 'view_team', 'view_analytics'],
+  qa_developer: ['view_projects', 'view_team']
 };
 
 interface AuthContextType {
@@ -37,7 +38,7 @@ const DEMO_USERS: User[] = [
   {
     id: '2',
     name: 'Kavita Singh',
-    email: 'kavita.admin@demo.com', 
+    email: 'kavita.admin@demo.com',
     role: 'admin',
     avatar: '/api/placeholder/40/40',
     assignedProjects: [],
@@ -344,7 +345,7 @@ const DEMO_USERS: User[] = [
     id: '31',
     name: 'Sneha Patel',
     email: 'sneha@demo.com',
-    role: 'designer',
+    role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-1', 'proj-2'],
     department: 'ERP & Strategic Technology',
@@ -354,7 +355,7 @@ const DEMO_USERS: User[] = [
     id: '32',
     name: 'Aarti Jain',
     email: 'aarti.marketing@demo.com',
-    role: 'designer',
+    role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-3', 'proj-4'],
     department: 'ERP & Strategic Technology',
@@ -364,7 +365,7 @@ const DEMO_USERS: User[] = [
     id: '33',
     name: 'Kiran Nair',
     email: 'kiran.marketing@demo.com',
-    role: 'designer',
+    role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-5', 'proj-6'],
     department: 'HIMS & Pharma ZIP',
@@ -374,7 +375,7 @@ const DEMO_USERS: User[] = [
     id: '34',
     name: 'Deepika Shetty',
     email: 'deepika.marketing@demo.com',
-    role: 'designer',
+    role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-7', 'proj-8'],
     department: 'Pharma Old',
@@ -384,7 +385,7 @@ const DEMO_USERS: User[] = [
     id: '35',
     name: 'Priyanka Verma',
     email: 'priyanka.marketing@demo.com',
-    role: 'designer',
+    role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-1', 'proj-5'],
     department: 'ERP & Strategic Technology',
@@ -394,7 +395,7 @@ const DEMO_USERS: User[] = [
     id: '36',
     name: 'Ritika Agarwal',
     email: 'ritika.marketing@demo.com',
-    role: 'designer',
+    role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-2', 'proj-7'],
     department: 'ERP & Strategic Technology',
@@ -406,7 +407,7 @@ const DEMO_USERS: User[] = [
     id: '37',
     name: 'Sonia Kapoor',
     email: 'sonia.hr@demo.com',
-    role: 'designer',
+    role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-7', 'proj-8'],
     department: 'Pharma Old',
@@ -416,7 +417,7 @@ const DEMO_USERS: User[] = [
     id: '38',
     name: 'Manisha Gupta',
     email: 'manisha.hr@demo.com',
-    role: 'designer',
+    role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-1', 'proj-3'],
     department: 'ERP & Strategic Technology',
@@ -426,7 +427,7 @@ const DEMO_USERS: User[] = [
     id: '39',
     name: 'Neelam Singh',
     email: 'neelam.hr@demo.com',
-    role: 'designer',
+    role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-2', 'proj-6'],
     department: 'ERP & Strategic Technology',
@@ -436,7 +437,7 @@ const DEMO_USERS: User[] = [
     id: '40',
     name: 'Shweta Reddy',
     email: 'shweta.hr@demo.com',
-    role: 'designer',
+    role: 'developer',
     avatar: '/api/placeholder/40/40',
     assignedProjects: ['proj-4', 'proj-5'],
     department: 'HIMS & Pharma ZIP',
@@ -469,11 +470,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (email: string, password: string): Promise<boolean> => {
     // Demo authentication - use backend-compatible passwords
     const demoUser = DEMO_USERS.find(u => u.email === email);
-    
+
     if (demoUser) {
       // Check password based on user role/email
       let validPassword = false;
-      
+
       if (email === 'admin@demo.com' || email === 'kavita.admin@demo.com') {
         validPassword = password === 'admin123';
       } else if (email.includes('manager') || email === 'priya@demo.com') {
@@ -488,14 +489,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Fallback for other users - use demo123
         validPassword = password === 'demo123';
       }
-      
+
       if (validPassword) {
         setUser(demoUser);
         localStorage.setItem('sprintsync_user', JSON.stringify(demoUser));
         return true;
       }
     }
-    
+
     return false;
   };
 
@@ -523,23 +524,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Get role permissions
     const rolePermissions = ROLE_PERMISSIONS[user.role];
-    
+
     if (!rolePermissions) {
       console.warn(`No permissions found for role: ${user.role}`);
       return false;
     }
-    
+
     return rolePermissions.includes(permission);
   };
 
   const canAccessProject = (projectId: string): boolean => {
     if (!user) return false;
-    
+
     // Admin and Manager can access all projects
     if (user.role === 'admin' || user.role === 'manager') {
       return true;
     }
-    
+
     // Other roles can only access assigned projects
     return user.assignedProjects?.includes(projectId) || false;
   };

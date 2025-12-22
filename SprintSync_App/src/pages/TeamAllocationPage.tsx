@@ -108,7 +108,7 @@ const TeamAllocationPage: React.FC = () => {
   const [newMember, setNewMember] = useState({
     name: '',
     email: '',
-    role: 'developer' as 'developer' | 'manager' | 'admin',
+    role: 'developer' as 'developer' | 'manager' | 'admin' | 'qa_manager' | 'qa_developer',
     domain: '',
     department: '',
     password: '',
@@ -147,7 +147,7 @@ const TeamAllocationPage: React.FC = () => {
 
   const { teamMembers: projectTeamMembers, refreshTeamMembers } = useProjectTeamMembers(selectedProjectId || undefined);
 
-  const roleOptions = ['developer', 'manager', 'admin'];
+  const roleOptions = ['developer', 'manager', 'admin', 'qa_manager', 'qa_developer'];
 
   // Project helpers: team members per project and manager names cache
   const [projectIdToMembers, setProjectIdToMembers] = useState<Record<string, any[]>>({});
@@ -490,8 +490,10 @@ const TeamAllocationPage: React.FC = () => {
       case 'ADMIN': return 'admin';
       case 'MANAGER': return 'manager';
       case 'DEVELOPER': return 'developer';
-      case 'DESIGNER': return 'qa';
-      case 'QA': return 'qa';
+      case 'DESIGNER': return 'developer';
+      case 'QA': return 'developer';
+      case 'QA_MANAGER': return 'qa_manager';
+      case 'QA_DEVELOPER': return 'qa_developer';
       case 'TESTER': return 'tester';
       case 'ANALYST': return 'analyst';
       default: return (role || 'developer').toString().toLowerCase();
@@ -1904,6 +1906,8 @@ const TeamAllocationPage: React.FC = () => {
                           <SelectItem value="developer">Developer</SelectItem>
                           <SelectItem value="manager">Manager</SelectItem>
                           <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="qa_manager">QA Manager</SelectItem>
+                          <SelectItem value="qa_developer">QA Developer</SelectItem>
                         </SelectContent>
                       </Select>
 

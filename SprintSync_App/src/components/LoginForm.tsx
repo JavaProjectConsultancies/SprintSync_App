@@ -474,6 +474,8 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
                   <SelectItem value="developer">Developer</SelectItem>
                   <SelectItem value="manager">Manager</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="qa_manager">QA Manager</SelectItem>
+                  <SelectItem value="qa_developer">QA Developer</SelectItem>
                 </SelectContent>
               </Select>
 

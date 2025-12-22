@@ -382,6 +382,8 @@ const RegistrationPage: React.FC = () => {
                     <SelectContent>
                       <SelectItem value="developer">Developer</SelectItem>
                       <SelectItem value="manager">Manager</SelectItem>
+                      <SelectItem value="qa_manager">QA Manager</SelectItem>
+                      <SelectItem value="qa_developer">QA Developer</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>
                   </Select>

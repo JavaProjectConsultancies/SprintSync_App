@@ -520,24 +520,42 @@ const ScrumPage: React.FC = () => {
 
   // Role-based permissions
 
-  // Only MANAGER and QA can create sprints, stories, tasks, and boards
+  // Role checks for different user types
+  const isManager = user?.role?.toUpperCase() === "MANAGER";
+  const isQAManager = user?.role?.toUpperCase() === "QA_MANAGER";
+  const isQADeveloper = user?.role?.toUpperCase() === "QA_DEVELOPER";
+  const isAdmin = user?.role?.toUpperCase() === "ADMIN";
+  const isRegularDeveloper = user?.role?.toUpperCase() === "DEVELOPER"; // Regular developer only (not QA Developer)
 
+  // QA Developers should be treated like developers but with extra permissions (view all, drag to Done)
+  const isDeveloper = isRegularDeveloper || isQADeveloper;
+
+  // Managers, QA (deprecated), and QA Managers can manage sprints, stories, and boards
   const canManageSprintsAndStories =
-    user?.role?.toUpperCase() === "MANAGER" ||
+    isManager ||
+    isQAManager ||
     user?.role?.toUpperCase() === "QA";
 
-  // Only MANAGER can create stories, tasks, and issues
-  const isManager = user?.role?.toUpperCase() === "MANAGER";
+  // Only Managers can create tasks (not QA Manager)
+  const canAddTasks = isManager;
 
-  // Only managers can add tasks and issues
-  const canAddTasks = isManager; // Only managers can create tasks and issues
+  // Managers and QA Managers can create issues
+  const canAddIssues = isManager || isQAManager;
 
-  const canCreateBoards = canManageSprintsAndStories; // Only managers and QA can create boards
+  // Managers, QA (deprecated), and QA Managers can create boards
+  const canCreateBoards = canManageSprintsAndStories;
 
   const canLogEffort = true;
+  // QA Manager and QA Developer can log effort on OTHER users' tasks (like managers)
+  const canLogEffortForOthers = canManageSprintsAndStories || isQADeveloper;
 
-  // Check if user is a developer (not MANAGER or QA)
-  const isDeveloper = user?.role?.toUpperCase() !== "MANAGER" && user?.role?.toUpperCase() !== "QA";
+  // QA Developer and QA Manager can drag items from ANY column to Done (like managers)
+  const canDragToDone = isManager || isQAManager || isQADeveloper;
+
+  // QA Developer can see ALL tasks AND issues (like managers)
+  // Regular Developer sees only their assigned tasks AND issues
+  const canViewAllTasks = canManageSprintsAndStories || isQADeveloper;
+  const canViewAllIssues = canManageSprintsAndStories || isQADeveloper; // QA Developer sees ALL issues
 
   // All users can create subtasks (checked individually where needed)
 
@@ -1325,9 +1343,12 @@ const ScrumPage: React.FC = () => {
 
         let allIssuesFlat = issueArrays.flat();
 
-        // Role-based filtering: Non-managers/admins see only their assigned issues
+        // Role-based filtering for ISSUES:
+        // - Managers/QA Managers see all issues
+        // - QA Developer sees ONLY their assigned issues (like regular developer)
+        // - Developer sees only their assigned issues
 
-        if (!canManageSprintsAndStories && user) {
+        if (!canViewAllIssues && user) {
           allIssuesFlat = allIssuesFlat.filter(
             (issue) => issue.assigneeId === user.id,
           );
@@ -1337,9 +1358,12 @@ const ScrumPage: React.FC = () => {
           );
         }
 
-        // Role-based filtering: Non-managers/admins see only their assigned tasks
+        // Role-based filtering for TASKS:
+        // - Managers/QA Managers see all tasks
+        // - QA Developer sees ALL tasks (different from regular developer)
+        // - Developer sees only their assigned tasks
 
-        if (!canManageSprintsAndStories && user) {
+        if (!canViewAllTasks && user) {
           allTasksFlat = allTasksFlat.filter(
             (task) => task.assigneeId === user.id,
           );
@@ -1375,7 +1399,8 @@ const ScrumPage: React.FC = () => {
     [
       selectedSprint,
       selectedProject,
-      canManageSprintsAndStories,
+      canViewAllTasks,
+      canViewAllIssues,
       user,
       backlogStoriesData,
     ],
@@ -1684,7 +1709,8 @@ const ScrumPage: React.FC = () => {
     }
 
     // Role-based filtering: Non-managers/admins see only stories with tasks assigned to them
-    if (!canManageSprintsAndStories && user) {
+    // QA Developer can see ALL stories (has canViewAllTasks = true)
+    if (!canViewAllTasks && user) {
       // Filter stories to show only those that have at least one task assigned to the current user
       const filtered = sprintStories.filter((story: Story) => {
         // Check if this story has any tasks assigned to the current user
@@ -1701,9 +1727,9 @@ const ScrumPage: React.FC = () => {
       return filtered;
     }
 
-    // Managers/admins see all stories
+    // Managers/admins/QA Developers see all stories
     return sprintStories;
-  }, [sprintStories, allTasks, canManageSprintsAndStories, user]);
+  }, [sprintStories, allTasks, canViewAllTasks, user]);
 
   const backlogStories = useMemo(() => {
     if (!selectedProject) return [];
@@ -3349,9 +3375,9 @@ const ScrumPage: React.FC = () => {
     async (id: string, newStatus: string, itemType: string) => {
       const mappedNewStatus = mapColumnToTaskStatus(newStatus);
 
-      // === RULE 1: Only MANAGER can move tasks TO DONE column ===
-      if (mappedNewStatus === "DONE" && !isManager) {
-        toast.error("Only managers can move tasks to the Done column");
+      // === RULE 1: Only MANAGER/QA Manager/QA Developer can move tasks TO DONE column ===
+      if (mappedNewStatus === "DONE" && !canDragToDone) {
+        toast.error("Only managers and QA roles can move tasks to the Done column");
         return;
       }
 
@@ -3368,11 +3394,11 @@ const ScrumPage: React.FC = () => {
           const task = allTasks.find((t) => t.id === id);
           const oldStatus = task?.status;
 
-          // === RULE 2: Tasks in DONE - Only MANAGERS can move, and ONLY to TODO ===
+          // === RULE 2: Tasks in DONE - Only MANAGERS/QA roles can move, and ONLY to TODO ===
           if (oldStatus === "DONE") {
-            // First check: only managers can move from DONE
-            if (!isManager) {
-              toast.error("Only managers can move tasks from Done column");
+            // First check: only managers/QA can move from DONE
+            if (!canDragToDone) {
+              toast.error("Only managers and QA roles can move tasks from Done column");
               try {
                 await activityLogApiService.createActivityLog({
                   userId: user?.id || "",
@@ -4413,9 +4439,9 @@ const ScrumPage: React.FC = () => {
   // Add Issue Handler - Similar to handleAddTask
 
   const handleAddIssue = async (issueDataFromDialog: any) => {
-    // Only managers can create issues
-    if (!isManager) {
-      toast.error("Only managers can create issues");
+    // Managers and QA Managers can create issues
+    if (!canAddIssues) {
+      toast.error("Only managers and QA managers can create issues");
       return;
     }
 
@@ -6458,8 +6484,9 @@ const ScrumPage: React.FC = () => {
                 <div className="flex items-center space-x-2 flex-shrink-0">
                   {/* Add Task and Issue Buttons */}
 
-                  {canAddTasks && (
-                    <div className="flex flex-col space-y-1">
+                  <div className="flex flex-col space-y-1">
+                    {/* Add Task Button - Only for Managers */}
+                    {canAddTasks && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -6480,7 +6507,10 @@ const ScrumPage: React.FC = () => {
                         <Plus className="w-3 h-3 mr-1" />
                         Add Task
                       </Button>
+                    )}
 
+                    {/* Add Issue Button - For Managers and QA Managers */}
+                    {canAddIssues && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -6498,8 +6528,8 @@ const ScrumPage: React.FC = () => {
                         <Plus className="w-3 h-3 mr-1" />
                         Add Issue
                       </Button>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
                   {storyTasks.length > 0 && (
                     <div className="text-xs text-gray-500 whitespace-nowrap">
@@ -9109,13 +9139,15 @@ const ScrumPage: React.FC = () => {
                           bgClass: string;
                           style?: React.CSSProperties;
                         }> = ({ status, tasks, issues, bgClass, style }) => {
-                          // Disable drop for developers on Done column only
+                          // Disable drop for REGULAR developers on Done column only
+                          // QA Developer and QA Manager CAN drop to Done from any column
                           // Developers can add tasks to all other lanes including manager-created lanes
                           const isDoneColumn = status === "done";
                           // Check if the status maps to DONE
                           const mappedStatus = mapColumnToTaskStatus(status);
                           const isDoneStatus = isDoneColumn || mappedStatus === "DONE";
-                          const canDropForDeveloper = !(isDeveloper && isDoneStatus);
+                          // Only block regular developers from Done, QA roles can drop to Done
+                          const canDropForDeveloper = !(isRegularDeveloper && isDoneStatus);
 
                           // Check if trying to drop from "In Progress" to "To Do" (only managers allowed)
                           const isTodoColumn = status === "todo" || status === "TO_DO" || status === "TODO" ||
@@ -9126,8 +9158,9 @@ const ScrumPage: React.FC = () => {
                             (status && status.toLowerCase() === "inprogress");
 
                           const canDropForManager = (item: { id: string; type: string } | null) => {
-                            if (!item || canManageSprintsAndStories) {
-                              return true; // Allow if user is manager
+                            // QA Developer has same drag permissions as managers (can drag between all columns)
+                            if (!item || canManageSprintsAndStories || isQADeveloper) {
+                              return true; // Allow if user is manager or QA Developer
                             }
 
                             // Check if trying to drop from "In Progress" to "To Do" (only managers allowed)
