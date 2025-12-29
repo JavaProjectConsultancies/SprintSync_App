@@ -12,17 +12,17 @@ import { Progress } from '../components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Checkbox } from '../components/ui/checkbox';
-import { 
-  ArrowLeft, 
-  Edit, 
-  Save, 
-  X, 
-  Plus, 
-  MessageCircle, 
-  Paperclip, 
-  Clock, 
-  User, 
-  Target, 
+import {
+  ArrowLeft,
+  Edit,
+  Save,
+  X,
+  Plus,
+  MessageCircle,
+  Paperclip,
+  Clock,
+  User,
+  Target,
   Flag,
   CheckCircle2,
   AlertCircle,
@@ -211,12 +211,12 @@ const TaskDetailsPage: React.FC = () => {
     const date = new Date(timestamp);
     const now = new Date();
     const diffHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
-    
+
     if (diffHours < 24) {
-      return date.toLocaleTimeString('en-IN', { 
-        hour: '2-digit', 
+      return date.toLocaleTimeString('en-IN', {
+        hour: '2-digit',
         minute: '2-digit',
-        hour12: true 
+        hour12: true
       });
     } else if (diffHours < 168) {
       return `${Math.floor(diffHours / 24)} days ago`;
@@ -238,7 +238,7 @@ const TaskDetailsPage: React.FC = () => {
   };
 
   const toggleSubtask = (subtaskId: string) => {
-    setSubtasks(subtasks.map(sub => 
+    setSubtasks(subtasks.map(sub =>
       sub.id === subtaskId ? { ...sub, completed: !sub.completed } : sub
     ));
   };
@@ -397,7 +397,7 @@ const TaskDetailsPage: React.FC = () => {
                   </div>
                 </div>
               ))}
-              
+
               <div className="flex items-center space-x-2 pt-2">
                 <Input
                   placeholder="Add a subtask..."
@@ -525,7 +525,7 @@ const TaskDetailsPage: React.FC = () => {
                       <Paperclip className="w-4 h-4 mr-2" />
                       Upload File
                     </Button>
-                    
+
                     <div className="space-y-3">
                       {attachments.map((attachment) => (
                         <div key={attachment.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
@@ -584,7 +584,7 @@ const TaskDetailsPage: React.FC = () => {
 
               {/* Assignee */}
               <div className="space-y-2">
-                <Label>Assignee</Label>
+                <Label>Assigned To</Label>
                 <Select value={task.assignee} onValueChange={(value) => setTask(prev => ({ ...prev, assignee: value }))}>
                   <SelectTrigger>
                     <SelectValue />
@@ -695,9 +695,9 @@ const TaskDetailsPage: React.FC = () => {
                   </p>
                 </div>
               </div>
-              
+
               <Progress value={(task.timeLogged / task.originalEstimate) * 100} className="h-2" />
-              
+
               <Button variant="outline" size="sm" className="w-full">
                 <Plus className="w-4 h-4 mr-2" />
                 Log Work

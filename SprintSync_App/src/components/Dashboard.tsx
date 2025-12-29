@@ -1665,7 +1665,7 @@ const Dashboard: React.FC = () => {
             <div className="mt-2 text-sm">
               <strong>Possible Solutions:</strong>
               <ul className="list-disc list-inside mt-1 space-y-1">
-                <li>Ensure your backend API server is running on http://localhost:8080</li>
+                <li>Ensure your backend API server is running</li>
                 <li>Check if the API requires authentication (401 error indicates auth required)</li>
                 <li>Verify the API endpoints are accessible without authentication</li>
                 <li>Check browser console for detailed error information</li>

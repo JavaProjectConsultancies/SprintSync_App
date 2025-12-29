@@ -6,6 +6,7 @@ import com.sprintsync.api.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,11 +28,14 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final IdGenerationService idGenerationService;
+    private final PasswordEncoder passwordEncoder;
 
     @Autowired
-    public UserService(UserRepository userRepository, IdGenerationService idGenerationService) {
+    public UserService(UserRepository userRepository, IdGenerationService idGenerationService,
+            PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.idGenerationService = idGenerationService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     /**
@@ -48,6 +52,12 @@ public class UserService {
         // Generate custom ID if not provided
         if (user.getId() == null) {
             user.setId(idGenerationService.generateUserId());
+        }
+        // Hash the password before saving
+        if (user.getPasswordHash() != null && !user.getPasswordHash().isEmpty()) {
+            user.setPasswordHash(passwordEncoder.encode(user.getPasswordHash()));
+        } else {
+            throw new IllegalArgumentException("Password is required");
         }
         return userRepository.save(user);
     }
@@ -85,11 +95,11 @@ public class UserService {
         if (!userRepository.existsById(user.getId())) {
             throw new IllegalArgumentException("User not found with ID: " + user.getId());
         }
-        
+
         // Fetch existing user to merge data
         User existingUser = userRepository.findById(user.getId())
                 .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + user.getId()));
-        
+
         // Update only provided fields
         if (user.getName() != null) {
             existingUser.setName(user.getName());
@@ -136,10 +146,10 @@ public class UserService {
         if (user.getIsActive() != null) {
             existingUser.setIsActive(user.getIsActive());
         }
-        
+
         // Update the updatedAt timestamp
         existingUser.setUpdatedAt(java.time.LocalDateTime.now());
-        
+
         return userRepository.save(existingUser);
     }
 
@@ -191,7 +201,7 @@ public class UserService {
     /**
      * Find users by role with pagination.
      * 
-     * @param role the user role
+     * @param role     the user role
      * @param pageable pagination information
      * @return page of users with the specified role
      */
@@ -215,7 +225,7 @@ public class UserService {
      * Find users by department with pagination.
      * 
      * @param departmentId the department ID
-     * @param pageable pagination information
+     * @param pageable     pagination information
      * @return page of users in the specified department
      */
     @Transactional(readOnly = true)
@@ -269,9 +279,9 @@ public class UserService {
     /**
      * Find users by multiple criteria.
      * 
-     * @param role the user role (optional)
+     * @param role         the user role (optional)
      * @param departmentId the department ID (optional)
-     * @param isActive the active status (optional)
+     * @param isActive     the active status (optional)
      * @return list of users matching the criteria
      */
     @Transactional(readOnly = true)
@@ -330,7 +340,7 @@ public class UserService {
     /**
      * Activate or deactivate a user.
      * 
-     * @param userId the user ID
+     * @param userId   the user ID
      * @param isActive the active status
      * @throws IllegalArgumentException if user not found
      */
@@ -359,7 +369,7 @@ public class UserService {
     /**
      * Validate user credentials (basic validation).
      * 
-     * @param email the email address
+     * @param email        the email address
      * @param passwordHash the password hash
      * @return Optional containing the user if credentials are valid
      */
@@ -369,9 +379,3 @@ public class UserService {
                 .filter(user -> user.getPasswordHash().equals(passwordHash) && user.getIsActive());
     }
 }
-
-
-
-
-
-

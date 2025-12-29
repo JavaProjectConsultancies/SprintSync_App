@@ -1,5 +1,5 @@
 import { useApi, useApiMutation, usePaginatedApi } from './useApi';
-import { 
+import {
   issueApiService
 } from '../../services/api/entities/issueApi';
 import { Issue, ApiResponse, PaginationParams } from '../../services/api';
@@ -12,6 +12,14 @@ export function useIssues(params?: PaginationParams) {
   );
 }
 
+// Fetch ALL issues (for QA Manager and Admin)
+export function useAllIssues() {
+  return useApi(
+    () => issueApiService.getAllIssues(),
+    ['all-issues']
+  );
+}
+
 export function useIssue(id: string) {
   return useApi(
     () => issueApiService.getIssueById(id),
@@ -20,8 +28,8 @@ export function useIssue(id: string) {
 }
 
 export function useCreateIssue() {
-  return useApiMutation<Issue, Omit<Issue, 'id' | 'createdAt' | 'updatedAt'>>(
-    (issue) => issueApiService.createIssue(issue)
+  return useApiMutation<Issue, Partial<Issue>>(
+    (issue) => issueApiService.createIssue(issue as Issue)
   );
 }
 
@@ -39,8 +47,8 @@ export function useDeleteIssue() {
 
 export function useIssuesByStory(storyId: string, params?: PaginationParams) {
   return useApi(
-    () => storyId && storyId !== 'SKIP' 
-      ? issueApiService.getIssuesByStory(storyId, params) 
+    () => storyId && storyId !== 'SKIP'
+      ? issueApiService.getIssuesByStory(storyId, params)
       : Promise.resolve({ data: [] as Issue[], success: true, message: '', status: 200 } as ApiResponse<Issue[]>),
     [storyId, JSON.stringify(params)],
     !!(storyId && storyId !== 'SKIP')

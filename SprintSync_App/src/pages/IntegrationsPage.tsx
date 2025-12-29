@@ -10,14 +10,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Separator } from '../components/ui/separator';
-import { 
-  Plus, 
-  Settings, 
-  CheckCircle2, 
-  AlertCircle, 
-  ExternalLink, 
-  Trash2, 
-  Edit, 
+import {
+  Plus,
+  Settings,
+  CheckCircle2,
+  AlertCircle,
+  ExternalLink,
+  Trash2,
+  Edit,
   RefreshCw,
   GitBranch,
   MessageSquare,
@@ -31,6 +31,7 @@ import {
   Globe,
   Link
 } from 'lucide-react';
+import { formatDateTimeDDMMYYYY } from '../utils/dateUtils';
 
 interface Integration {
   id: string;
@@ -234,18 +235,13 @@ const IntegrationsPage: React.FC = () => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    return formatDateTimeDDMMYYYY(dateString);
   };
 
   const filteredIntegrations = integrations.filter(integration => {
     const matchesCategory = activeTab === 'all' || integration.category === activeTab;
     const matchesSearch = integration.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         integration.description.toLowerCase().includes(searchTerm.toLowerCase());
+      integration.description.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
@@ -260,12 +256,12 @@ const IntegrationsPage: React.FC = () => {
   const connectIntegration = (integrationId: string) => {
     setIntegrations(prev => prev.map(integration =>
       integration.id === integrationId
-        ? { 
-            ...integration, 
-            status: 'connected' as const,
-            lastSync: new Date().toISOString(),
-            syncStatus: 'success' as const
-          }
+        ? {
+          ...integration,
+          status: 'connected' as const,
+          lastSync: new Date().toISOString(),
+          syncStatus: 'success' as const
+        }
         : integration
     ));
   };
@@ -273,13 +269,13 @@ const IntegrationsPage: React.FC = () => {
   const disconnectIntegration = (integrationId: string) => {
     setIntegrations(prev => prev.map(integration =>
       integration.id === integrationId
-        ? { 
-            ...integration, 
-            status: 'disconnected' as const,
-            isEnabled: false,
-            lastSync: undefined,
-            syncStatus: undefined
-          }
+        ? {
+          ...integration,
+          status: 'disconnected' as const,
+          isEnabled: false,
+          lastSync: undefined,
+          syncStatus: undefined
+        }
         : integration
     ));
   };
@@ -359,7 +355,7 @@ const IntegrationsPage: React.FC = () => {
             {filteredIntegrations.map(integration => {
               const Icon = integration.icon;
               const StatusIcon = getStatusIcon(integration.status);
-              
+
               return (
                 <Card key={integration.id} className="hover:shadow-md transition-shadow">
                   <CardHeader className="pb-3">
@@ -428,7 +424,7 @@ const IntegrationsPage: React.FC = () => {
                           <span>{integration.usage.requests}/{integration.usage.limit}</span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-1">
-                          <div 
+                          <div
                             className="bg-blue-500 h-1 rounded-full"
                             style={{ width: `${(integration.usage.requests / integration.usage.limit) * 100}%` }}
                           />
@@ -444,9 +440,9 @@ const IntegrationsPage: React.FC = () => {
                             <Settings className="w-3 h-3 mr-1" />
                             Configure
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => disconnectIntegration(integration.id)}
                             className="text-red-600 hover:text-red-700"
                           >
@@ -454,8 +450,8 @@ const IntegrationsPage: React.FC = () => {
                           </Button>
                         </>
                       ) : (
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           onClick={() => connectIntegration(integration.id)}
                           className="bg-gradient-primary text-white w-full"
                         >
@@ -499,38 +495,38 @@ const IntegrationsPage: React.FC = () => {
               Customize your integration settings and preferences
             </DialogDescription>
           </DialogHeader>
-          
+
           {selectedIntegration && (
             <div className="space-y-6 py-4">
               {/* General Settings */}
               <div className="space-y-4">
                 <h4 className="font-medium">General Settings</h4>
-                
+
                 {selectedIntegration.id === 'github' && (
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label>Repository</Label>
-                      <Input 
-                        value={selectedIntegration.config?.repository || ''} 
+                      <Input
+                        value={selectedIntegration.config?.repository || ''}
                         placeholder="owner/repository-name"
                       />
                     </div>
                     <div className="space-y-2">
                       <Label>Webhook URL</Label>
-                      <Input 
-                        value={selectedIntegration.config?.webhook_url || ''} 
+                      <Input
+                        value={selectedIntegration.config?.webhook_url || ''}
                         readOnly
                         className="bg-gray-50"
                       />
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Switch 
+                      <Switch
                         checked={selectedIntegration.config?.auto_link_commits || false}
                       />
                       <Label>Automatically link commits to tasks</Label>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Switch 
+                      <Switch
                         checked={selectedIntegration.config?.sync_issues || false}
                       />
                       <Label>Sync GitHub issues with tasks</Label>
@@ -542,15 +538,15 @@ const IntegrationsPage: React.FC = () => {
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label>Workspace</Label>
-                      <Input 
-                        value={selectedIntegration.config?.workspace || ''} 
+                      <Input
+                        value={selectedIntegration.config?.workspace || ''}
                         placeholder="your-workspace"
                       />
                     </div>
                     <div className="space-y-2">
                       <Label>Default Channel</Label>
-                      <Input 
-                        value={selectedIntegration.config?.channel || ''} 
+                      <Input
+                        value={selectedIntegration.config?.channel || ''}
                         placeholder="#general"
                       />
                     </div>
@@ -558,19 +554,19 @@ const IntegrationsPage: React.FC = () => {
                       <Label>Notification Settings</Label>
                       <div className="space-y-2">
                         <div className="flex items-center space-x-2">
-                          <Switch 
+                          <Switch
                             checked={selectedIntegration.config?.notify_on_task_complete || false}
                           />
                           <Label>Notify when tasks are completed</Label>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <Switch 
+                          <Switch
                             checked={selectedIntegration.config?.notify_on_sprint_end || false}
                           />
                           <Label>Notify when sprints end</Label>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <Switch 
+                          <Switch
                             checked={selectedIntegration.config?.daily_standup_reminder || false}
                           />
                           <Label>Daily standup reminders</Label>
@@ -584,19 +580,19 @@ const IntegrationsPage: React.FC = () => {
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label>Folder ID</Label>
-                      <Input 
-                        value={selectedIntegration.config?.folder_id || ''} 
+                      <Input
+                        value={selectedIntegration.config?.folder_id || ''}
                         placeholder="Google Drive folder ID"
                       />
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Switch 
+                      <Switch
                         checked={selectedIntegration.config?.auto_create_folders || false}
                       />
                       <Label>Auto-create project folders</Label>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Switch 
+                      <Switch
                         checked={selectedIntegration.config?.sync_project_docs || false}
                       />
                       <Label>Sync project documents</Label>
@@ -639,8 +635,8 @@ const IntegrationsPage: React.FC = () => {
                       <div className="font-medium text-sm text-red-900">Disconnect Integration</div>
                       <div className="text-xs text-red-700">This will remove all configuration and stop syncing</div>
                     </div>
-                    <Button 
-                      variant="destructive" 
+                    <Button
+                      variant="destructive"
                       size="sm"
                       onClick={() => {
                         disconnectIntegration(selectedIntegration.id);

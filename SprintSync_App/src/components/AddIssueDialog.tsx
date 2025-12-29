@@ -12,24 +12,17 @@ import { Separator } from './ui/separator';
 import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { CalendarIcon, CheckSquare, User, Flag, Target, Clock, Plus, X, Paperclip, Trash2, Loader2, AlertCircle, Link, Eye, FileText } from 'lucide-react';
+import { formatDateDDMMYYYY, formatDateWithMonth } from '../utils/dateUtils';
 
-// Simple date formatter to replace date-fns
+// Simple date formatter - uses dd-mm-yyyy format
 const format = (date: Date, formatStr: string) => {
   if (formatStr === 'PPP') {
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    return formatDateWithMonth(date);
   }
   if (formatStr === 'dd/MM/yy') {
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const year = date.getFullYear().toString().slice(-2);
-    return `${day}/${month}/${year}`;
+    return formatDateDDMMYYYY(date);
   }
-  return date.toLocaleDateString();
+  return formatDateDDMMYYYY(date);
 };
 
 interface Story {
@@ -587,10 +580,7 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                             {stories.map(story => (
                               <SelectItem key={story.id} value={story.id}>
                                 <div className="flex items-center space-x-2">
-                                  <Badge variant="outline" className="text-xs bg-green-50">
-                                    {story.id}
-                                  </Badge>
-                                  <span className="truncate max-w-[200px]">{story.title}</span>
+                                  <span className="truncate max-w-[250px]">{story.title}</span>
                                   <Badge variant="outline" className={`text-xs ${getPriorityColor(story.priority)}`}>
                                     {story.priority}
                                   </Badge>
@@ -610,9 +600,7 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                           <div className="mt-2 p-2 bg-green-50 rounded border-l-3 border-green-200">
                             <div className="flex items-center space-x-2">
                               <Target className="w-3 h-3 text-green-600" />
-                              <span className="text-xs text-green-700 font-medium">{selectedStory.id}</span>
-                              <span className="text-xs text-green-600">•</span>
-                              <span className="text-xs text-green-600">{selectedStory.title}</span>
+                              <span className="text-xs text-green-700 font-medium truncate">{selectedStory.title}</span>
                             </div>
                           </div>
                         )}
@@ -760,7 +748,7 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                           <span>Due Date</span>
                           <span className="text-red-500">*</span>
                         </Label>
-                        <Popover open={isDueDatePopoverOpen} onOpenChange={setIsDueDatePopoverOpen} modal={false}>
+                        <Popover open={isDueDatePopoverOpen} onOpenChange={setIsDueDatePopoverOpen} modal={true}>
                           <PopoverTrigger asChild>
                             <Button
                               variant="outline"
@@ -1089,9 +1077,7 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                         <div className="mb-2 p-2 bg-green-50 rounded border-l-3 border-green-200">
                           <div className="flex items-center space-x-1">
                             <Target className="w-3 h-3 text-green-600" />
-                            <span className="text-xs text-green-700 font-medium">{selectedStory.id}</span>
-                            <span className="text-xs text-green-600">•</span>
-                            <span className="text-xs text-green-600 truncate">{selectedStory.title}</span>
+                            <span className="text-xs text-green-700 font-medium truncate">{selectedStory.title}</span>
                           </div>
                         </div>
                       )}

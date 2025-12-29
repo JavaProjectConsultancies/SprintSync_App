@@ -34,6 +34,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { userApiService } from '../services/api/entities/userApi';
+import { API_CONFIG } from '../services/api/config';
 
 interface TeamMember {
   id: string;
@@ -380,10 +381,10 @@ const TeamManager = ({
         // Get fresh token from localStorage or use the hardcoded one
         const token = localStorage.getItem('authToken') || 'eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJkb21haW4iOiJET01OMDAwMDAwMDAwMDAwMSIsIm5hbWUiOiJBZG1pbiBVc2VyIiwiZGVwYXJ0bWVudCI6IkRFUFQwMDAwMDAwMDAwMDEiLCJ1c2VySWQiOiJVU0VSMDAwMDAwMDAwMDAxIiwic3ViIjoiYWRtaW5Ac3ByaW50c3luYy5jb20iLCJpYXQiOjE3NTk3NDg0NjUsImV4cCI6MTc1OTgzNDg2NX0.QdwUhiS_AvtqzTefTe14N7TKWB1jzrQg01Sz_lNOGBleAPqfVAgTHf97-JmCUQKZyXtAqkhYD-HN3YAMDywxRg';
 
-        console.log('TeamManager: Making API request to:', 'http://localhost:8080/api/users');
+        console.log('TeamManager: Making API request to:', `${API_CONFIG.BASE_URL}/users`);
         console.log('TeamManager: Using token:', token.substring(0, 20) + '...');
 
-        const testResponse = await fetch('http://localhost:8080/api/users', {
+        const testResponse = await fetch(`${API_CONFIG.BASE_URL}/users?size=1000`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -486,7 +487,7 @@ const TeamManager = ({
           const token = localStorage.getItem('authToken') || 'eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJkb21haW4iOiJET01OMDAwMDAwMDAwMDAwMSIsIm5hbWUiOiJBZG1pbiBVc2VyIiwiZGVwYXJ0bWVudCI6IkRFUFQwMDAwMDAwMDAwMDEiLCJ1c2VySWQiOiJVU0VSMDAwMDAwMDAwMDAxIiwic3ViIjoiYWRtaW5Ac3ByaW50c3luYy5jb20iLCJpYXQiOjE3NTk3NDg0NjUsImV4cCI6MTc1OTgzNDg2NX0.QdwUhiS_AvtqzTefTe14N7TKWB1jzrQg01Sz_lNOGBleAPqfVAgTHf97-JmCUQKZyXtAqkhYD-HN3YAMDywxRg';
 
           console.log('TeamManager: Secondary load - making API request...');
-          const response = await fetch('http://localhost:8080/api/users', {
+          const response = await fetch(`${API_CONFIG.BASE_URL}/users?size=1000`, {
             headers: {
               'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json'
@@ -657,10 +658,12 @@ const TeamManager = ({
     <DndProvider backend={HTML5Backend}>
       <div className="space-y-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-1">
             <TabsTrigger value="build">Build Team</TabsTrigger>
+            {/* COMMENTED FOR FUTURE USE - Team Analysis and Resource Allocation tabs
             <TabsTrigger value="analyze">Team Analysis</TabsTrigger>
             <TabsTrigger value="allocation">Resource Allocation</TabsTrigger>
+            */}
           </TabsList>
 
           <TabsContent value="build" className="space-y-6">
@@ -696,7 +699,7 @@ const TeamManager = ({
                         setLoadingUsers(true);
                         // Trigger re-fetch
                         const token = localStorage.getItem('authToken') || 'eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJkb21haW4iOiJET01OMDAwMDAwMDAwMDAwMSIsIm5hbWUiOiJBZG1pbiBVc2VyIiwiZGVwYXJ0bWVudCI6IkRFUFQwMDAwMDAwMDAwMDEiLCJ1c2VySWQiOiJVU0VSMDAwMDAwMDAwMDAxIiwic3ViIjoiYWRtaW5Ac3ByaW50c3luYy5jb20iLCJpYXQiOjE3NTk3NDg0NjUsImV4cCI6MTc1OTgzNDg2NX0.QdwUhiS_AvtqzTefTe14N7TKWB1jzrQg01Sz_lNOGBleAPqfVAgTHf97-JmCUQKZyXtAqkhYD-HN3YAMDywxRg';
-                        fetch('http://localhost:8080/api/users', {
+                        fetch(`${API_CONFIG.BASE_URL}/users?size=1000`, {
                           headers: {
                             'Authorization': `Bearer ${token}`,
                             'Content-Type': 'application/json'
@@ -832,6 +835,7 @@ const TeamManager = ({
             </div>
           </TabsContent>
 
+          {/* COMMENTED FOR FUTURE USE - Team Analysis Tab Content
           <TabsContent value="analyze" className="space-y-4">
             <Card>
               <CardHeader>
@@ -849,7 +853,9 @@ const TeamManager = ({
               </CardContent>
             </Card>
           </TabsContent>
+          */}
 
+          {/* COMMENTED FOR FUTURE USE - Resource Allocation Tab Content
           <TabsContent value="allocation" className="space-y-4">
             <Card>
               <CardHeader>
@@ -867,6 +873,7 @@ const TeamManager = ({
               </CardContent>
             </Card>
           </TabsContent>
+          */}
         </Tabs>
 
         {/* User Details Modal */}

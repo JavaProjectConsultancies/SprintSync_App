@@ -82,7 +82,8 @@ public class User extends BaseEntity {
     private LocalDateTime lastLogin;
 
     // Constructors
-    public User() {}
+    public User() {
+    }
 
     public User(String email, String passwordHash, String name, UserRole role) {
         this.email = email;
@@ -105,6 +106,7 @@ public class User extends BaseEntity {
         return passwordHash;
     }
 
+    @com.fasterxml.jackson.annotation.JsonProperty("passwordHash")
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
     }

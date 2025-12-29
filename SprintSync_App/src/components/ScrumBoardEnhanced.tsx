@@ -324,7 +324,7 @@ const ScrumBoardEnhanced: React.FC<ScrumBoardEnhancedProps> = ({
               </div>
 
               <div>
-                <label className="text-sm font-medium mb-1 block">Assignee</label>
+                <label className="text-sm font-medium mb-1 block">Assigned To</label>
                 <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
                   <SelectTrigger>
                     <SelectValue />

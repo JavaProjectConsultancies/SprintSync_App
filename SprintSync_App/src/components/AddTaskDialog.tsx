@@ -738,10 +738,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                             {stories.map(story => (
                               <SelectItem key={story.id} value={story.id}>
                                 <div className="flex items-center space-x-2">
-                                  <Badge variant="outline" className="text-xs bg-green-50">
-                                    {story.id}
-                                  </Badge>
-                                  <span className="truncate max-w-[200px]">{story.title}</span>
+                                  <span className="truncate max-w-[250px]">{story.title}</span>
                                   <Badge variant="outline" className={`text-xs ${getPriorityColor(story.priority)}`}>
                                     {story.priority}
                                   </Badge>
@@ -756,9 +753,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                           <div className="mt-2 p-2 bg-green-50 rounded border-l-3 border-green-200">
                             <div className="flex items-center space-x-2">
                               <Target className="w-3 h-3 text-green-600" />
-                              <span className="text-xs text-green-700 font-medium">{selectedStory.id}</span>
-                              <span className="text-xs text-green-600">•</span>
-                              <span className="text-xs text-green-600">{selectedStory.title}</span>
+                              <span className="text-xs text-green-700 font-medium">{selectedStory.title}</span>
                             </div>
                           </div>
                         )}
@@ -910,7 +905,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                           <span>Due Date</span>
                           <span className="text-red-500">*</span>
                         </Label>
-                        <Popover open={isDueDatePopoverOpen} onOpenChange={setIsDueDatePopoverOpen} modal={false}>
+                        <Popover open={isDueDatePopoverOpen} onOpenChange={setIsDueDatePopoverOpen} modal={true}>
                           <PopoverTrigger asChild>
                             <Button
                               variant="outline"
@@ -1262,9 +1257,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                         <div className="mb-2 p-2 bg-green-50 rounded border-l-3 border-green-200">
                           <div className="flex items-center space-x-1">
                             <Target className="w-3 h-3 text-green-600" />
-                            <span className="text-xs text-green-700 font-medium">{selectedStory.id}</span>
-                            <span className="text-xs text-green-600">•</span>
-                            <span className="text-xs text-green-600 truncate">{selectedStory.title}</span>
+                            <span className="text-xs text-green-700 font-medium truncate">{selectedStory.title}</span>
                           </div>
                         </div>
                       )}

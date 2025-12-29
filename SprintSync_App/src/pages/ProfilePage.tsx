@@ -1,12 +1,15 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
+import { Input } from '../components/ui/input';
 import { useAuth } from '../contexts/AuthContextEnhanced';
 import { useUser } from '../hooks/api/useUsers';
 import { useDepartments } from '../hooks/api/useDepartments';
 import { useDomains } from '../hooks/api/useDomains';
+import { userApiService } from '../services/api/entities/userApi';
+import { toast } from 'sonner';
 import {
   Mail,
   Shield,
@@ -22,6 +25,9 @@ import {
   Percent,
   UserCheck,
   Loader2,
+  Pencil,
+  Save,
+  X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import {
@@ -30,6 +36,7 @@ import {
   getExperienceLabel,
   normalizeExperienceValue,
 } from '../hooks/api/useExperienceLevels';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY, getRelativeTime } from '../utils/dateUtils';
 
 const EXPERIENCE_LEVEL_COLORS: Record<ExperienceLevelCode, string> = {
   E1: 'bg-green-100 text-green-800 border-green-200',
@@ -82,22 +89,12 @@ const parseSkills = (skills?: string): string[] => {
 
 const formatDateTime = (dateString?: string) => {
   if (!dateString) return 'Never';
-  return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return formatDateTimeDDMMYYYY(dateString);
 };
 
 const formatDateOnly = (dateString?: string) => {
   if (!dateString) return 'Not Set';
-  return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+  return formatDateDDMMYYYY(dateString);
 };
 
 const formatRelativeTime = (dateInput?: string | number | Date) => {
@@ -170,6 +167,50 @@ const ProfilePage: React.FC = () => {
   const domains = Array.isArray(domainsData) ? domainsData : [];
 
   const profile = userData as any;
+
+  // State for skill editing
+  const [isEditingSkills, setIsEditingSkills] = useState(false);
+  const [editableSkills, setEditableSkills] = useState('');
+  const [savingSkills, setSavingSkills] = useState(false);
+
+  // Handler to save skills to database
+  const handleSaveSkills = async () => {
+    if (!userId) return;
+
+    try {
+      setSavingSkills(true);
+      // Convert comma-separated string to JSON array format
+      const skillsArray = editableSkills
+        .split(',')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+
+      const skillsJson = JSON.stringify(skillsArray);
+
+      await userApiService.updateUser(userId, { skills: skillsJson });
+      toast.success('Skills updated successfully!');
+      setIsEditingSkills(false);
+      refetch(); // Refetch user data to update UI
+    } catch (error: any) {
+      console.error('Error saving skills:', error);
+      toast.error(error?.message || 'Failed to save skills. Please try again.');
+    } finally {
+      setSavingSkills(false);
+    }
+  };
+
+  // Start editing skills
+  const handleStartEditSkills = () => {
+    const currentSkills = parseSkills(profile?.skills);
+    setEditableSkills(currentSkills.join(', '));
+    setIsEditingSkills(true);
+  };
+
+  // Cancel editing
+  const handleCancelEditSkills = () => {
+    setIsEditingSkills(false);
+    setEditableSkills('');
+  };
 
   const getDepartmentName = useMemo(
     () => (id?: string) => {
@@ -629,22 +670,77 @@ const ProfilePage: React.FC = () => {
             <CardDescription>Self-reported technical strengths.</CardDescription>
           </CardHeader>
           <CardContent className="px-7 pb-6 pt-1">
-            {skills.length > 0 ? (
-              <div className="skill-stack-list">
-                {skills.map((skill, index) => (
-                  <Badge
-                    key={`${skill}-${index}`}
+            {isEditingSkills ? (
+              <div className="space-y-4">
+                <div className="text-left">
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    Enter skills (comma-separated)
+                  </label>
+                  <Input
+                    value={editableSkills}
+                    onChange={(e) => setEditableSkills(e.target.value)}
+                    placeholder="e.g., JavaScript, React, TypeScript, Node.js"
+                    className="w-full"
+                    disabled={savingSkills}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Separate multiple skills with commas
+                  </p>
+                </div>
+                <div className="flex justify-center gap-2">
+                  <Button
                     variant="outline"
-                    className="skill-stack-badge"
+                    size="sm"
+                    onClick={handleCancelEditSkills}
+                    disabled={savingSkills}
+                    className="flex items-center gap-1"
                   >
-                    {skill}
-                  </Badge>
-                ))}
+                    <X className="w-3 h-3" />
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleSaveSkills}
+                    disabled={savingSkills}
+                    className="flex items-center gap-1 bg-green-600 hover:bg-green-700"
+                  >
+                    {savingSkills ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Save className="w-3 h-3" />
+                    )}
+                    {savingSkills ? 'Saving...' : 'Save'}
+                  </Button>
+                </div>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                No skills listed yet. Ask your admin to capture your top competencies.
-              </p>
+              <div className="space-y-4">
+                {skills.length > 0 ? (
+                  <div className="skill-stack-list">
+                    {skills.map((skill, index) => (
+                      <Badge
+                        key={`${skill}-${index}`}
+                        variant="outline"
+                        className="skill-stack-badge"
+                      >
+                        {skill}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground py-4">
+                    No skills listed yet.
+                  </p>
+                )}
+                {/* Edit link at bottom */}
+                <button
+                  onClick={handleStartEditSkills}
+                  className="inline-flex items-center gap-1.5 text-sm text-green-600 hover:text-green-800 font-medium transition-colors cursor-pointer hover:underline"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  {skills.length > 0 ? 'Edit Skills' : 'Add Skills'}
+                </button>
+              </div>
             )}
           </CardContent>
         </Card>

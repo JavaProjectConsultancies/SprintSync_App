@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { 
-  CheckCircle2, 
-  XCircle, 
-  Loader2, 
-  Database, 
-  Server, 
-  Users, 
-  Building, 
+import {
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  Database,
+  Server,
+  Users,
+  Building,
   Globe,
   AlertTriangle,
   RefreshCw
@@ -18,6 +18,7 @@ import { useUsers, useCreateUser } from '../hooks/api/useUsers';
 import { useDepartments } from '../hooks/api/useDepartments';
 import { useDomains } from '../hooks/api/useDomains';
 import { useExperienceLevels } from '../hooks/api/useExperienceLevels';
+import { API_CONFIG } from '../services/api/config';
 
 interface TestResult {
   name: string;
@@ -54,7 +55,7 @@ const BackendConnectionTest: React.FC = () => {
     });
 
     try {
-      const response = await fetch('http://localhost:8080/api/users', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/users`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -228,7 +229,7 @@ const BackendConnectionTest: React.FC = () => {
         isActive: true
       };
 
-      const response = await fetch('http://localhost:8080/api/users', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/users`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -331,7 +332,7 @@ const BackendConnectionTest: React.FC = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-4">
-            <Button 
+            <Button
               onClick={runAllTests}
               disabled={isRunning}
               className="bg-blue-600 hover:bg-blue-700"
@@ -348,7 +349,7 @@ const BackendConnectionTest: React.FC = () => {
                 </>
               )}
             </Button>
-            <Button 
+            <Button
               onClick={() => setTestResults([])}
               variant="outline"
               disabled={isRunning}

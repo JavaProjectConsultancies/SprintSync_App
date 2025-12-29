@@ -6,11 +6,11 @@ const getApiBaseUrl = () => {
   //   return import.meta.env.VITE_API_BASE_URL;
   // }
   // // Check for React environment variable (REACT_APP_API_BASE_URL)
-  // if ((window as any).process?.env?.REACT_APP_API_BASE_URL) {
-  //   return (window as any).process.env.REACT_APP_API_BASE_URL;
-  // }
+  if ((window as any).process?.env?.REACT_APP_API_BASE_URL) {
+    return (window as any).process.env.REACT_APP_API_BASE_URL;
+  }
   // Default to server - backend WAR deploys at /sprintsync-1.0/ context path
-  return 'http://localhost:8080/api';
+  return 'http://192.168.0.236:8080/sprintsync-1.0/api';
 };
 
 export const API_CONFIG = {

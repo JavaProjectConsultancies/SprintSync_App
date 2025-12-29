@@ -66,6 +66,7 @@ import { Textarea } from "../components/ui/textarea";
 import { Progress } from "../components/ui/progress";
 
 import { useAuth } from "../contexts/AuthContextEnhanced";
+import { API_CONFIG } from "../services/api/config";
 
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 
@@ -121,6 +122,7 @@ import {
   SortDesc,
   Calculator,
   CalendarIcon,
+  Save,
 } from "lucide-react";
 
 import { Checkbox } from "../components/ui/checkbox";
@@ -517,6 +519,23 @@ const ScrumPage: React.FC = () => {
   const [backlogTaskToView, setBacklogTaskToView] = useState<Task | null>(null);
   const [selectedBacklogTasks, setSelectedBacklogTasks] = useState<string[]>([]);
   const [isLoggingEffort, setIsLoggingEffort] = useState(false);
+
+  // Edit Story Dialog State
+  const [isEditStoryDialogOpen, setIsEditStoryDialogOpen] = useState(false);
+  const [editingStory, setEditingStory] = useState<Story | null>(null);
+  const [editStoryForm, setEditStoryForm] = useState({
+    title: "",
+    description: "",
+    priority: "MEDIUM" as Priority,
+    storyPoints: 1,
+    dueDate: "",
+    assigneeId: "",
+    sprintId: "",
+    epicId: "",
+    releaseId: "",
+    acceptanceCriteria: "",
+    labels: "",
+  });
 
   // Role-based permissions
 
@@ -1275,7 +1294,7 @@ const ScrumPage: React.FC = () => {
         const taskPromises = allStoriesToFetch.map(async (story: Story) => {
           try {
             const response = await fetch(
-              `http://localhost:8080/api/tasks/story/${story.id}`,
+              `${API_CONFIG.BASE_URL}/tasks/story/${story.id}`,
               {
                 headers: {
                   Authorization: `Bearer ${token}`,
@@ -1310,7 +1329,7 @@ const ScrumPage: React.FC = () => {
         const issuePromises = allStoriesToFetch.map(async (story: Story) => {
           try {
             const response = await fetch(
-              `http://localhost:8080/api/issues/story/${story.id}`,
+              `${API_CONFIG.BASE_URL}/issues/story/${story.id}`,
               {
                 headers: {
                   Authorization: `Bearer ${token}`,
@@ -1485,7 +1504,7 @@ const ScrumPage: React.FC = () => {
         "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJkb21haW4iOiJET01OMDAwMDAwMDAwMDAwMSIsIm5hbWUiOiJBZG1pbiBVc2VyIiwiZGVwYXJ0bWVudCI6IkRFUFQwMDAwMDAwMDAwMDEiLCJ1c2VySWQiOiJVU0VSMDAwMDAwMDAwMDAxIiwic3ViIjoiYWRtaW5Ac3ByaW50c3luYy5jb20iLCJpYXQiOjE3NTk3NDg0NjUsImV4cCI6MTc1OTgzNDg2NX0.QdwUhiS_AvtqzTefTe14N7TKWB1jzrQg01Sz_lNOGBleAPqfVAgTHf97-JmCUQKZyXtAqkhYD-HN3YAMDywxRg";
 
       // Use /api/users/all to get all users without pagination
-      const response = await fetch("http://localhost:8080/api/users/all", {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/users/all`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -1524,7 +1543,7 @@ const ScrumPage: React.FC = () => {
       } else {
         console.error(`[fetchUsers] Failed to fetch users: ${response.status} ${response.statusText}`);
         // Try fallback to paginated endpoint with large page size
-        const fallbackResponse = await fetch("http://localhost:8080/api/users?page=0&size=1000", {
+        const fallbackResponse = await fetch(`${API_CONFIG.BASE_URL}/users?page=0&size=1000`, {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
@@ -3087,7 +3106,7 @@ const ScrumPage: React.FC = () => {
       const storyTasksPromises = stories.map(async (story: Story) => {
         try {
           const response = await fetch(
-            `http://localhost:8080/api/tasks/story/${story.id}`,
+            `${API_CONFIG.BASE_URL}/tasks/story/${story.id}`,
             {
               headers: {
                 Authorization: `Bearer ${token}`,
@@ -4215,6 +4234,52 @@ const ScrumPage: React.FC = () => {
         "Failed to delete board";
 
       toast.error(`Failed to delete board: ${errorMessage}`);
+    }
+  };
+
+  // Handler for updating a story
+  const handleUpdateStory = async () => {
+    if (!editingStory) {
+      toast.error("No story selected for editing");
+      return;
+    }
+
+    if (!editStoryForm.title.trim()) {
+      toast.error("Story title is required");
+      return;
+    }
+
+    try {
+      const updateData = {
+        ...editingStory,
+        title: editStoryForm.title.trim(),
+        description: editStoryForm.description.trim(),
+        priority: editStoryForm.priority,
+        storyPoints: editStoryForm.storyPoints,
+        dueDate: editStoryForm.dueDate || null,
+        assigneeId: editStoryForm.assigneeId || null,
+        sprintId: editStoryForm.sprintId || null,
+        epicId: editStoryForm.epicId || null,
+        releaseId: editStoryForm.releaseId || null,
+        acceptanceCriteria: editStoryForm.acceptanceCriteria
+          ? editStoryForm.acceptanceCriteria.split('\n').filter((line: string) => line.trim())
+          : [],
+        labels: editStoryForm.labels
+          ? editStoryForm.labels.split(',').map((label: string) => label.trim()).filter((label: string) => label)
+          : [],
+      };
+
+      await updateStoryMutate({ id: editingStory.id, story: updateData });
+
+      toast.success(`Story "${editStoryForm.title}" updated successfully!`);
+      setIsEditStoryDialogOpen(false);
+      setEditingStory(null);
+
+      // Refresh stories
+      refetchSprintStories();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.error || error?.message || "Failed to update story";
+      toast.error(`Failed to update story: ${errorMessage}`);
     }
   };
 
@@ -6381,6 +6446,35 @@ const ScrumPage: React.FC = () => {
                     </DropdownMenuTrigger>
 
                     <DropdownMenuContent align="end">
+                      {canManageSprintsAndStories && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingStory(story);
+                            setEditStoryForm({
+                              title: story.title || "",
+                              description: story.description || "",
+                              priority: story.priority || "MEDIUM",
+                              storyPoints: story.storyPoints || 1,
+                              dueDate: story.dueDate ? story.dueDate.split('T')[0] : "",
+                              assigneeId: story.assigneeId || "",
+                              sprintId: story.sprintId || "",
+                              epicId: story.epicId || "",
+                              releaseId: story.releaseId || "",
+                              acceptanceCriteria: Array.isArray(story.acceptanceCriteria)
+                                ? story.acceptanceCriteria.join("\n")
+                                : (story.acceptanceCriteria || ""),
+                              labels: Array.isArray(story.labels)
+                                ? story.labels.join(", ")
+                                : (story.labels || ""),
+                            });
+                            setIsEditStoryDialogOpen(true);
+                          }}
+                        >
+                          <Edit3 className="w-4 h-4 mr-2" />
+                          Edit Story
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem>
                         <TrendingUp className="w-4 h-4 mr-2" />
                         Story Insights
@@ -8407,7 +8501,7 @@ const ScrumPage: React.FC = () => {
                 </CardContent>
               </Card>
             </div>
-          ) : !selectedSprint || !currentSprint ? (
+          ) : (!selectedSprint || !currentSprint) && !selectedBoard ? (
             <div className="flex items-center justify-center py-16">
               <Card className="w-[480px] shadow-xl border-0 bg-white/90 backdrop-blur-sm dark:bg-slate-800/90">
                 <CardHeader className="text-center pb-2">
@@ -9895,7 +9989,7 @@ const ScrumPage: React.FC = () => {
                                 )}
 
                                 {story.assigneeName && (
-                                  <span>Assignee: {story.assigneeName}</span>
+                                  <span>Assigned To: {story.assigneeName}</span>
                                 )}
 
                                 {story.epicName && (
@@ -10285,7 +10379,7 @@ const ScrumPage: React.FC = () => {
                     )}
 
                     <div>
-                      <h4 className="font-medium mb-2">Assignee</h4>
+                      <h4 className="font-medium mb-2">Assigned To</h4>
 
                       <p className="text-sm bg-gray-50 p-2 rounded">
                         {selectedStoryForDetails.assigneeId
@@ -10521,19 +10615,31 @@ const ScrumPage: React.FC = () => {
                 <div className="space-y-2">
                   <Label htmlFor="story-points">Story Points</Label>
 
-                  <Input
-                    id="story-points"
-                    type="number"
-                    value={newStory.storyPoints}
-                    onChange={(e) =>
+                  <Select
+                    value={newStory.storyPoints?.toString() || "0"}
+                    onValueChange={(value) =>
                       setNewStory((prev) => ({
                         ...prev,
-                        storyPoints: parseInt(e.target.value) || 0,
+                        storyPoints: parseInt(value) || 0,
                       }))
                     }
-                    onFocus={(e) => e.target.select()}
-                    placeholder="0"
-                  />
+                  >
+                    <SelectTrigger id="story-points">
+                      <SelectValue placeholder="Select points" />
+                    </SelectTrigger>
+
+                    <SelectContent>
+                      <SelectItem value="1">1</SelectItem>
+                      <SelectItem value="2">2</SelectItem>
+                      <SelectItem value="3">3</SelectItem>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="8">8</SelectItem>
+                      <SelectItem value="13">13</SelectItem>
+                      <SelectItem value="21">21</SelectItem>
+                      <SelectItem value="34">34</SelectItem>
+                      <SelectItem value="55">55</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">
@@ -10671,7 +10777,7 @@ const ScrumPage: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="story-assignee">Assignee</Label>
+                  <Label htmlFor="story-assignee">Assigned To</Label>
 
                   <Select
                     value={newStory.assigneeId || "UNASSIGNED"}
@@ -11175,7 +11281,7 @@ const ScrumPage: React.FC = () => {
                     </div>
 
                     <div>
-                      <h4 className="font-medium mb-2">Assignee</h4>
+                      <h4 className="font-medium mb-2">Assigned To</h4>
 
                       <p className="text-sm bg-gray-50 p-2 rounded">
                         {selectedTaskForDetails.assigneeId
@@ -11393,7 +11499,7 @@ const ScrumPage: React.FC = () => {
               </div>
 
               <div>
-                <Label htmlFor="subtask-assignee">Assignee</Label>
+                <Label htmlFor="subtask-assignee">Assigned To</Label>
 
                 <Select
                   value={newSubtask.assigneeId}
@@ -11588,7 +11694,7 @@ const ScrumPage: React.FC = () => {
               </div>
 
               <div>
-                <Label htmlFor="edit-subtask-assignee">Assignee</Label>
+                <Label htmlFor="edit-subtask-assignee">Assigned To</Label>
                 <Select
                   value={newSubtask.assigneeId}
                   onValueChange={(value) =>
@@ -13141,7 +13247,7 @@ const ScrumPage: React.FC = () => {
                             {/* Assignee Dropdown */}
                             <div>
                               <label className="text-xs font-medium text-gray-900 block mb-1">
-                                Assignee
+                                Assigned To
                               </label>
                               <Select
                                 value={selectedTaskForDetails.assigneeId || "unassigned"}
@@ -13159,10 +13265,10 @@ const ScrumPage: React.FC = () => {
                                           : t
                                       )
                                     );
-                                    toast.success("Assignee updated");
+                                    toast.success("Assigned To changed");
                                   } catch (error) {
                                     console.error("Failed to update assignee:", error);
-                                    toast.error("Failed to update assignee");
+                                    toast.error("Failed to change Assigned To");
                                   }
                                 }}
                               >
@@ -13229,7 +13335,7 @@ const ScrumPage: React.FC = () => {
 
                         <div>
                           <label className="text-xs font-medium text-gray-600 block mb-1">
-                            Assignee
+                            Assigned To
                           </label>
 
                           <div className="flex items-center space-x-2">
@@ -14231,7 +14337,7 @@ const ScrumPage: React.FC = () => {
                           {/* Assignee Dropdown */}
                           <div>
                             <label className="text-xs font-medium text-gray-900 block mb-1">
-                              Assignee
+                              Assigned To
                             </label>
                             <Select
                               value={selectedIssueForDetails.assigneeId || "unassigned"}
@@ -14249,10 +14355,10 @@ const ScrumPage: React.FC = () => {
                                         : i
                                     )
                                   );
-                                  toast.success("Assignee updated");
+                                  toast.success("Assigned To changed");
                                 } catch (error) {
                                   console.error("Failed to update assignee:", error);
-                                  toast.error("Failed to update assignee");
+                                  toast.error("Failed to change Assigned To");
                                 }
                               }}
                             >
@@ -14319,7 +14425,7 @@ const ScrumPage: React.FC = () => {
 
                       <div>
                         <label className="text-xs font-medium text-gray-600 block mb-1">
-                          Assignee
+                          Assigned To
                         </label>
 
                         <div className="flex items-center space-x-2">
@@ -14652,6 +14758,159 @@ const ScrumPage: React.FC = () => {
                   Create Board
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Story Dialog */}
+      <Dialog
+        open={isEditStoryDialogOpen}
+        onOpenChange={(open) => {
+          setIsEditStoryDialogOpen(open);
+          if (!open) setEditingStory(null);
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit3 className="w-5 h-5 text-blue-600" />
+              Edit Story
+            </DialogTitle>
+            <DialogDescription>
+              Update the story details. Changes will be saved to the database.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Title */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-story-title">Title *</Label>
+              <Input
+                id="edit-story-title"
+                placeholder="Story title"
+                value={editStoryForm.title}
+                onChange={(e) =>
+                  setEditStoryForm((prev) => ({ ...prev, title: e.target.value }))
+                }
+              />
+            </div>
+
+            {/* Description */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-story-description">Description</Label>
+              <Textarea
+                id="edit-story-description"
+                placeholder="Story description"
+                value={editStoryForm.description}
+                onChange={(e) =>
+                  setEditStoryForm((prev) => ({ ...prev, description: e.target.value }))
+                }
+                rows={3}
+              />
+            </div>
+
+            {/* Priority and Story Points */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-story-priority">Priority</Label>
+                <Select
+                  value={editStoryForm.priority}
+                  onValueChange={(value) =>
+                    setEditStoryForm((prev) => ({ ...prev, priority: value as Priority }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LOW">Low</SelectItem>
+                    <SelectItem value="MEDIUM">Medium</SelectItem>
+                    <SelectItem value="HIGH">High</SelectItem>
+                    <SelectItem value="CRITICAL">Critical</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-story-points">Story Points</Label>
+                <Select
+                  value={String(editStoryForm.storyPoints)}
+                  onValueChange={(value) =>
+                    setEditStoryForm((prev) => ({ ...prev, storyPoints: parseInt(value) }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Points" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1</SelectItem>
+                    <SelectItem value="2">2</SelectItem>
+                    <SelectItem value="3">3</SelectItem>
+                    <SelectItem value="5">5</SelectItem>
+                    <SelectItem value="8">8</SelectItem>
+                    <SelectItem value="13">13</SelectItem>
+                    <SelectItem value="21">21</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Due Date */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-story-due-date">Due Date</Label>
+              <Input
+                id="edit-story-due-date"
+                type="date"
+                value={editStoryForm.dueDate}
+                onChange={(e) =>
+                  setEditStoryForm((prev) => ({ ...prev, dueDate: e.target.value }))
+                }
+              />
+            </div>
+
+            {/* Acceptance Criteria */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-story-acceptance">Acceptance Criteria</Label>
+              <Textarea
+                id="edit-story-acceptance"
+                placeholder="Enter acceptance criteria (one per line)"
+                value={editStoryForm.acceptanceCriteria}
+                onChange={(e) =>
+                  setEditStoryForm((prev) => ({ ...prev, acceptanceCriteria: e.target.value }))
+                }
+                rows={3}
+              />
+              <p className="text-xs text-muted-foreground">One criterion per line</p>
+            </div>
+
+            {/* Labels */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-story-labels">Labels</Label>
+              <Input
+                id="edit-story-labels"
+                placeholder="bug, feature, enhancement (comma-separated)"
+                value={editStoryForm.labels}
+                onChange={(e) =>
+                  setEditStoryForm((prev) => ({ ...prev, labels: e.target.value }))
+                }
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditStoryDialogOpen(false);
+                setEditingStory(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateStory} disabled={!editStoryForm.title.trim()}>
+              <Save className="w-4 h-4 mr-2" />
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -448,16 +448,9 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {[1, 2, 3, 5, 8, 13, 21].map(point => (
+                          {[1, 2, 3, 5, 8, 13, 21, 34, 55].map(point => (
                             <SelectItem key={point} value={point.toString()}>
-                              <div className="flex items-center space-x-2">
-                                <span className={`font-medium ${getPointsColor(point)}`}>{point}</span>
-                                <span className="text-muted-foreground">
-                                  {point <= 3 && '(Small)'}
-                                  {point > 3 && point <= 8 && '(Medium)'}
-                                  {point > 8 && '(Large)'}
-                                </span>
-                              </div>
+                              {point}
                             </SelectItem>
                           ))}
                         </SelectContent>

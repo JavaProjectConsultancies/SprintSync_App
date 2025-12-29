@@ -7,15 +7,15 @@ import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { ScrollArea } from '../components/ui/scroll-area';
-import { 
-  Calendar, 
-  ChevronLeft, 
-  ChevronRight, 
-  Plus, 
-  Filter, 
-  Clock, 
-  Target, 
-  Flag, 
+import {
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Filter,
+  Clock,
+  Target,
+  Flag,
   Users,
   CheckCircle2,
   AlertTriangle,
@@ -24,6 +24,7 @@ import {
   GitBranch,
   Zap
 } from 'lucide-react';
+import { formatDateDDMMYYYY } from '../utils/dateUtils';
 
 interface CalendarEvent {
   id: string;
@@ -189,11 +190,7 @@ const CalendarPage: React.FC = () => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    });
+    return formatDateDDMMYYYY(dateString);
   };
 
   const formatTime = (timeString: string) => {
@@ -214,8 +211,8 @@ const CalendarPage: React.FC = () => {
   // Get events for current month
   const currentMonthEvents = filteredEvents.filter(event => {
     const eventDate = new Date(event.date);
-    return eventDate.getMonth() === currentDate.getMonth() && 
-           eventDate.getFullYear() === currentDate.getFullYear();
+    return eventDate.getMonth() === currentDate.getMonth() &&
+      eventDate.getFullYear() === currentDate.getFullYear();
   });
 
   // Generate calendar days
@@ -258,9 +255,9 @@ const CalendarPage: React.FC = () => {
 
   const today = new Date();
   const isToday = (day: number) => {
-    return today.getDate() === day && 
-           today.getMonth() === currentDate.getMonth() && 
-           today.getFullYear() === currentDate.getFullYear();
+    return today.getDate() === day &&
+      today.getMonth() === currentDate.getMonth() &&
+      today.getFullYear() === currentDate.getFullYear();
   };
 
   return (
@@ -374,15 +371,14 @@ const CalendarPage: React.FC = () => {
                   </div>
                 ))}
               </div>
-              
+
               <div className="grid grid-cols-7 gap-1">
                 {generateCalendarDays().map((day, index) => (
                   <div key={index} className="min-h-[120px] border rounded-lg p-1">
                     {day && (
                       <>
-                        <div className={`text-sm font-medium mb-1 ${
-                          isToday(day) ? 'text-blue-600 font-bold' : 'text-gray-900'
-                        }`}>
+                        <div className={`text-sm font-medium mb-1 ${isToday(day) ? 'text-blue-600 font-bold' : 'text-gray-900'
+                          }`}>
                           {day}
                         </div>
                         <div className="space-y-1">
@@ -392,9 +388,8 @@ const CalendarPage: React.FC = () => {
                             return (
                               <div
                                 key={event.id}
-                                className={`text-xs p-1 rounded border-l-2 cursor-pointer hover:bg-gray-50 ${
-                                  getPriorityColor(event.priority)
-                                }`}
+                                className={`text-xs p-1 rounded border-l-2 cursor-pointer hover:bg-gray-50 ${getPriorityColor(event.priority)
+                                  }`}
                                 onClick={() => setSelectedDate(new Date(event.date))}
                               >
                                 <div className="flex items-center space-x-1">

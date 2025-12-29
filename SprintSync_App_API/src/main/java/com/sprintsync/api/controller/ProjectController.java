@@ -184,36 +184,30 @@ public class ProjectController {
     public ResponseEntity<Map<String, Object>> getAccessibleProjects(HttpServletRequest request) {
         try {
             String token = extractTokenFromRequest(request);
-            if (token == null) {
-                logger.error("Authentication token not provided. Headers found:");
-                java.util.Enumeration<String> headerNames = request.getHeaderNames();
-                while (headerNames.hasMoreElements()) {
-                    String headerName = headerNames.nextElement();
-                    logger.error("{}: {}", headerName, request.getHeader(headerName));
-                }
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(createEmptyProjectResponse("Authentication token not provided."));
-            }
-
-            User currentUser;
-            try {
-                currentUser = authService.getCurrentUser(token);
-            } catch (Exception e) {
-                logger.warn("Invalid token provided: {}", e.getMessage());
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(createEmptyProjectResponse("Invalid or expired token."));
-            }
-
-            if (currentUser == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(createEmptyProjectResponse("Unable to identify current user."));
-            }
 
             List<Project> projects;
-            if (currentUser.getRole() == UserRole.admin) {
+
+            // If no token provided, fallback to returning all projects
+            if (token == null) {
+                logger.debug("No authentication token provided for /accessible, returning all projects.");
                 projects = projectService.getAllProjects();
             } else {
-                projects = projectService.getProjectsForUser(currentUser.getId());
+                User currentUser = null;
+                try {
+                    currentUser = authService.getCurrentUser(token);
+                } catch (Exception e) {
+                    logger.warn("Invalid token provided for /accessible: {}. Falling back to all projects.",
+                            e.getMessage());
+                }
+
+                if (currentUser == null) {
+                    logger.debug("Unable to identify user from token, returning all projects.");
+                    projects = projectService.getAllProjects();
+                } else if (currentUser.getRole() == UserRole.admin) {
+                    projects = projectService.getAllProjects();
+                } else {
+                    projects = projectService.getProjectsForUser(currentUser.getId());
+                }
             }
 
             List<ProjectDto> projectDtos = projects.stream()

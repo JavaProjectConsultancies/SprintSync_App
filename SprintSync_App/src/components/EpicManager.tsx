@@ -922,7 +922,7 @@ const EpicManager = ({
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="epic-assignee">Assignee</Label>
+                <Label htmlFor="epic-assignee">Assigned To</Label>
                 <Select
                   value={newEpic.assigneeId}
                   onValueChange={(value) => handleInputChange('assigneeId', value)}
@@ -1083,7 +1083,7 @@ const EpicManager = ({
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-epic-assignee">Assignee</Label>
+                <Label htmlFor="edit-epic-assignee">Assigned To</Label>
                 <Select
                   value={newEpic.assigneeId}
                   onValueChange={(value) => handleInputChange('assigneeId', value)}
@@ -1247,7 +1247,7 @@ const EpicManager = ({
                 </div>
                 {epicToView.assigneeId && (
                   <div className="space-y-2">
-                    <Label>Assignee</Label>
+                    <Label>Assigned To</Label>
                     <p className="text-sm text-gray-700">
                       {apiUsers?.find(u => u.id === epicToView.assigneeId)?.name || 'Unassigned'}
                     </p>

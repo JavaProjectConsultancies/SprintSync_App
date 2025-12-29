@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useProjectById } from '../hooks/api/useProjectById';
 import { useRequirements } from '../hooks/api/useRequirements';
 import { useTeamMembers } from '../hooks/api/useTeamMembers';
+import { useUsers } from '../hooks/api/useUsers';
 import { useProjectActivities } from '../hooks/api/useActivityLogs';
 import { useAllStories } from '../hooks/api/useStories';
 import EpicManager from '../components/EpicManager';
@@ -28,6 +29,7 @@ import { toast } from 'sonner';
 import { Epic as ApiEpic } from '../types/api';
 import { Epic, EpicStatus } from '../types';
 import { subscribeToProjectBudgetUpdates } from '../utils/projectBudgetEvents';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../utils/dateUtils';
 import {
   ArrowLeft,
   Calendar,
@@ -52,7 +54,8 @@ import {
   Download,
   Trash2,
   Eye,
-  Loader2
+  Loader2,
+  Pencil
 } from 'lucide-react';
 
 interface Milestone {
@@ -153,7 +156,7 @@ const ProjectDetailsPage = () => {
   }, [id, refetch]);
 
   // Fetch requirements for the project
-  const { requirements, createRequirement, loading: requirementsLoading } = useRequirements(id || '');
+  const { requirements, createRequirement, updateRequirement, deleteRequirement, loading: requirementsLoading, refetch: refetchRequirements } = useRequirements(id || '');
 
   // Fetch team members for the project
   const {
@@ -166,6 +169,9 @@ const ProjectDetailsPage = () => {
 
   // Fetch all stories to calculate epic progress
   const { data: allStories, loading: storiesLoading } = useAllStories();
+
+  // Fetch all users to resolve user names in activity logs
+  const { data: allUsers } = useUsers({ page: 0, size: 1000 });
 
   // Fetch all project-related activity logs (includes project creation and all activities)
   const {
@@ -180,6 +186,7 @@ const ProjectDetailsPage = () => {
   const [localRequirements, setLocalRequirements] = useState<any[]>([]);
   const [isAddRequirementDialogOpen, setIsAddRequirementDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<'requirement' | 'attachment'>('attachment');
+  const [editingRequirement, setEditingRequirement] = useState<any | null>(null);
 
   // Team management state
   const [isTeamManagerOpen, setIsTeamManagerOpen] = useState(false);
@@ -881,11 +888,7 @@ const ProjectDetailsPage = () => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    });
+    return formatDateDDMMYYYY(dateString);
   };
 
   const formatCurrency = (amount: number) => {
@@ -1213,10 +1216,18 @@ const ProjectDetailsPage = () => {
                 ) : (
                   <div className="space-y-4">
                     {activityLogs.map((activityLog) => {
-                      // Find user in team members
-                      const user = localTeamMembers.find(m => m.id === activityLog.userId) ||
-                        teamMembers.find(m => m.id === activityLog.userId);
-                      const userName = user?.name || activityLog.userId || 'Unknown User';
+                      // Try multiple possible userId fields
+                      const activityUserId = (activityLog as any).userId ||
+                        (activityLog as any).performedBy ||
+                        (activityLog as any).createdBy ||
+                        (activityLog as any).user_id;
+
+                      // Find user in team members first, then fall back to all users
+                      const user = localTeamMembers.find(m => m.id === activityUserId) ||
+                        teamMembers.find(m => m.id === activityUserId) ||
+                        (allUsers && allUsers.find((u: any) => u.id === activityUserId));
+
+                      const userName = user?.name || activityUserId || 'Unknown User';
                       const userInitials = getInitials(userName);
                       const activityMessage = formatActivityMessage(activityLog);
 
@@ -1320,6 +1331,7 @@ const ProjectDetailsPage = () => {
                   className="bg-white hover:bg-blue-50"
                   onClick={() => {
                     setDialogMode('requirement');
+                    setEditingRequirement(null);
                     setRequirementForm({
                       title: '',
                       description: '',
@@ -1396,12 +1408,44 @@ const ProjectDetailsPage = () => {
                           size="sm"
                           className="h-7 w-7 p-0"
                           onClick={() => {
-                            // TODO: Implement edit requirement
-                            toast.info('Edit requirement functionality coming soon');
+                            setEditingRequirement(requirement);
+                            setDialogMode('requirement');
+                            setRequirementForm({
+                              title: requirement.title || '',
+                              description: requirement.description || '',
+                              priority: (requirement.priority?.toLowerCase()) || 'medium',
+                              type: (requirement.type?.toLowerCase()?.replace('_', '-')) || 'functional',
+                              acceptanceCriteria: requirement.acceptanceCriteria || ''
+                            });
+                            setIsAddRequirementDialogOpen(true);
                           }}
                           title="Edit requirement"
                         >
-                          <Settings className="w-4 h-4" />
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={async () => {
+                            if (window.confirm(`Are you sure you want to delete "${requirement.title}"?`)) {
+                              try {
+                                const success = await deleteRequirement(requirement.id);
+                                if (success) {
+                                  toast.success('Requirement deleted successfully');
+                                  setLocalRequirements(prev => prev.filter(r => r.id !== requirement.id));
+                                } else {
+                                  toast.error('Failed to delete requirement');
+                                }
+                              } catch (error) {
+                                console.error('Error deleting requirement:', error);
+                                toast.error('Failed to delete requirement');
+                              }
+                            }
+                          }}
+                          title="Delete requirement"
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>
@@ -1987,11 +2031,15 @@ const ProjectDetailsPage = () => {
         >
           <DialogHeader>
             <DialogTitle className="text-xl">
-              {dialogMode === 'requirement' ? 'Add Requirement' : 'Add Attachment'}
+              {dialogMode === 'requirement'
+                ? (editingRequirement ? 'Edit Requirement' : 'Add Requirement')
+                : 'Add Attachment'}
             </DialogTitle>
             <DialogDescription className="text-base">
               {dialogMode === 'requirement'
-                ? 'Create a new functional or non-functional requirement for this project.'
+                ? (editingRequirement
+                  ? 'Update the details of this requirement.'
+                  : 'Create a new functional or non-functional requirement for this project.')
                 : 'Upload files or add URLs to attach to this project. All file types are supported.'}
             </DialogDescription>
           </DialogHeader>
@@ -2146,6 +2194,7 @@ const ProjectDetailsPage = () => {
               setSelectedFile(null);
               setAttachmentUrl('');
               setAttachmentUrlName('');
+              setEditingRequirement(null);
               setRequirementForm({
                 title: '',
                 description: '',
@@ -2168,42 +2217,79 @@ const ProjectDetailsPage = () => {
                     return;
                   }
                   try {
-                    const newRequirement = await createRequirement({
-                      projectId: id,
-                      title: requirementForm.title,
-                      description: requirementForm.description || undefined,
-                      type: requirementForm.type.toUpperCase() as any,
-                      priority: requirementForm.priority.toUpperCase() as any,
-                      acceptanceCriteria: requirementForm.acceptanceCriteria || undefined
-                    });
-                    if (newRequirement) {
-                      toast.success('Requirement created successfully');
-                      setLocalRequirements(prev => [...prev, newRequirement]);
-                      setIsAddRequirementDialogOpen(false);
-                      setRequirementForm({
-                        title: '',
-                        description: '',
-                        priority: 'medium',
-                        type: 'functional',
-                        acceptanceCriteria: ''
+                    if (editingRequirement) {
+                      // Update existing requirement
+                      const updatedRequirement = await updateRequirement(editingRequirement.id, {
+                        projectId: id,
+                        title: requirementForm.title,
+                        description: requirementForm.description || undefined,
+                        type: requirementForm.type.toUpperCase().replace('-', '_') as any,
+                        priority: requirementForm.priority.toUpperCase() as any,
+                        acceptanceCriteria: requirementForm.acceptanceCriteria || undefined
                       });
+                      if (updatedRequirement) {
+                        toast.success('Requirement updated successfully');
+                        setLocalRequirements(prev =>
+                          prev.map(r => r.id === editingRequirement.id ? updatedRequirement : r)
+                        );
+                        setIsAddRequirementDialogOpen(false);
+                        setEditingRequirement(null);
+                        setRequirementForm({
+                          title: '',
+                          description: '',
+                          priority: 'medium',
+                          type: 'functional',
+                          acceptanceCriteria: ''
+                        });
+                      }
+                    } else {
+                      // Create new requirement
+                      const newRequirement = await createRequirement({
+                        projectId: id,
+                        title: requirementForm.title,
+                        description: requirementForm.description || undefined,
+                        type: requirementForm.type.toUpperCase().replace('-', '_') as any,
+                        priority: requirementForm.priority.toUpperCase() as any,
+                        acceptanceCriteria: requirementForm.acceptanceCriteria || undefined
+                      });
+                      if (newRequirement) {
+                        toast.success('Requirement created successfully');
+                        setLocalRequirements(prev => [...prev, newRequirement]);
+                        setIsAddRequirementDialogOpen(false);
+                        setRequirementForm({
+                          title: '',
+                          description: '',
+                          priority: 'medium',
+                          type: 'functional',
+                          acceptanceCriteria: ''
+                        });
+                      }
                     }
                   } catch (error) {
-                    console.error('Error creating requirement:', error);
-                    toast.error('Failed to create requirement');
+                    console.error('Error saving requirement:', error);
+                    toast.error(editingRequirement ? 'Failed to update requirement' : 'Failed to create requirement');
                   }
                 }}
                 disabled={!requirementForm.title.trim() || requirementsLoading}
               >
                 {requirementsLoading ? (
                   <>
-                    <Plus className="w-4 h-4 mr-2 animate-pulse" />
-                    Creating...
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    {editingRequirement ? 'Updating...' : 'Creating...'}
                   </>
                 ) : (
                   <>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create Requirement
+                    {editingRequirement ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                        Update Requirement
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Create Requirement
+                      </>
+                    )}
                   </>
                 )}
               </Button>

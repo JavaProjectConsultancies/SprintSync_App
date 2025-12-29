@@ -3131,7 +3131,7 @@ const ProjectsPage: React.FC = () => {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="epic-assignee">Assignee</Label>
+                <Label htmlFor="epic-assignee">Assigned To</Label>
                 <Select
                   value={currentEpic.assigneeId}
                   onValueChange={(value) => setCurrentEpic(prev => ({ ...prev, assigneeId: value }))}

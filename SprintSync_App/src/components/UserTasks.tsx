@@ -32,11 +32,12 @@ import {
 } from 'lucide-react';
 import { UserTask } from '../types';
 import { useTasksByAssignee, useTasks, useAllTasks } from '../hooks/api/useTasks';
+import { useAllIssues, useIssuesByAssignee } from '../hooks/api/useIssues';
 import { useProjects } from '../hooks/api/useProjects';
 import { useAllStories } from '../hooks/api/useStories';
 import { useAllSprints } from '../hooks/api/useSprints';
 import { useUsers } from '../hooks/api/useUsers';
-import { Task } from '../types/api';
+import { Task, Issue } from '../types/api';
 
 interface UserTasksProps {
   userId: string;
@@ -63,8 +64,11 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
     }
   }, [selectedProjectFilter]);
 
-  // Check if user is manager/admin
-  const isManagerOrAdmin = userRole === 'admin' || userRole === 'manager';
+  // Check if user is manager/admin/qa_manager (can see all tasks/issues)
+  const isManagerOrAdmin = userRole === 'admin' || userRole === 'manager' || userRole === 'qa_manager';
+
+  // Check if user is QA role (qa_manager or qa_developer) - these roles should see issues
+  const isQARole = userRole === 'qa_manager' || userRole === 'qa_developer';
 
   // Fetch projects, stories, sprints, and users for filters
   const { data: apiProjects } = useProjects();
@@ -156,21 +160,38 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
 
   // Fetch tasks based on role:
   // - Admins: Fetch ALL tasks
-  // - Managers: Fetch ALL tasks (and filter on client side) to ensure accurate counts
+  // - Managers/QA Managers: Fetch ALL tasks (and filter on client side) to ensure accurate counts
   // - Other users: Fetch only their assigned tasks
   const { data: allTasksData, loading: allTasksLoading, error: allTasksError } = useAllTasks();
   const { data: assignedTasksData, loading: assignedTasksLoading, error: assignedTasksError } = useTasksByAssignee(userId);
 
+  // Fetch issues for QA roles:
+  // - QA Manager / Admin: Fetch ALL issues using useAllIssues
+  // - QA Developer: Fetch only their assigned issues
+  const { data: allIssuesData, loading: allIssuesLoading, error: allIssuesError } = useAllIssues();
+  const { data: assignedIssuesData, loading: assignedIssuesLoading, error: assignedIssuesError } = useIssuesByAssignee(userId);
+
   // Use appropriate data based on role
   const rawTasksData = userRole === 'admin' ? allTasksData :
     userRole === 'manager' ? allTasksData :
-      assignedTasksData;
+      userRole === 'qa_manager' ? allTasksData :
+        assignedTasksData;
   const tasksLoading = userRole === 'admin' ? allTasksLoading :
     userRole === 'manager' ? allTasksLoading :
-      assignedTasksLoading;
+      userRole === 'qa_manager' ? allTasksLoading :
+        assignedTasksLoading;
   const tasksError = userRole === 'admin' ? allTasksError :
     userRole === 'manager' ? allTasksError :
-      assignedTasksError;
+      userRole === 'qa_manager' ? allTasksError :
+        assignedTasksError;
+
+  // Use appropriate issue data based on role  
+  const rawIssuesData = isQARole ? (userRole === 'qa_manager' ? allIssuesData : assignedIssuesData) :
+    userRole === 'admin' ? allIssuesData : null;
+  const issuesLoading = isQARole ? (userRole === 'qa_manager' ? allIssuesLoading : assignedIssuesLoading) :
+    userRole === 'admin' ? allIssuesLoading : false;
+  const issuesError = isQARole ? (userRole === 'qa_manager' ? allIssuesError : assignedIssuesError) :
+    userRole === 'admin' ? allIssuesError : null;
 
   // Extract and filter tasks from API response
   const assignedTasks = useMemo(() => {
@@ -224,62 +245,131 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
 
   // Map API Task data to UserTask format
   const userTasks = useMemo(() => {
-    if (!assignedTasks || assignedTasks.length === 0) return [];
+    const taskItems: (UserTask & { assigneeName?: string; assigneeId?: string; itemType?: 'task' | 'issue' })[] = [];
 
-    return assignedTasks.map((task: Task) => {
-      // Normalize task status - handle case variations and different formats
-      const taskStatus = (task.status || '').toString().toUpperCase().trim();
+    // Process tasks
+    if (assignedTasks && assignedTasks.length > 0) {
+      assignedTasks.forEach((task: Task) => {
+        // Normalize task status - handle case variations and different formats
+        const taskStatus = (task.status || '').toString().toUpperCase().trim();
 
-      // Map API status to display status - handle all possible status values
-      const statusMap: Record<string, 'pending' | 'in-progress' | 'completed'> = {
-        'TO_DO': 'pending',
-        'TODO': 'pending',
-        'TO DO': 'pending',
-        'IN_PROGRESS': 'in-progress',
-        'IN PROGRESS': 'in-progress',
-        'QA_REVIEW': 'in-progress',
-        'QA REVIEW': 'in-progress',
-        'REVIEW': 'in-progress',
-        'DONE': 'completed',
-        'COMPLETED': 'completed',
-        'BLOCKED': 'pending',
-        'CANCELLED': 'completed',
-        'CANCELED': 'completed'
-      };
+        // Map API status to display status - handle all possible status values
+        const statusMap: Record<string, 'pending' | 'in-progress' | 'completed'> = {
+          'TO_DO': 'pending',
+          'TODO': 'pending',
+          'TO DO': 'pending',
+          'IN_PROGRESS': 'in-progress',
+          'IN PROGRESS': 'in-progress',
+          'QA_REVIEW': 'in-progress',
+          'QA REVIEW': 'in-progress',
+          'REVIEW': 'in-progress',
+          'DONE': 'completed',
+          'COMPLETED': 'completed',
+          'BLOCKED': 'pending',
+          'CANCELLED': 'completed',
+          'CANCELED': 'completed'
+        };
 
-      // Map API priority to display priority - handle case variations
-      const taskPriority = (task.priority || '').toString().toUpperCase().trim();
-      const priorityMap: Record<string, 'critical' | 'high' | 'medium' | 'low'> = {
-        'CRITICAL': 'critical',
-        'HIGH': 'high',
-        'MEDIUM': 'medium',
-        'LOW': 'low'
-      };
+        // Map API priority to display priority - handle case variations
+        const taskPriority = (task.priority || '').toString().toUpperCase().trim();
+        const priorityMap: Record<string, 'critical' | 'high' | 'medium' | 'low'> = {
+          'CRITICAL': 'critical',
+          'HIGH': 'high',
+          'MEDIUM': 'medium',
+          'LOW': 'low'
+        };
 
-      // Determine display status with fallback
-      const displayStatus = statusMap[taskStatus] || 'pending';
+        // Determine display status with fallback
+        const displayStatus = statusMap[taskStatus] || 'pending';
 
-      // Get assignee information
-      const assigneeId = (task as any).assigneeId || (task as any).assignee?.id;
-      const assignee = assigneeId ? normalizeApiData(apiUsers).find((u: any) => String(u.id) === String(assigneeId)) : null;
-      const assigneeName = assignee ? (assignee.name || assignee.email || 'Unassigned') : 'Unassigned';
+        // Get assignee information
+        const assigneeId = (task as any).assigneeId || (task as any).assignee?.id;
+        const assignee = assigneeId ? normalizeApiData(apiUsers).find((u: any) => String(u.id) === String(assigneeId)) : null;
+        const assigneeName = assignee ? (assignee.name || assignee.email || 'Unassigned') : 'Unassigned';
 
-      return {
-        id: task.id,
-        title: task.title,
-        description: task.description || 'No description provided',
-        status: displayStatus,
-        priority: priorityMap[taskPriority] || 'medium',
-        dueDate: task.dueDate || new Date().toISOString(),
-        estimatedHours: task.estimatedHours || 0,
-        projectId: task.storyId || 'unknown',
-        projectName: `Task ${task.id.slice(-4)}`, // Fallback if no story info
-        type: 'development', // Default type
-        assigneeName: assigneeName,
-        assigneeId: assigneeId
-      } as UserTask & { assigneeName?: string; assigneeId?: string };
-    });
-  }, [assignedTasks, apiUsers]);
+        taskItems.push({
+          id: task.id,
+          title: task.title,
+          description: task.description || 'No description provided',
+          status: displayStatus,
+          priority: priorityMap[taskPriority] || 'medium',
+          dueDate: task.dueDate || new Date().toISOString(),
+          estimatedHours: task.estimatedHours || 0,
+          projectId: task.storyId || 'unknown',
+          projectName: `Task ${task.id.slice(-4)}`, // Fallback if no story info
+          type: 'development', // Default type
+          assignedBy: 'System',
+          createdAt: (task as any).createdAt || new Date().toISOString(),
+          assigneeName: assigneeName,
+          assigneeId: assigneeId,
+          itemType: 'task'
+        });
+      });
+    }
+
+    // Process issues (for QA roles and admin)
+    if (rawIssuesData && (isQARole || userRole === 'admin')) {
+      const issues = Array.isArray(rawIssuesData)
+        ? rawIssuesData
+        : (rawIssuesData as any).data || (rawIssuesData as any).content || [];
+
+      issues.forEach((issue: Issue) => {
+        // Normalize issue status
+        const issueStatus = (issue.status || '').toString().toUpperCase().trim();
+
+        // Map API status to display status
+        const statusMap: Record<string, 'pending' | 'in-progress' | 'completed'> = {
+          'OPEN': 'pending',
+          'TO_DO': 'pending',
+          'TODO': 'pending',
+          'IN_PROGRESS': 'in-progress',
+          'IN PROGRESS': 'in-progress',
+          'INVESTIGATING': 'in-progress',
+          'RESOLVED': 'completed',
+          'CLOSED': 'completed',
+          'DONE': 'completed',
+          'COMPLETED': 'completed',
+          'REJECTED': 'completed'
+        };
+
+        // Map API priority to display priority
+        const issuePriority = (issue.priority || '').toString().toUpperCase().trim();
+        const priorityMap: Record<string, 'critical' | 'high' | 'medium' | 'low'> = {
+          'CRITICAL': 'critical',
+          'HIGH': 'high',
+          'MEDIUM': 'medium',
+          'LOW': 'low'
+        };
+
+        const displayStatus = statusMap[issueStatus] || 'pending';
+
+        // Get assignee information
+        const assigneeId = (issue as any).assigneeId || (issue as any).assignee?.id;
+        const assignee = assigneeId ? normalizeApiData(apiUsers).find((u: any) => String(u.id) === String(assigneeId)) : null;
+        const assigneeName = assignee ? (assignee.name || assignee.email || 'Unassigned') : 'Unassigned';
+
+        taskItems.push({
+          id: issue.id,
+          title: `[Issue] ${issue.title}`,
+          description: issue.description || 'No description provided',
+          status: displayStatus,
+          priority: priorityMap[issuePriority] || 'medium',
+          dueDate: (issue as any).dueDate || new Date().toISOString(),
+          estimatedHours: (issue as any).estimatedHours || 0,
+          projectId: (issue as any).storyId || 'unknown',
+          projectName: `Issue ${issue.id.slice(-4)}`,
+          type: 'bug-fix', // Issues are treated as bug-fix type
+          assignedBy: 'System',
+          createdAt: (issue as any).createdAt || new Date().toISOString(),
+          assigneeName: assigneeName,
+          assigneeId: assigneeId,
+          itemType: 'issue'
+        });
+      });
+    }
+
+    return taskItems;
+  }, [assignedTasks, rawIssuesData, apiUsers, isQARole, userRole]);
 
   // Navigation handlers
   const handleTaskClick = (task: UserTask) => {
@@ -644,14 +734,24 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
     }
   };
 
-  // Loading state
-  if (tasksLoading) {
+  // Get display title based on role
+  const getSectionTitle = () => {
+    if (isQARole) {
+      return isManagerOrAdmin ? "All Tasks & Issues" : "My Tasks & Issues";
+    }
+    return isManagerOrAdmin ? "All Users' Tasks & Pending Work" : "My Tasks & Pending Work";
+  };
+
+  // Loading state - include issues loading for QA roles
+  const isLoading = tasksLoading || (isQARole && issuesLoading);
+
+  if (isLoading) {
     return (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Clock className="w-5 h-5 text-blue-600" />
-            <span>{isManagerOrAdmin ? "All Users' Tasks & Pending Work" : "My Tasks & Pending Work"}</span>
+            <span>{getSectionTitle()}</span>
             <Badge variant="outline" className="ml-2">
               {userRole}
             </Badge>
@@ -666,7 +766,8 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
             <span className="ml-3 text-muted-foreground">
-              {isManagerOrAdmin ? "Loading all users' tasks..." : "Loading your tasks..."}
+              {isManagerOrAdmin ? "Loading all tasks..." : "Loading your tasks..."}
+              {isQARole && " and issues..."}
             </span>
           </div>
         </CardContent>
@@ -681,7 +782,7 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
         <CardHeader>
           <CardTitle className="flex items-center space-x-2 text-red-600">
             <AlertTriangle className="w-5 h-5" />
-            <span>Error Loading Tasks</span>
+            <span>Error Loading {isQARole ? 'Tasks & Issues' : 'Tasks'}</span>
           </CardTitle>
           <CardDescription className="text-red-700">
             {isManagerOrAdmin
@@ -714,7 +815,7 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Clock className="w-5 h-5 text-blue-600" />
-            <span>{isManagerOrAdmin ? "All Users' Tasks & Pending Work" : "My Tasks & Pending Work"}</span>
+            <span>{getSectionTitle()}</span>
             <Badge variant="outline" className="ml-2">
               {userRole}
             </Badge>
@@ -748,7 +849,7 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Clock className="w-5 h-5 text-blue-600" />
-              <span>{isManagerOrAdmin ? "All Users' Tasks & Pending Work" : "My Tasks & Pending Work"}</span>
+              <span>{getSectionTitle()}</span>
               <Badge variant="outline" className="ml-2">
                 {userRole}
               </Badge>

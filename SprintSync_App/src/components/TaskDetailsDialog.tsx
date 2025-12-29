@@ -91,7 +91,7 @@ const TaskDetailsDialog: React.FC<TaskDetailsDialogProps> = ({ open, onOpenChang
               </div>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Assignee</Label>
+              <Label className="text-xs text-muted-foreground">Assigned To</Label>
               <div className="font-medium">
                 {task.assigneeId ? (resolveUserName?.(task.assigneeId) || task.assigneeId) : 'Unassigned'}
               </div>

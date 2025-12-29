@@ -470,17 +470,35 @@ const TeamAllocationPage: React.FC = () => {
     const list = projectTeamMembers || [];
     const teamSize = list.length;
     const maxTeamSize = 9;
+
+    // Count managers in the team based on role
+    const managers = list.filter((member: any) => {
+      const role = (member.role || '').toString().toLowerCase();
+      return role === 'manager' || role === 'qa_manager';
+    });
+    const managerCount = managers.length;
+
+    // Get manager name if there's exactly one manager
+    let managerName = null;
+    if (managers.length === 1) {
+      const manager = managers[0];
+      // Try to find the user name from the available users or allUsers
+      const userId = manager.userId || manager.id;
+      const foundUser = allUsers.find((u: any) => u.id === userId);
+      managerName = foundUser?.name || manager.name || null;
+    }
+
     return {
       isAtCapacity: teamSize >= maxTeamSize,
       isNearCapacity: teamSize >= maxTeamSize - 2,
       canAddMember: teamSize < maxTeamSize,
-      hasManager: false,
-      canAddManager: true,
-      managerCount: 0,
-      maxManagers: 0,
+      hasManager: managerCount > 0,
+      canAddManager: true, // No limit on managers
+      managerCount,
+      maxManagers: teamSize, // No max limit - show current team size as reference
       teamSize,
       maxMembers: maxTeamSize,
-      managerName: null,
+      managerName,
     };
   };
 
@@ -520,7 +538,7 @@ const TeamAllocationPage: React.FC = () => {
       const utilization = Math.floor(Math.random() * 30) + 70; // 70-100%
       const allocated = Math.floor((utilization / 100) * baseCapacity);
 
-      // Generate skills based on domain
+      // Generate skills based on domain (fallback if no API skills)
       const getSkillsByDomain = (domain: string) => {
         const skillSets: { [key: string]: string[] } = {
           'Angular': ['Angular', 'TypeScript', 'RxJS', 'NgRx', 'Material UI'],
@@ -535,6 +553,40 @@ const TeamAllocationPage: React.FC = () => {
         };
         return skillSets[domain] || ['General', 'Communication', 'Problem Solving'];
       };
+
+      // Parse user skills from API - skills come as JSON string array
+      const parseUserSkills = (skillsData: any): string[] => {
+        if (!skillsData) return [];
+
+        try {
+          // If it's already an array, use it
+          if (Array.isArray(skillsData)) {
+            return skillsData.map(s => String(s).trim()).filter(Boolean);
+          }
+
+          // If it's a JSON string, parse it
+          if (typeof skillsData === 'string') {
+            const parsed = JSON.parse(skillsData);
+            if (Array.isArray(parsed)) {
+              return parsed.map(s => String(s).replace(/^"|"$/g, '').trim()).filter(Boolean);
+            }
+          }
+        } catch (e) {
+          // If parsing fails, try splitting by comma
+          if (typeof skillsData === 'string') {
+            return skillsData
+              .replace(/^\[|\]$/g, '')
+              .split(',')
+              .map(s => s.replace(/^"|"$/g, '').replace(/'/g, '').trim())
+              .filter(Boolean);
+          }
+        }
+        return [];
+      };
+
+      // Get user skills from API, fallback to domain-based skills
+      const userApiSkills = parseUserSkills((user as any).skills);
+      const memberSkills = userApiSkills.length > 0 ? userApiSkills : getSkillsByDomain(resolvedDomain || '');
 
       // Generate project assignments based on assigned projects
       const getProjectAssignments = (): Array<{ name: string; allocation: number; role: string }> => {
@@ -639,7 +691,7 @@ const TeamAllocationPage: React.FC = () => {
         utilization,
         capacity: baseCapacity,
         allocated,
-        skills: getSkillsByDomain(resolvedDomain || ''),
+        skills: memberSkills,
         projects: getProjectAssignments(),
         performance,
         availability,
@@ -658,9 +710,11 @@ const TeamAllocationPage: React.FC = () => {
       // Admin users are already excluded in teamMembers creation, so no need to check here
       // Show all users regardless of project assignment
 
-      const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        member.domain.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (member.role as string).toLowerCase().includes(searchTerm.toLowerCase());
+      const searchLower = searchTerm.toLowerCase();
+      const matchesSearch = member.name.toLowerCase().includes(searchLower) ||
+        member.domain.toLowerCase().includes(searchLower) ||
+        (member.role as string).toLowerCase().includes(searchLower) ||
+        (member.skills && member.skills.some(skill => skill.toLowerCase().includes(searchLower)));
 
       const matchesDepartment = departmentFilter === 'all' || member.department === departmentFilter;
       const matchesDomain = domainFilter === 'all' || member.domain === domainFilter;
@@ -906,7 +960,7 @@ const TeamAllocationPage: React.FC = () => {
       selectedUserId !== '' &&
       newMember.domain !== '' &&
       newMember.department !== '' &&
-      newMember.hourlyRate > 0
+      newMember.hourlyRate >= 0  // Allow 0 for hourly rate
     );
   }, [newMember, selectedUserId]);
 
@@ -1168,7 +1222,7 @@ const TeamAllocationPage: React.FC = () => {
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     id="search"
-                    placeholder="Search by name, role, or domain..."
+                    placeholder="Search by name, role, domain, or skills..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"

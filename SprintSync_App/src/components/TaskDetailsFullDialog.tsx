@@ -90,9 +90,9 @@ const TaskDetailsFullDialog: React.FC<TaskDetailsFullDialogProps> = ({
     formatDate
       ? formatDate(date)
       : new Date(date).toLocaleDateString("en-IN", {
-          day: "numeric",
-          month: "short",
-        });
+        day: "numeric",
+        month: "short",
+      });
 
   const storyTitle =
     (task?.storyId && stories.find((s) => s.id === task.storyId)?.title) ||
@@ -155,7 +155,7 @@ const TaskDetailsFullDialog: React.FC<TaskDetailsFullDialogProps> = ({
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Assignee</Label>
+                  <Label className="text-xs text-muted-foreground">Assigned To</Label>
                   <div className="font-medium bg-gray-50 p-2 rounded">
                     {task.assigneeId
                       ? resolveUserName?.(task.assigneeId) || task.assigneeId
@@ -206,8 +206,8 @@ const TaskDetailsFullDialog: React.FC<TaskDetailsFullDialogProps> = ({
                   {console.log('Task ID length:', task.id?.length)}
                   {console.log('Task ID format check - starts with TASK?:', task.id?.startsWith('TASK'))}
                   {console.log('================================================')}
-                  <TaskActivityLogWrapper 
-                    taskId={task.id} 
+                  <TaskActivityLogWrapper
+                    taskId={task.id}
                     resolveUserName={resolveUserName}
                   />
                 </>

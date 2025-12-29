@@ -98,11 +98,13 @@ import { useUsers } from '../hooks/api/useUsers';
 
 import { Story, Task } from '../types/api';
 
+import { formatDateDDMMYYYY } from '../utils/dateUtils';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 import { useAuth } from '../contexts/AuthContextEnhanced';
 
 import TaskDetailsFullDialog from '../components/TaskDetailsFullDialog';
+import { API_CONFIG } from '../services/api/config';
 
 
 
@@ -462,7 +464,7 @@ const BacklogPage: React.FC = () => {
 
         try {
 
-          const response = await fetch(`http://localhost:8080/api/tasks/story/${story.id}`, {
+          const response = await fetch(`${API_CONFIG.BASE_URL}/tasks/story/${story.id}`, {
 
             headers: {
 
@@ -971,13 +973,7 @@ const BacklogPage: React.FC = () => {
 
   const formatDate = (dateString: string) => {
 
-    return new Date(dateString).toLocaleDateString('en-IN', {
-
-      day: 'numeric',
-
-      month: 'short'
-
-    });
+    return formatDateDDMMYYYY(dateString);
 
   };
 

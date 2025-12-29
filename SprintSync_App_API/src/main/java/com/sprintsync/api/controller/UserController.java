@@ -44,12 +44,17 @@ public class UserController {
      * @return ResponseEntity containing the created user
      */
     @PostMapping
-    public ResponseEntity<User> createUser(@RequestBody User user) {
+    public ResponseEntity<?> createUser(@RequestBody User user) {
         try {
+            System.out.println("Creating user with email: " + user.getEmail());
+            System.out.println("Password hash received: "
+                    + (user.getPasswordHash() != null ? "present (" + user.getPasswordHash().length() + " chars)"
+                            : "null"));
             User createdUser = userService.createUser(user);
             return ResponseEntity.status(HttpStatus.CREATED).body(createdUser);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
+            System.err.println("Failed to create user: " + e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 
@@ -63,7 +68,7 @@ public class UserController {
     public ResponseEntity<User> getUserById(@PathVariable String id) {
         Optional<User> user = userService.findById(id);
         return user.map(ResponseEntity::ok)
-                   .orElse(ResponseEntity.notFound().build());
+                .orElse(ResponseEntity.notFound().build());
     }
 
     /**
@@ -76,15 +81,15 @@ public class UserController {
     public ResponseEntity<User> getUserByEmail(@PathVariable String email) {
         Optional<User> user = userService.findByEmail(email);
         return user.map(ResponseEntity::ok)
-                   .orElse(ResponseEntity.notFound().build());
+                .orElse(ResponseEntity.notFound().build());
     }
 
     /**
      * Get all users with pagination.
      * 
-     * @param page page number (default: 0)
-     * @param size page size (default: 10)
-     * @param sortBy sort field (default: name)
+     * @param page    page number (default: 0)
+     * @param size    page size (default: 10)
+     * @param sortBy  sort field (default: name)
      * @param sortDir sort direction (default: asc)
      * @return ResponseEntity containing page of users
      */
@@ -95,24 +100,21 @@ public class UserController {
             @RequestParam(defaultValue = "name") String sortBy,
             @RequestParam(defaultValue = "asc") String sortDir) {
         try {
-            Sort sort = sortDir.equalsIgnoreCase("desc") ? 
-                       Sort.by(sortBy).descending() : 
-                       Sort.by(sortBy).ascending();
-            
+            Sort sort = sortDir.equalsIgnoreCase("desc") ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
+
             Pageable pageable = PageRequest.of(page, size, sort);
             Page<User> users = userService.getAllUsers(pageable);
-            
+
             // Clear password hashes before returning
             users.getContent().forEach(user -> user.setPasswordHash(null));
-            
+
             return ResponseEntity.ok(users);
         } catch (Exception e) {
             System.err.println("Error fetching users with pagination: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                "success", false,
-                "message", "Error fetching users: " + e.getMessage()
-            ));
+                    "success", false,
+                    "message", "Error fetching users: " + e.getMessage()));
         }
     }
 
@@ -168,24 +170,22 @@ public class UserController {
                 String name2 = user2.getName() != null ? user2.getName() : "";
                 return name1.compareToIgnoreCase(name2);
             });
-            
+
             // Clear password hashes before returning
             users.forEach(user -> user.setPasswordHash(null));
-            
+
             // Apply pagination manually if needed
             int start = page * size;
             int end = Math.min(start + size, users.size());
-            List<User> paginatedUsers = start < users.size() ? 
-                users.subList(start, end) : new ArrayList<>();
-            
+            List<User> paginatedUsers = start < users.size() ? users.subList(start, end) : new ArrayList<>();
+
             return ResponseEntity.ok(paginatedUsers);
         } catch (Exception e) {
             System.err.println("Error fetching active users: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                "success", false,
-                "message", "Error fetching active users: " + e.getMessage()
-            ));
+                    "success", false,
+                    "message", "Error fetching active users: " + e.getMessage()));
         }
     }
 
@@ -226,7 +226,7 @@ public class UserController {
     /**
      * Update an existing user.
      * 
-     * @param id the user ID
+     * @param id          the user ID
      * @param userDetails the updated user details
      * @return ResponseEntity containing the updated user
      */
@@ -277,7 +277,7 @@ public class UserController {
     /**
      * Activate or deactivate a user.
      * 
-     * @param id the user ID
+     * @param id       the user ID
      * @param isActive the active status
      * @return ResponseEntity with no content if successful
      */
@@ -314,9 +314,9 @@ public class UserController {
         long activeUsers = userService.findActiveUsers().size();
         long managers = userService.countUsersByRole(UserRole.manager);
         long developers = userService.countUsersByRole(UserRole.developer);
-        
-        String stats = String.format("Total Users: %d, Active Users: %d, Managers: %d, Developers: %d", 
-                                   totalUsers, activeUsers, managers, developers);
+
+        String stats = String.format("Total Users: %d, Active Users: %d, Managers: %d, Developers: %d",
+                totalUsers, activeUsers, managers, developers);
         return ResponseEntity.ok(stats);
     }
 
@@ -340,27 +340,24 @@ public class UserController {
         try {
             long totalUsers = userService.getAllUsers().size();
             long activeUsers = userService.findActiveUsers().size();
-            
+
             // Count roles manually to avoid potential issues
             long managers = userService.getAllUsers().stream()
-                .filter(user -> user.getRole() == UserRole.manager)
-                .count();
+                    .filter(user -> user.getRole() == UserRole.manager)
+                    .count();
             long developers = userService.getAllUsers().stream()
-                .filter(user -> user.getRole() == UserRole.developer)
-                .count();
-            
+                    .filter(user -> user.getRole() == UserRole.developer)
+                    .count();
+
             Map<String, Object> stats = new HashMap<>();
             stats.put("totalUsers", totalUsers);
             stats.put("activeUsers", activeUsers);
             stats.put("managers", managers);
             stats.put("developers", developers);
-            
+
             return ResponseEntity.ok(stats);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 }
-
-
-

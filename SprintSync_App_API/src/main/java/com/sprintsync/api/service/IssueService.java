@@ -40,6 +40,13 @@ public class IssueService {
     }
 
     /**
+     * Get all issues without pagination
+     */
+    public List<Issue> getAllIssues() {
+        return issueRepository.findAll();
+    }
+
+    /**
      * Get issue by ID
      */
     public Issue getIssueById(String id) {

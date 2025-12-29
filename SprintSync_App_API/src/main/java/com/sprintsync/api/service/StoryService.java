@@ -78,8 +78,11 @@ public class StoryService {
         // Log activity
         if (activityLogService != null) {
             try {
+                // Use reporterId as the user who created the story
+                String userId = savedStory.getReporterId() != null ? savedStory.getReporterId()
+                        : savedStory.getAssigneeId();
                 activityLogService.logActivity(
-                        null, // Use null to avoid FK constraint when no user context
+                        userId, // Use reporterId or assigneeId as the user who created the story
                         "story",
                         savedStory.getId(),
                         "created",
@@ -124,8 +127,11 @@ public class StoryService {
         // Log activity
         if (activityLogService != null) {
             try {
+                // Use reporterId or assigneeId as the user who performed the update
+                String userId = savedStory.getReporterId() != null ? savedStory.getReporterId()
+                        : savedStory.getAssigneeId();
                 activityLogService.logActivity(
-                        null, // Use null to avoid FK constraint when no user context
+                        userId,
                         "story",
                         savedStory.getId(),
                         "updated",
@@ -372,8 +378,11 @@ public class StoryService {
             // Log activity
             if (activityLogService != null) {
                 try {
+                    // Use reporterId or assigneeId as the user who performed the status update
+                    String userId = savedStory.getReporterId() != null ? savedStory.getReporterId()
+                            : savedStory.getAssigneeId();
                     activityLogService.logActivity(
-                            null, // Use null to avoid FK constraint when no user context
+                            userId,
                             "story",
                             savedStory.getId(),
                             "status_updated",

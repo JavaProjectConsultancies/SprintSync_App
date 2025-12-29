@@ -42,6 +42,19 @@ public class IssueController {
     }
 
     /**
+     * Get all issues without pagination
+     */
+    @GetMapping("/all")
+    public ResponseEntity<List<Issue>> getAllIssuesList() {
+        try {
+            List<Issue> issues = issueService.getAllIssues();
+            return ResponseEntity.ok(issues);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
      * Get issue by ID
      */
     @GetMapping("/{id}")
