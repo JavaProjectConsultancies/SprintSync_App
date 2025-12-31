@@ -259,6 +259,7 @@ export interface Deliverable {
 
 export interface TodoItem {
   id: string;
+  description?: string;
   text: string;
   completed: boolean;
   priority: 'low' | 'medium' | 'high';

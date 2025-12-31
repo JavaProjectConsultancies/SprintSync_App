@@ -8,7 +8,8 @@ import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Trash2, Edit3, Save, X, Flag, Calendar, User, ExternalLink, Clock } from 'lucide-react';
 import { TodoItem as TodoItemType } from '../types';
-import TaskLogDialog from './TaskLogDialog';
+import TaskDetailsJiraDialog from './TaskDetailsJiraDialog';
+import { Task } from '../types/api';
 
 interface TodoItemProps {
   item: TodoItemType;
@@ -224,18 +225,24 @@ const TodoItem: React.FC<TodoItemProps> = ({ item, onUpdate, onDelete, onTaskUpd
         )}
       </div>
 
-      {/* Log Dialog */}
+      {/* JIRA Style Task Details Dialog */}
       {isTaskFromDatabase && (
-        <TaskLogDialog
+        <TaskDetailsJiraDialog
           open={showLogDialog}
           onOpenChange={setShowLogDialog}
           task={{
             id: item.id,
-            text: item.text,
-            priority: item.priority,
-            category: item.category,
-            dueDate: item.dueDate,
-            createdAt: item.createdAt
+            storyId: (item as any).storyId || '',
+            title: item.text,
+            description: (item as any).description || '',
+            status: item.completed ? 'DONE' : 'TO_DO',
+            priority: item.priority.toUpperCase() as any,
+            estimatedHours: (item as any).estimatedHours || 0,
+            actualHours: (item as any).actualHours || 0,
+            assigneeId: (item as any).assigneeId || '',
+            orderIndex: 0,
+            createdAt: item.createdAt?.toISOString() || new Date().toISOString(),
+            updatedAt: item.updatedAt?.toISOString() || new Date().toISOString(),
           }}
           onTaskUpdated={onTaskUpdated}
         />

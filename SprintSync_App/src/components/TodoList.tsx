@@ -109,14 +109,20 @@ const TodoList: React.FC = () => {
       return {
         id: task.id,
         text: task.title.trim(),
+        description: task.description || '',
         completed: isCompleted,
         priority: priority,
         category: 'work', // Default to work for assigned tasks
         dueDate: task.dueDate ? new Date(task.dueDate) : undefined,
         createdAt,
         updatedAt,
-        completedAt
-      };
+        completedAt,
+        storyId: task.storyId,
+        estimatedHours: task.estimatedHours,
+        actualHours: task.actualHours,
+        assigneeId: task.assigneeId,
+        isTaskFromDatabase: true
+      } as any;
     } catch (error) {
       console.error('Error transforming task to TodoItem:', task, error);
       return null;
