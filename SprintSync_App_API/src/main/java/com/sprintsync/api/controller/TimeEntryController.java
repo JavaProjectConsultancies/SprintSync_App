@@ -40,7 +40,7 @@ public class TimeEntryController {
      * @return ResponseEntity containing the created time entry
      */
     @PostMapping
-    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
+    @CacheEvict(value = { "projects", "projects-summary" }, allEntries = true)
     public ResponseEntity<TimeEntry> createTimeEntry(@RequestBody TimeEntry timeEntry) {
         try {
             TimeEntry createdTimeEntry = timeEntryService.createTimeEntry(timeEntry);
@@ -60,15 +60,15 @@ public class TimeEntryController {
     public ResponseEntity<TimeEntry> getTimeEntryById(@PathVariable String id) {
         Optional<TimeEntry> timeEntry = timeEntryService.findById(id);
         return timeEntry.map(ResponseEntity::ok)
-                       .orElse(ResponseEntity.notFound().build());
+                .orElse(ResponseEntity.notFound().build());
     }
 
     /**
      * Get all time entries with pagination.
      * 
-     * @param page page number (default: 0)
-     * @param size page size (default: 10)
-     * @param sortBy sort field (default: workDate)
+     * @param page    page number (default: 0)
+     * @param size    page size (default: 10)
+     * @param sortBy  sort field (default: workDate)
      * @param sortDir sort direction (default: desc)
      * @return ResponseEntity containing page of time entries
      */
@@ -78,8 +78,9 @@ public class TimeEntryController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "workDate") String sortBy,
             @RequestParam(defaultValue = "desc") String sortDir) {
-        
-        org.springframework.data.domain.Page<TimeEntry> timeEntries = timeEntryService.getAllTimeEntries(page, size, sortBy, sortDir);
+
+        org.springframework.data.domain.Page<TimeEntry> timeEntries = timeEntryService.getAllTimeEntries(page, size,
+                sortBy, sortDir);
         return ResponseEntity.ok(timeEntries);
     }
 
@@ -143,17 +144,29 @@ public class TimeEntryController {
     }
 
     /**
+     * Get time entries by issue ID.
+     * 
+     * @param issueId the issue ID
+     * @return ResponseEntity containing list of time entries for the issue
+     */
+    @GetMapping("/issue/{issueId}")
+    public ResponseEntity<List<TimeEntry>> getTimeEntriesByIssue(@PathVariable String issueId) {
+        List<TimeEntry> timeEntries = timeEntryService.findTimeEntriesByIssue(issueId);
+        return ResponseEntity.ok(timeEntries);
+    }
+
+    /**
      * Get time entries by date range.
      * 
      * @param startDate the start date
-     * @param endDate the end date
+     * @param endDate   the end date
      * @return ResponseEntity containing list of time entries within the date range
      */
     @GetMapping("/date-range")
     public ResponseEntity<List<TimeEntry>> getTimeEntriesByDateRange(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        
+
         List<TimeEntry> timeEntries = timeEntryService.findTimeEntriesByDateRange(startDate, endDate);
         return ResponseEntity.ok(timeEntries);
     }
@@ -161,17 +174,18 @@ public class TimeEntryController {
     /**
      * Get time entries by user ID and date range.
      * 
-     * @param userId the user ID
+     * @param userId    the user ID
      * @param startDate the start date
-     * @param endDate the end date
-     * @return ResponseEntity containing list of time entries for the user within the date range
+     * @param endDate   the end date
+     * @return ResponseEntity containing list of time entries for the user within
+     *         the date range
      */
     @GetMapping("/user/{userId}/date-range")
     public ResponseEntity<List<TimeEntry>> getTimeEntriesByUserAndDateRange(
             @PathVariable String userId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        
+
         List<TimeEntry> timeEntries = timeEntryService.findTimeEntriesByUserAndDateRange(userId, startDate, endDate);
         return ResponseEntity.ok(timeEntries);
     }
@@ -203,11 +217,11 @@ public class TimeEntryController {
     /**
      * Get time entries by multiple criteria.
      * 
-     * @param userId the user ID (optional)
-     * @param projectId the project ID (optional)
-     * @param entryType the entry type (optional)
-     * @param startDate the start date (optional)
-     * @param endDate the end date (optional)
+     * @param userId     the user ID (optional)
+     * @param projectId  the project ID (optional)
+     * @param entryType  the entry type (optional)
+     * @param startDate  the start date (optional)
+     * @param endDate    the end date (optional)
      * @param isBillable the billable status (optional)
      * @return ResponseEntity containing list of time entries matching the criteria
      */
@@ -219,8 +233,9 @@ public class TimeEntryController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) Boolean isBillable) {
-        
-        List<TimeEntry> timeEntries = timeEntryService.findTimeEntriesByCriteria(userId, projectId, entryType, startDate, endDate, isBillable);
+
+        List<TimeEntry> timeEntries = timeEntryService.findTimeEntriesByCriteria(userId, projectId, entryType,
+                startDate, endDate, isBillable);
         return ResponseEntity.ok(timeEntries);
     }
 
@@ -273,6 +288,18 @@ public class TimeEntryController {
     }
 
     /**
+     * Get total hours worked by issue.
+     * 
+     * @param issueId the issue ID
+     * @return ResponseEntity containing total hours worked on the issue
+     */
+    @GetMapping("/issue/{issueId}/total-hours")
+    public ResponseEntity<BigDecimal> getTotalHoursWorkedByIssue(@PathVariable String issueId) {
+        BigDecimal totalHours = timeEntryService.getTotalHoursWorkedByIssue(issueId);
+        return ResponseEntity.ok(totalHours);
+    }
+
+    /**
      * Get total billable hours by user.
      * 
      * @param userId the user ID
@@ -299,15 +326,16 @@ public class TimeEntryController {
     /**
      * Get daily hours worked by user.
      * 
-     * @param userId the user ID
+     * @param userId   the user ID
      * @param workDate the work date
-     * @return ResponseEntity containing total hours worked by the user on the specified date
+     * @return ResponseEntity containing total hours worked by the user on the
+     *         specified date
      */
     @GetMapping("/user/{userId}/daily-hours")
     public ResponseEntity<BigDecimal> getDailyHoursWorkedByUser(
             @PathVariable String userId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workDate) {
-        
+
         BigDecimal dailyHours = timeEntryService.getDailyHoursWorkedByUser(userId, workDate);
         return ResponseEntity.ok(dailyHours);
     }
@@ -316,14 +344,14 @@ public class TimeEntryController {
      * Get recent time entries for a user.
      * 
      * @param userId the user ID
-     * @param limit the number of entries to return (default: 10)
+     * @param limit  the number of entries to return (default: 10)
      * @return ResponseEntity containing list of recent time entries for the user
      */
     @GetMapping("/user/{userId}/recent")
     public ResponseEntity<List<TimeEntry>> getRecentTimeEntriesByUser(
             @PathVariable String userId,
             @RequestParam(defaultValue = "10") int limit) {
-        
+
         List<TimeEntry> timeEntries = timeEntryService.getRecentTimeEntriesByUser(userId, limit);
         return ResponseEntity.ok(timeEntries);
     }
@@ -331,15 +359,16 @@ public class TimeEntryController {
     /**
      * Get time entries by user ID and date.
      * 
-     * @param userId the user ID
+     * @param userId   the user ID
      * @param workDate the work date
-     * @return ResponseEntity containing list of time entries for the user on the specified date
+     * @return ResponseEntity containing list of time entries for the user on the
+     *         specified date
      */
     @GetMapping("/user/{userId}/date")
     public ResponseEntity<List<TimeEntry>> getTimeEntriesByUserAndDate(
             @PathVariable String userId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workDate) {
-        
+
         List<TimeEntry> timeEntries = timeEntryService.getTimeEntriesByUserAndDate(userId, workDate);
         return ResponseEntity.ok(timeEntries);
     }
@@ -347,12 +376,12 @@ public class TimeEntryController {
     /**
      * Update an existing time entry.
      * 
-     * @param id the time entry ID
+     * @param id               the time entry ID
      * @param timeEntryDetails the updated time entry details
      * @return ResponseEntity containing the updated time entry
      */
     @PutMapping("/{id}")
-    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
+    @CacheEvict(value = { "projects", "projects-summary" }, allEntries = true)
     public ResponseEntity<TimeEntry> updateTimeEntry(@PathVariable String id, @RequestBody TimeEntry timeEntryDetails) {
         try {
             timeEntryDetails.setId(id);
@@ -370,7 +399,7 @@ public class TimeEntryController {
      * @return ResponseEntity with no content if successful
      */
     @DeleteMapping("/{id}")
-    @CacheEvict(value = {"projects", "projects-summary"}, allEntries = true)
+    @CacheEvict(value = { "projects", "projects-summary" }, allEntries = true)
     public ResponseEntity<Void> deleteTimeEntry(@PathVariable String id) {
         try {
             timeEntryService.deleteTimeEntry(id);
@@ -404,6 +433,3 @@ public class TimeEntryController {
         return ResponseEntity.ok(stats);
     }
 }
-
-
-

@@ -6,9 +6,10 @@ import { Badge } from './ui/badge';
 import { Checkbox } from './ui/checkbox';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Trash2, Edit3, Save, X, Flag, Calendar, User, ExternalLink, Clock } from 'lucide-react';
+import { Trash2, Edit3, Save, X, Flag, Calendar, User, ExternalLink, Clock, Bug } from 'lucide-react';
 import { TodoItem as TodoItemType } from '../types';
 import TaskDetailsJiraDialog from './TaskDetailsJiraDialog';
+import IssueDetailsJiraDialog from './IssueDetailsJiraDialog';
 import { Task } from '../types/api';
 
 interface TodoItemProps {
@@ -29,9 +30,14 @@ const TodoItem: React.FC<TodoItemProps> = ({ item, onUpdate, onDelete, onTaskUpd
   // Check if this is a task from the database (not a local todo)
   const isTaskFromDatabase = !item.id.startsWith('local-');
 
-  const handleViewTask = () => {
+  const handleViewItem = () => {
     if (isTaskFromDatabase) {
-      navigate(`/scrum?taskId=${item.id}`);
+      const queryParams = new URLSearchParams();
+      if (item.projectId) queryParams.set('project', item.projectId);
+      if (item.sprintId) queryParams.set('sprint', item.sprintId);
+
+      const queryString = queryParams.toString();
+      navigate(`/scrum${queryString ? `?${queryString}` : ''}`);
     }
   };
 
@@ -91,7 +97,9 @@ const TodoItem: React.FC<TodoItemProps> = ({ item, onUpdate, onDelete, onTaskUpd
   return (
     <Card className={`p-4 transition-all duration-200 hover:shadow-md ${item.completed
       ? 'bg-gradient-to-r from-green-50 to-cyan-50 border-green-200 opacity-75'
-      : 'bg-white border-gray-200 hover:border-green-300'
+      : (item as any).entityType === 'issue'
+        ? 'bg-gradient-to-r from-red-50 to-white border-red-200 hover:border-red-300'
+        : 'bg-white border-gray-200 hover:border-green-300'
       }`}>
       <div className="flex items-start space-x-3">
         {/* Checkbox */}
@@ -158,9 +166,18 @@ const TodoItem: React.FC<TodoItemProps> = ({ item, onUpdate, onDelete, onTaskUpd
           ) : (
             <div className="space-y-2">
               {/* Todo Text */}
-              <p className={`${item.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                {item.text}
-              </p>
+              <div className="flex items-center space-x-2">
+                {(item as any).entityType === 'issue' && (
+                  <Bug className="w-4 h-4 text-red-500 flex-shrink-0" />
+                )}
+                <p className={`${item.completed
+                  ? 'line-through text-muted-foreground'
+                  : (item as any).entityType === 'issue'
+                    ? 'text-red-700 font-medium'
+                    : 'text-foreground'}`}>
+                  {item.text}
+                </p>
+              </div>
 
               {/* Badges and Metadata */}
               <div className="flex items-center justify-between">
@@ -213,11 +230,13 @@ const TodoItem: React.FC<TodoItemProps> = ({ item, onUpdate, onDelete, onTaskUpd
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={handleViewTask}
-                  className="h-8 px-3 text-xs hover:bg-green-100 text-green-700 border-green-300"
+                  onClick={handleViewItem}
+                  className={`h-8 px-3 text-xs ${(item as any).entityType === 'issue'
+                    ? 'hover:bg-red-100 text-red-700 border-red-300'
+                    : 'hover:bg-green-100 text-green-700 border-green-300'}`}
                 >
                   <ExternalLink className="w-3 h-3 mr-1" />
-                  Task
+                  {(item as any).entityType === 'issue' ? 'Issue' : 'Task'}
                 </Button>
               </>
             )}
@@ -225,27 +244,50 @@ const TodoItem: React.FC<TodoItemProps> = ({ item, onUpdate, onDelete, onTaskUpd
         )}
       </div>
 
-      {/* JIRA Style Task Details Dialog */}
+      {/* JIRA Style Item Details Dialog */}
       {isTaskFromDatabase && (
-        <TaskDetailsJiraDialog
-          open={showLogDialog}
-          onOpenChange={setShowLogDialog}
-          task={{
-            id: item.id,
-            storyId: (item as any).storyId || '',
-            title: item.text,
-            description: (item as any).description || '',
-            status: item.completed ? 'DONE' : 'TO_DO',
-            priority: item.priority.toUpperCase() as any,
-            estimatedHours: (item as any).estimatedHours || 0,
-            actualHours: (item as any).actualHours || 0,
-            assigneeId: (item as any).assigneeId || '',
-            orderIndex: 0,
-            createdAt: item.createdAt?.toISOString() || new Date().toISOString(),
-            updatedAt: item.updatedAt?.toISOString() || new Date().toISOString(),
-          }}
-          onTaskUpdated={onTaskUpdated}
-        />
+        (item as any).entityType === 'issue' ? (
+          <IssueDetailsJiraDialog
+            open={showLogDialog}
+            onOpenChange={setShowLogDialog}
+            issue={{
+              id: item.id,
+              storyId: (item as any).storyId || '',
+              title: item.text,
+              description: (item as any).description || '',
+              status: item.completed ? 'DONE' : 'TO_DO',
+              priority: item.priority.toUpperCase() as any,
+              estimatedHours: (item as any).estimatedHours || 0,
+              actualHours: (item as any).actualHours || 0,
+              assigneeId: (item as any).assigneeId || '',
+              dueDate: item.dueDate ? item.dueDate.toISOString() : undefined,
+              orderIndex: 0,
+              createdAt: item.createdAt?.toISOString() || new Date().toISOString(),
+              updatedAt: item.updatedAt?.toISOString() || new Date().toISOString(),
+            }}
+            onIssueUpdated={onTaskUpdated}
+          />
+        ) : (
+          <TaskDetailsJiraDialog
+            open={showLogDialog}
+            onOpenChange={setShowLogDialog}
+            task={{
+              id: item.id,
+              storyId: (item as any).storyId || '',
+              title: item.text,
+              description: (item as any).description || '',
+              status: item.completed ? 'DONE' : 'TO_DO',
+              priority: item.priority.toUpperCase() as any,
+              estimatedHours: (item as any).estimatedHours || 0,
+              actualHours: (item as any).actualHours || 0,
+              assigneeId: (item as any).assigneeId || '',
+              orderIndex: 0,
+              createdAt: item.createdAt?.toISOString() || new Date().toISOString(),
+              updatedAt: item.updatedAt?.toISOString() || new Date().toISOString(),
+            }}
+            onTaskUpdated={onTaskUpdated}
+          />
+        )
       )}
     </Card>
   );

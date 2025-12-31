@@ -30,25 +30,56 @@ public class TimeEntryService {
 
     private final TimeEntryRepository timeEntryRepository;
     private final IdGenerationService idGenerationService;
+    private final ActivityLogService activityLogService;
 
     @Autowired
-    public TimeEntryService(TimeEntryRepository timeEntryRepository, IdGenerationService idGenerationService) {
+    public TimeEntryService(TimeEntryRepository timeEntryRepository, IdGenerationService idGenerationService,
+            ActivityLogService activityLogService) {
         this.timeEntryRepository = timeEntryRepository;
         this.idGenerationService = idGenerationService;
+        this.activityLogService = activityLogService;
     }
 
-    /**
-     * Create a new time entry.
-     * 
-     * @param timeEntry the time entry to create
-     * @return the created time entry
-     */
     public TimeEntry createTimeEntry(TimeEntry timeEntry) {
         // Generate custom ID if not provided
         if (timeEntry.getId() == null) {
             timeEntry.setId(idGenerationService.generateTimeEntryId());
         }
-        return timeEntryRepository.save(timeEntry);
+        TimeEntry savedEntry = timeEntryRepository.save(timeEntry);
+
+        // Create activity log
+        try {
+            String entityType = "task";
+            String entityId = savedEntry.getTaskId();
+
+            if (savedEntry.getIssueId() != null) {
+                entityType = "issues";
+                entityId = savedEntry.getIssueId();
+            } else if (savedEntry.getSubtaskId() != null) {
+                entityType = "subtasks";
+                entityId = savedEntry.getSubtaskId();
+            } else if (savedEntry.getStoryId() != null) {
+                entityType = "stories";
+                entityId = savedEntry.getStoryId();
+            }
+
+            if (entityId != null) {
+                String desc = String.format("Logged %.2f hours: %s",
+                        savedEntry.getHoursWorked(), savedEntry.getDescription());
+                activityLogService.logActivity(
+                        savedEntry.getUserId(),
+                        entityType,
+                        entityId,
+                        "TIME_LOGGED",
+                        null,
+                        desc,
+                        desc);
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to create activity log for time entry: " + e.getMessage());
+        }
+
+        return savedEntry;
     }
 
     /**
@@ -73,11 +104,11 @@ public class TimeEntryService {
         if (timeEntry == null || timeEntry.getId() == null) {
             throw new IllegalArgumentException("Time entry and ID are required");
         }
-        
+
         // Fetch existing time entry to merge data
         TimeEntry existingTimeEntry = timeEntryRepository.findById(timeEntry.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Time entry not found with ID: " + timeEntry.getId()));
-        
+
         // Update only provided fields
         // Required fields - only update if provided (not null)
         if (timeEntry.getUserId() != null) {
@@ -98,7 +129,7 @@ public class TimeEntryService {
         if (timeEntry.getIsBillable() != null) {
             existingTimeEntry.setIsBillable(timeEntry.getIsBillable());
         }
-        
+
         // Optional fields - update if provided (including null to allow clearing)
         if (timeEntry.getProjectId() != null) {
             existingTimeEntry.setProjectId(timeEntry.getProjectId());
@@ -112,10 +143,13 @@ public class TimeEntryService {
         if (timeEntry.getSubtaskId() != null) {
             existingTimeEntry.setSubtaskId(timeEntry.getSubtaskId());
         }
+        if (timeEntry.getIssueId() != null) {
+            existingTimeEntry.setIssueId(timeEntry.getIssueId());
+        }
         // startTime and endTime can be null (to clear them)
         existingTimeEntry.setStartTime(timeEntry.getStartTime());
         existingTimeEntry.setEndTime(timeEntry.getEndTime());
-        
+
         return timeEntryRepository.save(existingTimeEntry);
     }
 
@@ -145,17 +179,15 @@ public class TimeEntryService {
     /**
      * Get all time entries with pagination.
      * 
-     * @param page page number (0-indexed)
-     * @param size page size
-     * @param sortBy sort field
+     * @param page    page number (0-indexed)
+     * @param size    page size
+     * @param sortBy  sort field
      * @param sortDir sort direction
      * @return page of time entries
      */
     @Transactional(readOnly = true)
     public Page<TimeEntry> getAllTimeEntries(int page, int size, String sortBy, String sortDir) {
-        Sort sort = sortDir.equalsIgnoreCase("desc") ? 
-                   Sort.by(sortBy).descending() : 
-                   Sort.by(sortBy).ascending();
+        Sort sort = sortDir.equalsIgnoreCase("desc") ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
         Pageable pageable = PageRequest.of(page, size, sort);
         return timeEntryRepository.findAll(pageable);
     }
@@ -205,10 +237,21 @@ public class TimeEntryService {
     }
 
     /**
+     * Find time entries by issue ID.
+     * 
+     * @param issueId the issue ID
+     * @return list of time entries for the specified issue
+     */
+    @Transactional(readOnly = true)
+    public List<TimeEntry> findTimeEntriesByIssue(String issueId) {
+        return timeEntryRepository.findByIssueId(issueId);
+    }
+
+    /**
      * Find time entries by date range.
      * 
      * @param startDate the start date
-     * @param endDate the end date
+     * @param endDate   the end date
      * @return list of time entries within the date range
      */
     @Transactional(readOnly = true)
@@ -219,9 +262,9 @@ public class TimeEntryService {
     /**
      * Find time entries by user ID and date range.
      * 
-     * @param userId the user ID
+     * @param userId    the user ID
      * @param startDate the start date
-     * @param endDate the end date
+     * @param endDate   the end date
      * @return list of time entries for the user within the date range
      */
     @Transactional(readOnly = true)
@@ -254,18 +297,19 @@ public class TimeEntryService {
     /**
      * Find time entries by multiple criteria.
      * 
-     * @param userId the user ID (optional)
-     * @param projectId the project ID (optional)
-     * @param entryType the entry type (optional)
-     * @param startDate the start date (optional)
-     * @param endDate the end date (optional)
+     * @param userId     the user ID (optional)
+     * @param projectId  the project ID (optional)
+     * @param entryType  the entry type (optional)
+     * @param startDate  the start date (optional)
+     * @param endDate    the end date (optional)
      * @param isBillable the billable status (optional)
      * @return list of time entries matching the criteria
      */
     @Transactional(readOnly = true)
     public List<TimeEntry> findTimeEntriesByCriteria(String userId, String projectId, TimeEntryType entryType,
-                                                    LocalDate startDate, LocalDate endDate, Boolean isBillable) {
-        return timeEntryRepository.findTimeEntriesByCriteria(userId, projectId, entryType, startDate, endDate, isBillable);
+            LocalDate startDate, LocalDate endDate, Boolean isBillable) {
+        return timeEntryRepository.findTimeEntriesByCriteria(userId, projectId, entryType, startDate, endDate,
+                isBillable);
     }
 
     /**
@@ -313,6 +357,17 @@ public class TimeEntryService {
     }
 
     /**
+     * Get total hours worked by issue.
+     * 
+     * @param issueId the issue ID
+     * @return total hours worked on the issue
+     */
+    @Transactional(readOnly = true)
+    public BigDecimal getTotalHoursWorkedByIssue(String issueId) {
+        return timeEntryRepository.sumHoursWorkedByIssueId(issueId);
+    }
+
+    /**
      * Get total billable hours by user.
      * 
      * @param userId the user ID
@@ -337,7 +392,7 @@ public class TimeEntryService {
     /**
      * Get daily hours worked by user.
      * 
-     * @param userId the user ID
+     * @param userId   the user ID
      * @param workDate the work date
      * @return total hours worked by the user on the specified date
      */
@@ -350,7 +405,7 @@ public class TimeEntryService {
      * Get recent time entries for a user.
      * 
      * @param userId the user ID
-     * @param limit the number of entries to return
+     * @param limit  the number of entries to return
      * @return list of recent time entries for the user
      */
     @Transactional(readOnly = true)
@@ -362,7 +417,7 @@ public class TimeEntryService {
     /**
      * Get time entries by user ID and date.
      * 
-     * @param userId the user ID
+     * @param userId   the user ID
      * @param workDate the work date
      * @return list of time entries for the user on the specified date
      */
@@ -382,9 +437,9 @@ public class TimeEntryService {
         long totalEntries = timeEntryRepository.countByUserId(userId);
         BigDecimal totalHours = timeEntryRepository.sumHoursWorkedByUserId(userId);
         BigDecimal billableHours = timeEntryRepository.sumBillableHoursByUserId(userId);
-        
+
         return String.format("Total Entries: %d, Total Hours: %.2f, Billable Hours: %.2f",
-                           totalEntries, totalHours, billableHours);
+                totalEntries, totalHours, billableHours);
     }
 
     /**
@@ -398,14 +453,8 @@ public class TimeEntryService {
         long totalEntries = timeEntryRepository.countByProjectId(projectId);
         BigDecimal totalHours = timeEntryRepository.sumHoursWorkedByProjectId(projectId);
         BigDecimal billableHours = timeEntryRepository.sumBillableHoursByProjectId(projectId);
-        
+
         return String.format("Total Entries: %d, Total Hours: %.2f, Billable Hours: %.2f",
-                           totalEntries, totalHours, billableHours);
+                totalEntries, totalHours, billableHours);
     }
 }
-
-
-
-
-
-

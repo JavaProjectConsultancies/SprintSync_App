@@ -140,7 +140,10 @@ import {
   useUpdateSprint,
   useUpdateSprintStatus,
   useSprintBurndown,
+  useAllSprints,
 } from "../hooks/api/useSprints";
+
+import { normalizeApiData } from "../hooks/api/cacheUtils";
 
 import {
   useStoriesBySprint,
@@ -879,6 +882,7 @@ const ScrumPage: React.FC = () => {
   // API Hooks - Projects
 
   const { data: projectsData, loading: projectsLoading } = useProjects();
+  const { data: apiSprints } = useAllSprints();
 
   const {
     project: currentProject,
@@ -931,6 +935,7 @@ const ScrumPage: React.FC = () => {
   // Extract project ID from query params (as string) for stable dependency
 
   const projectFromQuery = searchParams.get("project");
+  const sprintFromQuery = searchParams.get("sprint");
 
   useEffect(() => {
     // Only run if we have projects loaded and haven't initialized yet
@@ -995,6 +1000,7 @@ const ScrumPage: React.FC = () => {
       } catch { }
     }
   }, [projectFromQuery, selectedProject]);
+
 
   // API Hooks - Epics and Releases
 
@@ -1092,6 +1098,28 @@ const ScrumPage: React.FC = () => {
   const [allIssues, setAllIssues] = useState<Issue[]>([]);
 
   const [issuesLoading, setIssuesLoading] = useState(false);
+
+  // Handle taskId and issueId from query params (Deep linking)
+  useEffect(() => {
+    const taskId = searchParams.get("taskId");
+    const issueId = searchParams.get("issueId");
+
+    if (taskId && allTasks.length > 0) {
+      const task = allTasks.find((t) => t.id === taskId);
+      if (task && (!selectedTaskForDetails || selectedTaskForDetails.id !== taskId)) {
+        setSelectedTaskForDetails(task);
+        setIsTaskDetailsOpen(true);
+      }
+    }
+
+    if (issueId && allIssues.length > 0) {
+      const issue = allIssues.find((i) => i.id === issueId);
+      if (issue && (!selectedIssueForDetails || selectedIssueForDetails.id !== issueId)) {
+        setSelectedIssueForDetails(issue);
+        setIsIssueDetailsOpen(true);
+      }
+    }
+  }, [searchParams, allTasks, allIssues, selectedTaskForDetails, selectedIssueForDetails]);
 
   // State for all subtasks
 
@@ -1727,20 +1755,26 @@ const ScrumPage: React.FC = () => {
       return [];
     }
 
-    // Role-based filtering: Non-managers/admins see only stories with tasks assigned to them
+    // Role-based filtering: Non-managers/admins see only stories with tasks or issues assigned to them
     // QA Developer can see ALL stories (has canViewAllTasks = true)
     if (!canViewAllTasks && user) {
-      // Filter stories to show only those that have at least one task assigned to the current user
+      // Filter stories to show only those that have at least one task or issue assigned to the current user
       const filtered = sprintStories.filter((story: Story) => {
         // Check if this story has any tasks assigned to the current user
         const hasUserTask = allTasks.some(
-          (task) => task.storyId === story.id && task.assigneeId === user.id,
+          (task) => task.storyId === story.id && task.assigneeId === user.id
         );
-        return hasUserTask;
+
+        // Check if this story has any issues assigned to the current user
+        const hasUserIssue = allIssues.some(
+          (issue) => issue.storyId === story.id && issue.assigneeId === user.id
+        );
+
+        return hasUserTask || hasUserIssue;
       });
 
       console.log(
-        `Filtered sprint stories for user ${user.name}: showing ${filtered.length} stories with assigned tasks out of ${sprintStories.length} total`,
+        `Filtered sprint stories for user ${user.name}: showing ${filtered.length} stories with assigned tasks/issues out of ${sprintStories.length} total`
       );
 
       return filtered;
@@ -2134,6 +2168,15 @@ const ScrumPage: React.FC = () => {
 
   useEffect(() => {
     if (sprints.length > 0 && !selectedSprint && selectedProject) {
+      // Prioritize sprint from query
+      if (sprintFromQuery) {
+        const found = sprints.find((s: any) => s.id === sprintFromQuery);
+        if (found) {
+          setSelectedSprint(found.id);
+          return;
+        }
+      }
+
       // Filter sprints to only include those belonging to the selected project
 
       const projectSprints = sprints.filter(
@@ -2238,23 +2281,62 @@ const ScrumPage: React.FC = () => {
   };
 
   const getStatusColor = (status: string) => {
-    switch (status.toUpperCase()) {
-      case "ACTIVE":
+    const s = (status || "").toString().toLowerCase().trim();
+    switch (s) {
+      case "active":
         return "bg-green-100 text-green-800 border-green-200";
 
-      case "PLANNING":
+      case "planning":
         return "bg-blue-100 text-blue-800 border-blue-200";
 
-      case "COMPLETED":
+      case "on-hold":
+      case "onhold":
+      case "paused":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200";
+
+      case "completed":
+      case "done":
         return "bg-gray-100 text-gray-800 border-gray-200";
 
-      case "CANCELLED":
+      case "cancelled":
+      case "canceled":
+      case "overdue":
         return "bg-red-100 text-red-800 border-red-200";
 
       default:
         return "bg-gray-100 text-gray-800 border-gray-200";
     }
   };
+
+  const computeDerivedStatus = (project: any): string => {
+    const now = new Date();
+    const start = project.startDate ? new Date(project.startDate) : null;
+    const end = project.endDate ? new Date(project.endDate) : null;
+
+    if (start && now < start) return "planning";
+    if (start && end && now >= start && now <= end) return "active";
+
+    // After end date: decide between completed vs overdue using sprint completion
+    if (end && now > end) {
+      const normalizedSprints = normalizeApiData(apiSprints);
+      const projectSprints = normalizedSprints.filter((s) => {
+        const sprintProjectId = (s as any).projectId || (s as any).project?.id;
+        return String(sprintProjectId) === String(project.id);
+      });
+
+      if (projectSprints.length === 0) return "overdue";
+
+      const allCompleted = projectSprints.every((s: any) => {
+        const st = (s.status || "").toString().toLowerCase();
+        return st === "completed" || st === "closed" || st === "done";
+      });
+      return allCompleted ? "completed" : "overdue";
+    }
+
+    // Fallback
+    return (project.status || "planning").toString().toLowerCase();
+  };
+
 
   // Story status mapping from API to kanban columns
 
@@ -2389,13 +2471,16 @@ const ScrumPage: React.FC = () => {
       (story) => story.projectId === selectedProject,
     );
 
-    // Role-based filtering: Non-managers/admins see only stories with tasks assigned to them
+    // Role-based filtering: Non-managers/admins see only stories with tasks or issues assigned to them
     if (!canManageSprintsAndStories && user) {
       stories = stories.filter((story) => {
         const hasUserTask = allTasks.some(
-          (task) => task.storyId === story.id && task.assigneeId === user.id,
+          (task) => task.storyId === story.id && task.assigneeId === user.id
         );
-        return hasUserTask;
+        const hasUserIssue = allIssues.some(
+          (issue) => issue.storyId === story.id && issue.assigneeId === user.id
+        );
+        return hasUserTask || hasUserIssue;
       });
     }
 
@@ -2419,13 +2504,16 @@ const ScrumPage: React.FC = () => {
       (story) => story.projectId === selectedProject && story.sprintId && story.sprintId !== selectedSprint
     );
 
-    // Role-based filtering: Non-managers/admins see only stories with tasks assigned to them
+    // Role-based filtering: Non-managers/admins see only stories with tasks or issues assigned to them
     if (!canManageSprintsAndStories && user) {
       return allProjectStories.filter((story) => {
         const hasUserTask = allTasks.some(
-          (task) => task.storyId === story.id && task.assigneeId === user.id,
+          (task) => task.storyId === story.id && task.assigneeId === user.id
         );
-        return hasUserTask;
+        const hasUserIssue = allIssues.some(
+          (issue) => issue.storyId === story.id && issue.assigneeId === user.id
+        );
+        return hasUserTask || hasUserIssue;
       });
     }
 
@@ -7444,20 +7532,22 @@ const ScrumPage: React.FC = () => {
                 </SelectTrigger>
 
                 <SelectContent>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      <div className="flex items-center space-x-2">
-                        <Badge
-                          variant="outline"
-                          className={getStatusColor(project.status)}
-                        >
-                          {project.status}
-                        </Badge>
-
-                        <span>{project.name}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
+                  {projects.map((project) => {
+                    const status = computeDerivedStatus(project);
+                    return (
+                      <SelectItem key={project.id} value={project.id}>
+                        <div className="flex items-center space-x-2">
+                          <Badge
+                            variant="outline"
+                            className={getStatusColor(status)}
+                          >
+                            {status.charAt(0).toUpperCase() + status.slice(1)}
+                          </Badge>
+                          <span className="font-medium">{project.name}</span>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
 

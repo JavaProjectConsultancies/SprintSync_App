@@ -55,6 +55,14 @@ public interface TimeEntryRepository extends JpaRepository<TimeEntry, String> {
     List<TimeEntry> findByTaskId(String taskId);
 
     /**
+     * Find time entries by issue ID.
+     * 
+     * @param issueId the issue ID
+     * @return list of time entries for the specified issue
+     */
+    List<TimeEntry> findByIssueId(String issueId);
+
+    /**
      * Find time entries by entry type.
      * 
      * @param entryType the entry type
@@ -73,7 +81,7 @@ public interface TimeEntryRepository extends JpaRepository<TimeEntry, String> {
     /**
      * Find time entries by user ID with pagination.
      * 
-     * @param userId the user ID
+     * @param userId   the user ID
      * @param pageable pagination information
      * @return page of time entries for the specified user
      */
@@ -83,7 +91,7 @@ public interface TimeEntryRepository extends JpaRepository<TimeEntry, String> {
      * Find time entries by project ID with pagination.
      * 
      * @param projectId the project ID
-     * @param pageable pagination information
+     * @param pageable  pagination information
      * @return page of time entries for the specified project
      */
     Page<TimeEntry> findByProjectId(String projectId, Pageable pageable);
@@ -92,25 +100,25 @@ public interface TimeEntryRepository extends JpaRepository<TimeEntry, String> {
      * Find time entries by date range.
      * 
      * @param startDate the start date
-     * @param endDate the end date
+     * @param endDate   the end date
      * @return list of time entries within the date range
      */
     @Query("SELECT t FROM TimeEntry t WHERE t.workDate BETWEEN :startDate AND :endDate")
     List<TimeEntry> findByWorkDateBetween(@Param("startDate") LocalDate startDate,
-                                         @Param("endDate") LocalDate endDate);
+            @Param("endDate") LocalDate endDate);
 
     /**
      * Find time entries by user ID and date range.
      * 
-     * @param userId the user ID
+     * @param userId    the user ID
      * @param startDate the start date
-     * @param endDate the end date
+     * @param endDate   the end date
      * @return list of time entries for the user within the date range
      */
     @Query("SELECT t FROM TimeEntry t WHERE t.userId = :userId AND t.workDate BETWEEN :startDate AND :endDate")
     List<TimeEntry> findByUserIdAndWorkDateBetween(@Param("userId") String userId,
-                                                   @Param("startDate") LocalDate startDate,
-                                                   @Param("endDate") LocalDate endDate);
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
 
     /**
      * Find billable time entries.
@@ -123,27 +131,27 @@ public interface TimeEntryRepository extends JpaRepository<TimeEntry, String> {
     /**
      * Find time entries by multiple criteria.
      * 
-     * @param userId the user ID (optional)
-     * @param projectId the project ID (optional)
-     * @param entryType the entry type (optional)
-     * @param startDate the start date (optional)
-     * @param endDate the end date (optional)
+     * @param userId     the user ID (optional)
+     * @param projectId  the project ID (optional)
+     * @param entryType  the entry type (optional)
+     * @param startDate  the start date (optional)
+     * @param endDate    the end date (optional)
      * @param isBillable the billable status (optional)
      * @return list of time entries matching the criteria
      */
     @Query("SELECT t FROM TimeEntry t WHERE " +
-           "(:userId IS NULL OR t.userId = :userId) AND " +
-           "(:projectId IS NULL OR t.projectId = :projectId) AND " +
-           "(:entryType IS NULL OR t.entryType = :entryType) AND " +
-           "(:startDate IS NULL OR t.workDate >= :startDate) AND " +
-           "(:endDate IS NULL OR t.workDate <= :endDate) AND " +
-           "(:isBillable IS NULL OR t.isBillable = :isBillable)")
+            "(:userId IS NULL OR t.userId = :userId) AND " +
+            "(:projectId IS NULL OR t.projectId = :projectId) AND " +
+            "(:entryType IS NULL OR t.entryType = :entryType) AND " +
+            "(:startDate IS NULL OR t.workDate >= :startDate) AND " +
+            "(:endDate IS NULL OR t.workDate <= :endDate) AND " +
+            "(:isBillable IS NULL OR t.isBillable = :isBillable)")
     List<TimeEntry> findTimeEntriesByCriteria(@Param("userId") String userId,
-                                             @Param("projectId") String projectId,
-                                             @Param("entryType") TimeEntryType entryType,
-                                             @Param("startDate") LocalDate startDate,
-                                             @Param("endDate") LocalDate endDate,
-                                             @Param("isBillable") Boolean isBillable);
+            @Param("projectId") String projectId,
+            @Param("entryType") TimeEntryType entryType,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("isBillable") Boolean isBillable);
 
     /**
      * Calculate total hours worked by user.
@@ -182,6 +190,15 @@ public interface TimeEntryRepository extends JpaRepository<TimeEntry, String> {
     BigDecimal sumHoursWorkedByTaskId(@Param("taskId") String taskId);
 
     /**
+     * Calculate total hours worked by issue.
+     * 
+     * @param issueId the issue ID
+     * @return sum of hours worked on the issue
+     */
+    @Query("SELECT COALESCE(SUM(t.hoursWorked), 0) FROM TimeEntry t WHERE t.issueId = :issueId")
+    BigDecimal sumHoursWorkedByIssueId(@Param("issueId") String issueId);
+
+    /**
      * Calculate total billable hours by user.
      * 
      * @param userId the user ID
@@ -218,7 +235,7 @@ public interface TimeEntryRepository extends JpaRepository<TimeEntry, String> {
     /**
      * Find time entries by user ID and entry type.
      * 
-     * @param userId the user ID
+     * @param userId    the user ID
      * @param entryType the entry type
      * @return list of time entries for the user of the specified type
      */
@@ -228,7 +245,7 @@ public interface TimeEntryRepository extends JpaRepository<TimeEntry, String> {
      * Find recent time entries for a user.
      * 
      * @param userId the user ID
-     * @param limit the number of entries to return
+     * @param limit  the number of entries to return
      * @return list of recent time entries for the user
      */
     @Query("SELECT t FROM TimeEntry t WHERE t.userId = :userId ORDER BY t.workDate DESC, t.createdAt DESC")
@@ -237,7 +254,7 @@ public interface TimeEntryRepository extends JpaRepository<TimeEntry, String> {
     /**
      * Find time entries by user ID and date.
      * 
-     * @param userId the user ID
+     * @param userId   the user ID
      * @param workDate the work date
      * @return list of time entries for the user on the specified date
      */
@@ -246,7 +263,7 @@ public interface TimeEntryRepository extends JpaRepository<TimeEntry, String> {
     /**
      * Calculate daily hours worked by user.
      * 
-     * @param userId the user ID
+     * @param userId   the user ID
      * @param workDate the work date
      * @return sum of hours worked by the user on the specified date
      */

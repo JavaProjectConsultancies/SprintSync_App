@@ -6,20 +6,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from './ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Progress } from './ui/progress';
-import { Plus, Filter, BarChart3, CheckCircle2, Clock, AlertTriangle } from 'lucide-react';
+import { Plus, BarChart3, CheckCircle2, Clock, AlertTriangle } from 'lucide-react';
 import TodoItem from './TodoItem';
 import { TodoItem as TodoItemType } from '../types';
 import { useAuth } from '../contexts/AuthContextEnhanced';
 import { useTasksByAssignee } from '../hooks/api/useTasks';
-import { taskApiService } from '../services/api';
-import { Task } from '../types/api';
+import { useIssuesByAssignee } from '../hooks/api/useIssues';
+import { useAllStories } from '../hooks/api/useStories';
+import { taskApiService, issueApiService } from '../services/api';
+import { Task, Issue } from '../types/api';
 import LoadingSpinner from './LoadingSpinner';
 
 const TodoList: React.FC = () => {
   const { user } = useAuth();
 
-  // Fetch tasks assigned to the logged-in user directly from API
-  // Only fetch if user ID is available
+  // Fetch items assigned to the logged-in user
   const shouldFetch = !!user?.id;
   const {
     data: assignedTasksData,
@@ -27,6 +28,27 @@ const TodoList: React.FC = () => {
     error: tasksError,
     refetch: refetchTasks
   } = useTasksByAssignee(user?.id || '', undefined);
+
+  const {
+    data: assignedIssuesData,
+    loading: issuesLoading,
+    error: issuesError,
+    refetch: refetchIssues
+  } = useIssuesByAssignee(user?.id || '', undefined);
+
+  const { data: allStoriesData } = useAllStories();
+
+  const storiesMap = useMemo(() => {
+    if (!allStoriesData) return new Map<string, { projectId: string, sprintId?: string }>();
+    const stories = Array.isArray(allStoriesData) ? allStoriesData : [];
+    const map = new Map<string, { projectId: string, sprintId?: string }>();
+    stories.forEach((s: any) => {
+      if (s.id) {
+        map.set(s.id, { projectId: s.projectId, sprintId: s.sprintId });
+      }
+    });
+    return map;
+  }, [allStoriesData]);
 
   const [localTodos, setLocalTodos] = useState<TodoItemType[]>([]);
   const [hiddenTaskIds, setHiddenTaskIds] = useState<Set<string>>(new Set());
@@ -40,41 +62,26 @@ const TodoList: React.FC = () => {
 
   // Validate and normalize tasks data
   const assignedTasks = useMemo(() => {
-    // Skip if user is not loaded or user ID is invalid
     if (!shouldFetch || !assignedTasksData) return [];
-
-    // Ensure data is an array
     const tasks = Array.isArray(assignedTasksData) ? assignedTasksData : [];
-
-    // Validate each task has required fields
-    return tasks.filter((task: any) => {
-      const isValid = task &&
-        typeof task.id === 'string' &&
-        typeof task.title === 'string' &&
-        task.id.trim() !== '' &&
-        task.title.trim() !== '';
-
-      if (!isValid) {
-        console.warn('[TodoList] Invalid task structure:', task);
-      }
-
-      return isValid;
-    });
+    return tasks.filter((task: any) => task && task.id && task.title);
   }, [assignedTasksData, shouldFetch]);
 
-  // Transform Task to TodoItem format with validation
+  // Validate and normalize issues data
+  const assignedIssues = useMemo(() => {
+    if (!shouldFetch || !assignedIssuesData) return [];
+    const issues = Array.isArray(assignedIssuesData) ? assignedIssuesData : [];
+    return issues.filter((issue: any) => issue && issue.id && issue.title);
+  }, [assignedIssuesData, shouldFetch]);
+
+  // Transform Task to TodoItem format
   const transformTaskToTodoItem = (task: Task): TodoItemType | null => {
     try {
-      // Validate task structure
-      if (!task || !task.id || !task.title) {
-        console.warn('Invalid task structure:', task);
-        return null;
-      }
+      if (!task || !task.id || !task.title) return null;
 
       const normalizedStatus = task.status?.toString().toLowerCase().trim() || '';
-      const isCompleted = normalizedStatus === 'done' || normalizedStatus === 'completed' || normalizedStatus === 'done';
+      const isCompleted = normalizedStatus === 'done' || normalizedStatus === 'completed';
 
-      // Map priority: CRITICAL -> high, HIGH -> high, MEDIUM -> medium, LOW -> low
       let priority: 'low' | 'medium' | 'high' = 'medium';
       const normalizedPriority = task.priority?.toString().toLowerCase() || '';
       if (normalizedPriority === 'critical' || normalizedPriority === 'high') {
@@ -83,81 +90,93 @@ const TodoList: React.FC = () => {
         priority = 'low';
       }
 
-      // Validate dates
-      let createdAt: Date;
-      let updatedAt: Date;
-      let completedAt: Date | undefined;
-
-      try {
-        createdAt = task.createdAt ? new Date(task.createdAt) : new Date();
-        if (isNaN(createdAt.getTime())) createdAt = new Date();
-
-        updatedAt = task.updatedAt ? new Date(task.updatedAt) : new Date();
-        if (isNaN(updatedAt.getTime())) updatedAt = new Date();
-
-        if (isCompleted && task.updatedAt) {
-          completedAt = new Date(task.updatedAt);
-          if (isNaN(completedAt.getTime())) completedAt = undefined;
-        }
-      } catch (dateError) {
-        console.warn('Error parsing dates for task:', task.id, dateError);
-        createdAt = new Date();
-        updatedAt = new Date();
-        completedAt = undefined;
-      }
-
       return {
         id: task.id,
         text: task.title.trim(),
         description: task.description || '',
         completed: isCompleted,
         priority: priority,
-        category: 'work', // Default to work for assigned tasks
+        category: 'work',
         dueDate: task.dueDate ? new Date(task.dueDate) : undefined,
-        createdAt,
-        updatedAt,
-        completedAt,
+        createdAt: task.createdAt ? new Date(task.createdAt) : new Date(),
+        updatedAt: task.updatedAt ? new Date(task.updatedAt) : new Date(),
+        completedAt: isCompleted && task.updatedAt ? new Date(task.updatedAt) : undefined,
         storyId: task.storyId,
+        projectId: task.storyId ? storiesMap.get(task.storyId)?.projectId : undefined,
+        sprintId: task.storyId ? storiesMap.get(task.storyId)?.sprintId : undefined,
         estimatedHours: task.estimatedHours,
         actualHours: task.actualHours,
         assigneeId: task.assigneeId,
-        isTaskFromDatabase: true
-      } as any;
+        isTaskFromDatabase: true,
+        entityType: 'task'
+      };
     } catch (error) {
-      console.error('Error transforming task to TodoItem:', task, error);
+      console.error('Error transforming task:', error);
       return null;
     }
   };
 
-  // Transform assigned tasks to TodoItems with validation
+  // Transform Issue to TodoItem format
+  const transformIssueToTodoItem = (issue: Issue): TodoItemType | null => {
+    try {
+      if (!issue || !issue.id || !issue.title) return null;
+
+      const normalizedStatus = issue.status?.toString().toLowerCase().trim() || '';
+      const isCompleted = normalizedStatus === 'done' || normalizedStatus === 'closed' || normalizedStatus === 'completed';
+
+      let priority: 'low' | 'medium' | 'high' = 'medium';
+      const normalizedPriority = issue.priority?.toString().toLowerCase() || '';
+      if (normalizedPriority === 'critical' || normalizedPriority === 'high') {
+        priority = 'high';
+      } else if (normalizedPriority === 'low') {
+        priority = 'low';
+      }
+
+      return {
+        id: issue.id,
+        text: issue.title.trim(),
+        description: issue.description || '',
+        completed: isCompleted,
+        priority: priority,
+        category: 'work',
+        dueDate: issue.dueDate ? new Date(issue.dueDate) : undefined,
+        createdAt: issue.createdAt ? new Date(issue.createdAt) : new Date(),
+        updatedAt: issue.updatedAt ? new Date(issue.updatedAt) : new Date(),
+        completedAt: isCompleted && issue.updatedAt ? new Date(issue.updatedAt) : undefined,
+        storyId: issue.storyId,
+        projectId: issue.storyId ? storiesMap.get(issue.storyId)?.projectId : undefined,
+        sprintId: issue.storyId ? storiesMap.get(issue.storyId)?.sprintId : undefined,
+        assigneeId: issue.assigneeId,
+        isTaskFromDatabase: true,
+        entityType: 'issue'
+      };
+    } catch (error) {
+      console.error('Error transforming issue:', error);
+      return null;
+    }
+  };
+
   const taskTodos = useMemo(() => {
-    const transformed = assignedTasks
+    return assignedTasks
       .map(transformTaskToTodoItem)
       .filter((item): item is TodoItemType => item !== null);
+  }, [assignedTasks]);
 
-    // Debug logging
-    if (user) {
-      console.log('[TodoList] Fetched tasks:', {
-        userId: user.id,
-        totalTasksFromAPI: assignedTasks.length,
-        validTransformedTasks: transformed.length,
-        sampleTask: transformed[0] || null
-      });
-    }
+  const issueTodos = useMemo(() => {
+    return assignedIssues
+      .map(transformIssueToTodoItem)
+      .filter((item): item is TodoItemType => item !== null);
+  }, [assignedIssues]);
 
-    return transformed;
-  }, [assignedTasks, user]);
+  const combinedLoading = tasksLoading || issuesLoading;
+  const combinedError = tasksError || issuesError;
 
-  // Combine local todos and task todos
   const todos = useMemo(() => {
-    // Use task todos from database, local todos are kept separate for personal tasks
-    return [...taskTodos, ...localTodos];
-  }, [taskTodos, localTodos]);
+    return [...taskTodos, ...issueTodos, ...localTodos];
+  }, [taskTodos, issueTodos, localTodos]);
 
-  // Load local todos from localStorage on component mount (user-specific)
   useEffect(() => {
-    if (!user?.id) return; // Don't load if no user
-
+    if (!user?.id) return;
     const storageKey = `sprintSync-todos-${user.id}`;
     const savedTodos = localStorage.getItem(storageKey);
     if (savedTodos) {
@@ -172,22 +191,18 @@ const TodoList: React.FC = () => {
         setLocalTodos(parsedTodos);
       } catch (error) {
         console.error('Error loading user todos:', error);
-        setLocalTodos([]);
       }
     }
   }, [user?.id]);
 
-  // Save local todos to localStorage whenever they change (user-specific)
   useEffect(() => {
-    if (!user?.id) return; // Don't save if no user
-
+    if (!user?.id) return;
     const storageKey = `sprintSync-todos-${user.id}`;
     localStorage.setItem(storageKey, JSON.stringify(localTodos));
   }, [localTodos, user?.id]);
 
   const addTodo = () => {
     if (!newTodo.trim()) return;
-
     const todo: TodoItemType = {
       id: `local-${Date.now().toString()}`,
       text: newTodo.trim(),
@@ -198,79 +213,52 @@ const TodoList: React.FC = () => {
       createdAt: new Date(),
       updatedAt: new Date()
     };
-
     setLocalTodos(prev => [todo, ...prev]);
     setNewTodo('');
     setNewDueDate('');
   };
 
   const updateTodo = async (id: string, updates: Partial<TodoItemType>) => {
-    // Check if it's a local todo or a task todo
-    const isLocalTodo = id.startsWith('local-');
-
-    if (isLocalTodo) {
-      // Update local todo
+    if (id.startsWith('local-')) {
       setLocalTodos(prev => prev.map(todo =>
         todo.id === id ? { ...todo, ...updates, updatedAt: new Date() } : todo
       ));
     } else {
-      // Update task in database
       try {
-        const task = assignedTasks.find((t: Task) => t.id === id);
-        if (!task) {
-          console.warn('Task not found for update:', id);
-          return;
-        }
+        const item = todos.find(t => t.id === id);
+        if (!item) return;
 
-        const taskUpdates: Partial<Task> = {};
+        const isIssue = item.entityType === 'issue';
+        const updatesData: any = {};
 
-        // Map TodoItem updates to Task updates
         if (updates.completed !== undefined) {
-          taskUpdates.status = (updates.completed ? 'DONE' : 'TO_DO') as any;
+          if (isIssue) updatesData.status = updates.completed ? 'DONE' : 'TODO';
+          else updatesData.status = updates.completed ? 'DONE' : 'TO_DO';
         }
-        if (updates.text !== undefined && updates.text.trim() !== '') {
-          taskUpdates.title = updates.text.trim();
-        }
+        if (updates.text !== undefined) updatesData.title = updates.text.trim();
         if (updates.priority !== undefined) {
-          // Map priority back: high -> CRITICAL, medium -> MEDIUM, low -> LOW
-          const priorityMap: Record<string, string> = {
-            'high': 'CRITICAL',
-            'medium': 'MEDIUM',
-            'low': 'LOW'
-          };
-          taskUpdates.priority = priorityMap[updates.priority] as any;
+          const priorityMap: any = { 'high': 'CRITICAL', 'medium': 'MEDIUM', 'low': 'LOW' };
+          updatesData.priority = priorityMap[updates.priority];
         }
 
-        // Validate that we have updates to make
-        if (Object.keys(taskUpdates).length === 0) {
-          console.warn('No valid updates provided for task:', id);
-          return;
-        }
-
-        console.log('[TodoList] Updating task:', { id, updates: taskUpdates });
-        await taskApiService.updateTask(id, taskUpdates);
-
-        // Refetch tasks to get updated data
-        if (refetchTasks) {
-          await refetchTasks();
+        if (isIssue) {
+          await issueApiService.updateIssue(id, updatesData);
+          refetchIssues && refetchIssues();
+        } else {
+          await taskApiService.updateTask(id, updatesData);
+          refetchTasks && refetchTasks();
         }
       } catch (error) {
-        console.error('Failed to update task:', error);
-        // Show user-friendly error message
-        alert('Failed to update task. Please try again.');
+        console.error('Failed to update item:', error);
+        alert('Failed to update item. Please try again.');
       }
     }
   };
 
   const deleteTodo = (id: string) => {
-    // Check if it's a local todo or a task todo
-    const isLocalTodo = id.startsWith('local-');
-
-    if (isLocalTodo) {
-      // Actually delete local todos since they're not in the database
+    if (id.startsWith('local-')) {
       setLocalTodos(prev => prev.filter(todo => todo.id !== id));
     } else {
-      // For database tasks, just hide them from UI (don't delete from database)
       setHiddenTaskIds(prev => {
         const newSet = new Set(prev);
         newSet.add(id);
@@ -280,51 +268,23 @@ const TodoList: React.FC = () => {
   };
 
   const clearCompleted = async () => {
-    // Clear completed local todos
     setLocalTodos(prev => prev.filter(todo => !todo.completed));
+    const completedItems = todos.filter(t => t.completed && !t.id.startsWith('local-'));
+    if (completedItems.length === 0) return;
 
-    // Delete completed tasks from database
-    const completedTaskIds = assignedTasks
-      .filter((task: Task) => {
-        const normalizedStatus = task.status?.toString().toLowerCase().trim() || '';
-        return normalizedStatus === 'done' || normalizedStatus === 'completed';
-      })
-      .map((task: Task) => task.id)
-      .filter((id): id is string => typeof id === 'string' && id.trim() !== '');
-
-    if (completedTaskIds.length === 0) {
-      return;
-    }
-
-    console.log('[TodoList] Clearing completed tasks:', completedTaskIds.length);
-
-    // Delete completed tasks one by one
-    let successCount = 0;
-    let failCount = 0;
-
-    for (const taskId of completedTaskIds) {
+    for (const item of completedItems) {
       try {
-        await taskApiService.deleteTask(taskId);
-        successCount++;
+        if (item.entityType === 'issue') await issueApiService.deleteIssue(item.id);
+        else await taskApiService.deleteTask(item.id);
       } catch (error) {
-        console.error(`Failed to delete completed task ${taskId}:`, error);
-        failCount++;
+        console.error(`Failed to delete item ${item.id}:`, error);
       }
     }
-
-    // Refetch tasks after deletion
-    if (successCount > 0 && refetchTasks) {
-      await refetchTasks();
-    }
-
-    if (failCount > 0) {
-      alert(`Failed to delete ${failCount} completed task(s). Please try again.`);
-    }
+    refetchTasks && refetchTasks();
+    refetchIssues && refetchIssues();
   };
 
-  // Filter todos based on current filters and hidden state
   const filteredTodos = todos.filter(todo => {
-    // Hide tasks that are in the hidden list
     if (hiddenTaskIds.has(todo.id)) return false;
     if (filter === 'active' && todo.completed) return false;
     if (filter === 'completed' && !todo.completed) return false;
@@ -333,7 +293,6 @@ const TodoList: React.FC = () => {
     return true;
   });
 
-  // Statistics
   const totalTodos = todos.length;
   const completedTodos = todos.filter(t => t.completed).length;
   const activeTodos = totalTodos - completedTodos;
@@ -352,42 +311,21 @@ const TodoList: React.FC = () => {
     health: todos.filter(t => t.category === 'health' && !t.completed).length
   };
 
-  // Show loading spinner while fetching tasks or if user is not loaded
-  if (!user || tasksLoading) {
+  if (!user || combinedLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <LoadingSpinner message={!user ? "Loading user information..." : "Loading your assigned tasks..."} />
+        <LoadingSpinner message={!user ? "Loading user information..." : "Loading your assigned items..."} />
       </div>
     );
   }
 
-  // Show error message if tasks failed to load
-  if (tasksError) {
+  if (combinedError) {
     return (
       <Card>
-        <CardContent className="p-8 text-center">
-          <div className="flex flex-col items-center space-y-4">
-            <AlertTriangle className="w-12 h-12 text-red-500" />
-            <div>
-              <h3 className="font-medium text-red-600">Failed to load tasks</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                {tasksError instanceof Error ? tasksError.message : 'An error occurred while loading your tasks'}
-              </p>
-              {!user?.id && (
-                <p className="text-sm text-muted-foreground mt-2 text-yellow-600">
-                  Please make sure you are logged in.
-                </p>
-              )}
-            </div>
-            <div className="flex space-x-2">
-              <Button onClick={() => refetchTasks && refetchTasks()} variant="outline">
-                Retry
-              </Button>
-              <Button onClick={() => window.location.reload()} variant="outline">
-                Reload Page
-              </Button>
-            </div>
-          </div>
+        <CardContent className="p-8 text-center text-red-600">
+          <AlertTriangle className="w-12 h-12 mx-auto mb-4" />
+          <h3 className="font-medium">Failed to load items</h3>
+          <Button onClick={() => window.location.reload()} variant="outline" className="mt-4">Reload Page</Button>
         </CardContent>
       </Card>
     );
@@ -395,112 +333,60 @@ const TodoList: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header with Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-r from-green-50 to-cyan-50 border-green-200">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
+        {[
+          { label: 'Total Items', value: totalTodos, color: 'text-green-600', bg: 'bg-green-50' },
+          { label: 'Active', value: activeTodos, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Completed', value: completedTodos, color: 'text-green-600', bg: 'bg-green-50' },
+          { label: 'Completion', value: `${completionRate.toFixed(0)}%`, color: 'text-purple-600', bg: 'bg-purple-50' }
+        ].map((stat, i) => (
+          <Card key={i} className={`${stat.bg} border-gray-200`}>
+            <CardContent className="p-4 flex items-center space-x-3">
+              <div className={`w-10 h-10 ${stat.color.replace('text', 'bg')} rounded-lg flex items-center justify-center`}>
                 <CheckCircle2 className="w-5 h-5 text-white" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Total Tasks</p>
-                <p className="text-2xl font-semibold text-green-600">{totalTodos}</p>
+                <p className="text-sm text-muted-foreground">{stat.label}</p>
+                <p className={`text-2xl font-semibold ${stat.color}`}>{stat.value}</p>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
-                <Clock className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Active</p>
-                <p className="text-2xl font-semibold text-blue-600">{activeTodos}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
-                <CheckCircle2 className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Completed</p>
-                <p className="text-2xl font-semibold text-green-600">{completedTodos}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-r from-purple-50 to-violet-50 border-purple-200">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center">
-                <BarChart3 className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Completion</p>
-                <p className="text-2xl font-semibold text-purple-600">{completionRate.toFixed(0)}%</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* Progress Bar */}
-      {totalTodos > 0 && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Overall Progress</span>
-                <span className="text-sm text-muted-foreground">{completedTodos}/{totalTodos} tasks</span>
-              </div>
-              <Progress value={completionRate} className="h-2" />
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Add Todo Form */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <span>Add New Task</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-2 items-center">
+        <CardContent className="p-4">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium">Overall Progress</span>
+              <span className="text-muted-foreground">{completedTodos}/{totalTodos} items</span>
+            </div>
+            <Progress value={completionRate} className="h-2" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Add New Task</CardTitle></CardHeader>
+        <CardContent>
+          <div className="flex flex-col md:flex-row gap-2">
             <Input
               placeholder="What needs to be done?"
               value={newTodo}
               onChange={(e) => setNewTodo(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && addTodo()}
-              className="flex-1 min-w-[300px]"
+              className="flex-1"
             />
-
-            <Select value={newPriority} onValueChange={(value: 'low' | 'medium' | 'high') => setNewPriority(value)}>
-              <SelectTrigger className="w-24">
-                <SelectValue />
-              </SelectTrigger>
+            <Select value={newPriority} onValueChange={(v: any) => setNewPriority(v)}>
+              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="low">Low</SelectItem>
                 <SelectItem value="medium">Medium</SelectItem>
                 <SelectItem value="high">High</SelectItem>
               </SelectContent>
             </Select>
-
-            <Select value={newCategory} onValueChange={(value: 'work' | 'personal' | 'shopping' | 'health') => setNewCategory(value)}>
-              <SelectTrigger className="w-24">
-                <SelectValue />
-              </SelectTrigger>
+            <Select value={newCategory} onValueChange={(v: any) => setNewCategory(v)}>
+              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="work">Work</SelectItem>
                 <SelectItem value="personal">Personal</SelectItem>
@@ -508,172 +394,53 @@ const TodoList: React.FC = () => {
                 <SelectItem value="health">Health</SelectItem>
               </SelectContent>
             </Select>
-
-            <Input
-              type="date"
-              className="w-36"
-              value={newDueDate}
-              onChange={(e) => setNewDueDate(e.target.value)}
-            />
-
-            <Button onClick={addTodo} className="bg-green-600 hover:bg-green-700 text-white px-6">
-              Add Task
-            </Button>
+            <Button onClick={addTodo} className="bg-green-600 hover:bg-green-700">Add</Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Filters and Tabs */}
-      <Card>
-        <CardContent className="p-4">
-          <Tabs value={filter} onValueChange={(value: 'all' | 'active' | 'completed') => setFilter(value)}>
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-              <TabsList className="grid grid-cols-2 w-full md:w-auto">
-                <TabsTrigger value="active">Active ({activeTodos})</TabsTrigger>
-                <TabsTrigger value="completed">Completed ({completedTodos})</TabsTrigger>
-              </TabsList>
+      <div className="flex justify-between items-center">
+        <Tabs value={filter} onValueChange={(v: any) => setFilter(v)}>
+          <TabsList>
+            <TabsTrigger value="active">Active ({activeTodos})</TabsTrigger>
+            <TabsTrigger value="completed">Completed ({completedTodos})</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="flex gap-2">
+          <Select value={priorityFilter} onValueChange={(v: any) => setPriorityFilter(v)}>
+            <SelectTrigger className="w-32"><SelectValue placeholder="Priority" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Priorities</SelectItem>
+              <SelectItem value="high">High</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="low">Low</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={categoryFilter} onValueChange={(v: any) => setCategoryFilter(v)}>
+            <SelectTrigger className="w-32"><SelectValue placeholder="Category" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              <SelectItem value="work">Work</SelectItem>
+              <SelectItem value="personal">Personal</SelectItem>
+              <SelectItem value="shopping">Shopping</SelectItem>
+              <SelectItem value="health">Health</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
-              <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-                <Select value={priorityFilter} onValueChange={(value: 'all' | 'low' | 'medium' | 'high') => setPriorityFilter(value)}>
-                  <SelectTrigger className="w-full sm:w-32">
-                    <SelectValue placeholder="Priority" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Priority</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="low">Low</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select value={categoryFilter} onValueChange={(value: 'all' | 'work' | 'personal' | 'shopping' | 'health') => setCategoryFilter(value)}>
-                  <SelectTrigger className="w-full sm:w-32">
-                    <SelectValue placeholder="Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    <SelectItem value="work">Work</SelectItem>
-                    <SelectItem value="personal">Personal</SelectItem>
-                    <SelectItem value="shopping">Shopping</SelectItem>
-                    <SelectItem value="health">Health</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </Tabs>
-        </CardContent>
-      </Card>
-
-      {/* Todo List */}
       <div className="space-y-3">
         {filteredTodos.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <div className="flex flex-col items-center space-y-4">
-                <div className="w-16 h-16 bg-gradient-to-r from-green-100 to-cyan-100 rounded-full flex items-center justify-center">
-                  <CheckCircle2 className="w-8 h-8 text-green-600" />
-                </div>
-                <div className="space-y-2">
-                  <h3 className="font-medium">
-                    {filter === 'completed' ? 'No completed tasks yet' :
-                      filter === 'active' ? 'No active tasks' : 'No tasks found'}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {filter === 'completed' ? 'Complete some tasks to see them here' :
-                      filter === 'active' ? 'All tasks are completed! 🎉' : 'Add your first task to get started'}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="text-center py-10 text-muted-foreground border rounded-lg">No items found</div>
         ) : (
           filteredTodos.map(todo => (
-            <TodoItem
-              key={todo.id}
-              item={todo}
-              onUpdate={updateTodo}
-              onDelete={deleteTodo}
-              onTaskUpdated={refetchTasks}
-            />
+            <TodoItem key={todo.id} item={todo} onUpdate={updateTodo} onDelete={deleteTodo} onTaskUpdated={() => {
+              refetchTasks && refetchTasks();
+              refetchIssues && refetchIssues();
+            }} />
           ))
         )}
       </div>
-
-      {/* Summary Statistics */}
-      {totalTodos > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <BarChart3 className="w-5 h-5 text-purple-600" />
-              <span>Task Statistics</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Overall Stats */}
-              <div className="space-y-3">
-                <p className="text-sm font-semibold text-gray-700 border-b pb-2">Overview</p>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Total Tasks</span>
-                    <Badge variant="outline" className="text-sm font-semibold">{totalTodos}</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Active</span>
-                    <Badge variant="outline" className="text-sm font-semibold text-blue-600 bg-blue-50">{activeTodos}</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Completed</span>
-                    <Badge variant="outline" className="text-sm font-semibold text-green-600 bg-green-50">{completedTodos}</Badge>
-                  </div>
-                </div>
-              </div>
-
-              {/* Priority Breakdown */}
-              <div className="space-y-3">
-                <p className="text-sm font-semibold text-gray-700 border-b pb-2">Priority Breakdown</p>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Badge variant="destructive" className="text-xs w-20">High</Badge>
-                    <span className="text-sm font-semibold text-gray-700">{priorityStats.high}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Badge variant="outline" className="text-xs bg-yellow-100 text-yellow-700 border-yellow-300 w-20">Medium</Badge>
-                    <span className="text-sm font-semibold text-gray-700">{priorityStats.medium}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Badge variant="secondary" className="text-xs w-20">Low</Badge>
-                    <span className="text-sm font-semibold text-gray-700">{priorityStats.low}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Category Breakdown */}
-              <div className="space-y-3">
-                <p className="text-sm font-semibold text-gray-700 border-b pb-2">Category Breakdown</p>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Work</span>
-                    <span className="text-sm font-semibold text-gray-700">{categoryStats.work}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Personal</span>
-                    <span className="text-sm font-semibold text-gray-700">{categoryStats.personal}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Shopping</span>
-                    <span className="text-sm font-semibold text-gray-700">{categoryStats.shopping}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Health</span>
-                    <span className="text-sm font-semibold text-gray-700">{categoryStats.health}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 };

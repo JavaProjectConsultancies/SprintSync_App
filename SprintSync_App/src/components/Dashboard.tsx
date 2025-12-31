@@ -1080,17 +1080,71 @@ const Dashboard: React.FC = () => {
     };
   };
 
+  // Derived status based on dates and sprint completion - aligned with ProjectsPage.tsx
+  const computeDerivedStatus = (project: any): string => {
+    const now = new Date();
+    const start = project.startDate ? new Date(project.startDate) : null;
+    const end = project.endDate ? new Date(project.endDate) : null;
+
+    if (start && now < start) return 'planning';
+    if (start && end && now >= start && now <= end) return 'active';
+
+    // After end date: decide between completed vs overdue using sprint completion
+    if (end && now > end) {
+      const normalizedSprints = normalizeApiData(apiSprints);
+      const projectSprints = normalizedSprints.filter(s => {
+        const sprintProjectId = (s as any).projectId || (s as any).project?.id;
+        return String(sprintProjectId) === String(project.id);
+      });
+
+      if (projectSprints.length === 0) return 'overdue';
+
+      const allCompleted = projectSprints.every((s: any) => {
+        const st = (s.status || '').toString().toLowerCase();
+        return st === 'completed' || st === 'closed' || st === 'done';
+      });
+      return allCompleted ? 'completed' : 'overdue';
+    }
+
+    // Fallback
+    return (project.status || 'planning').toString().toLowerCase();
+  };
+
+  // Progress calculation based on sprint completion - aligned with ProjectsPage.tsx
+  const calculateProjectProgress = (project: any): number => {
+    const normalizedSprints = normalizeApiData(apiSprints);
+    const projectSprints = normalizedSprints.filter(s => {
+      const sprintProjectId = (s as any).projectId || (s as any).project?.id;
+      return String(sprintProjectId) === String(project.id);
+    });
+
+    if (projectSprints.length === 0) return project.progress || 0;
+
+    const completed = projectSprints.filter((s: any) => {
+      const st = (s.status || '').toString().toLowerCase();
+      return st === 'completed' || st === 'closed' || st === 'done';
+    }).length;
+
+    return Math.round((completed / projectSprints.length) * 100);
+  };
+
   const getStatusColor = (status: string) => {
-    switch (status) {
+    const s = (status || '').toString().toLowerCase().trim();
+    switch (s) {
       case 'active':
         return 'bg-green-100 text-green-800 border-green-200';
       case 'planning':
         return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'on-hold':
+      case 'onhold':
+      case 'paused':
         return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       case 'completed':
+      case 'done':
         return 'bg-gray-100 text-gray-800 border-gray-200';
       case 'cancelled':
+      case 'canceled':
+      case 'overdue':
         return 'bg-red-100 text-red-800 border-red-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
@@ -1464,9 +1518,14 @@ const Dashboard: React.FC = () => {
                   <div className="space-y-2">
                     <div className="flex items-center space-x-2">
                       <h4 className="font-medium">{project.name}</h4>
-                      <Badge variant="outline" className={getStatusColor(project.status)}>
-                        {project.status}
-                      </Badge>
+                      {(() => {
+                        const status = computeDerivedStatus(project);
+                        return (
+                          <Badge variant="outline" className={getStatusColor(status)}>
+                            {status.charAt(0).toUpperCase() + status.slice(1)}
+                          </Badge>
+                        );
+                      })()}
                       <Badge variant="outline" className={getPriorityColor(project.priority)}>
                         {project.priority}
                       </Badge>
@@ -1486,8 +1545,15 @@ const Dashboard: React.FC = () => {
                     </div>
                   </div>
                   <div className="text-right space-y-2">
-                    <div className="text-sm font-medium">{project.progress}%</div>
-                    <Progress value={project.progress} className="w-20" />
+                    {(() => {
+                      const progress = calculateProjectProgress(project);
+                      return (
+                        <>
+                          <div className="text-sm font-medium">{progress}%</div>
+                          <Progress value={progress} className="w-20" />
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               ))

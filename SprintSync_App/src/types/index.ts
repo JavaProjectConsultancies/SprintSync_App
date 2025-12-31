@@ -268,4 +268,12 @@ export interface TodoItem {
   createdAt: Date;
   updatedAt: Date;
   completedAt?: Date;
+  entityType?: 'task' | 'issue';
+  storyId?: string;
+  estimatedHours?: number;
+  actualHours?: number;
+  assigneeId?: string;
+  projectId?: string;
+  sprintId?: string;
+  isTaskFromDatabase?: boolean;
 }

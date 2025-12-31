@@ -297,4 +297,18 @@ public class IssueService {
         }
         return null;
     }
+
+    /**
+     * Update issue actual hours (for effort logging)
+     */
+    public Issue updateIssueActualHours(String id, java.math.BigDecimal actualHours) {
+        Optional<Issue> issueOpt = issueRepository.findById(id);
+        if (issueOpt.isPresent()) {
+            Issue issue = issueOpt.get();
+            issue.setActualHours(actualHours);
+            issue.setUpdatedAt(LocalDateTime.now());
+            return issueRepository.save(issue);
+        }
+        return null;
+    }
 }

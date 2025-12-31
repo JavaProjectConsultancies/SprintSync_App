@@ -10,7 +10,8 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 
 /**
- * TimeEntry entity representing time tracking entries in the SprintSync application.
+ * TimeEntry entity representing time tracking entries in the SprintSync
+ * application.
  * Maps to the 'time_entries' table in the database.
  * 
  * @author Mayuresh G
@@ -34,6 +35,9 @@ public class TimeEntry extends BaseEntity {
 
     @Column(name = "subtask_id")
     private String subtaskId;
+
+    @Column(name = "issue_id")
+    private String issueId;
 
     @NotBlank(message = "Description cannot be blank")
     @Column(name = "description", nullable = false)
@@ -62,9 +66,11 @@ public class TimeEntry extends BaseEntity {
     private Boolean isBillable = true;
 
     // Constructors
-    public TimeEntry() {}
+    public TimeEntry() {
+    }
 
-    public TimeEntry(String userId, String description, TimeEntryType entryType, BigDecimal hoursWorked, LocalDate workDate) {
+    public TimeEntry(String userId, String description, TimeEntryType entryType, BigDecimal hoursWorked,
+            LocalDate workDate) {
         this.userId = userId;
         this.description = description;
         this.entryType = entryType;
@@ -111,6 +117,14 @@ public class TimeEntry extends BaseEntity {
 
     public void setSubtaskId(String subtaskId) {
         this.subtaskId = subtaskId;
+    }
+
+    public String getIssueId() {
+        return issueId;
+    }
+
+    public void setIssueId(String issueId) {
+        this.issueId = issueId;
     }
 
     public String getDescription() {

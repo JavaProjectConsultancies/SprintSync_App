@@ -5,52 +5,56 @@ const BASE_URL = '/time-entries';
 
 export const timeEntryApiService = {
   // Basic CRUD operations
-  createTimeEntry: (timeEntry: Omit<TimeEntry, 'id' | 'createdAt' | 'updatedAt'>) => 
+  createTimeEntry: (timeEntry: Omit<TimeEntry, 'id' | 'createdAt' | 'updatedAt'>) =>
     apiClient.post<TimeEntry>(BASE_URL, timeEntry),
-  
-  getTimeEntryById: (id: string) => 
+
+  getTimeEntryById: (id: string) =>
     apiClient.get<TimeEntry>(`${BASE_URL}/${id}`),
-  
-  getTimeEntries: (params?: any) => 
+
+  getTimeEntries: (params?: any) =>
     apiClient.get<Page<TimeEntry>>(BASE_URL, { params }),
-  
-  getAllTimeEntries: () => 
+
+  getAllTimeEntries: () =>
     apiClient.get<TimeEntry[]>(`${BASE_URL}/all`),
-  
-  updateTimeEntry: (id: string, timeEntry: Partial<TimeEntry>) => 
+
+  updateTimeEntry: (id: string, timeEntry: Partial<TimeEntry>) =>
     apiClient.put<TimeEntry>(`${BASE_URL}/${id}`, timeEntry),
-  
-  deleteTimeEntry: (id: string) => 
+
+  deleteTimeEntry: (id: string) =>
     apiClient.delete<void>(`${BASE_URL}/${id}`),
 
   // Task-specific operations
-  getTimeEntriesByTask: (taskId: string, params?: any) => 
+  getTimeEntriesByTask: (taskId: string, params?: any) =>
     apiClient.get<TimeEntry[]>(`${BASE_URL}/task/${taskId}`, { params }),
 
   // Subtask-specific operations
-  getTimeEntriesBySubtask: (subtaskId: string, params?: any) => 
+  getTimeEntriesBySubtask: (subtaskId: string, params?: any) =>
     apiClient.get<TimeEntry[]>(`${BASE_URL}/subtask/${subtaskId}`, { params }),
 
+  // Issue-specific operations
+  getTimeEntriesByIssue: (issueId: string, params?: any) =>
+    apiClient.get<TimeEntry[]>(`${BASE_URL}/issue/${issueId}`, { params }),
+
   // User-specific operations
-  getTimeEntriesByUser: (userId: string, params?: any) => 
+  getTimeEntriesByUser: (userId: string, params?: any) =>
     apiClient.get<TimeEntry[]>(`${BASE_URL}/user/${userId}`, { params }),
 
   // Project-specific operations
-  getTimeEntriesByProject: (projectId: string, params?: any) => 
+  getTimeEntriesByProject: (projectId: string, params?: any) =>
     apiClient.get<TimeEntry[]>(`${BASE_URL}/project/${projectId}`, { params }),
 
   // Story-specific operations
-  getTimeEntriesByStory: (storyId: string, params?: any) => 
+  getTimeEntriesByStory: (storyId: string, params?: any) =>
     apiClient.get<TimeEntry[]>(`${BASE_URL}/story/${storyId}`, { params }),
 
   // Date range operations
-  getTimeEntriesByDateRange: (startDate: string, endDate: string, params?: any) => 
-    apiClient.get<TimeEntry[]>(`${BASE_URL}/date-range`, { 
-      params: { ...params, startDate, endDate } 
+  getTimeEntriesByDateRange: (startDate: string, endDate: string, params?: any) =>
+    apiClient.get<TimeEntry[]>(`${BASE_URL}/date-range`, {
+      params: { ...params, startDate, endDate }
     }),
 
   // Statistics
-  getTimeEntryStatistics: (taskId: string) => 
+  getTimeEntryStatistics: (taskId: string) =>
     apiClient.get<any>(`${BASE_URL}/task/${taskId}/statistics`),
 };
 

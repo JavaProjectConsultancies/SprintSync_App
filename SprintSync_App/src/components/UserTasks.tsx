@@ -186,12 +186,18 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
         assignedTasksError;
 
   // Use appropriate issue data based on role  
-  const rawIssuesData = isQARole ? (userRole === 'qa_manager' ? allIssuesData : assignedIssuesData) :
-    userRole === 'admin' ? allIssuesData : null;
-  const issuesLoading = isQARole ? (userRole === 'qa_manager' ? allIssuesLoading : assignedIssuesLoading) :
-    userRole === 'admin' ? allIssuesLoading : false;
-  const issuesError = isQARole ? (userRole === 'qa_manager' ? allIssuesError : assignedIssuesError) :
-    userRole === 'admin' ? allIssuesError : null;
+  const rawIssuesData = userRole === 'admin' ? allIssuesData :
+    userRole === 'manager' ? allIssuesData :
+      userRole === 'qa_manager' ? allIssuesData :
+        assignedIssuesData;
+  const issuesLoading = userRole === 'admin' ? allIssuesLoading :
+    userRole === 'manager' ? allIssuesLoading :
+      userRole === 'qa_manager' ? allIssuesLoading :
+        assignedIssuesLoading;
+  const issuesError = userRole === 'admin' ? allIssuesError :
+    userRole === 'manager' ? allIssuesError :
+      userRole === 'qa_manager' ? allIssuesError :
+        assignedIssuesError;
 
   // Extract and filter tasks from API response
   const assignedTasks = useMemo(() => {
@@ -307,8 +313,8 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
       });
     }
 
-    // Process issues (for QA roles and admin)
-    if (rawIssuesData && (isQARole || userRole === 'admin')) {
+    // Process issues (for all roles)
+    if (rawIssuesData) {
       const issues = Array.isArray(rawIssuesData)
         ? rawIssuesData
         : (rawIssuesData as any).data || (rawIssuesData as any).content || [];
@@ -1050,7 +1056,9 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
                       key={task.id}
                       className={`flex items-start space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${isOverdue
                         ? 'border-red-200 bg-white hover:bg-red-50'
-                        : 'hover:bg-gray-50'
+                        : (task as any).itemType === 'issue'
+                          ? 'border-red-200 bg-red-50 hover:bg-red-100'
+                          : 'hover:bg-gray-50'
                         }`}
                       onClick={() => handleTaskClick(task)}
                     >
@@ -1061,7 +1069,9 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
                         <div className="flex items-start justify-between">
                           <h4 className={`font-medium text-sm ${isOverdue
                             ? 'text-red-800 hover:text-red-600'
-                            : 'hover:text-blue-600'
+                            : (task as any).itemType === 'issue'
+                              ? 'text-red-700 hover:text-red-500'
+                              : 'hover:text-blue-600'
                             }`}>
                             {task.title}
                           </h4>
