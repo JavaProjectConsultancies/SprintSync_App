@@ -3,15 +3,17 @@ package com.sprintsync.api.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+
 /**
- * WorkflowLane entity representing custom workflow lanes/columns in Scrum boards.
+ * WorkflowLane entity representing custom workflow lanes/columns in Scrum
+ * boards.
  * Maps to the 'workflow_lanes' table in the database.
  * 
  * @author SprintSync Team
  */
 @Entity
 @Table(name = "workflow_lanes", uniqueConstraints = {
-    @UniqueConstraint(columnNames = {"project_id", "display_order"}, name = "unique_project_lane_order")
+        @UniqueConstraint(columnNames = { "project_id", "display_order" }, name = "unique_project_lane_order")
 })
 public class WorkflowLane extends BaseEntity {
 
@@ -40,14 +42,15 @@ public class WorkflowLane extends BaseEntity {
 
     @NotNull(message = "Display order cannot be null")
     @Column(name = "display_order", nullable = false)
-    private Integer displayOrder = 0;
+    private Integer displayOrder = 1;
 
     @NotBlank(message = "Status value cannot be blank")
     @Column(name = "status_value", nullable = false, length = 50)
     private String statusValue;
 
     // Constructors
-    public WorkflowLane() {}
+    public WorkflowLane() {
+    }
 
     public WorkflowLane(String projectId, String title, String color, String statusValue) {
         this.projectId = projectId;
@@ -129,4 +132,3 @@ public class WorkflowLane extends BaseEntity {
         this.statusValue = statusValue;
     }
 }
-

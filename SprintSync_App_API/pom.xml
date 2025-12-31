@@ -12,7 +12,7 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.sprintsync</groupId>
+    <groupId>com.sprintsync</groupId>       
     <artifactId>sprintsync-1.0</artifactId>
     <version>1.0.0</version>
     <name>SprintSync API</name>

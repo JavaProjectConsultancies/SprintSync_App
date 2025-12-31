@@ -34,20 +34,20 @@ import java.util.Optional;
 @CrossOrigin(origins = "*", allowedHeaders = "*")
 
 public class AuthController {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
-    
+
     private final AuthService authService;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    
+
     @Autowired
     public AuthController(AuthService authService, UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.authService = authService;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
     }
-    
+
     /**
      * Login endpoint
      * POST /api/auth/login
@@ -56,29 +56,29 @@ public class AuthController {
     public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody AuthRequest authRequest) {
         try {
             logger.info("Login attempt for email: {}", authRequest.getEmail());
-            
+
             AuthResponse authResponse = authService.authenticate(authRequest);
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Login successful");
             response.put("data", authResponse);
-            
+
             logger.info("Login successful for email: {}", authRequest.getEmail());
             return ResponseEntity.ok(response);
-            
+
         } catch (Exception e) {
             logger.error("Login failed for email: {} - {}", authRequest.getEmail(), e.getMessage());
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
             response.put("message", e.getMessage());
             response.put("data", null);
-            
+
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
         }
     }
-    
+
     /**
      * Register endpoint
      * POST /api/auth/register
@@ -87,29 +87,29 @@ public class AuthController {
     public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterRequest registerRequest) {
         try {
             logger.info("Registration attempt for email: {}", registerRequest.getEmail());
-            
+
             Map<String, Object> registrationResponse = authService.register(registerRequest);
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", registrationResponse.get("message"));
             response.put("data", registrationResponse);
-            
+
             logger.info("Registration request submitted for email: {}", registerRequest.getEmail());
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
-            
+
         } catch (Exception e) {
             logger.error("Registration failed for email: {} - {}", registerRequest.getEmail(), e.getMessage());
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
             response.put("message", e.getMessage());
             response.put("data", null);
-            
+
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
     }
-    
+
     /**
      * Get current user profile
      * GET /api/auth/me
@@ -121,28 +121,28 @@ public class AuthController {
             if (token == null) {
                 throw new RuntimeException("No authentication token provided");
             }
-            
+
             User user = authService.getCurrentUser(token);
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "User profile retrieved successfully");
             response.put("data", user);
-            
+
             return ResponseEntity.ok(response);
-            
+
         } catch (Exception e) {
             logger.error("Get current user failed: {}", e.getMessage());
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
             response.put("message", e.getMessage());
             response.put("data", null);
-            
+
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
         }
     }
-    
+
     /**
      * Refresh token endpoint
      * POST /api/auth/refresh
@@ -154,28 +154,28 @@ public class AuthController {
             if (token == null) {
                 throw new RuntimeException("No authentication token provided");
             }
-            
+
             AuthResponse authResponse = authService.refreshToken(token);
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Token refreshed successfully");
             response.put("data", authResponse);
-            
+
             return ResponseEntity.ok(response);
-            
+
         } catch (Exception e) {
             logger.error("Token refresh failed: {}", e.getMessage());
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
             response.put("message", e.getMessage());
             response.put("data", null);
-            
+
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
         }
     }
-    
+
     /**
      * Logout endpoint
      * POST /api/auth/logout
@@ -185,27 +185,27 @@ public class AuthController {
         try {
             // Clear security context
             SecurityContextHolder.clearContext();
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Logout successful");
             response.put("data", null);
-            
+
             logger.info("User logged out successfully");
             return ResponseEntity.ok(response);
-            
+
         } catch (Exception e) {
             logger.error("Logout failed: {}", e.getMessage());
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
             response.put("message", e.getMessage());
             response.put("data", null);
-            
+
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
-    
+
     /**
      * Change password endpoint
      * POST /api/auth/change-password
@@ -219,36 +219,57 @@ public class AuthController {
             if (token == null) {
                 throw new RuntimeException("No authentication token provided");
             }
-            
+
             String currentPassword = passwordRequest.get("currentPassword");
             String newPassword = passwordRequest.get("newPassword");
-            
+
             if (currentPassword == null || newPassword == null) {
                 throw new RuntimeException("Current password and new password are required");
             }
-            
-            // TODO: Implement password change logic
-            // This would involve verifying current password and updating to new password
-            
+
+            if (newPassword.length() < 6) {
+                throw new RuntimeException("New password must be at least 6 characters long");
+            }
+
+            // Get current user from token
+            User user = authService.getCurrentUser(token);
+            if (user == null) {
+                throw new RuntimeException("User not found");
+            }
+
+            // Verify current password
+            if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+                logger.warn("Password change failed: Current password is incorrect for user {}", user.getEmail());
+                throw new RuntimeException("Current password is incorrect");
+            }
+
+            // Update password with encoded new password
+            String encodedNewPassword = passwordEncoder.encode(newPassword);
+            user.setPasswordHash(encodedNewPassword);
+            user.setUpdatedAt(java.time.LocalDateTime.now());
+            userRepository.save(user);
+
+            logger.info("Password changed successfully for user: {}", user.getEmail());
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Password changed successfully");
             response.put("data", null);
-            
+
             return ResponseEntity.ok(response);
-            
+
         } catch (Exception e) {
             logger.error("Password change failed: {}", e.getMessage());
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
             response.put("message", e.getMessage());
             response.put("data", null);
-            
+
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
     }
-    
+
     /**
      * Forgot password endpoint
      * POST /api/auth/forgot-password
@@ -260,29 +281,29 @@ public class AuthController {
             if (email == null) {
                 throw new RuntimeException("Email is required");
             }
-            
+
             // TODO: Implement forgot password logic
             // This would involve sending reset email
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Password reset email sent");
             response.put("data", null);
-            
+
             return ResponseEntity.ok(response);
-            
+
         } catch (Exception e) {
             logger.error("Forgot password failed: {}", e.getMessage());
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
             response.put("message", e.getMessage());
             response.put("data", null);
-            
+
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
     }
-    
+
     /**
      * Reset password endpoint
      * POST /api/auth/reset-password
@@ -292,33 +313,33 @@ public class AuthController {
         try {
             String token = request.get("token");
             String newPassword = request.get("newPassword");
-            
+
             if (token == null || newPassword == null) {
                 throw new RuntimeException("Token and new password are required");
             }
-            
+
             // TODO: Implement password reset logic
             // This would involve validating reset token and updating password
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Password reset successfully");
             response.put("data", null);
-            
+
             return ResponseEntity.ok(response);
-            
+
         } catch (Exception e) {
             logger.error("Password reset failed: {}", e.getMessage());
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
             response.put("message", e.getMessage());
             response.put("data", null);
-            
+
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
     }
-    
+
     /**
      * Utility endpoint to fix demo user passwords with correct BCrypt hashes
      * POST /api/auth/fix-passwords
@@ -328,7 +349,7 @@ public class AuthController {
     public ResponseEntity<Map<String, Object>> fixDemoUserPasswords() {
         try {
             logger.info("Fixing demo user passwords with correct BCrypt hashes");
-            
+
             // Demo users to update with their passwords
             Map<String, String> demoUsers = new HashMap<>();
             // Original demo users
@@ -352,7 +373,7 @@ public class AuthController {
             demoUsers.put("vikram.dev@demo.com", "design123");
             demoUsers.put("shreya.maui@demo.com", "design123");
             demoUsers.put("arun.maui@demo.com", "design123");
-            
+
             // Database users from user list
             demoUsers.put("test2@gmail.com", "admin123");
             demoUsers.put("pm@sprintsync.com", "admin123");
@@ -363,16 +384,16 @@ public class AuthController {
             demoUsers.put("testuserh6@api.com", "admin123");
             demoUsers.put("dev2@sprintsync.com", "admin123");
             demoUsers.put("test@gmail.com", "Test@123");
-            
+
             int updatedCount = 0;
             int notFoundCount = 0;
             List<String> updatedEmails = new java.util.ArrayList<>();
             List<String> notFoundEmails = new java.util.ArrayList<>();
-            
+
             for (Map.Entry<String, String> entry : demoUsers.entrySet()) {
                 String email = entry.getKey();
                 String password = entry.getValue();
-                
+
                 Optional<User> userOpt = userRepository.findByEmail(email);
                 if (userOpt.isPresent()) {
                     User user = userOpt.get();
@@ -389,7 +410,7 @@ public class AuthController {
                     logger.warn("User not found: {}", email);
                 }
             }
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Password fix completed");
@@ -397,22 +418,22 @@ public class AuthController {
             response.put("updatedEmails", updatedEmails);
             response.put("notFoundCount", notFoundCount);
             response.put("notFoundEmails", notFoundEmails);
-            
+
             logger.info("Password fix completed. Updated {} users, {} not found", updatedCount, notFoundCount);
             return ResponseEntity.ok(response);
-            
+
         } catch (Exception e) {
             logger.error("Failed to fix passwords: {}", e.getMessage(), e);
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
             response.put("message", "Failed to fix passwords: " + e.getMessage());
             response.put("data", null);
-            
+
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
-    
+
     /**
      * Extract JWT token from request header
      */
@@ -424,7 +445,3 @@ public class AuthController {
         return null;
     }
 }
-
-
-
-

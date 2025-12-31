@@ -39,7 +39,7 @@ import { API_CONFIG } from '../services/api/config';
 interface TeamMember {
   id: string;
   name: string;
-  role: 'admin' | 'manager' | 'developer';
+  role: 'admin' | 'manager' | 'developer' | 'qa_manager' | 'qa_developer';
   skills: string[];
   availability: number; // percentage
   department: string;
@@ -105,6 +105,8 @@ const DraggableTeamMember = ({ member, isSelected, onSelect, onViewDetails }: {
       case 'admin': return 'bg-red-100 text-red-800 border-red-200';
       case 'manager': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'developer': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'qa_manager': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'qa_developer': return 'bg-teal-100 text-teal-800 border-teal-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -759,6 +761,8 @@ const TeamManager = ({
                         <SelectItem value="admin">Admin</SelectItem>
                         <SelectItem value="manager">Manager</SelectItem>
                         <SelectItem value="developer">Developer</SelectItem>
+                        <SelectItem value="qa_manager">QA Manager</SelectItem>
+                        <SelectItem value="qa_developer">QA Developer</SelectItem>
                       </SelectContent>
                     </Select>
 

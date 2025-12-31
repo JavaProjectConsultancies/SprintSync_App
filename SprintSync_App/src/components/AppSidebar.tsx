@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContextEnhanced';
 import { useNavigation } from '../contexts/NavigationContext';
 import {
@@ -22,8 +22,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Button } from './ui/button';
 import {
   LayoutDashboard,
   FolderKanban,
@@ -46,8 +57,16 @@ import {
   CheckSquare,
   Plug,
   Activity,
-  TestTube
+  TestTube,
+  Key,
+  Eye,
+  EyeOff,
+  Loader2,
+  AlertCircle,
+  CheckCircle2
 } from 'lucide-react';
+import { authApiService } from '../services/api/authApi';
+import { toast } from 'sonner';
 import sprintSyncLogo from '../assets/aadf192e83d08c7cc03896c06b452017e84d04aa.png';
 
 interface MenuItem {
@@ -62,6 +81,73 @@ interface MenuItem {
 const AppSidebar: React.FC = () => {
   const { user, logout, hasPermission } = useAuth();
   const { navigationState, navigateTo } = useNavigation();
+
+  // Change Password Dialog State
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+
+  // Handle Change Password
+  const handleChangePassword = async () => {
+    setPasswordError('');
+
+    if (!currentPassword) {
+      setPasswordError('Current password is required');
+      return;
+    }
+
+    if (!newPassword) {
+      setPasswordError('New password is required');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setPasswordError('New password must be at least 6 characters');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('New password and confirm password do not match');
+      return;
+    }
+
+    try {
+      setIsChangingPassword(true);
+      await authApiService.changePassword(currentPassword, newPassword);
+      toast.success('Password changed successfully!');
+
+      // Reset form and close dialog
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setChangePasswordOpen(false);
+    } catch (error: any) {
+      console.error('Password change failed:', error);
+      const errorMessage = error?.message || 'Failed to change password';
+      setPasswordError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  // Reset form when dialog closes
+  const handleCloseChangePassword = () => {
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError('');
+    setShowCurrentPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
+    setChangePasswordOpen(false);
+  };
 
   // Early return if user is not available (shouldn't happen, but safety check)
   if (!user) {
@@ -228,6 +314,10 @@ const AppSidebar: React.FC = () => {
         return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'developer':
         return 'bg-green-100 text-green-800 border-green-200';
+      case 'qa_manager':
+        return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'qa_developer':
+        return 'bg-teal-100 text-teal-800 border-teal-200';
       case 'designer':
       case 'qa':
         return 'bg-purple-100 text-purple-800 border-purple-200';
@@ -244,6 +334,10 @@ const AppSidebar: React.FC = () => {
         return Settings;
       case 'developer':
         return Code;
+      case 'qa_manager':
+        return Shield;
+      case 'qa_developer':
+        return TestTube;
       case 'designer':
       case 'qa':
         return TestTube;
@@ -260,165 +354,289 @@ const AppSidebar: React.FC = () => {
   const RoleIcon = getRoleIcon(user.role);
 
   return (
-    <Sidebar>
-      <SidebarHeader>
-        <div
-          className="flex items-center space-x-3 px-2 py-3 cursor-pointer hover:bg-gray-50 rounded-lg transition-colors"
-          onClick={() => {
-            try {
-              if (navigateTo) {
-                navigateTo('dashboard');
-              } else {
+    <>
+      <Sidebar>
+        <SidebarHeader>
+          <div
+            className="flex items-center space-x-3 px-2 py-3 cursor-pointer hover:bg-gray-50 rounded-lg transition-colors"
+            onClick={() => {
+              try {
+                if (navigateTo) {
+                  navigateTo('dashboard');
+                } else {
+                  window.location.href = '/';
+                }
+              } catch (error) {
+                console.error('Navigation error:', error);
                 window.location.href = '/';
               }
-            } catch (error) {
-              console.error('Navigation error:', error);
-              window.location.href = '/';
-            }
-          }}
-          title="Go to Dashboard"
-        >
-          <div className="relative">
-            <img
-              src={sprintSyncLogo}
-              alt="SprintSync Logo"
-              className="w-10 h-10 object-contain"
-            />
+            }}
+            title="Go to Dashboard"
+          >
+            <div className="relative">
+              <img
+                src={sprintSyncLogo}
+                alt="SprintSync Logo"
+                className="w-10 h-10 object-contain"
+              />
+            </div>
+            <div className="flex-1">
+              <h2 className="font-bold text-green-600">SprintSync</h2>
+              <p className="text-xs text-muted-foreground">AI Project Management</p>
+            </div>
           </div>
-          <div className="flex-1">
-            <h2 className="font-bold text-green-600">SprintSync</h2>
-            <p className="text-xs text-muted-foreground">AI Project Management</p>
-          </div>
-        </div>
-      </SidebarHeader>
+        </SidebarHeader>
 
-      <SidebarContent>
-        {filteredMenuItems.map((section) => (
-          <SidebarGroup key={section.title}>
-            <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              {section.title}
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {section.children ? (
-                  section.children
-                    .filter(child => {
-                      // Role-based filtering is already handled in getRoleBasedMenuItems
-                      // So we just need to check permissions if they exist
-                      if (!child.permission) return true;
-                      if (!user) return false;
+        <SidebarContent>
+          {filteredMenuItems.map((section) => (
+            <SidebarGroup key={section.title}>
+              <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                {section.title}
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {section.children ? (
+                    section.children
+                      .filter(child => {
+                        // Role-based filtering is already handled in getRoleBasedMenuItems
+                        // So we just need to check permissions if they exist
+                        if (!child.permission) return true;
+                        if (!user) return false;
 
-                      try {
-                        return hasPermission(child.permission);
-                      } catch (error) {
-                        console.error('Error checking permission for child menu item:', child.title, error);
-                        return false;
-                      }
-                    })
-                    .map((child) => (
-                      <SidebarMenuItem key={child.title}>
-                        <SidebarMenuButton
-                          className={`group cursor-pointer ${navigationState.currentSection === child.id ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}`}
-                          onClick={() => handleNavigation(child.id, child.title)}
-                        >
-                          <child.icon className="w-4 h-4" />
-                          <span>{child.title}</span>
-                          {child.badge && (
-                            <Badge
-                              variant="secondary"
-                              className="ml-auto text-xs bg-green-100 text-green-800 border-green-200"
-                            >
-                              {child.badge}
-                            </Badge>
-                          )}
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))
-                ) : (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      className={`cursor-pointer ${navigationState.currentSection === section.id ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}`}
-                      onClick={() => handleNavigation(section.id, section.title)}
-                    >
-                      <section.icon className="w-4 h-4" />
-                      <span>{section.title}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
-      </SidebarContent>
+                        try {
+                          return hasPermission(child.permission);
+                        } catch (error) {
+                          console.error('Error checking permission for child menu item:', child.title, error);
+                          return false;
+                        }
+                      })
+                      .map((child) => (
+                        <SidebarMenuItem key={child.title}>
+                          <SidebarMenuButton
+                            className={`group cursor-pointer ${navigationState.currentSection === child.id ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}`}
+                            onClick={() => handleNavigation(child.id, child.title)}
+                          >
+                            <child.icon className="w-4 h-4" />
+                            <span>{child.title}</span>
+                            {child.badge && (
+                              <Badge
+                                variant="secondary"
+                                className="ml-auto text-xs bg-green-100 text-green-800 border-green-200"
+                              >
+                                {child.badge}
+                              </Badge>
+                            )}
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))
+                  ) : (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        className={`cursor-pointer ${navigationState.currentSection === section.id ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}`}
+                        onClick={() => handleNavigation(section.id, section.title)}
+                      >
+                        <section.icon className="w-4 h-4" />
+                        <span>{section.title}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ))}
+        </SidebarContent>
 
-      <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton
-                  size="lg"
-                  className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                >
-                  <Avatar className="h-10 w-10 rounded-xl border-2 border-gradient-to-br from-green-200 to-cyan-200">
-                    <AvatarImage src={user?.avatar} alt={user?.name} />
-                    <AvatarFallback className="rounded-xl bg-gradient-to-br from-green-100 to-cyan-100 text-green-800">
-                      {user ? getInitials(user.name) : 'U'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">{user?.name}</span>
-                    <span className="truncate text-xs text-muted-foreground">{user?.email}</span>
-                  </div>
-                  <ChevronUp className="ml-auto size-4" />
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
-                side="bottom"
-                align="end"
-                sideOffset={4}
-              >
-                <div className="p-3">
-                  <div className="flex items-center space-x-3">
-                    <Avatar className="h-12 w-12 rounded-xl">
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SidebarMenuButton
+                    size="lg"
+                    className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                  >
+                    <Avatar className="h-10 w-10 rounded-xl border-2 border-gradient-to-br from-green-200 to-cyan-200">
                       <AvatarImage src={user?.avatar} alt={user?.name} />
                       <AvatarFallback className="rounded-xl bg-gradient-to-br from-green-100 to-cyan-100 text-green-800">
                         {user ? getInitials(user.name) : 'U'}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">{user?.name}</p>
-                      <div className="flex items-center space-x-2">
-                        <Badge
-                          variant="outline"
-                          className={`text-xs ${getRoleColor(user?.role || '')}`}
-                        >
-                          <RoleIcon className="w-3 h-3 mr-1" />
-                          {user?.role?.charAt(0).toUpperCase() + user?.role?.slice(1)}
-                        </Badge>
+                    <div className="grid flex-1 text-left text-sm leading-tight">
+                      <span className="truncate font-semibold">{user?.name}</span>
+                      <span className="truncate text-xs text-muted-foreground">{user?.email}</span>
+                    </div>
+                    <ChevronUp className="ml-auto size-4" />
+                  </SidebarMenuButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+                  side="bottom"
+                  align="end"
+                  sideOffset={4}
+                >
+                  <div className="p-3">
+                    <div className="flex items-center space-x-3">
+                      <Avatar className="h-12 w-12 rounded-xl">
+                        <AvatarImage src={user?.avatar} alt={user?.name} />
+                        <AvatarFallback className="rounded-xl bg-gradient-to-br from-green-100 to-cyan-100 text-green-800">
+                          {user ? getInitials(user.name) : 'U'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">{user?.name}</p>
+                        <div className="flex items-center space-x-2">
+                          <Badge
+                            variant="outline"
+                            className={`text-xs ${getRoleColor(user?.role || '')}`}
+                          >
+                            <RoleIcon className="w-3 h-3 mr-1" />
+                            {user?.role?.charAt(0).toUpperCase() + user?.role?.slice(1)}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{user?.email}</p>
                       </div>
-                      <p className="text-xs text-muted-foreground">{user?.email}</p>
                     </div>
                   </div>
-                </div>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => handleNavigation('profile', 'Profile')}>
-                  <User className="w-4 h-4 mr-2" />
-                  Profile
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={logout} className="text-red-600">
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Sign out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
-      <SidebarRail />
-    </Sidebar>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => handleNavigation('profile', 'Profile')}>
+                    <User className="w-4 h-4 mr-2" />
+                    Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setChangePasswordOpen(true)}>
+                    <Key className="w-4 h-4 mr-2" />
+                    Change Password
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={logout} className="text-red-600">
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
+        <SidebarRail />
+      </Sidebar>
+
+      {/* Change Password Dialog */}
+      <Dialog open={changePasswordOpen} onOpenChange={handleCloseChangePassword}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Key className="w-5 h-5 text-blue-600" />
+              Change Password
+            </DialogTitle>
+            <DialogDescription>
+              Enter your current password and choose a new password.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Error Message */}
+            {passwordError && (
+              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{passwordError}</span>
+              </div>
+            )}
+
+            {/* Current Password */}
+            <div className="space-y-2">
+              <Label htmlFor="currentPassword">Current Password *</Label>
+              <div className="relative">
+                <Input
+                  id="currentPassword"
+                  type={showCurrentPassword ? 'text' : 'password'}
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Enter current password"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                >
+                  {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* New Password */}
+            <div className="space-y-2">
+              <Label htmlFor="newPassword">New Password *</Label>
+              <div className="relative">
+                <Input
+                  id="newPassword"
+                  type={showNewPassword ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password (min 6 characters)"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                >
+                  {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Confirm Password */}
+            <div className="space-y-2">
+              <Label htmlFor="confirmNewPassword">Confirm New Password *</Label>
+              <div className="relative">
+                <Input
+                  id="confirmNewPassword"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm new password"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleCloseChangePassword}
+              disabled={isChangingPassword}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleChangePassword}
+              disabled={isChangingPassword}
+              className="bg-gradient-to-r from-green-500 to-cyan-500 text-white hover:opacity-90"
+            >
+              {isChangingPassword ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Changing...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                  Change Password
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 

@@ -10,7 +10,6 @@ const getApiBaseUrl = () => {
     return (window as any).process.env.REACT_APP_API_BASE_URL;
   }
   // Default to server - backend WAR deploys at /sprintsync-1.0/ context path
-  // return 'http://192.168.0.236:8080/sprintsync-1.0/api';
   return 'http://localhost:8080/api';
 };
 

@@ -285,6 +285,8 @@ const ScrumPage: React.FC = () => {
 
   const [isAddIssueDialogOpen, setIsAddIssueDialogOpen] = useState(false);
 
+  const [customLaneNameForDialog, setCustomLaneNameForDialog] = useState<string | undefined>(undefined);
+
   const [selectedStoryForIssue, setSelectedStoryForIssue] = useState<
     string | null
   >(null);
@@ -561,13 +563,15 @@ const ScrumPage: React.FC = () => {
   // Only Managers can create tasks (not QA Manager)
   const canAddTasks = isManager;
 
-  // Managers and QA Managers can create issues
-  const canAddIssues = isManager || isQAManager;
+  // Managers, QA Managers, and QA Developers can create issues
+  const canAddIssues = isManager || isQAManager || isQADeveloper;
 
   // Managers, QA (deprecated), and QA Managers can create boards
   const canCreateBoards = canManageSprintsAndStories;
 
   const canLogEffort = true;
+  // QA Manager and QA Developer CANNOT log effort on TASKS (only on issues)
+  const canLogEffortOnTasks = !isQAManager && !isQADeveloper;
   // QA Manager and QA Developer can log effort on OTHER users' tasks (like managers)
   const canLogEffortForOthers = canManageSprintsAndStories || isQADeveloper;
 
@@ -629,6 +633,8 @@ const ScrumPage: React.FC = () => {
 
   // State to control due date popover
   const [isDueDatePopoverOpen, setIsDueDatePopoverOpen] = useState(false);
+  const [isIssueDueDatePopoverOpen, setIsIssueDueDatePopoverOpen] = useState(false);
+
 
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
 
@@ -2403,19 +2409,32 @@ const ScrumPage: React.FC = () => {
       return status;
     }
 
-    // Handle TaskStatus enum values
+    // Normalize status to uppercase for consistent matching
+    const normalizedStatus = typeof status === "string"
+      ? status.toUpperCase().replace(/-/g, '_')
+      : status;
 
-    switch (status as TaskStatus) {
+    // Handle all status formats (both lowercase and uppercase from backend)
+    switch (normalizedStatus) {
       case "TO_DO":
+      case "TODO":
+      case "OPEN":
         return "todo";
 
       case "IN_PROGRESS":
+      case "INPROGRESS":
         return "inprogress";
 
       case "QA_REVIEW":
+      case "QAREVIEW":
+      case "QA":
+      case "TESTING":
+      case "IN_REVIEW":
+      case "INREVIEW":
         return "qa";
 
       case "DONE":
+      case "COMPLETED":
         return "done";
 
       case "BLOCKED":
@@ -2934,6 +2953,32 @@ const ScrumPage: React.FC = () => {
       return filteredTasks;
     },
     [allTasks, boardStories, workflowLanes, mapTaskStatusToColumn, user],
+  );
+
+  // Get issues by column status (issues from stories in the current sprint or backlog)
+  const getIssuesByStatus = useCallback(
+    (status: string) => {
+      if (status === "stories") return []; // No issues in Stories column
+
+      // Filter issues to include those whose parent stories are on the board
+      const filteredIssues = allIssues.filter((issue) => {
+        // Check if issue's parent story is on the board
+        const parentStoryOnBoard = boardStories.some(
+          (story) => story.id === issue.storyId
+        );
+        if (!parentStoryOnBoard) return false;
+
+        // Check if issue status directly matches the status (for custom lanes)
+        if (issue.status === status) return true;
+
+        // Use the same mapping function as tasks for consistency
+        const mappedStatus = mapTaskStatusToColumn(issue.status as any);
+        return mappedStatus === status;
+      });
+
+      return filteredIssues;
+    },
+    [allIssues, boardStories, mapTaskStatusToColumn]
   );
 
   // Group tasks by their parent story (only from stories in current sprint)
@@ -3710,20 +3755,19 @@ const ScrumPage: React.FC = () => {
             oldStatus === "TO_DO" && newStatus === "inprogress";
 
           if (isMovingFromTodoToInProgress) {
-            // Check if issue has any time entries logged (via attached task or subtask)
-            // For issues, we'll check if there's any effort directly - for now allow move
-            // Note: If issues also need effort tracking, this can be added later
-            // Currently, issues don't have direct time entries, so we'll allow the move
-            // but require managers to approve TODO→IN_PROGRESS
-            if (!canManageSprintsAndStories) {
-              toast.error("Log effort or get manager approval to move to In Progress");
+            // Check if issue has any effort logged (actualHours > 0)
+            const issue = allIssues.find((i) => i.id === id);
+            const hasLoggedEffort = issue && (issue.actualHours || 0) > 0;
+
+            if (!hasLoggedEffort) {
+              toast.error("Log effort at least once before moving issue to In Progress");
               try {
                 await activityLogApiService.createActivityLog({
                   userId: user?.id || "",
                   entityType: "issues",
                   entityId: id,
                   action: "status_change_blocked",
-                  description: `Attempted to move issue from TODO to IN_PROGRESS (blocked - no effort/manager approval)`,
+                  description: `Attempted to move issue from TODO to IN_PROGRESS (blocked - no effort logged)`,
                   oldValues: JSON.stringify({ status: oldStatus }),
                   newValues: JSON.stringify({ status: "IN_PROGRESS" }),
                   ipAddress: undefined,
@@ -6376,6 +6420,35 @@ const ScrumPage: React.FC = () => {
       console.log("Creating time entry for issue with data:", timeEntryData);
       await timeEntryApiService.createTimeEntry(timeEntryData);
 
+      // Update issue actual hours
+      const newIssueActualHours = (selectedIssueForEffort.actualHours || 0) + effortLog.hours;
+      await issueApiService.updateIssueActualHours(selectedIssueForEffort.id, newIssueActualHours);
+
+      notifyProjectBudgetUpdate("issue-effort-logged");
+
+      // Update local state immediately for instant UI update
+      setAllIssues((prev) =>
+        prev.map((issue) =>
+          issue.id === selectedIssueForEffort.id
+            ? { ...issue, actualHours: newIssueActualHours }
+            : issue,
+        ),
+      );
+
+      // Update selectedIssueForEffort if it's still selected
+      setSelectedIssueForEffort((prev) =>
+        prev?.id === selectedIssueForEffort.id
+          ? { ...prev, actualHours: newIssueActualHours }
+          : prev,
+      );
+
+      // Update selectedIssueForDetails if it matches the logged issue
+      setSelectedIssueForDetails((prev) =>
+        prev?.id === selectedIssueForEffort.id
+          ? { ...prev, actualHours: newIssueActualHours }
+          : prev,
+      );
+
       // Log activity for effort logging
       try {
         await activityLogApiService.createActivityLog({
@@ -6397,11 +6470,6 @@ const ScrumPage: React.FC = () => {
       }
 
       toast.success(`Logged ${effortLog.hours}h effort on issue successfully`);
-
-      // Refresh issues
-      if (sprintStories.length > 0) {
-        fetchAllTasks(sprintStories, true);
-      }
 
       setEffortLog({
         hours: 0,
@@ -7060,10 +7128,10 @@ const ScrumPage: React.FC = () => {
                         });
                         setIsLogEffortDialogOpen(true);
                       }}
-                      disabled={isSprintEnded}
+                      disabled={isSprintEnded || !canLogEffortOnTasks}
                     >
                       <Clock className="w-4 h-4 mr-2" />
-                      Log Work{isSprintEnded ? " (Sprint Ended)" : ""}
+                      Log Work{isSprintEnded ? " (Sprint Ended)" : !canLogEffortOnTasks ? " (QA cannot log on tasks)" : ""}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={(e) => {
@@ -8756,7 +8824,7 @@ const ScrumPage: React.FC = () => {
                         <span className="font-semibold text-sm">To Do</span>
 
                         <Badge variant="secondary" className="text-xs">
-                          {getTasksByStatus("todo").length}
+                          {getTasksByStatus("todo").length + getIssuesByStatus("todo").length}
                         </Badge>
                       </div>
                     </div>
@@ -8776,7 +8844,7 @@ const ScrumPage: React.FC = () => {
                             variant="secondary"
                             className="text-xs flex-shrink-0"
                           >
-                            {getTasksByStatus("inprogress").length}
+                            {getTasksByStatus("inprogress").length + getIssuesByStatus("inprogress").length}
                           </Badge>
                         </div>
 
@@ -8844,6 +8912,7 @@ const ScrumPage: React.FC = () => {
 
                     {lanesAfterInProgress.map((lane) => {
                       const tasksInLane = getTasksByStatus(lane.statusValue);
+                      const issuesInLane = getIssuesByStatus(lane.statusValue);
 
                       const laneColor = lane.color || "#3B82F6";
 
@@ -8898,7 +8967,7 @@ const ScrumPage: React.FC = () => {
                                 variant="secondary"
                                 className="text-xs flex-shrink-0"
                               >
-                                {tasksInLane.length}
+                                {tasksInLane.length + issuesInLane.length}
                               </Badge>
 
                               {lane.wipLimitEnabled && lane.wipLimit && (
@@ -8980,7 +9049,7 @@ const ScrumPage: React.FC = () => {
                               variant="secondary"
                               className="text-xs flex-shrink-0"
                             >
-                              {getTasksByStatus("qa").length}
+                              {getTasksByStatus("qa").length + getIssuesByStatus("qa").length}
                             </Badge>
                           </div>
 
@@ -9051,6 +9120,7 @@ const ScrumPage: React.FC = () => {
 
                     {lanesAfterQA.map((lane) => {
                       const tasksInLane = getTasksByStatus(lane.statusValue);
+                      const issuesInLane = getIssuesByStatus(lane.statusValue);
 
                       const laneColor = lane.color || "#3B82F6";
 
@@ -9105,7 +9175,7 @@ const ScrumPage: React.FC = () => {
                                 variant="secondary"
                                 className="text-xs flex-shrink-0"
                               >
-                                {tasksInLane.length}
+                                {tasksInLane.length + issuesInLane.length}
                               </Badge>
 
                               {lane.wipLimitEnabled && lane.wipLimit && (
@@ -9178,7 +9248,7 @@ const ScrumPage: React.FC = () => {
                         <span className="font-semibold text-sm">Done</span>
 
                         <Badge variant="secondary" className="text-xs">
-                          {getTasksByStatus("done").length}
+                          {getTasksByStatus("done").length + getIssuesByStatus("done").length}
                         </Badge>
                       </div>
                     </div>
@@ -11958,7 +12028,7 @@ const ScrumPage: React.FC = () => {
               </div>
 
               <div>
-                <Label htmlFor="edit-log-date">Work Date</Label>
+                <Label htmlFor="edit-log-date">Work Date <span className="text-red-500">*</span></Label>
                 <Input
                   id="edit-log-date"
                   type="date"
@@ -12095,7 +12165,7 @@ const ScrumPage: React.FC = () => {
               {/* Work Date */}
 
               <div>
-                <Label htmlFor="effort-date">Work Date</Label>
+                <Label htmlFor="effort-date">Work Date <span className="text-red-500">*</span></Label>
 
                 <Input
                   id="effort-date"
@@ -12429,7 +12499,8 @@ const ScrumPage: React.FC = () => {
                           });
                           setIsLogEffortDialogOpen(true);
                         }}
-                        title="Log work on this task"
+                        title={canLogEffortOnTasks ? "Log work on this task" : "QA roles cannot log on tasks"}
+                        disabled={!canLogEffortOnTasks}
                       >
                         <Clock className="w-4 h-4 mr-1 text-blue-600" />
                         Log
@@ -14567,17 +14638,66 @@ const ScrumPage: React.FC = () => {
                           Due Date
                         </label>
 
-                        <div className="flex items-center space-x-2 text-sm text-gray-700">
-                          <CalendarIcon className="w-4 h-4" />
+                        {(user?.role === 'qa_developer' || user?.role === 'qa_manager') ? (
+                          <Popover open={isIssueDueDatePopoverOpen} onOpenChange={setIsIssueDueDatePopoverOpen} modal={true}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={`w-full justify-start text-left font-normal h-8 text-xs ${!selectedIssueForDetails.dueDate ? "text-muted-foreground" : ""
+                                  }`}
+                              >
+                                <CalendarIcon className="mr-2 h-3 w-3" />
+                                {selectedIssueForDetails.dueDate ? (
+                                  new Date(selectedIssueForDetails.dueDate).toLocaleDateString()
+                                ) : (
+                                  <span>Pick a date</span>
+                                )}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0 z-[9999]" align="start" side="top" sideOffset={5}>
+                              <Calendar
+                                mode="single"
+                                selected={selectedIssueForDetails.dueDate ? new Date(selectedIssueForDetails.dueDate) : undefined}
+                                onSelect={async (date) => {
+                                  if (date) {
+                                    const formattedDate = date.toISOString().split('T')[0];
+                                    try {
+                                      await issueApiService.updateIssueDueDate(selectedIssueForDetails.id, formattedDate);
+                                      setSelectedIssueForDetails((prev: any) =>
+                                        prev ? { ...prev, dueDate: formattedDate } : prev
+                                      );
+                                      setAllIssues((prev) =>
+                                        prev.map((i) =>
+                                          i.id === selectedIssueForDetails.id
+                                            ? { ...i, dueDate: formattedDate }
+                                            : i
+                                        )
+                                      );
+                                      setIsIssueDueDatePopoverOpen(false);
+                                      toast.success("Due date updated");
+                                    } catch (error) {
+                                      console.error("Failed to update due date:", error);
+                                      toast.error("Failed to update due date");
+                                    }
+                                  }
+                                }}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        ) : (
+                          <div className="flex items-center space-x-2 text-sm text-gray-700">
+                            <CalendarIcon className="w-4 h-4" />
 
-                          <span>
-                            {selectedIssueForDetails.dueDate
-                              ? new Date(
-                                selectedIssueForDetails.dueDate,
-                              ).toLocaleDateString()
-                              : "No due date"}
-                          </span>
-                        </div>
+                            <span>
+                              {selectedIssueForDetails.dueDate
+                                ? new Date(
+                                  selectedIssueForDetails.dueDate,
+                                ).toLocaleDateString()
+                                : "No due date"}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Labels */}
@@ -14666,6 +14786,7 @@ const ScrumPage: React.FC = () => {
           setIsAddIssueDialogOpen(false);
 
           setSelectedStoryForIssue(null);
+          setCustomLaneNameForDialog(undefined);
         }}
         sprintStartDate={selectedSprint ? sprints?.find((s: any) => s.id === selectedSprint)?.startDate : undefined}
         sprintEndDate={selectedSprint ? sprints?.find((s: any) => s.id === selectedSprint)?.endDate : undefined}
@@ -14705,6 +14826,7 @@ const ScrumPage: React.FC = () => {
         defaultStoryId={selectedStoryForIssue || undefined}
         requiredStoryId={selectedStoryForIssue || undefined}
         users={users}
+        customLaneName={customLaneNameForDialog}
       />
 
       {/* Add Task Dialog */}
@@ -14729,6 +14851,7 @@ const ScrumPage: React.FC = () => {
 
             dueDate: "",
           });
+          setCustomLaneNameForDialog(undefined);
         }}
         onSubmit={handleAddTask}
         stories={sprintStories.map((story) => ({
@@ -14766,6 +14889,7 @@ const ScrumPage: React.FC = () => {
         defaultStatus={newTask.storyId ? "todo" : "todo"}
         defaultStoryId={newTask.storyId || undefined}
         users={users}
+        customLaneName={customLaneNameForDialog}
       />
 
       {/* Lane Configuration Modal */}
@@ -15354,6 +15478,7 @@ const ScrumPage: React.FC = () => {
             ...prev,
             storyId: "",
           }));
+          setCustomLaneNameForDialog(undefined);
         }}
         projectId={selectedProject}
         sprintStartDate={selectedSprint ? sprints?.find((s: any) => s.id === selectedSprint)?.startDate : undefined}
@@ -15448,6 +15573,7 @@ const ScrumPage: React.FC = () => {
         }))}
         defaultStoryId={newTask.storyId || undefined}
         users={users}
+        customLaneName={customLaneNameForDialog}
       />
     </DndProvider>
   );

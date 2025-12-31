@@ -71,6 +71,7 @@ interface AddIssueDialogProps {
   projectId?: string; // REQUIRED for filtering assignees by project
   sprintStartDate?: string; // Sprint start date for date restrictions
   sprintEndDate?: string; // Sprint end date for date restrictions
+  customLaneName?: string; // Display name for custom lane status
 }
 
 const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
@@ -84,7 +85,8 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
   users = [],
   projectId,
   sprintStartDate,
-  sprintEndDate
+  sprintEndDate,
+  customLaneName
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -421,7 +423,7 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
       case 'inprogress': return 'In Progress';
       case 'qa': return 'QA/Review';
       case 'done': return 'Done';
-      default: return status;
+      default: return customLaneName || status;
     }
   };
 

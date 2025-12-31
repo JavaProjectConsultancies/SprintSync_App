@@ -105,6 +105,8 @@ import { useAuth } from '../contexts/AuthContextEnhanced';
 
 import TaskDetailsFullDialog from '../components/TaskDetailsFullDialog';
 import { API_CONFIG } from '../services/api/config';
+import { useWorkflowLanesByProject } from '../hooks/api/useWorkflowLanes';
+import { getStatusLabel as getStatusLabelUtil, isCustomLaneStatus } from '../utils/statusUtils';
 
 
 
@@ -205,6 +207,13 @@ const BacklogPage: React.FC = () => {
     return Array.isArray(sprintsData) ? sprintsData : (sprintsData as any).data || [];
 
   }, [sprintsData]);
+
+  // Fetch workflow lanes for custom lane names
+  const { data: workflowLanesData } = useWorkflowLanesByProject(selectedProject || 'SKIP');
+  const workflowLanes = useMemo(() => {
+    if (!workflowLanesData) return [];
+    return Array.isArray(workflowLanesData) ? workflowLanesData : (workflowLanesData as any)?.data || [];
+  }, [workflowLanesData]);
 
 
 
@@ -919,7 +928,12 @@ const BacklogPage: React.FC = () => {
 
       case 'CANCELLED': return 'bg-gray-100 text-gray-800';
 
-      default: return 'bg-gray-100 text-gray-800';
+      default:
+        // Check if it's a custom lane status
+        if (isCustomLaneStatus(status) && workflowLanes.length > 0) {
+          return 'bg-indigo-100 text-indigo-800';
+        }
+        return 'bg-gray-100 text-gray-800';
 
     }
 
@@ -1247,7 +1261,7 @@ const BacklogPage: React.FC = () => {
 
                                   <Badge variant="outline" className={`text-xs ${getStatusColor(task.status)}`}>
 
-                                    {task.status?.replace('_', ' ') || 'TO_DO'}
+                                    {getStatusLabelUtil(task.status, workflowLanes)}
 
                                   </Badge>
 

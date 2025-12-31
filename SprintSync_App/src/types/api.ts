@@ -207,6 +207,7 @@ export interface TimeEntry extends BaseEntity {
   storyId?: string;
   taskId?: string;
   subtaskId?: string;
+  issueId?: string;
   description: string;
   entryType: TimeEntryType;
   hoursWorked: number;

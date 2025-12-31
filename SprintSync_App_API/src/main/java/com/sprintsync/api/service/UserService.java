@@ -108,7 +108,8 @@ public class UserService {
             existingUser.setEmail(user.getEmail());
         }
         if (user.getPasswordHash() != null && !user.getPasswordHash().isEmpty()) {
-            existingUser.setPasswordHash(user.getPasswordHash());
+            // Encode the new password before saving
+            existingUser.setPasswordHash(passwordEncoder.encode(user.getPasswordHash()));
         }
         if (user.getRole() != null) {
             existingUser.setRole(user.getRole());

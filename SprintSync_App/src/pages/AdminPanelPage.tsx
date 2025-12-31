@@ -21,8 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
-import { 
-  Shield, 
+import {
+  Shield,
   Users,
   Settings,
   Database,
@@ -64,14 +64,14 @@ const AdminPanelPage: React.FC = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<User>>({});
-  
+
   // Add User Dialog State
   const [addUserDialogOpen, setAddUserDialogOpen] = useState(false);
-  
+
   // User Details Modal State
   const [userDetailsModalOpen, setUserDetailsModalOpen] = useState(false);
   const [viewingUser, setViewingUser] = useState<User | null>(null);
-  
+
   // Fetch users and projects from API - fetch ALL users without any filters
   // Using very large page size to ensure all users are fetched
   const { data: usersData, loading: usersLoading, error: usersError, refetch: refetchUsers } = useUsers({ page: 0, size: 10000 });
@@ -82,7 +82,7 @@ const AdminPanelPage: React.FC = () => {
   const { data: domainsData, loading: domainsLoading, error: domainsError } = useDomains();
   const updateUserStatusMutation = useUpdateUserStatus();
   const updateUserMutation = useUpdateUser();
-  
+
   const users = Array.isArray(usersData) ? usersData : [];
   const departments = Array.isArray(departmentsData) ? departmentsData : [];
   const domains = Array.isArray(domainsData) ? domainsData : [];
@@ -141,7 +141,7 @@ const AdminPanelPage: React.FC = () => {
   // Handle user lock/unlock (frontend state only)
   const handleToggleLock = (userId: string) => {
     setLockedUsers(prev => {
-      const newSet = new Set(prev); 
+      const newSet = new Set(prev);
       if (newSet.has(userId)) {
         newSet.delete(userId);
         console.log('🔓 User unlocked:', userId);
@@ -216,24 +216,24 @@ const AdminPanelPage: React.FC = () => {
         isActive: editingUser.isActive, // Preserve active status
         lastLogin: editingUser.lastLogin, // Preserve last login
       };
-      
-      console.log('💾 Saving user changes:', { 
-        id: editingUser.id, 
+
+      console.log('💾 Saving user changes:', {
+        id: editingUser.id,
         original: editingUser,
         changes: editFormData,
         sending: completeUserData
       });
-      
+
       await updateUserMutation.mutate({
         id: editingUser.id,
         user: completeUserData
       });
-      
+
       console.log('✅ User updated successfully');
       setEditDialogOpen(false);
       setEditingUser(null);
       setEditFormData({});
-      
+
       // Refresh user list
       await refetchUsers();
     } catch (error) {
@@ -263,8 +263,8 @@ const AdminPanelPage: React.FC = () => {
   };
 
   const getStatusColor = (isActive: boolean) => {
-    return isActive 
-      ? 'bg-green-100 text-green-800 border-green-200' 
+    return isActive
+      ? 'bg-green-100 text-green-800 border-green-200'
       : 'bg-red-100 text-red-800 border-red-200';
   };
 
@@ -272,13 +272,14 @@ const AdminPanelPage: React.FC = () => {
     const roleLower = role?.toLowerCase() || '';
     switch (roleLower) {
       case 'admin': return 'bg-red-100 text-red-800 border-red-200';
-      case 'manager': 
+      case 'manager':
       case 'project_manager': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'developer': return 'bg-green-100 text-green-800 border-green-200';
+      case 'qa_manager': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'qa_developer': return 'bg-teal-100 text-teal-800 border-teal-200';
       case 'designer': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'qa': return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'tester':
-      case 'qa': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'tester': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -297,11 +298,11 @@ const AdminPanelPage: React.FC = () => {
   // Check if any API is still loading, but only if data is not already present
   const isLoadingAny = useMemo(() => {
     return (usersLoading && usersData === null && !usersError) ||
-           (projectsLoading && projectsData === null && !projectsError) ||
-           (statsLoading && userStats === null) ||
-           (experienceLevelsLoading && experienceLevels === null && !experienceLevelsError) ||
-           (departmentsLoading && departmentsData === null && !departmentsError) ||
-           (domainsLoading && domainsData === null && !domainsError);
+      (projectsLoading && projectsData === null && !projectsError) ||
+      (statsLoading && userStats === null) ||
+      (experienceLevelsLoading && experienceLevels === null && !experienceLevelsError) ||
+      (departmentsLoading && departmentsData === null && !departmentsError) ||
+      (domainsLoading && domainsData === null && !domainsError);
   }, [
     usersLoading, usersData, usersError,
     projectsLoading, projectsData, projectsError,
@@ -335,7 +336,7 @@ const AdminPanelPage: React.FC = () => {
           const IconComponent = stat.icon;
           const isProjectStat = stat.label === 'Active Projects';
           const hasError = isProjectStat && projectsError;
-          
+
           return (
             <Card key={stat.label} className={hasError ? 'border-red-200' : ''}>
               <CardContent className="p-6">
@@ -375,7 +376,7 @@ const AdminPanelPage: React.FC = () => {
                   <CardDescription>Manage user accounts, roles, and access permissions</CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button 
+                  <Button
                     variant="outline"
                     onClick={() => refetchUsers()}
                     disabled={usersLoading}
@@ -384,7 +385,7 @@ const AdminPanelPage: React.FC = () => {
                     <RefreshCw className={`w-4 h-4 mr-2 ${usersLoading ? 'animate-spin' : ''}`} />
                     Refresh
                   </Button>
-                  <Button 
+                  <Button
                     className="bg-gradient-primary border-0 text-white hover:opacity-90"
                     onClick={() => setAddUserDialogOpen(true)}
                   >
@@ -413,11 +414,10 @@ const AdminPanelPage: React.FC = () => {
               ) : (
                 <div className="space-y-4">
                   {users.map((user) => (
-                    <div 
-                      key={user.id} 
-                      className={`flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors ${
-                        selectedUser === user.id ? 'border-green-500 bg-green-50' : ''
-                      }`}
+                    <div
+                      key={user.id}
+                      className={`flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors ${selectedUser === user.id ? 'border-green-500 bg-green-50' : ''
+                        }`}
                       onClick={() => setSelectedUser(user.id)}
                     >
                       <div className="flex items-center space-x-4">
@@ -427,7 +427,7 @@ const AdminPanelPage: React.FC = () => {
                             {getInitials(user.name)}
                           </AvatarFallback>
                         </Avatar>
-                        
+
                         <div className="space-y-1">
                           <div className="flex items-center space-x-2">
                             <h4 className="font-medium">{user.name}</h4>
@@ -469,8 +469,8 @@ const AdminPanelPage: React.FC = () => {
                       </div>
 
                       <div className="flex items-center space-x-2">
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           variant="outline"
                           title="View user details"
                           onClick={(e) => {
@@ -480,8 +480,8 @@ const AdminPanelPage: React.FC = () => {
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           variant="outline"
                           disabled={isUserLocked(user.id)}
                           className={isUserLocked(user.id) ? 'opacity-50 cursor-not-allowed' : ''}
@@ -494,9 +494,9 @@ const AdminPanelPage: React.FC = () => {
                           <Edit3 className="w-4 h-4" />
                         </Button>
                         {isUserLocked(user.id) ? (
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
+                          <Button
+                            size="sm"
+                            variant="outline"
                             className="text-green-600 border-green-200 hover:bg-green-50"
                             title="Unlock user to allow editing"
                             onClick={(e) => {
@@ -507,9 +507,9 @@ const AdminPanelPage: React.FC = () => {
                             <Unlock className="w-4 h-4" />
                           </Button>
                         ) : (
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
+                          <Button
+                            size="sm"
+                            variant="outline"
                             className="text-orange-600 border-orange-200 hover:bg-orange-50"
                             title="Lock user to prevent editing"
                             onClick={(e) => {
@@ -534,16 +534,16 @@ const AdminPanelPage: React.FC = () => {
         </TabsContent>
       </Tabs>
 
-          {/* Edit User Dialog */}
-          <EditUserForm
-            isOpen={editDialogOpen}
-            onClose={() => setEditDialogOpen(false)}
-            onSuccess={() => {
-              console.log('✅ User updated successfully, refreshing user list...');
-              refetchUsers();
-            }}
-            user={editingUser}
-          />
+      {/* Edit User Dialog */}
+      <EditUserForm
+        isOpen={editDialogOpen}
+        onClose={() => setEditDialogOpen(false)}
+        onSuccess={() => {
+          console.log('✅ User updated successfully, refreshing user list...');
+          refetchUsers();
+        }}
+        user={editingUser}
+      />
 
       {/* Add User Dialog */}
       <AddUserForm

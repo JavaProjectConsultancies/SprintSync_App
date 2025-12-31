@@ -538,7 +538,9 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
           skills: userData.skills,
           avatarUrl: userData.avatarUrl,
           reportingManager: userData.reportingManager,
-          dateOfJoining: userData.dateOfJoining
+          dateOfJoining: userData.dateOfJoining,
+          // Include password if it was changed
+          ...(userData.passwordHash ? { passwordHash: userData.passwordHash } : {})
         };
 
         console.log('🔄 Trying safe fields update...', safeFields);

@@ -295,6 +295,8 @@ const Login: React.FC = () => {
                           <option value="developer">Developer</option>
                           <option value="designer">Designer</option>
                           <option value="manager">Project Manager</option>
+                          <option value="qa_manager">QA Manager</option>
+                          <option value="qa_developer">QA Developer</option>
                           <option value="admin">Administrator</option>
                         </select>
                       </div>

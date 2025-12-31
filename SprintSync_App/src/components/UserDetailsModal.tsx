@@ -9,16 +9,16 @@ import {
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
-import { 
-  User, 
-  Mail, 
-  Shield, 
-  Building, 
-  Globe, 
-  Briefcase, 
-  IndianRupee, 
-  Percent, 
-  Star, 
+import {
+  User,
+  Mail,
+  Shield,
+  Building,
+  Globe,
+  Briefcase,
+  IndianRupee,
+  Percent,
+  Star,
   Image as ImageIcon,
   UserCheck,
   Calendar,
@@ -124,6 +124,8 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({ isOpen, onClose, us
       case 'ADMIN': return 'bg-red-100 text-red-800 border-red-200';
       case 'MANAGER': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'DEVELOPER': return 'bg-green-100 text-green-800 border-green-200';
+      case 'QA_MANAGER': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'QA_DEVELOPER': return 'bg-teal-100 text-teal-800 border-teal-200';
       case 'DESIGNER': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'QA': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'TESTER': return 'bg-orange-100 text-orange-800 border-orange-200';
@@ -201,7 +203,7 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({ isOpen, onClose, us
               <User className="user-details-section-icon text-indigo-600" />
               <h3>Basic Information</h3>
             </div>
-            
+
             <div className="user-details-grid grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="user-details-field space-y-2">
                 <div className="flex items-center gap-2">
@@ -257,7 +259,7 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({ isOpen, onClose, us
               <Building className="user-details-section-icon text-indigo-600" />
               <h3>Organization</h3>
             </div>
-            
+
             <div className="user-details-grid grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="user-details-field space-y-2">
                 <div className="flex items-center gap-2">
@@ -317,7 +319,7 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({ isOpen, onClose, us
               <Briefcase className="user-details-section-icon text-indigo-600" />
               <h3>Professional Details</h3>
             </div>
-            
+
             <div className="user-details-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="user-details-field space-y-2">
                 <div className="flex items-center gap-2">
@@ -383,7 +385,7 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({ isOpen, onClose, us
               <ImageIcon className="user-details-section-icon text-indigo-600" />
               <h3>Profile</h3>
             </div>
-            
+
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <ImageIcon className="w-4 h-4 text-gray-500" />
@@ -401,7 +403,7 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({ isOpen, onClose, us
               <Calendar className="w-5 h-5 text-indigo-600" />
               <h3 className="text-lg font-semibold text-gray-800">Account Information</h3>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">

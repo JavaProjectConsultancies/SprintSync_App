@@ -44,7 +44,7 @@ public class WorkflowLaneService {
         if (lane.getProjectId() == null || lane.getProjectId().trim().isEmpty()) {
             throw new IllegalArgumentException("Project ID is required");
         }
-        
+
         if (lane.getTitle() == null || lane.getTitle().trim().isEmpty()) {
             throw new IllegalArgumentException("Lane title is required");
         }
@@ -64,15 +64,19 @@ public class WorkflowLaneService {
             lane.setWipLimitEnabled(false);
         }
 
-        // Set display order if not provided (only if explicitly null or 0)
-        // Don't override if frontend explicitly set a displayOrder
-        // Only set default if displayOrder is null or 0 (not if it's a valid number)
-        if (lane.getDisplayOrder() == null || lane.getDisplayOrder() == 0) {
+        // Set display order if not provided or if it's 0
+        // If frontend provides a valid displayOrder > 0, use it; otherwise calculate
+        // next available
+        if (lane.getDisplayOrder() == null || lane.getDisplayOrder() <= 0) {
             Integer maxOrder = workflowLaneRepository.findMaxDisplayOrderByProjectId(lane.getProjectId());
-            lane.setDisplayOrder((maxOrder == null ? 0 : maxOrder) + 1);
-            logger.debug("Set default displayOrder: {} for lane: {}", lane.getDisplayOrder(), lane.getTitle());
+            int newOrder = (maxOrder == null ? 0 : maxOrder) + 1;
+            // Ensure displayOrder is at least 1 (never 0)
+            lane.setDisplayOrder(Math.max(newOrder, 1));
+            logger.info("Auto-assigned displayOrder: {} for lane: {} (maxOrder was: {})",
+                    lane.getDisplayOrder(), lane.getTitle(), maxOrder);
         } else {
-            logger.debug("Using provided displayOrder: {} for lane: {}", lane.getDisplayOrder(), lane.getTitle());
+            logger.info("Using frontend-provided displayOrder: {} for lane: {}",
+                    lane.getDisplayOrder(), lane.getTitle());
         }
 
         // Generate status value if not provided
@@ -81,7 +85,7 @@ public class WorkflowLaneService {
         }
 
         try {
-            logger.debug("Saving workflow lane: projectId={}, title={}, statusValue={}", 
+            logger.debug("Saving workflow lane: projectId={}, title={}, statusValue={}",
                     lane.getProjectId(), lane.getTitle(), lane.getStatusValue());
             WorkflowLane savedLane = workflowLaneRepository.save(lane);
             logger.info("Successfully saved workflow lane with ID: {}", savedLane.getId());
@@ -146,7 +150,7 @@ public class WorkflowLaneService {
      * Get workflow lanes for a project and board, ordered by display order.
      * 
      * @param projectId the project ID
-     * @param boardId the board ID (null for default board)
+     * @param boardId   the board ID (null for default board)
      * @return list of workflow lanes for the project and board
      */
     @Transactional(readOnly = true)
@@ -168,7 +172,7 @@ public class WorkflowLaneService {
      * Find workflow lane by status value and project ID.
      * 
      * @param statusValue the status value
-     * @param projectId the project ID
+     * @param projectId   the project ID
      * @return the workflow lane if found
      */
     @Transactional(readOnly = true)
@@ -195,10 +199,3 @@ public class WorkflowLaneService {
         }
     }
 }
-
-
-
-
-
-
-

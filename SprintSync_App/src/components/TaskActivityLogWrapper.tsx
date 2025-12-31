@@ -19,7 +19,7 @@ const TaskActivityLogWrapper: React.FC<TaskActivityLogWrapperProps> = ({ taskId,
     console.log('TaskActivityLogWrapper - activityLogs.length:', activityLogs?.length);
     console.log('TaskActivityLogWrapper - loading:', loading);
     console.log('TaskActivityLogWrapper - error:', error);
-    
+
     // Log each activity log's entity details
     if (Array.isArray(activityLogs) && activityLogs.length > 0) {
       console.log('Activity logs entity details:');
@@ -40,22 +40,22 @@ const TaskActivityLogWrapper: React.FC<TaskActivityLogWrapperProps> = ({ taskId,
 
   // Ensure activityLogs is always an array and filter to only include logs for this exact task ID
   // Exclude any subtask-related logs (entityType='subtask' or entityId matching subtask pattern)
-  const safeActivityLogs = Array.isArray(activityLogs) 
+  const safeActivityLogs = Array.isArray(activityLogs)
     ? activityLogs.filter(log => {
-        // Only include logs where:
-        // 1. entityType is exactly 'task' (not 'subtask' or any other type)
-        // 2. entityId exactly matches the taskId (not a subtask ID)
-        return log.entityType === 'task' && log.entityId === taskId;
-      })
+      // Only include logs where:
+      // 1. entityType is exactly 'task' (not 'subtask' or any other type)
+      // 2. entityId exactly matches the taskId (not a subtask ID)
+      return log.entityType === 'task' && log.entityId === taskId;
+    })
     : [];
-  
+
   console.log('TaskActivityLogWrapper rendering - safeActivityLogs.length:', safeActivityLogs.length);
   console.log('TaskActivityLogWrapper - Filtered to task logs only, taskId:', taskId);
 
   return (
-    <TaskActivityLog 
-      activityLogs={safeActivityLogs} 
-      loading={loading} 
+    <TaskActivityLog
+      activityLogs={safeActivityLogs}
+      loading={loading}
       error={error}
       resolveUserName={resolveUserName}
     />

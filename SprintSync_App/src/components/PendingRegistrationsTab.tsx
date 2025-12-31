@@ -3,11 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback } from './ui/avatar';
-import { 
-  Loader2, 
-  AlertTriangle, 
-  CheckCircle2, 
-  X, 
+import {
+  Loader2,
+  AlertTriangle,
+  CheckCircle2,
+  X,
   UserPlus,
   Mail,
   RefreshCw
@@ -15,7 +15,7 @@ import {
 import { usePendingRegistrations, useDeletePendingRegistration } from '../hooks/api/usePendingRegistrations';
 import { useDepartments } from '../hooks/api/useDepartments';
 import { useDomains } from '../hooks/api/useDomains';
-import { normalizeExperienceValue } from '../hooks/api/useExperienceLevels';
+
 import { PendingRegistration } from '../services/api/entities/pendingRegistrationApi';
 import AddUserForm from './AddUserForm';
 
@@ -52,13 +52,14 @@ const PendingRegistrationsTab: React.FC<PendingRegistrationsTabProps> = ({ onRef
     const roleLower = role?.toLowerCase() || '';
     switch (roleLower) {
       case 'admin': return 'bg-red-100 text-red-800 border-red-200';
-      case 'manager': 
+      case 'manager':
       case 'project_manager': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'developer': return 'bg-green-100 text-green-800 border-green-200';
+      case 'qa_manager': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'qa_developer': return 'bg-teal-100 text-teal-800 border-teal-200';
       case 'designer': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'qa': return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'tester':
-      case 'qa': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'tester': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -113,7 +114,7 @@ const PendingRegistrationsTab: React.FC<PendingRegistrationsTabProps> = ({ onRef
       departmentId: pendingReg.departmentId || 'none',
       domainId: pendingReg.domainId || 'none',
       avatarUrl: '',
-      experience: normalizeExperienceValue(pendingReg.experience) || 'E1',
+      experience: 'E1',
       hourlyRate: '',
       ctc: '',
       availabilityPercentage: '100',
@@ -136,7 +137,7 @@ const PendingRegistrationsTab: React.FC<PendingRegistrationsTabProps> = ({ onRef
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              <Button 
+              <Button
                 variant="outline"
                 onClick={() => refetchPending()}
                 disabled={pendingLoading}
@@ -168,8 +169,8 @@ const PendingRegistrationsTab: React.FC<PendingRegistrationsTabProps> = ({ onRef
           ) : (
             <div className="space-y-4">
               {pendingRegistrations.map((pendingReg) => (
-                <div 
-                  key={pendingReg.id} 
+                <div
+                  key={pendingReg.id}
                   className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex items-center space-x-4 flex-1">
@@ -178,7 +179,7 @@ const PendingRegistrationsTab: React.FC<PendingRegistrationsTabProps> = ({ onRef
                         {getInitials(pendingReg.name)}
                       </AvatarFallback>
                     </Avatar>
-                    
+
                     <div className="space-y-1 flex-1">
                       <div className="flex items-center space-x-2">
                         <h4 className="font-medium">{pendingReg.name}</h4>
@@ -211,21 +212,21 @@ const PendingRegistrationsTab: React.FC<PendingRegistrationsTabProps> = ({ onRef
                   </div>
 
                   <div className="flex items-center space-x-2">
-                    <Button 
-                      size="sm" 
+                    <Button
+                      size="sm"
                       variant="outline"
                       className="text-red-600 border-red-200 hover:bg-red-50"
                       onClick={() => handleCancel(pendingReg)}
-                      disabled={deletePendingMutation.isPending}
+                      disabled={deletePendingMutation.loading}
                     >
                       <X className="w-4 h-4 mr-1" />
                       Cancel
                     </Button>
-                    <Button 
-                      size="sm" 
+                    <Button
+                      size="sm"
                       className="bg-green-600 hover:bg-green-700 text-white"
                       onClick={() => handleAdd(pendingReg)}
-                      disabled={deletePendingMutation.isPending}
+                      disabled={deletePendingMutation.loading}
                     >
                       <UserPlus className="w-4 h-4 mr-1" />
                       Add

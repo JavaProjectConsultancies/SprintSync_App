@@ -79,6 +79,7 @@ interface AddTaskDialogProps {
   projectId?: string; // REQUIRED for filtering assignees by project
   sprintStartDate?: string; // Sprint start date for date restrictions
   sprintEndDate?: string; // Sprint end date for date restrictions
+  customLaneName?: string; // Display name for custom lane status
 }
 
 const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
@@ -91,7 +92,8 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
   users = [],
   projectId,
   sprintStartDate,
-  sprintEndDate
+  sprintEndDate,
+  customLaneName
 }) => {
   const [formData, setFormData] = useState({
     title: '',
@@ -464,7 +466,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
       case 'inprogress': return 'In Progress';
       case 'qa': return 'QA/Review';
       case 'done': return 'Done';
-      default: return status;
+      default: return customLaneName || status;
     }
   };
 

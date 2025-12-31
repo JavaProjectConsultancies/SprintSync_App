@@ -11,9 +11,9 @@ interface TaskActivityLogProps {
   resolveUserName?: (userId: string) => string | undefined;
 }
 
-const TaskActivityLog: React.FC<TaskActivityLogProps> = ({ 
-  activityLogs, 
-  loading = false, 
+const TaskActivityLog: React.FC<TaskActivityLogProps> = ({
+  activityLogs,
+  loading = false,
   error = null,
   resolveUserName
 }) => {
@@ -62,7 +62,7 @@ const TaskActivityLog: React.FC<TaskActivityLogProps> = ({
           return `Logged ${parsedNewValues.hours}h on subtask "${parsedNewValues.subtaskId}"`;
         }
         return activityLog.description || 'Logged effort';
-      
+
       case 'status_changed':
         if (parsedOldValues && parsedNewValues && parsedOldValues.status && parsedNewValues.status) {
           return `Changed status from ${parsedOldValues.status} to ${parsedNewValues.status}`;
@@ -70,16 +70,16 @@ const TaskActivityLog: React.FC<TaskActivityLogProps> = ({
           return `Changed status to ${parsedNewValues.status}`;
         }
         return activityLog.description || 'Changed status';
-      
+
       case 'created':
         return activityLog.description || 'Created task';
-      
+
       case 'subtask_created':
         if (parsedNewValues && parsedNewValues.title) {
           return `Created subtask "${parsedNewValues.title}"`;
         }
         return activityLog.description || 'Created subtask';
-      
+
       case 'updated':
       case 'task_updated':
         if (parsedNewValues) {
@@ -89,16 +89,16 @@ const TaskActivityLog: React.FC<TaskActivityLogProps> = ({
           }
         }
         return activityLog.description || 'Updated task';
-      
+
       case 'assigned':
         if (parsedNewValues && parsedNewValues.assigneeId) {
           return `Assigned to user`;
         }
         return activityLog.description || 'Task assigned';
-      
+
       case 'unassigned':
         return activityLog.description || 'Task unassigned';
-      
+
       default:
         return activityLog.description || activityLog.action.replace(/_/g, ' ');
     }
@@ -170,29 +170,29 @@ const TaskActivityLog: React.FC<TaskActivityLogProps> = ({
             return null;
           }
           return (
-          <div key={activityLog.id || `log-${index}`} className="flex items-start space-x-3 p-3 hover:bg-gray-50 rounded-lg transition-colors">
-            <Avatar className="w-8 h-8">
-              <AvatarFallback className="text-xs bg-gradient-to-br from-blue-100 to-cyan-100">
-                {activityLog.userId ? activityLog.userId.slice(-2).toUpperCase() : 'U'}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center space-x-2 mb-1">
-                <span className="text-sm font-medium">
-                  {resolveUserName ? (resolveUserName(activityLog.userId) || activityLog.userId || 'Unknown User') : (activityLog.userId || 'Unknown User')}
-                </span>
-                <Badge variant="secondary" className={`text-xs ${getActivityColor(activityLog.action)}`}>
-                  {getActivityIcon(activityLog.action)} {activityLog.action.replace('_', ' ')}
-                </Badge>
-              </div>
-              <div className="text-sm text-gray-700">
-                {formatActivityDetails(activityLog)}
-              </div>
-              <div className="text-xs text-muted-foreground mt-1">
-                {formatActivityTime(activityLog.createdAt)}
+            <div key={activityLog.id || `log-${index}`} className="flex items-start space-x-3 p-3 hover:bg-gray-50 rounded-lg transition-colors">
+              <Avatar className="w-8 h-8">
+                <AvatarFallback className="text-xs bg-gradient-to-br from-blue-100 to-cyan-100">
+                  {activityLog.userId ? activityLog.userId.slice(-2).toUpperCase() : 'U'}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center space-x-2 mb-1">
+                  <span className="text-sm font-medium">
+                    {resolveUserName ? (resolveUserName(activityLog.userId) || activityLog.userId || 'Unknown User') : (activityLog.userId || 'Unknown User')}
+                  </span>
+                  <Badge variant="secondary" className={`text-xs ${getActivityColor(activityLog.action)}`}>
+                    {getActivityIcon(activityLog.action)} {activityLog.action.replace('_', ' ')}
+                  </Badge>
+                </div>
+                <div className="text-sm text-gray-700">
+                  {formatActivityDetails(activityLog)}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {formatActivityTime(activityLog.createdAt)}
+                </div>
               </div>
             </div>
-          </div>
           );
         })}
       </div>

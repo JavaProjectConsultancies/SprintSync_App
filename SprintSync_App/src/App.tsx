@@ -605,6 +605,10 @@ const AppContent: React.FC = () => {
         return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'developer':
         return 'bg-green-100 text-green-800 border-green-200';
+      case 'qa_manager':
+        return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'qa_developer':
+        return 'bg-teal-100 text-teal-800 border-teal-200';
       case 'designer':
       case 'qa':
         return 'bg-purple-100 text-purple-800 border-purple-200';
