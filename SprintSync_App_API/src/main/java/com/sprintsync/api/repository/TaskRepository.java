@@ -44,24 +44,28 @@ public interface TaskRepository extends JpaRepository<Task, String> {
     /**
      * Find tasks by sprint ID
      */
-    // Note: Task entity doesn't have sprintId field - tasks are related to sprints through stories
+    // Note: Task entity doesn't have sprintId field - tasks are related to sprints
+    // through stories
     // Use findByStoryId instead and filter through stories
 
     /**
      * Find tasks by project ID
      */
-    // Note: Task entity doesn't have projectId field - tasks are related to projects through stories
+    // Note: Task entity doesn't have projectId field - tasks are related to
+    // projects through stories
     // Use findByStoryId instead and filter through stories
 
     /**
      * Find tasks by epic ID
      */
-    // Note: Task entity doesn't have epicId field - tasks are related to epics through stories
+    // Note: Task entity doesn't have epicId field - tasks are related to epics
+    // through stories
 
     /**
      * Find tasks by release ID
      */
-    // Note: Task entity doesn't have releaseId field - tasks are related to releases through stories
+    // Note: Task entity doesn't have releaseId field - tasks are related to
+    // releases through stories
 
     /**
      * Search tasks by title containing text (case insensitive)
@@ -93,8 +97,8 @@ public interface TaskRepository extends JpaRepository<Task, String> {
      */
     @Query("SELECT COUNT(t) FROM Task t WHERE t.createdAt BETWEEN :startDate AND :endDate AND t.status = :status")
     long countByCreatedAtBetweenAndStatus(@Param("startDate") LocalDateTime startDate,
-                                         @Param("endDate") LocalDateTime endDate,
-                                         @Param("status") TaskStatus status);
+            @Param("endDate") LocalDateTime endDate,
+            @Param("status") TaskStatus status);
 
     /**
      * Find tasks updated between dates
@@ -133,8 +137,8 @@ public interface TaskRepository extends JpaRepository<Task, String> {
      */
     @Query("SELECT t FROM Task t WHERE t.dueDate BETWEEN :today AND :dueSoon AND t.status <> :completedStatus")
     List<Task> findTasksDueSoon(@Param("today") LocalDate today,
-                                @Param("dueSoon") LocalDate dueSoon,
-                                @Param("completedStatus") TaskStatus completedStatus);
+            @Param("dueSoon") LocalDate dueSoon,
+            @Param("completedStatus") TaskStatus completedStatus);
 
     /**
      * Count tasks by status
@@ -180,68 +184,64 @@ public interface TaskRepository extends JpaRepository<Task, String> {
     List<Object[]> countTasksByStatus();
 
     /**
-     * Sum actual hours for completed (Done lane) tasks grouped by assignee for a project.
+     * Sum actual hours for completed (Done lane) tasks grouped by assignee for a
+     * project.
      *
-     * This native query joins stories to determine the parent project because the tasks table
-     * does not carry a project reference directly. Only tasks in the Done lane contribute to the
-     * totals and only tasks that currently have an assignee are considered billable.
+     * This native query joins stories to determine the parent project because the
+     * tasks table
+     * does not carry a project reference directly. Only tasks in the Done lane
+     * contribute to the
+     * totals and only tasks that currently have an assignee are considered
+     * billable.
      */
-    @Query(
-        value = """
-            SELECT
-                t.assignee_id AS assignee_id,
-                COALESCE(SUM(t.actual_hours), 0) AS total_hours
-            FROM tasks t
-            INNER JOIN stories s ON s.id = t.story_id
-            WHERE s.project_id = :projectId
-              AND t.assignee_id IS NOT NULL
-              AND LOWER(t.status) = 'done'
-            GROUP BY t.assignee_id
-        """,
-        nativeQuery = true
-    )
+    @Query(value = """
+                SELECT
+                    t.assignee_id AS assignee_id,
+                    COALESCE(SUM(t.actual_hours), 0) AS total_hours
+                FROM tasks t
+                INNER JOIN stories s ON s.id = t.story_id
+                WHERE s.project_id = :projectId
+                  AND t.assignee_id IS NOT NULL
+                  AND LOWER(t.status) = 'done'
+                GROUP BY t.assignee_id
+            """, nativeQuery = true)
     List<Object[]> sumCompletedTaskHoursByAssigneeForProject(@Param("projectId") String projectId);
 
     /**
-     * Sum hours from time entries for completed tasks grouped by assignee for a project.
+     * Sum hours from time entries for completed tasks grouped by assignee for a
+     * project.
      */
-    @Query(
-        value = """
-            SELECT
-                t.assignee_id AS assignee_id,
-                COALESCE(SUM(te.hours_worked), 0) AS total_hours
-            FROM tasks t
-            INNER JOIN stories s ON s.id = t.story_id
-            INNER JOIN time_entries te ON te.task_id = t.id
-            WHERE s.project_id = :projectId
-              AND t.assignee_id IS NOT NULL
-              AND LOWER(t.status) = 'done'
-            GROUP BY t.assignee_id
-        """,
-        nativeQuery = true
-    )
+    @Query(value = """
+                SELECT
+                    t.assignee_id AS assignee_id,
+                    COALESCE(SUM(te.hours_worked), 0) AS total_hours
+                FROM tasks t
+                INNER JOIN stories s ON s.id = t.story_id
+                INNER JOIN time_entries te ON te.task_id = t.id
+                WHERE s.project_id = :projectId
+                  AND t.assignee_id IS NOT NULL
+                  AND LOWER(t.status) = 'done'
+                GROUP BY t.assignee_id
+            """, nativeQuery = true)
     List<Object[]> sumTimeEntryHoursByAssigneeForProject(@Param("projectId") String projectId);
 
     /**
      * Sum manual actual hours for completed tasks that do not have time entries.
      */
-    @Query(
-        value = """
-            SELECT
-                t.assignee_id AS assignee_id,
-                COALESCE(SUM(t.actual_hours), 0) AS total_hours
-            FROM tasks t
-            INNER JOIN stories s ON s.id = t.story_id
-            WHERE s.project_id = :projectId
-              AND t.assignee_id IS NOT NULL
-              AND LOWER(t.status) = 'done'
-              AND NOT EXISTS (
-                  SELECT 1 FROM time_entries te WHERE te.task_id = t.id
-              )
-            GROUP BY t.assignee_id
-        """,
-        nativeQuery = true
-    )
+    @Query(value = """
+                SELECT
+                    t.assignee_id AS assignee_id,
+                    COALESCE(SUM(t.actual_hours), 0) AS total_hours
+                FROM tasks t
+                INNER JOIN stories s ON s.id = t.story_id
+                WHERE s.project_id = :projectId
+                  AND t.assignee_id IS NOT NULL
+                  AND LOWER(t.status) = 'done'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM time_entries te WHERE te.task_id = t.id
+                  )
+                GROUP BY t.assignee_id
+            """, nativeQuery = true)
     List<Object[]> sumManualTaskHoursWithoutTimeEntries(@Param("projectId") String projectId);
 
     /**
@@ -259,12 +259,14 @@ public interface TaskRepository extends JpaRepository<Task, String> {
     /**
      * Count tasks by sprint
      */
-    // Note: Task entity doesn't have sprintId field - tasks are related to sprints through stories
+    // Note: Task entity doesn't have sprintId field - tasks are related to sprints
+    // through stories
 
     /**
      * Count tasks by project
      */
-    // Note: Task entity doesn't have projectId field - tasks are related to projects through stories
+    // Note: Task entity doesn't have projectId field - tasks are related to
+    // projects through stories
 
     /**
      * Find tasks with high priority
@@ -285,7 +287,8 @@ public interface TaskRepository extends JpaRepository<Task, String> {
     /**
      * Find tasks in sprint with specific status
      */
-    // Note: Task entity doesn't have sprintId field - tasks are related to sprints through stories
+    // Note: Task entity doesn't have sprintId field - tasks are related to sprints
+    // through stories
 
     /**
      * Find tasks by multiple statuses
@@ -310,7 +313,8 @@ public interface TaskRepository extends JpaRepository<Task, String> {
     /**
      * Find tasks with estimated effort between values
      */
-    // Note: Task entity has estimatedHours (BigDecimal), not estimatedEffort (Integer)
+    // Note: Task entity has estimatedHours (BigDecimal), not estimatedEffort
+    // (Integer)
     // This would need to be implemented with a custom query
 
     /**
@@ -339,13 +343,15 @@ public interface TaskRepository extends JpaRepository<Task, String> {
     /**
      * Get task statistics by project
      */
-    // Note: Task entity doesn't have projectId field - tasks are related to projects through stories
+    // Note: Task entity doesn't have projectId field - tasks are related to
+    // projects through stories
     // This query would need to be rewritten to join with stories table
 
     /**
      * Get task statistics by sprint
      */
-    // Note: Task entity doesn't have sprintId field - tasks are related to sprints through stories
+    // Note: Task entity doesn't have sprintId field - tasks are related to sprints
+    // through stories
     // This query would need to be rewritten to join with stories table
 
     /**
@@ -369,7 +375,8 @@ public interface TaskRepository extends JpaRepository<Task, String> {
     /**
      * Find tasks by completion percentage
      */
-    // Note: Task entity doesn't have completionPercentage field in current database schema
+    // Note: Task entity doesn't have completionPercentage field in current database
+    // schema
 
     /**
      * Find recently updated tasks
@@ -388,7 +395,8 @@ public interface TaskRepository extends JpaRepository<Task, String> {
     List<Task> findTop10ByAssigneeIdOrderByUpdatedAtDesc(String assigneeId);
 
     /**
-     * Find recent tasks for an assignee updated after the given timestamp (limited to 10)
+     * Find recent tasks for an assignee updated after the given timestamp (limited
+     * to 10)
      */
     List<Task> findTop10ByAssigneeIdAndUpdatedAtAfterOrderByUpdatedAtDesc(String assigneeId, LocalDateTime since);
 
@@ -426,25 +434,34 @@ public interface TaskRepository extends JpaRepository<Task, String> {
     @org.springframework.data.jpa.repository.Modifying
     @org.springframework.transaction.annotation.Transactional
     void updateTaskStatusDirectly(@Param("taskId") String taskId, @Param("statusValue") String statusValue);
-    
+
     /**
      * Find task with raw status value (for custom lane statuses)
      * This query returns the raw status string from the database
      */
     @Query(value = "SELECT status FROM tasks WHERE id = :taskId", nativeQuery = true)
     String findStatusById(@Param("taskId") String taskId);
-    
+
     /**
      * Find all tasks with raw status values (for custom lane statuses)
      * This returns tasks with their raw status strings from the database
      */
     @Query(value = "SELECT t.*, t.status as raw_status FROM tasks t WHERE t.story_id = :storyId", nativeQuery = true)
     List<Object[]> findTasksWithRawStatusByStoryId(@Param("storyId") String storyId);
-    
+
     /**
      * Find the maximum task number for a given story
      * Used to assign sequential task numbers when creating new tasks
      */
     @Query("SELECT COALESCE(MAX(t.taskNumber), 0) FROM Task t WHERE t.storyId = :storyId")
     Integer findMaxTaskNumberByStoryId(@Param("storyId") String storyId);
+
+    /**
+     * Calculate total hours worked by task.
+     * 
+     * @param taskId the task ID
+     * @return sum of hours worked on the task
+     */
+    @Query("SELECT COALESCE(SUM(t.hoursWorked), 0) FROM TimeEntry t WHERE t.taskId = :taskId")
+    java.math.BigDecimal sumHoursWorkedByTaskId(@Param("taskId") String taskId);
 }

@@ -215,10 +215,6 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
 
             await timeEntryApiService.createTimeEntry(timeEntryData);
 
-            // Update task actual hours
-            const newActualHours = (currentTask.actualHours || 0) + effortLog.hours;
-            await taskApiService.updateTaskActualHours(currentTask.id, newActualHours);
-
             // Upload any attachments if present
             if (effortLogAttachments.length > 0) {
                 try {
@@ -243,7 +239,6 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
             setEffortLogAttachments([]);
 
             // Refresh data
-            setCurrentTask(prev => prev ? { ...prev, actualHours: newActualHours } : null);
             fetchTaskData(currentTask.id, currentTask.storyId);
             if (onTaskUpdated) onTaskUpdated();
         } catch (error) {

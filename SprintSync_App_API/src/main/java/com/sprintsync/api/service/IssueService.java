@@ -311,4 +311,32 @@ public class IssueService {
         }
         return null;
     }
+
+    /**
+     * Synchronize issue actual hours with the sum of its time entries.
+     */
+    public void syncActualHours(String issueId) {
+        if (issueId == null || issueId.isEmpty())
+            return;
+
+        try {
+            java.math.BigDecimal totalHours = issueRepository.sumHoursWorkedByIssueId(issueId);
+            if (totalHours == null)
+                totalHours = java.math.BigDecimal.ZERO;
+
+            Optional<Issue> issueOpt = issueRepository.findById(issueId);
+            if (issueOpt.isPresent()) {
+                Issue issue = issueOpt.get();
+                // Only update if changed to avoid unnecessary database writes
+                if (issue.getActualHours() == null || issue.getActualHours().compareTo(totalHours) != 0) {
+                    issue.setActualHours(totalHours);
+                    issue.setUpdatedAt(LocalDateTime.now());
+                    issueRepository.save(issue);
+                    System.out.println("Synchronized actual hours for issue " + issueId + " to " + totalHours);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to sync actual hours for issue " + issueId + ": " + e.getMessage());
+        }
+    }
 }

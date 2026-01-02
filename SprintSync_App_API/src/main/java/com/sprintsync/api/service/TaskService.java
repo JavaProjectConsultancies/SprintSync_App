@@ -621,4 +621,32 @@ public class TaskService {
             System.err.println("Error getting raw status for task " + task.getId() + ": " + e.getMessage());
         }
     }
+
+    /**
+     * Synchronize task actual hours with the sum of its time entries.
+     */
+    public void syncActualHours(String taskId) {
+        if (taskId == null || taskId.isEmpty())
+            return;
+
+        try {
+            java.math.BigDecimal totalHours = taskRepository.sumHoursWorkedByTaskId(taskId);
+            if (totalHours == null)
+                totalHours = java.math.BigDecimal.ZERO;
+
+            Optional<Task> taskOpt = taskRepository.findById(taskId);
+            if (taskOpt.isPresent()) {
+                Task task = taskOpt.get();
+                // Only update if changed to avoid unnecessary database writes
+                if (task.getActualHours() == null || task.getActualHours().compareTo(totalHours) != 0) {
+                    task.setActualHours(totalHours);
+                    task.setUpdatedAt(LocalDateTime.now());
+                    taskRepository.save(task);
+                    System.out.println("Synchronized actual hours for task " + taskId + " to " + totalHours);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to sync actual hours for task " + taskId + ": " + e.getMessage());
+        }
+    }
 }

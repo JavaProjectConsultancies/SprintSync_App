@@ -120,5 +120,13 @@ public interface IssueRepository extends JpaRepository<Issue, String> {
     @org.springframework.data.jpa.repository.Modifying
     @org.springframework.transaction.annotation.Transactional
     void updateIssueStatusDirectly(@Param("issueId") String issueId, @Param("statusValue") String statusValue);
-}
 
+    /**
+     * Calculate total hours worked by issue.
+     * 
+     * @param issueId the issue ID
+     * @return sum of hours worked on the issue
+     */
+    @Query("SELECT COALESCE(SUM(t.hoursWorked), 0) FROM TimeEntry t WHERE t.issueId = :issueId")
+    java.math.BigDecimal sumHoursWorkedByIssueId(@Param("issueId") String issueId);
+}

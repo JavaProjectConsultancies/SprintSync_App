@@ -509,9 +509,9 @@ const ScrumPage: React.FC = () => {
     "desc",
   );
   const [backlogStoriesWithTasks, setBacklogStoriesWithTasks] = useState<
-    Array<Story & { tasks: Task[] }>
+    Array<Story & { tasks: Task[]; issues: Issue[] }>
   >([]);
-  const [allBacklogStoriesWithTasks, setAllBacklogStoriesWithTasks] = useState<Array<Story & { tasks: Task[] }>>([]);  // Unfiltered for stats
+  const [allBacklogStoriesWithTasks, setAllBacklogStoriesWithTasks] = useState<Array<Story & { tasks: Task[]; issues: Issue[] }>>([]);  // Unfiltered for stats
   const [backlogTasksLoading, setBacklogTasksLoading] = useState(false);
   const [expandedBacklogStories, setExpandedBacklogStories] = useState<
     Set<string>
@@ -3236,51 +3236,81 @@ const ScrumPage: React.FC = () => {
     try {
       const token = localStorage.getItem("authToken") || "";
 
-      const storyTasksPromises = stories.map(async (story: Story) => {
+      const storyItemsPromises = stories.map(async (story: Story) => {
         try {
-          const response = await fetch(
-            `${API_CONFIG.BASE_URL}/tasks/story/${story.id}`,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
+          // Fetch tasks and issues in parallel
+          const [tasksResponse, issuesResult] = await Promise.all([
+            fetch(
+              `${API_CONFIG.BASE_URL}/tasks/story/${story.id}`,
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "application/json",
+                },
               },
-            },
-          );
+            ),
+            issueApiService.getIssuesByStory(story.id).catch(e => {
+              console.error(`Error fetching issues for story ${story.id}:`, e);
+              return { data: [] };
+            })
+          ]);
 
-          if (response.ok) {
-            const data = await response.json();
-            const tasks = Array.isArray(data) ? data : data?.data || [];
-            return { story, tasks };
+          let tasks: Task[] = [];
+          if (tasksResponse.ok) {
+            const data = await tasksResponse.json();
+            tasks = Array.isArray(data) ? data : data?.data || [];
           }
-          return { story, tasks: [] };
+
+          const issues: Issue[] = (issuesResult?.data || []) as Issue[];
+
+          return { story, tasks, issues };
         } catch (error) {
-          console.error(`Error fetching tasks for story ${story.id}:`, error);
-          return { story, tasks: [] };
+          console.error(`Error fetching items for story ${story.id}:`, error);
+          return { story, tasks: [], issues: [] };
         }
       });
 
-      const results = await Promise.all(storyTasksPromises);
-      let storiesWithTasksData = results.map(({ story, tasks }) => ({
+      const results = await Promise.all(storyItemsPromises);
+      let storiesWithItemsData = results.map(({ story, tasks, issues }) => ({
         ...story,
         tasks: tasks || [],
+        issues: issues || []
       }));
 
-      // Role-based filtering: Non-managers/admins see only their assigned tasks
+      // Store unfiltered version if needed for stats
+      setAllBacklogStoriesWithTasks(storiesWithItemsData);
+
+      // Update global tasks and issues state to ensure filtering works
+      setAllTasks(prev => {
+        const newTasks = storiesWithItemsData.flatMap(s => s.tasks);
+        const newTaskIds = new Set(newTasks.map(t => t.id));
+        const filteredPrev = prev.filter(t => !newTaskIds.has(t.id));
+        return [...filteredPrev, ...newTasks];
+      });
+
+      setAllIssues(prev => {
+        const newIssues = storiesWithItemsData.flatMap(s => s.issues);
+        const newIssueIds = new Set(newIssues.map(i => i.id));
+        const filteredPrev = prev.filter(i => !newIssueIds.has(i.id));
+        return [...filteredPrev, ...newIssues];
+      });
+
+      // Role-based filtering: Non-managers/admins see only their assigned tasks OR issues
       if (!canManageSprintsAndStories && user) {
-        storiesWithTasksData = storiesWithTasksData.map((story) => ({
+        storiesWithItemsData = storiesWithItemsData.map((story) => ({
           ...story,
           tasks: story.tasks.filter((task) => task.assigneeId === user.id),
-        })).filter((story) => story.tasks.length > 0); // Only keep stories that have at least one user-assigned task
+          issues: story.issues.filter((issue) => issue.assigneeId === user.id),
+        })).filter((story) => story.tasks.length > 0 || story.issues.length > 0);
 
         console.log(
-          `Filtered backlog stories with tasks for user ${user.name}: showing ${storiesWithTasksData.length} stories with assigned tasks`,
+          `Filtered backlog stories for user ${user.name}: showing ${storiesWithItemsData.length} stories with assigned items`,
         );
       }
 
-      setBacklogStoriesWithTasks(storiesWithTasksData);
+      setBacklogStoriesWithTasks(storiesWithItemsData);
     } catch (error) {
-      console.error("Error fetching tasks:", error);
+      console.error("Error fetching backlog items:", error);
       setBacklogStoriesWithTasks([]);
     } finally {
       setBacklogTasksLoading(false);

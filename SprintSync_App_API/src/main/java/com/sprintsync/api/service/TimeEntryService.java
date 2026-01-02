@@ -32,12 +32,17 @@ public class TimeEntryService {
     private final IdGenerationService idGenerationService;
     private final ActivityLogService activityLogService;
 
+    private final TaskService taskService;
+    private final IssueService issueService;
+
     @Autowired
     public TimeEntryService(TimeEntryRepository timeEntryRepository, IdGenerationService idGenerationService,
-            ActivityLogService activityLogService) {
+            ActivityLogService activityLogService, TaskService taskService, IssueService issueService) {
         this.timeEntryRepository = timeEntryRepository;
         this.idGenerationService = idGenerationService;
         this.activityLogService = activityLogService;
+        this.taskService = taskService;
+        this.issueService = issueService;
     }
 
     public TimeEntry createTimeEntry(TimeEntry timeEntry) {
@@ -77,6 +82,14 @@ public class TimeEntryService {
             }
         } catch (Exception e) {
             System.err.println("Failed to create activity log for time entry: " + e.getMessage());
+        }
+
+        // Sync actual hours
+        if (savedEntry.getTaskId() != null) {
+            taskService.syncActualHours(savedEntry.getTaskId());
+        }
+        if (savedEntry.getIssueId() != null) {
+            issueService.syncActualHours(savedEntry.getIssueId());
         }
 
         return savedEntry;
@@ -150,7 +163,23 @@ public class TimeEntryService {
         existingTimeEntry.setStartTime(timeEntry.getStartTime());
         existingTimeEntry.setEndTime(timeEntry.getEndTime());
 
-        return timeEntryRepository.save(existingTimeEntry);
+        TimeEntry updatedEntry = timeEntryRepository.save(existingTimeEntry);
+
+        // Sync actual hours for both old and new (in case IDs changed, though unlikely)
+        if (existingTimeEntry.getTaskId() != null) {
+            taskService.syncActualHours(existingTimeEntry.getTaskId());
+        }
+        if (existingTimeEntry.getIssueId() != null) {
+            issueService.syncActualHours(existingTimeEntry.getIssueId());
+        }
+        if (timeEntry.getTaskId() != null && !timeEntry.getTaskId().equals(existingTimeEntry.getTaskId())) {
+            taskService.syncActualHours(timeEntry.getTaskId());
+        }
+        if (timeEntry.getIssueId() != null && !timeEntry.getIssueId().equals(existingTimeEntry.getIssueId())) {
+            issueService.syncActualHours(timeEntry.getIssueId());
+        }
+
+        return updatedEntry;
     }
 
     /**
@@ -163,7 +192,18 @@ public class TimeEntryService {
         if (!timeEntryRepository.existsById(id)) {
             throw new IllegalArgumentException("Time entry not found with ID: " + id);
         }
+        Optional<TimeEntry> entryOpt = timeEntryRepository.findById(id);
         timeEntryRepository.deleteById(id);
+
+        // Sync actual hours if entry existed
+        entryOpt.ifPresent(entry -> {
+            if (entry.getTaskId() != null) {
+                taskService.syncActualHours(entry.getTaskId());
+            }
+            if (entry.getIssueId() != null) {
+                issueService.syncActualHours(entry.getIssueId());
+            }
+        });
     }
 
     /**

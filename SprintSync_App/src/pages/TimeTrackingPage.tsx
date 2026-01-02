@@ -38,6 +38,7 @@ interface TimeEntry {
   id: string;
   task: string;
   taskId?: string;
+  issueId?: string;
   story: string;
   storyId?: string;
   project: string;
@@ -59,6 +60,8 @@ interface TimeEntry {
   estimation?: string;
   startTime?: string;
   endTime?: string;
+  estimatedHoursNum?: number;
+  actualHoursNum?: number;
   hoursWorked?: number;
   notes?: string;
 }
@@ -348,6 +351,7 @@ const TimeTrackingPage: React.FC = () => {
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [additionalSprints, setAdditionalSprints] = useState<Sprint[]>([]);
   const [projectSprints, setProjectSprints] = useState<Sprint[]>([]);
+  const [additionalUsers, setAdditionalUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -392,6 +396,7 @@ const TimeTrackingPage: React.FC = () => {
   const fetchedStoryIdsRef = useRef<Set<string>>(new Set());
   const fetchedProjectIdsRef = useRef<Set<string>>(new Set());
   const fetchedSprintIdsRef = useRef<Set<string>>(new Set());
+  const fetchedUserIdsRef = useRef<Set<string>>(new Set());
   const baselineFetchUserRef = useRef<string | null>(null);
   const userTasksFetchKeyRef = useRef<string | null>(null);
   const timeEntriesFetchKeyRef = useRef<string | null>(null);
@@ -446,13 +451,11 @@ const TimeTrackingPage: React.FC = () => {
             }
           }
 
+          const userRole = (currentUser?.role as string)?.toLowerCase() || '';
           const isManagerOrAdmin = currentUser && (
-            (currentUser.role as string) === 'admin' ||
-            (currentUser.role as string) === 'manager' ||
-            (currentUser.role as string) === 'MANAGER' ||
-            (currentUser.role as string) === 'ADMIN' ||
-            (currentUser.role as string)?.toLowerCase() === 'manager' ||
-            (currentUser.role as string)?.toLowerCase() === 'admin'
+            userRole === 'admin' ||
+            userRole === 'manager' ||
+            userRole === 'qa_manager'
           );
 
           if (!isManagerOrAdmin) {
@@ -562,14 +565,12 @@ const TimeTrackingPage: React.FC = () => {
   // Filter to show only current user if not manager/admin, otherwise show all users
   const usersData = Array.isArray(usersResult.data) ? usersResult.data : [];
   const users = useMemo(() => {
-    // Check if current user is manager or admin
+    // Check if current user is manager or admin (unified check)
+    const userRole = (currentUser?.role as string)?.toLowerCase() || '';
     const isManagerOrAdmin = currentUser && (
-      (currentUser.role as string) === 'admin' ||
-      (currentUser.role as string) === 'manager' ||
-      (currentUser.role as string) === 'MANAGER' ||
-      (currentUser.role as string) === 'ADMIN' ||
-      (currentUser.role as string)?.toLowerCase() === 'manager' ||
-      (currentUser.role as string)?.toLowerCase() === 'admin'
+      userRole === 'admin' ||
+      userRole === 'manager' ||
+      userRole === 'qa_manager'
     );
 
     // If current user is manager/admin, show all users; otherwise show only current user
@@ -717,13 +718,11 @@ const TimeTrackingPage: React.FC = () => {
       return;
     }
 
+    const userRole = (currentUser?.role as string)?.toLowerCase() || '';
     const isManagerOrAdmin = currentUser && (
-      (currentUser.role as string) === 'admin' ||
-      (currentUser.role as string) === 'manager' ||
-      (currentUser.role as string) === 'MANAGER' ||
-      (currentUser.role as string) === 'ADMIN' ||
-      (currentUser.role as string)?.toLowerCase() === 'manager' ||
-      (currentUser.role as string)?.toLowerCase() === 'admin'
+      userRole === 'admin' ||
+      userRole === 'manager' ||
+      userRole === 'qa_manager'
     );
 
     if (isManagerOrAdmin && usersData.length === 0) {
@@ -1051,8 +1050,9 @@ const TimeTrackingPage: React.FC = () => {
   // Create lookup maps
   const usersMap = useMemo(() => {
     const map = new Map<string, User>();
-    if (Array.isArray(users)) {
-      users.forEach(user => {
+    const allUsers = mergeById(usersData, additionalUsers);
+    if (Array.isArray(allUsers)) {
+      allUsers.forEach(user => {
         const id = normalizeId(user.id);
         if (id) {
           map.set(id, { ...user, id } as User);
@@ -1060,7 +1060,7 @@ const TimeTrackingPage: React.FC = () => {
       });
     }
     return map;
-  }, [users]);
+  }, [usersData, additionalUsers]);
 
   const projectsMap = useMemo(() => {
     const map = new Map<string, Project>();
@@ -1259,26 +1259,38 @@ const TimeTrackingPage: React.FC = () => {
       try {
         let aggregatedEntries: ApiTimeEntry[] = [];
 
-        // Check if current user is manager or admin
-        const isManagerOrAdmin = currentUser && (
-          (currentUser.role as string) === 'admin' ||
-          (currentUser.role as string) === 'manager' ||
-          (currentUser.role as string) === 'MANAGER' ||
-          (currentUser.role as string) === 'ADMIN' ||
-          (currentUser.role as string)?.toLowerCase() === 'manager' ||
-          (currentUser.role as string)?.toLowerCase() === 'admin'
-        );
+        // Check if current user is manager or admin (Consolidated Logic)
+        const role = (currentUser?.role || '').toString().toLowerCase().trim();
+        const isManagerOrAdmin =
+          role === 'admin' ||
+          role === 'manager' ||
+          role === 'qa_manager';
 
-        // Always try getAllTimeEntries; fallback to pagination
-        try {
-          const response = await timeEntryApiService.getAllTimeEntries();
-          aggregatedEntries = extractTimeEntries(response.data);
-          if (aggregatedEntries.length === 0) {
+        // Fetch based on role
+        if (isManagerOrAdmin) {
+          // Admin/Manager: Fetch ALL entries
+          try {
+            const response = await timeEntryApiService.getAllTimeEntries();
+            aggregatedEntries = extractTimeEntries(response.data);
+            if (aggregatedEntries.length === 0) {
+              aggregatedEntries = await fetchAllEntriesWithPagination();
+            }
+          } catch (getAllError) {
+            console.warn('Failed to fetch all time entries, using paginated fallback.', getAllError);
             aggregatedEntries = await fetchAllEntriesWithPagination();
           }
-        } catch (getAllError) {
-          console.warn('Failed to fetch all time entries, using paginated fallback.', getAllError);
-          aggregatedEntries = await fetchAllEntriesWithPagination();
+        } else if (currentUser?.id) {
+          // Developer/Tester: Fetch ONLY own entries via API
+          const currentUserId = normalizeId(currentUser.id);
+          if (currentUserId) {
+            try {
+              const response = await timeEntryApiService.getTimeEntriesByUser(currentUserId);
+              aggregatedEntries = extractTimeEntries(response.data);
+            } catch (userFetchError) {
+              console.error(`Failed to fetch entries for user ${currentUserId}:`, userFetchError);
+              aggregatedEntries = [];
+            }
+          }
         }
 
         const seenKeys = new Set<string>();
@@ -1293,6 +1305,7 @@ const TimeTrackingPage: React.FC = () => {
           }
         });
 
+        // No need for client-side filtering as we fetched specific data
         setRawTimeEntries(uniqueEntries);
       } catch (err: any) {
         console.error('Error fetching time entries:', err);
@@ -1348,6 +1361,7 @@ const TimeTrackingPage: React.FC = () => {
         const requiredStoryIds = new Set<string>();
         const requiredProjectIds = new Set<string>();
         const requiredSprintIds = new Set<string>();
+        const requiredUserIds = new Set<string>();
 
         rawTimeEntries.forEach(entry => {
           const taskId = normalizeId(entry.taskId);
@@ -1361,6 +1375,7 @@ const TimeTrackingPage: React.FC = () => {
           if (storyId) requiredStoryIds.add(storyId);
           if (projectId) requiredProjectIds.add(projectId);
           if (sprintId) requiredSprintIds.add(sprintId);
+          if (entry.userId) requiredUserIds.add(normalizeId(entry.userId)!);
         });
 
         allTasks.forEach(task => {
@@ -1574,6 +1589,40 @@ const TimeTrackingPage: React.FC = () => {
             setAdditionalSprints(prev => mergeById(prev, fetchedSprints));
           }
         }
+
+        // Fetch missing users
+        const knownUserIds = new Set(
+          usersData
+            .map(user => normalizeId(user.id))
+            .filter((id): id is string => Boolean(id))
+        );
+
+        const missingUserIds = [...requiredUserIds].filter(
+          id => !knownUserIds.has(id) && !fetchedUserIdsRef.current.has(id)
+        );
+
+        if (missingUserIds.length > 0) {
+          const { userApiService } = await import('../services/api/entities/userApi');
+          const userResults = await Promise.all(
+            missingUserIds.map(async id => {
+              fetchedUserIdsRef.current.add(id);
+              try {
+                // Assuming getUserById exists in userApiService
+                const response = await userApiService.getUserById(id);
+                return response.data as User;
+              } catch (err) {
+                console.warn(`Failed to fetch user ${id}:`, err);
+                return null;
+              }
+            })
+          );
+
+          const fetchedUsers = userResults.filter((user): user is User => Boolean(user));
+
+          if (fetchedUsers.length > 0) {
+            setAdditionalUsers(prev => mergeById(prev, fetchedUsers));
+          }
+        }
       } catch (err) {
         console.error('Failed to ensure related time entry entities:', err);
       }
@@ -1631,6 +1680,24 @@ const TimeTrackingPage: React.FC = () => {
         const entryProjectId = normalizeId((entry as any).projectId);
         if (entryProjectId && accessibleProjectIds.has(entryProjectId)) {
           return true;
+        }
+
+        // Also check via issue -> story -> project mapping
+        const entryIssueId = normalizeId((entry as any).issueId);
+        if (entryIssueId) {
+          const issue = issuesMap.get(entryIssueId);
+          if (issue) {
+            const issueStoryId = normalizeId(issue.storyId);
+            if (issueStoryId) {
+              const story = storiesMap.get(issueStoryId);
+              if (story) {
+                const storyProjectId = normalizeId(story.projectId);
+                if (storyProjectId && accessibleProjectIds.has(storyProjectId)) {
+                  return true;
+                }
+              }
+            }
+          }
         }
 
         // Also check via story -> project mapping
@@ -1764,13 +1831,14 @@ const TimeTrackingPage: React.FC = () => {
         entryStatus = 'active';
       }
 
-      const displayUserName = assigneeUser?.name || (assigneeId || user?.name || 'Unknown User');
+      const displayUserName = assigneeUser?.name || user?.name || 'Unknown User';
       const displayUserRole = assigneeUser?.role || user?.role || 'DEVELOPER';
 
       return {
         id: normalizedEntryId,
         task: task?.title || issue?.title || 'Unassigned Task',
         taskId: entryTaskId,
+        issueId: entryIssueId,
         story: story?.title || 'Unassigned Story',
         storyId: derivedStoryId,
         project: resolvedProjectName,
@@ -1791,6 +1859,7 @@ const TimeTrackingPage: React.FC = () => {
         remaining,
         estimation,
         estimatedHoursNum: estimatedHours, // Numeric value for display
+        actualHoursNum: actualHours, // Numeric value for display (synchronized total)
         startTime: entry.startTime || undefined,
         endTime: entry.endTime || undefined,
         hoursWorked: entry.hoursWorked,
@@ -1798,21 +1867,21 @@ const TimeTrackingPage: React.FC = () => {
       };
     });
 
-    // Filter out entries without valid taskId (orphaned subtask entries that couldn't be resolved)
-    const validEntries = processedEntries.filter(entry => entry.taskId);
+    // Filter out entries without valid taskId or issueId (orphaned subtask entries that couldn't be resolved)
+    const validEntries = processedEntries.filter(entry => entry.taskId || entry.issueId);
 
-    // Group entries by taskId and aggregate hours
-    const taskEntryMap = new Map<string, TimeEntry[]>();
+    // Group entries by taskId/issueId and aggregate hours
+    const entryGroupMap = new Map<string, TimeEntry[]>();
     validEntries.forEach(entry => {
-      const taskId = entry.taskId!;
-      if (!taskEntryMap.has(taskId)) {
-        taskEntryMap.set(taskId, []);
+      const groupId = entry.taskId || entry.issueId!;
+      if (!entryGroupMap.has(groupId)) {
+        entryGroupMap.set(groupId, []);
       }
-      taskEntryMap.get(taskId)!.push(entry);
+      entryGroupMap.get(groupId)!.push(entry);
     });
 
-    // Aggregate entries by task
-    const aggregatedEntries: TimeEntry[] = Array.from(taskEntryMap.entries()).map(([taskId, entries]) => {
+    // Aggregate entries by task or issue
+    const aggregatedEntries: TimeEntry[] = Array.from(entryGroupMap.entries()).map(([groupId, entries]) => {
       // Use the first entry as the base
       const baseEntry = entries[0];
 
@@ -1834,7 +1903,7 @@ const TimeTrackingPage: React.FC = () => {
 
       return {
         ...baseEntry,
-        id: `${taskId}-aggregated`,
+        id: `${groupId}-aggregated`,
         hoursWorked: totalHoursRounded,
         timeSpent: aggregatedTimeSpent,
         duration: aggregatedTimeSpent,
@@ -1962,24 +2031,24 @@ const TimeTrackingPage: React.FC = () => {
     return filtered;
   }, [timeEntries, userFilter, projectFilter, sprintFilter, workTypeFilter, billableFilter, timeFilter, customDateRange]);
 
+  // Calculate summary statistics - show all users' data for managers/admins/qa_developers, only current user for others
   // Calculate summary statistics - show all users' data for managers/admins, only current user for others
   const summaryStats = useMemo(() => {
-    // Check if current user is manager or admin
+    // Check if current user is manager or admin (unified check)
+    const userRole = (currentUser?.role as string)?.toLowerCase() || '';
     const isManagerOrAdmin = currentUser && (
-      (currentUser.role as string) === 'admin' ||
-      (currentUser.role as string) === 'manager' ||
-      (currentUser.role as string) === 'MANAGER' ||
-      (currentUser.role as string) === 'ADMIN' ||
-      (currentUser.role as string)?.toLowerCase() === 'manager' ||
-      (currentUser.role as string)?.toLowerCase() === 'admin'
+      userRole === 'admin' ||
+      userRole === 'manager' ||
+      userRole === 'qa_manager'
     );
 
     // Calculate allotted time
     let totalAllottedMinutes = 0;
     if (isManagerOrAdmin) {
-      // For managers/admins: sum allotted time from all users' assigned tasks
+      // For managers/admins: sum allotted time from all users' assigned tasks/issues
       // Use a Set to avoid double-counting tasks that might be in both userTasksMap and allTasks
       const countedTaskIds = new Set<string>();
+      const countedIssueIds = new Set<string>();
 
       // First, count tasks from userTasksMap
       userTasksMap.forEach((tasks) => {
@@ -2002,28 +2071,50 @@ const TimeTrackingPage: React.FC = () => {
           totalAllottedMinutes += (estimatedHours * 60);
         }
       });
+
+      // Then, count issues from allIssues
+      allIssues.forEach(issue => {
+        const issueId = normalizeId(issue.id);
+        if (issueId && !countedIssueIds.has(issueId)) {
+          countedIssueIds.add(issueId);
+          const estimatedHours = issue.estimatedHours || 0;
+          totalAllottedMinutes += (estimatedHours * 60);
+        }
+      });
+
     } else if (currentUser && currentUser.id) {
-      // For non-managers: calculate only from current user's assigned tasks
+      // For non-managers: calculate only from current user's assigned tasks/issues
       const currentUserId = normalizeId(currentUser.id);
       if (currentUserId) {
         const fetchedUserTasks = userTasksMap.get(currentUserId) || [];
         const allUserTasks = allTasks.filter(task => normalizeId(task.assigneeId) === currentUserId);
-        const combinedUserTasks = new Map<string, Task>();
+        const combinedUserItems = new Map<string, { id: string, estimatedHours: number }>();
+
         fetchedUserTasks.forEach(task => {
           const taskId = normalizeId(task.id);
-          if (taskId) combinedUserTasks.set(taskId, task);
+          if (taskId) combinedUserItems.set(`task-${taskId}`, { id: taskId, estimatedHours: task.estimatedHours || 0 });
         });
+
         allUserTasks.forEach(task => {
           const taskId = normalizeId(task.id);
-          if (taskId && !combinedUserTasks.has(taskId)) {
-            combinedUserTasks.set(taskId, task);
+          if (taskId && !combinedUserItems.has(`task-${taskId}`)) {
+            combinedUserItems.set(`task-${taskId}`, { id: taskId, estimatedHours: task.estimatedHours || 0 });
           }
         });
 
-        // Sum estimated hours from all assigned tasks
-        totalAllottedMinutes = Array.from(combinedUserTasks.values()).reduce((sum, task) => {
-          const estimatedHours = task.estimatedHours || 0;
-          return sum + (estimatedHours * 60);
+        // Add user's assigned issues
+        allIssues.forEach(issue => {
+          if (normalizeId(issue.assigneeId) === currentUserId) {
+            const issueId = normalizeId(issue.id);
+            if (issueId) {
+              combinedUserItems.set(`issue-${issueId}`, { id: issueId, estimatedHours: issue.estimatedHours || 0 });
+            }
+          }
+        });
+
+        // Sum estimated hours from all assigned tasks/issues
+        totalAllottedMinutes = Array.from(combinedUserItems.values()).reduce((sum, item) => {
+          return sum + (item.estimatedHours * 60);
         }, 0);
       }
     }
@@ -3034,7 +3125,7 @@ const TimeTrackingPage: React.FC = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>User</TableHead>
-                  <TableHead>Task Title</TableHead>
+                  <TableHead>Task / Issues Title</TableHead>
                   <TableHead>Project</TableHead>
                   <TableHead>Sprint</TableHead>
                   <TableHead>Date</TableHead>
@@ -3062,6 +3153,10 @@ const TimeTrackingPage: React.FC = () => {
                       : entry.estimation
                         ? Math.round((parseTime(entry.estimation) / 60) * 10) / 10
                         : undefined;
+                  const actualHoursTotal =
+                    (entry as any).actualHoursNum !== undefined
+                      ? (entry as any).actualHoursNum
+                      : undefined;
                   // Get the actual task status style for display
                   const taskStatusStyle = getTaskStatusStyle(entry.taskStatus);
                   const billableBadgeClass = entry.billable
@@ -3084,20 +3179,27 @@ const TimeTrackingPage: React.FC = () => {
                         </div>
                       </TableCell>
                       <TableCell className="max-w-[220px]">
-                        <p
-                          className="truncate font-medium text-foreground"
-                          title={entry.task}
-                          style={{ maxWidth: '220px' }}
-                        >
-                          {entry.task.length > 50 ? `${entry.task.substring(0, 50)}...` : entry.task}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                          {entry.taskId ? (
+                            <span className="font-bold text-green-600 shrink-0" title="Task">[T]</span>
+                          ) : entry.issueId ? (
+                            <span className="font-bold text-red-600 shrink-0" title="Issue">[I]</span>
+                          ) : null}
+                          <p
+                            className="truncate font-medium text-foreground"
+                            title={entry.task}
+                            style={{ maxWidth: '180px' }}
+                          >
+                            {entry.task}
+                          </p>
+                        </div>
                         <p className="truncate text-xs text-muted-foreground">{entry.story}</p>
                       </TableCell>
                       <TableCell className="max-w-[160px] truncate">{entry.project}</TableCell>
                       <TableCell>{sprintName}</TableCell>
                       <TableCell>{formatEntryDateDisplay(entry.date)}</TableCell>
                       <TableCell>{estimatedHours !== undefined ? estimatedHours.toFixed(1) : '—'}</TableCell>
-                      <TableCell>{entryHours.toFixed(1)}</TableCell>
+                      <TableCell>{actualHoursTotal !== undefined ? actualHoursTotal.toFixed(1) : '—'}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={`text-xs ${getCategoryColor(entry.category)}`}>
                           {formatCategoryName(entry.category)}

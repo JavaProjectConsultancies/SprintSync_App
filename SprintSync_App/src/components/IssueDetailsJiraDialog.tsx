@@ -246,10 +246,6 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
 
             await timeEntryApiService.createTimeEntry(timeEntryData);
 
-            // Update issue actual hours
-            const newActualHours = (currentIssue.actualHours || 0) + effortLog.hours;
-            await issueApiService.updateIssueActualHours(currentIssue.id, newActualHours);
-
             // Upload any attachments if present
             if (effortLogAttachments.length > 0) {
                 try {
@@ -274,7 +270,6 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
             setEffortLogAttachments([]);
 
             // Refresh data
-            setCurrentIssue(prev => prev ? { ...prev, actualHours: newActualHours } : null);
             fetchIssueData(currentIssue.id, currentIssue.storyId);
             if (onIssueUpdated) onIssueUpdated();
         } catch (error) {
