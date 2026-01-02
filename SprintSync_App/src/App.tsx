@@ -30,6 +30,7 @@ import ProfilePage from './pages/ProfilePage';
 import AdminPanelPage from './pages/AdminPanelPage';
 import TodoListPage from './pages/TodoListPage';
 import RegistrationPage from './pages/RegistrationPage';
+import UserCalendarPage from './pages/UserCalendarPage';
 
 // Import API integration components
 // import ApiIntegrationDemo from './components/ApiIntegrationDemo';
@@ -78,7 +79,7 @@ const AppContent: React.FC = () => {
       // If somehow user lands on a non-existent route, redirect to dashboard
       const validRoutes = ['/', '/projects', '/backlog', '/scrum', '/time-tracking',
         '/team-allocation', '/profile',
-        '/admin-panel', '/todo-list'];
+        '/admin-panel', '/todo-list', '/calendar'];
       const isValidRoute = validRoutes.includes(location.pathname) ||
         location.pathname.startsWith('/projects/');
 
@@ -109,6 +110,7 @@ const AppContent: React.FC = () => {
       '/profile': { title: 'Profile', description: 'Your account settings', icon: '👤' },
       '/admin-panel': { title: 'Admin Panel', description: 'System administration', icon: '⚙️' },
       '/todo-list': { title: 'My Tasks', description: 'Personal task management', icon: '✅' },
+      '/calendar': { title: 'Calendar View', description: 'Work allocation and time tracking overview', icon: '📅' },
       // '/api-demo': { title: 'API Demo', description: 'Interactive API integration showcase', icon: '🔌' },
       // '/api-status': { title: 'API Status', description: 'Monitor API health and connectivity', icon: '📡' },
       // '/api-test': { title: 'API Test', description: 'Test and validate API endpoints', icon: '🧪' }
@@ -121,11 +123,11 @@ const AppContent: React.FC = () => {
   // Helper function to check route access based on role
   const hasRouteAccess = (path: string, role: string): boolean => {
     const roleAccess: { [key: string]: string[] } = {
-      admin: ['/', '/projects', '/team-allocation', '/profile', '/admin-panel'],
-      manager: ['/', '/projects', '/scrum', '/time-tracking', '/team-allocation', '/profile', '/todo-list'],
-      developer: ['/', '/projects', '/scrum', '/time-tracking', '/profile', '/todo-list'], // Removed team-allocation for developers
-      qa_manager: ['/', '/projects', '/scrum', '/time-tracking', '/team-allocation', '/profile', '/todo-list'], // Same as manager
-      qa_developer: ['/', '/projects', '/scrum', '/time-tracking', '/profile', '/todo-list'], // Same as developer
+      admin: ['/', '/projects', '/team-allocation', '/profile', '/admin-panel', '/calendar'],
+      manager: ['/', '/projects', '/scrum', '/time-tracking', '/team-allocation', '/profile', '/todo-list', '/calendar'],
+      developer: ['/', '/projects', '/scrum', '/time-tracking', '/profile', '/todo-list', '/calendar'],
+      qa_manager: ['/', '/projects', '/scrum', '/time-tracking', '/team-allocation', '/profile', '/todo-list', '/calendar'],
+      qa_developer: ['/', '/projects', '/scrum', '/time-tracking', '/profile', '/todo-list', '/calendar'],
     };
 
     return roleAccess[role]?.includes(path) || false;
@@ -758,6 +760,12 @@ const AppContent: React.FC = () => {
                 <Route path="/time-tracking" element={
                   <ProtectedRoute allowedRoles={['manager', 'developer', 'qa_manager', 'qa_developer']}>
                     <TimeTrackingPage />
+                  </ProtectedRoute>
+                } />
+
+                <Route path="/calendar" element={
+                  <ProtectedRoute allowedRoles={['admin', 'manager', 'developer', 'qa_manager', 'qa_developer']}>
+                    <UserCalendarPage />
                   </ProtectedRoute>
                 } />
 

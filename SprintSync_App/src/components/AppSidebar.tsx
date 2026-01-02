@@ -169,6 +169,7 @@ const AppSidebar: React.FC = () => {
         { title: 'Backlog', icon: Target, permission: 'view_projects', id: 'backlog' },
         { title: 'Scrum Management', icon: GitBranch, permission: 'view_projects', id: 'scrum' },
         { title: 'Time Tracking', icon: Clock, permission: 'view_projects', id: 'time-tracking' },
+        { title: 'Calendar View', icon: Calendar, permission: 'view_projects', id: 'calendar' },
       ]
     },
     {

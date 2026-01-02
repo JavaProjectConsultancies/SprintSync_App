@@ -13528,7 +13528,32 @@ const ScrumPage: React.FC = () => {
                                 onValueChange={async (value) => {
                                   const newAssigneeId = value === "unassigned" ? "" : value;
                                   try {
+                                    // 1. Update the task's assignee (Standard behavior - moves card on board)
                                     await taskApiService.updateTaskAssignee(selectedTaskForDetails.id, newAssigneeId || "");
+
+                                    // 2. USER REQUEST: Create a new time entry for the new assignee (0 hours)
+                                    // This ensures the task appears in their Time Tracking page without duplication on the board.
+                                    if (newAssigneeId) {
+                                      try {
+                                        await timeEntryApiService.createTimeEntry({
+                                          userId: newAssigneeId,
+                                          taskId: selectedTaskForDetails.id,
+                                          projectId: selectedTaskForDetails.projectId || "",
+                                          storyId: selectedTaskForDetails.storyId,
+                                          description: "Assigned to task",
+                                          entryType: "development",
+                                          hoursWorked: 0,
+                                          workDate: new Date().toISOString().split('T')[0], // Today's date
+                                          isBillable: true
+                                        });
+                                        console.log("Created 0h time entry for new assignee");
+                                      } catch (teError) {
+                                        console.error("Failed to create initial time entry:", teError);
+                                        // Don't block the UI if this fails, but log it.
+                                      }
+                                    }
+
+                                    // 3. Update local state
                                     setSelectedTaskForDetails((prev) =>
                                       prev ? { ...prev, assigneeId: newAssigneeId } : prev
                                     );
@@ -13539,7 +13564,7 @@ const ScrumPage: React.FC = () => {
                                           : t
                                       )
                                     );
-                                    toast.success("Assigned To changed");
+                                    toast.success("Assigned To updated");
                                   } catch (error) {
                                     console.error("Failed to update assignee:", error);
                                     toast.error("Failed to change Assigned To");
@@ -14618,7 +14643,32 @@ const ScrumPage: React.FC = () => {
                               onValueChange={async (value) => {
                                 const newAssigneeId = value === "unassigned" ? "" : value;
                                 try {
+                                  // USER REQUEST: Create a new duplicate issue with same details but new assignee and 0 actual hours.
+                                  // 1. Update the issue's assignee (Standard behavior)
                                   await issueApiService.updateIssueAssignee(selectedIssueForDetails.id, newAssigneeId || "");
+
+                                  // 2. USER REQUEST: Create a new time entry for the new assignee (0 hours)
+                                  // This ensures the issue appears in their Time Tracking page.
+                                  if (newAssigneeId) {
+                                    try {
+                                      await timeEntryApiService.createTimeEntry({
+                                        userId: newAssigneeId,
+                                        issueId: selectedIssueForDetails.id, // Use issueId for issues
+                                        projectId: selectedIssueForDetails.projectId || "",
+                                        storyId: selectedIssueForDetails.storyId,
+                                        description: "Assigned to issue",
+                                        entryType: "development",
+                                        hoursWorked: 0,
+                                        workDate: new Date().toISOString().split('T')[0],
+                                        isBillable: true
+                                      });
+                                      console.log("Created 0h time entry for new issue assignee");
+                                    } catch (teError) {
+                                      console.error("Failed to create initial time entry for issue:", teError);
+                                    }
+                                  }
+
+                                  // 3. Update local state
                                   setSelectedIssueForDetails((prev: any) =>
                                     prev ? { ...prev, assigneeId: newAssigneeId } : prev
                                   );
@@ -14629,7 +14679,7 @@ const ScrumPage: React.FC = () => {
                                         : i
                                     )
                                   );
-                                  toast.success("Assigned To changed");
+                                  toast.success("Assigned To updated");
                                 } catch (error) {
                                   console.error("Failed to update assignee:", error);
                                   toast.error("Failed to change Assigned To");
