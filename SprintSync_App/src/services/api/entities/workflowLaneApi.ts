@@ -19,33 +19,37 @@ const BASE_URL = '/workflow-lanes';
 
 export const workflowLaneApiService = {
   // Basic CRUD operations
-  createLane: (lane: Partial<WorkflowLane>) => 
+  createLane: (lane: Partial<WorkflowLane>) =>
     apiClient.post<WorkflowLane>(BASE_URL, lane),
-  
-  getLaneById: (id: string) => 
+
+  getLaneById: (id: string) =>
     apiClient.get<WorkflowLane>(`${BASE_URL}/${id}`),
-  
-  getAllLanes: () => 
+
+  getAllLanes: () =>
     apiClient.get<WorkflowLane[]>(BASE_URL),
-  
-  updateLane: (id: string, lane: Partial<WorkflowLane>) => 
+
+  updateLane: (id: string, lane: Partial<WorkflowLane>) =>
     apiClient.put<WorkflowLane>(`${BASE_URL}/${id}`, lane),
-  
-  deleteLane: (id: string) => 
+
+  deleteLane: (id: string) =>
     apiClient.delete<void>(`${BASE_URL}/${id}`),
 
   // Project-specific operations
-  getLanesByProject: (projectId: string) => 
+  getLanesByProject: (projectId: string) =>
     apiClient.get<WorkflowLane[]>(`${BASE_URL}/project/${projectId}`),
 
   // Get lanes by project and board
-  getLanesByProjectAndBoard: (projectId: string, boardId: string | null) => 
-    boardId 
+  getLanesByProjectAndBoard: (projectId: string, boardId: string | null) =>
+    boardId
       ? apiClient.get<WorkflowLane[]>(`${BASE_URL}/project/${projectId}/board/${boardId}`)
       : apiClient.get<WorkflowLane[]>(`${BASE_URL}/project/${projectId}`),
 
   // Reorder lanes
-  updateDisplayOrder: (laneIds: string[]) => 
+  updateDisplayOrder: (laneIds: string[]) =>
     apiClient.put<void>(`${BASE_URL}/reorder`, laneIds),
+
+  // Delete lane with migration of tasks/issues to target lane
+  deleteLaneWithMigration: (id: string, targetLaneId?: string) =>
+    apiClient.delete<void>(`${BASE_URL}/${id}/migrate${targetLaneId ? `?targetLaneId=${targetLaneId}` : ''}`),
 };
 

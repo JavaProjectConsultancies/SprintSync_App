@@ -708,6 +708,19 @@ const TimeTrackingPage: React.FC = () => {
     fetchStoriesAndTasks();
   }, []);
 
+  // Filter issues for QA developers - they should only see issues they created (reporterId)
+  const filteredIssues = useMemo(() => {
+    const isQADeveloper = currentUser?.role?.toLowerCase() === 'qa_developer';
+
+    if (!isQADeveloper) {
+      // Non-QA developers see all issues
+      return allIssues;
+    }
+
+    // QA developers see only issues they created (where reporterId matches their user ID)
+    return allIssues.filter(issue => issue.reporterId === currentUser?.id);
+  }, [allIssues, currentUser]);
+
   // Fetch tasks - disabled prefetch (ensureRelatedEntities will load needed tasks by id)
   useEffect(() => {
     if (!ENABLE_TASK_PREFETCH) {

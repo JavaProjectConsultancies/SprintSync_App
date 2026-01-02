@@ -196,8 +196,13 @@ public class IssueController {
      * Update issue assignee
      */
     @PatchMapping("/{id}/assignee")
-    public ResponseEntity<Issue> updateIssueAssignee(@PathVariable String id, @RequestParam String assigneeId) {
+    public ResponseEntity<Issue> updateIssueAssignee(@PathVariable String id,
+            @RequestBody Map<String, Object> update) {
         try {
+            String assigneeId = (String) update.get("assigneeId");
+            if (assigneeId == null) {
+                return ResponseEntity.badRequest().build();
+            }
             Issue updatedIssue = issueService.updateIssueAssignee(id, assigneeId);
             if (updatedIssue != null) {
                 return ResponseEntity.ok(updatedIssue);

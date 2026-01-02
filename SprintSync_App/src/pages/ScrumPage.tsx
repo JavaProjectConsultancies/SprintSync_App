@@ -232,7 +232,7 @@ import {
   useDeleteWorkflowLane,
 } from "../hooks/api/useWorkflowLanes";
 
-import { WorkflowLane } from "../services/api/entities/workflowLaneApi";
+import { WorkflowLane, workflowLaneApiService } from "../services/api/entities/workflowLaneApi";
 
 import {
   useBoardsByProject,
@@ -635,6 +635,11 @@ const ScrumPage: React.FC = () => {
   const [isDueDatePopoverOpen, setIsDueDatePopoverOpen] = useState(false);
   const [isIssueDueDatePopoverOpen, setIsIssueDueDatePopoverOpen] = useState(false);
 
+  // State for lane deletion with migration
+  const [laneMigrationDialogOpen, setLaneMigrationDialogOpen] = useState(false);
+  const [laneToDelete, setLaneToDelete] = useState<string | null>(null);
+  const [targetMigrationLane, setTargetMigrationLane] = useState<string>("");
+  const [laneItemsCount, setLaneItemsCount] = useState<{ tasks: number; issues: number }>({ tasks: 0, issues: 0 });
 
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
 
@@ -4268,24 +4273,102 @@ const ScrumPage: React.FC = () => {
   // Handler for deleting workflow lane
 
   const handleDeleteWorkflowLane = async (laneId: string) => {
-    if (
-      !window.confirm(
-        "Are you sure you want to delete this workflow lane? This action cannot be undone.",
-      )
-    ) {
+    // Find the lane to get its status value
+    const lane = workflowLanes.find((l: any) => l.id === laneId);
+    if (!lane) {
+      toast.error("Lane not found");
       return;
     }
 
+    // Check if there are any tasks or issues in this lane
+    const laneStatus = lane.statusValue;
+    const tasksInLane = allTasks.filter((t: any) => t.status === laneStatus);
+    const issuesInLane = allIssues.filter((i: any) => i.status === laneStatus);
+
+    const totalItemsInLane = tasksInLane.length + issuesInLane.length;
+
+    if (totalItemsInLane > 0) {
+      // There are items in this lane - show migration dialog
+      setLaneToDelete(laneId);
+      setLaneItemsCount({ tasks: tasksInLane.length, issues: issuesInLane.length });
+      setTargetMigrationLane("");
+      setLaneMigrationDialogOpen(true);
+    } else {
+      // No items in lane - confirm deletion directly
+      if (
+        !window.confirm(
+          "Are you sure you want to delete this workflow lane? This action cannot be undone.",
+        )
+      ) {
+        return;
+      }
+
+      try {
+        await workflowLaneApiService.deleteLaneWithMigration(laneId);
+        toast.success("Workflow lane deleted successfully");
+        refetchWorkflowLanes();
+      } catch (error) {
+        console.error("Error deleting workflow lane:", error);
+        toast.error("Failed to delete workflow lane");
+      }
+    }
+  };
+
+  // Handler for confirming lane deletion with migration
+  const handleConfirmLaneMigration = async () => {
+    if (!laneToDelete) return;
+
+    const lane = workflowLanes.find((l: any) => l.id === laneToDelete);
+    if (!lane) {
+      toast.error("Lane not found");
+      return;
+    }
+
+    // Get the source lane status
+    const sourceStatus = lane.statusValue;
+
+    // The targetMigrationLane is already the statusValue from the dropdown
+    let targetStatus: string | undefined = targetMigrationLane;
+
     try {
-      await deleteWorkflowLaneMutation.mutate(laneId);
+      // First, update all tasks and issues to the new status if target lane is selected
+      if (targetStatus && targetMigrationLane) {
+        // Update tasks
+        const tasksInLane = allTasks.filter((t: any) => t.status === sourceStatus);
+        for (const task of tasksInLane) {
+          try {
+            await taskApiService.updateTaskStatus(task.id, targetStatus);
+          } catch (err) {
+            console.error(`Failed to update task ${task.id}:`, err);
+          }
+        }
 
-      toast.success("Workflow lane deleted successfully");
+        // Update issues
+        const issuesInLane = allIssues.filter((i: any) => i.status === sourceStatus);
+        for (const issue of issuesInLane) {
+          try {
+            await issueApiService.updateIssueStatus(issue.id, targetStatus);
+          } catch (err) {
+            console.error(`Failed to update issue ${issue.id}:`, err);
+          }
+        }
+      }
 
+      // Now delete the lane
+      await workflowLaneApiService.deleteLaneWithMigration(laneToDelete, targetMigrationLane || undefined);
+
+      toast.success("Workflow lane deleted and items migrated successfully");
       refetchWorkflowLanes();
-    } catch (error) {
-      console.error("Error deleting workflow lane:", error);
 
+      // Refresh the page to show updated data
+      window.location.reload();
+    } catch (error) {
+      console.error("Error deleting workflow lane with migration:", error);
       toast.error("Failed to delete workflow lane");
+    } finally {
+      setLaneMigrationDialogOpen(false);
+      setLaneToDelete(null);
+      setTargetMigrationLane("");
     }
   };
 
@@ -15497,6 +15580,85 @@ const ScrumPage: React.FC = () => {
         }}
         initialCapacity={newSprint.capacityHours ? parseInt(newSprint.capacityHours) : undefined}
       />
+
+      {/* Lane Migration Dialog */}
+      <Dialog open={laneMigrationDialogOpen} onOpenChange={setLaneMigrationDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Delete Lane with Items</DialogTitle>
+            <DialogDescription>
+              This lane contains <strong>{laneItemsCount.tasks} task(s)</strong> and{" "}
+              <strong>{laneItemsCount.issues} issue(s)</strong>. Please select a lane to move
+              these items to before deleting.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="targetLane" className="text-sm font-medium">
+              Move items to lane:
+            </Label>
+            <Select value={targetMigrationLane} onValueChange={setTargetMigrationLane}>
+              <SelectTrigger className="mt-2">
+                <SelectValue placeholder="Select target lane" />
+              </SelectTrigger>
+              <SelectContent>
+                {(() => {
+                  // Define standard lanes
+                  const standardLanes = [
+                    { id: 'TO_DO', title: 'To Do', color: '#6B7280', statusValue: 'TO_DO', displayOrder: 1 },
+                    { id: 'IN_PROGRESS', title: 'In Progress', color: '#3B82F6', statusValue: 'IN_PROGRESS', displayOrder: 10 },
+                    { id: 'QA', title: 'QA', color: '#F59E0B', statusValue: 'QA', displayOrder: 20 },
+                  ];
+
+                  // Get custom lanes from API
+                  const customLanes = Array.isArray(workflowLanesData) ? workflowLanesData : (workflowLanesData as any)?.data || [];
+
+                  // Merge and filter
+                  const allLanes = [...standardLanes, ...customLanes]
+                    .filter((lane: any) => lane.id !== laneToDelete)
+                    .filter((lane: any) => !lane.title?.toLowerCase().includes('done') && !lane.statusValue?.toLowerCase().includes('done'))
+                    .sort((a: any, b: any) => (a.displayOrder || 0) - (b.displayOrder || 0));
+
+                  return allLanes.map((lane: any) => (
+                    <SelectItem key={lane.id} value={lane.statusValue || lane.id}>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: lane.color || "#3B82F6" }}
+                        />
+                        {lane.title}
+                      </div>
+                    </SelectItem>
+                  ));
+                })()}
+              </SelectContent>
+            </Select>
+            {!targetMigrationLane && (
+              <p className="text-xs text-yellow-600 mt-2">
+                ⚠️ If you don't select a target lane, the items will remain with their current
+                status and may not be visible on the board.
+              </p>
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setLaneMigrationDialogOpen(false);
+                setLaneToDelete(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmLaneMigration}
+              disabled={!targetMigrationLane}
+            >
+              Move & Delete Lane
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Task Dialog */}
       <AddTaskDialog

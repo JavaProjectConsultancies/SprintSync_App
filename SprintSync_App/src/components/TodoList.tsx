@@ -20,6 +20,9 @@ import LoadingSpinner from './LoadingSpinner';
 const TodoList: React.FC = () => {
   const { user } = useAuth();
 
+  // QA developers should only see tasks (not issues) in My Tasks page
+  const isQADeveloper = user?.role?.toLowerCase() === 'qa_developer';
+
   // Fetch items assigned to the logged-in user
   const shouldFetch = !!user?.id;
   const {
@@ -68,11 +71,13 @@ const TodoList: React.FC = () => {
   }, [assignedTasksData, shouldFetch]);
 
   // Validate and normalize issues data
+  // QA developers should NOT see issues in My Tasks page
   const assignedIssues = useMemo(() => {
+    if (isQADeveloper) return []; // Exclude all issues for QA developers
     if (!shouldFetch || !assignedIssuesData) return [];
     const issues = Array.isArray(assignedIssuesData) ? assignedIssuesData : [];
     return issues.filter((issue: any) => issue && issue.id && issue.title);
-  }, [assignedIssuesData, shouldFetch]);
+  }, [assignedIssuesData, shouldFetch, isQADeveloper]);
 
   // Transform Task to TodoItem format
   const transformTaskToTodoItem = (task: Task): TodoItemType | null => {

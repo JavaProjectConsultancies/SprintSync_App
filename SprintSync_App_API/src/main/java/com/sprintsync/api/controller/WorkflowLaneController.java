@@ -53,8 +53,8 @@ public class WorkflowLaneController {
         } catch (Exception e) {
             logger.error("Error creating workflow lane", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Failed to create workflow lane: " + e.getMessage(), 
-                                 "status", HttpStatus.INTERNAL_SERVER_ERROR.value()));
+                    .body(Map.of("error", "Failed to create workflow lane: " + e.getMessage(),
+                            "status", HttpStatus.INTERNAL_SERVER_ERROR.value()));
         }
     }
 
@@ -68,14 +68,15 @@ public class WorkflowLaneController {
     public ResponseEntity<WorkflowLane> getWorkflowLaneById(@PathVariable String id) {
         Optional<WorkflowLane> lane = workflowLaneService.findById(id);
         return lane.map(ResponseEntity::ok)
-                   .orElse(ResponseEntity.notFound().build());
+                .orElse(ResponseEntity.notFound().build());
     }
 
     /**
      * Get all workflow lanes for a project (default board).
      * 
      * @param projectId the project ID
-     * @return ResponseEntity containing list of workflow lanes for the project (default board)
+     * @return ResponseEntity containing list of workflow lanes for the project
+     *         (default board)
      */
     @GetMapping("/project/{projectId}")
     public ResponseEntity<List<WorkflowLane>> getWorkflowLanesByProject(@PathVariable String projectId) {
@@ -87,12 +88,13 @@ public class WorkflowLaneController {
      * Get all workflow lanes for a project and board.
      * 
      * @param projectId the project ID
-     * @param boardId the board ID (null for default board)
-     * @return ResponseEntity containing list of workflow lanes for the project and board
+     * @param boardId   the board ID (null for default board)
+     * @return ResponseEntity containing list of workflow lanes for the project and
+     *         board
      */
     @GetMapping("/project/{projectId}/board/{boardId}")
     public ResponseEntity<List<WorkflowLane>> getWorkflowLanesByProjectAndBoard(
-            @PathVariable String projectId, 
+            @PathVariable String projectId,
             @PathVariable(required = false) String boardId) {
         List<WorkflowLane> lanes = workflowLaneService.getWorkflowLanesByProjectAndBoard(projectId, boardId);
         return ResponseEntity.ok(lanes);
@@ -112,7 +114,7 @@ public class WorkflowLaneController {
     /**
      * Update an existing workflow lane.
      * 
-     * @param id the workflow lane ID
+     * @param id   the workflow lane ID
      * @param lane the updated workflow lane
      * @return ResponseEntity containing the updated workflow lane
      */
@@ -144,6 +146,34 @@ public class WorkflowLaneController {
     }
 
     /**
+     * Delete a workflow lane with optional task/issue migration.
+     * If targetLaneId is provided, all tasks and issues in the lane being deleted
+     * will be moved to the target lane before deletion.
+     * 
+     * @param id           the workflow lane ID to delete
+     * @param targetLaneId the target lane ID to move tasks/issues to (optional)
+     * @return ResponseEntity with no content if successful
+     */
+    @DeleteMapping("/{id}/migrate")
+    public ResponseEntity<?> deleteWorkflowLaneWithMigration(
+            @PathVariable String id,
+            @RequestParam(required = false) String targetLaneId) {
+        try {
+            workflowLaneService.deleteWorkflowLaneWithMigration(id, targetLaneId);
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException e) {
+            logger.warn("Error deleting workflow lane with migration: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", e.getMessage(), "status", HttpStatus.BAD_REQUEST.value()));
+        } catch (Exception e) {
+            logger.error("Error deleting workflow lane with migration", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to delete workflow lane: " + e.getMessage(),
+                            "status", HttpStatus.INTERNAL_SERVER_ERROR.value()));
+        }
+    }
+
+    /**
      * Update display order of workflow lanes.
      * 
      * @param laneIds list of lane IDs in the desired order
@@ -159,7 +189,3 @@ public class WorkflowLaneController {
         }
     }
 }
-
-
-
-

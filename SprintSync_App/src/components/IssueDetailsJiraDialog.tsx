@@ -707,8 +707,8 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                         <Button
                             type="button"
                             onClick={handleLogEffort}
-                            variant="destructive"
-                            className="bg-red-600 hover:bg-red-700 h-10 px-8"
+                            className="mt-0 gap-1 pt-1 border-t"
+
                             disabled={isLoggingEffort || effortLog.hours <= 0}
                         >
                             {isLoggingEffort && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
