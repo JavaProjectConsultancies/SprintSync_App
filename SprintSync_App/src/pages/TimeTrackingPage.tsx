@@ -1662,14 +1662,11 @@ const TimeTrackingPage: React.FC = () => {
     let entriesToMap = rawTimeEntries;
 
     if (!isManagerOrAdmin && currentUser && currentUser.id) {
-      // Non-managers/admins: see entries they logged OR entries for tasks assigned to them
       const normalizedCurrentUserId = normalizeId(currentUser.id);
+
+      // All non-manager users: see ONLY entries for tasks/issues assigned to them
       entriesToMap = rawTimeEntries.filter(entry => {
-        // Check if the user logged this entry
-        if (normalizeId(entry.userId) === normalizedCurrentUserId) {
-          return true;
-        }
-        // Also check if the task is assigned to the current user
+        // Check if the task is assigned to the current user
         const entryTaskId = normalizeId(entry.taskId);
         if (entryTaskId) {
           const task = tasksMap.get(entryTaskId);
@@ -1680,6 +1677,19 @@ const TimeTrackingPage: React.FC = () => {
             }
           }
         }
+
+        // Check if the issue is assigned to the current user
+        const entryIssueId = normalizeId((entry as any).issueId);
+        if (entryIssueId) {
+          const issue = issuesMap.get(entryIssueId);
+          if (issue) {
+            const issueAssigneeId = normalizeId(issue.assigneeId);
+            if (issueAssigneeId === normalizedCurrentUserId) {
+              return true;
+            }
+          }
+        }
+
         return false;
       });
     } else if (isManagerOrAdmin) {
@@ -3212,7 +3222,19 @@ const TimeTrackingPage: React.FC = () => {
                       <TableCell>{sprintName}</TableCell>
                       <TableCell>{formatEntryDateDisplay(entry.date)}</TableCell>
                       <TableCell>{estimatedHours !== undefined ? estimatedHours.toFixed(1) : '—'}</TableCell>
-                      <TableCell>{actualHoursTotal !== undefined ? actualHoursTotal.toFixed(1) : '—'}</TableCell>
+                      <TableCell>
+                        <span
+                          className={
+                            estimatedHours !== undefined &&
+                              actualHoursTotal !== undefined &&
+                              actualHoursTotal > estimatedHours
+                              ? 'font-bold text-red-600'
+                              : ''
+                          }
+                        >
+                          {actualHoursTotal !== undefined ? actualHoursTotal.toFixed(1) : '—'}
+                        </span>
+                      </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={`text-xs ${getCategoryColor(entry.category)}`}>
                           {formatCategoryName(entry.category)}
