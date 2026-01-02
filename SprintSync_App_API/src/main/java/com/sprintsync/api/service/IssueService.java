@@ -313,6 +313,20 @@ public class IssueService {
     }
 
     /**
+     * Update issue due date
+     */
+    public Issue updateIssueDueDate(String id, java.time.LocalDate dueDate) {
+        Optional<Issue> issueOpt = issueRepository.findById(id);
+        if (issueOpt.isPresent()) {
+            Issue issue = issueOpt.get();
+            issue.setDueDate(dueDate);
+            issue.setUpdatedAt(LocalDateTime.now());
+            return issueRepository.save(issue);
+        }
+        return null;
+    }
+
+    /**
      * Synchronize issue actual hours with the sum of its time entries.
      */
     public void syncActualHours(String issueId) {

@@ -245,6 +245,11 @@ public class WorkflowLaneService {
                 targetStatus = targetLaneId;
                 logger.info("Migrating tasks/issues from lane '{}' (status: {}) to standard status: {}",
                         sourceLane.getTitle(), sourceStatus, targetStatus);
+            } else if (targetLaneId.startsWith("custom_lane_")) {
+                // It's a custom lane status value (not an ID), use it directly
+                targetStatus = targetLaneId;
+                logger.info("Migrating tasks/issues from lane '{}' (status: {}) to custom lane status: {}",
+                        sourceLane.getTitle(), sourceStatus, targetStatus);
             } else {
                 // It's a custom lane ID, look it up in the database
                 Optional<WorkflowLane> targetLaneOpt = workflowLaneRepository.findById(targetLaneId);

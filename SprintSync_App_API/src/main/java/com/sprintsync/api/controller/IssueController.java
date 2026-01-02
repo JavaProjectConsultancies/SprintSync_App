@@ -247,6 +247,33 @@ public class IssueController {
     }
 
     /**
+     * Update issue due date
+     */
+    @PatchMapping("/{id}/due-date")
+    public ResponseEntity<Issue> updateIssueDueDate(@PathVariable String id,
+            @RequestBody Map<String, Object> update) {
+        try {
+            Object dueDateObj = update.get("dueDate");
+            java.time.LocalDate dueDate = null;
+
+            if (dueDateObj != null) {
+                if (dueDateObj instanceof String) {
+                    dueDate = java.time.LocalDate.parse((String) dueDateObj);
+                }
+            }
+
+            Issue updatedIssue = issueService.updateIssueDueDate(id, dueDate);
+            if (updatedIssue != null) {
+                return ResponseEntity.ok(updatedIssue);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
+
+    /**
      * Update issue actual hours (for effort logging)
      */
     @PatchMapping("/{id}/actual-hours")
