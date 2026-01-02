@@ -2,6 +2,8 @@ package com.sprintsync.api.service;
 
 import com.sprintsync.api.entity.WorkflowLane;
 import com.sprintsync.api.repository.WorkflowLaneRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +28,9 @@ public class WorkflowLaneService {
 
     private static final Logger logger = LoggerFactory.getLogger(WorkflowLaneService.class);
     private final WorkflowLaneRepository workflowLaneRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @Autowired
     public WorkflowLaneService(WorkflowLaneRepository workflowLaneRepository) {
@@ -81,7 +86,22 @@ public class WorkflowLaneService {
 
         // Generate status value if not provided
         if (lane.getStatusValue() == null || lane.getStatusValue().trim().isEmpty()) {
-            lane.setStatusValue("custom_lane_" + UUID.randomUUID().toString().substring(0, 8));
+            // Use sanitized title as status value (uppercase, replace spaces with
+            // underscores)
+            String sanitizedTitle = lane.getTitle()
+                    .toUpperCase()
+                    .trim()
+                    .replaceAll("\\s+", "_") // Replace whitespace with underscores
+                    .replaceAll("[^A-Z0-9_]", "") // Remove non-alphanumeric characters except underscores
+                    .replaceAll("_{2,}", "_"); // Replace multiple underscores with single
+
+            // Ensure it's not empty after sanitization
+            if (sanitizedTitle.isEmpty()) {
+                sanitizedTitle = "CUSTOM_LANE_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+            }
+
+            lane.setStatusValue(sanitizedTitle);
+            logger.info("Generated status value '{}' from title '{}'", sanitizedTitle, lane.getTitle());
         }
 
         try {
@@ -125,6 +145,31 @@ public class WorkflowLaneService {
         // Preserve the original displayOrder to prevent position changes during updates
         WorkflowLane existingLane = existingLaneOpt.get();
         lane.setDisplayOrder(existingLane.getDisplayOrder());
+
+        // Check if statusValue is changing - if so, migrate tasks and issues
+        String oldStatusValue = existingLane.getStatusValue();
+        String newStatusValue = lane.getStatusValue();
+
+        if (oldStatusValue != null && !oldStatusValue.equals(newStatusValue)) {
+            logger.info("Lane statusValue changing from '{}' to '{}' - migrating tasks and issues",
+                    oldStatusValue, newStatusValue);
+
+            // Update all tasks with the old status to use the new status using native SQL
+            int tasksUpdated = entityManager.createNativeQuery(
+                    "UPDATE sprintsync.tasks SET status = :newStatus WHERE status = :oldStatus")
+                    .setParameter("newStatus", newStatusValue)
+                    .setParameter("oldStatus", oldStatusValue)
+                    .executeUpdate();
+            logger.info("Updated {} tasks from status '{}' to '{}'", tasksUpdated, oldStatusValue, newStatusValue);
+
+            // Update all issues with the old status to use the new status using native SQL
+            int issuesUpdated = entityManager.createNativeQuery(
+                    "UPDATE sprintsync.issues SET status = :newStatus WHERE status = :oldStatus")
+                    .setParameter("newStatus", newStatusValue)
+                    .setParameter("oldStatus", oldStatusValue)
+                    .executeUpdate();
+            logger.info("Updated {} issues from status '{}' to '{}'", issuesUpdated, oldStatusValue, newStatusValue);
+        }
 
         logger.info("Updating workflow lane: {} - preserving displayOrder: {}",
                 lane.getTitle(), lane.getDisplayOrder());
@@ -240,15 +285,16 @@ public class WorkflowLaneService {
             // Standard statuses are usually uppercase enum values
             if (targetLaneId.equals("TO_DO") || targetLaneId.equals("IN_PROGRESS") ||
                     targetLaneId.equals("QA") || targetLaneId.equals("BLOCKED") ||
-                    targetLaneId.equals("CANCELLED")) {
+                    targetLaneId.equals("CANCELLED") || targetLaneId.equals("DONE")) {
                 // It's a standard status, use it directly
                 targetStatus = targetLaneId;
                 logger.info("Migrating tasks/issues from lane '{}' (status: {}) to standard status: {}",
                         sourceLane.getTitle(), sourceStatus, targetStatus);
-            } else if (targetLaneId.startsWith("custom_lane_")) {
-                // It's a custom lane status value (not an ID), use it directly
+            } else if (targetLaneId.matches("[A-Z0-9_]+")) {
+                // It's likely a custom lane status value (uppercase with underscores), use it
+                // directly
                 targetStatus = targetLaneId;
-                logger.info("Migrating tasks/issues from lane '{}' (status: {}) to custom lane status: {}",
+                logger.info("Migrating tasks/issues from lane '{}' (status: {}) to custom status: {}",
                         sourceLane.getTitle(), sourceStatus, targetStatus);
             } else {
                 // It's a custom lane ID, look it up in the database

@@ -3266,7 +3266,17 @@ const ScrumPage: React.FC = () => {
             tasks = Array.isArray(data) ? data : data?.data || [];
           }
 
-          const issues: Issue[] = (issuesResult?.data || []) as Issue[];
+          // Parse issues - handle both direct array and nested .data.data structure (like BacklogPage)
+          const issuesData = issuesResult?.data;
+          console.log(`[ScrumPage Backlog] Story ${story.id} - issuesResult:`, issuesResult);
+          console.log(`[ScrumPage Backlog] Story ${story.id} - issuesData:`, issuesData);
+          console.log(`[ScrumPage Backlog] Story ${story.id} - isArray:`, Array.isArray(issuesData));
+
+          const issues: Issue[] = Array.isArray(issuesData)
+            ? issuesData
+            : ((issuesData as any)?.data || []);
+
+          console.log(`[ScrumPage Backlog] Story ${story.id} - parsed ${tasks.length} tasks, ${issues.length} issues`);
 
           return { story, tasks, issues };
         } catch (error) {
@@ -3284,6 +3294,11 @@ const ScrumPage: React.FC = () => {
 
       // Store unfiltered version if needed for stats
       setAllBacklogStoriesWithTasks(storiesWithItemsData);
+
+      // Log story item counts for debugging (like BacklogPage)
+      const totalTasks = storiesWithItemsData.reduce((sum, s) => sum + (s.tasks?.length || 0), 0);
+      const totalIssues = storiesWithItemsData.reduce((sum, s) => sum + (s.issues?.length || 0), 0);
+      console.log(`ScrumPage Backlog: Fetched ${totalTasks} tasks and ${totalIssues} issues from ${storiesWithItemsData.length} stories`);
 
       // Update global tasks and issues state to ensure filtering works
       setAllTasks(prev => {
@@ -7481,8 +7496,8 @@ const ScrumPage: React.FC = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Keep stories that belong to a sprint and contain at least one task that passes filters
-    let filtered = backlogStoriesWithTasks.filter((story: Story & { tasks: Task[] }) => {
+    // Keep stories that belong to a sprint and contain at least one task OR issue that passes filters
+    let filtered = backlogStoriesWithTasks.filter((story: Story & { tasks: Task[]; issues: Issue[] }) => {
       // Only show stories that belong to a sprint
       if (!story.sprintId || story.sprintId.trim() === '') {
         return false;
@@ -7494,23 +7509,32 @@ const ScrumPage: React.FC = () => {
       }
 
       const tasksForStory = Array.isArray(story.tasks) ? story.tasks : [];
+      const issuesForStory = Array.isArray(story.issues) ? story.issues : [];
 
-      // If not manager, respect earlier rule of user assignment visibility
+      // If not manager, respect earlier rule of user assignment visibility (check BOTH tasks AND issues)
       if (!isManager && user?.id) {
-        const hasAssigned = tasksForStory.some((t: Task) => t.assigneeId === user.id);
-        if (!hasAssigned) return false;
+        const hasAssignedTask = tasksForStory.some((t: Task) => t.assigneeId === user.id);
+        const hasAssignedIssue = issuesForStory.some((i: Issue) => i.assigneeId === user.id);
+        if (!hasAssignedTask && !hasAssignedIssue) return false;
       }
 
-      // Apply task-level filters; keep story only if any task matches
+      // Apply task-level filters; keep story if any task OR issue matches
       const anyVisibleTask = tasksForStory.some(backlogTaskPassesFilters);
-      return anyVisibleTask;
+      const anyVisibleIssue = issuesForStory.some(backlogTaskPassesFilters as any);
+      return anyVisibleTask || anyVisibleIssue;
     });
 
-    // Apply search filter
-    filtered = filtered.filter((story: Story & { tasks: Task[] }) => {
-      const matchesSearch = story.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    // Apply search filter (search in story title/description AND task/issue titles)
+    filtered = filtered.filter((story: Story & { tasks: Task[]; issues: Issue[] }) => {
+      const storyMatches = story.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (story.description && story.description.toLowerCase().includes(searchTerm.toLowerCase()));
-      return matchesSearch;
+      const taskMatches = (story.tasks || []).some((t: Task) =>
+        t.title.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      const issueMatches = (story.issues || []).some((i: Issue) =>
+        i.title.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      return storyMatches || taskMatches || issueMatches;
     });
 
     // Sort stories
@@ -8453,60 +8477,81 @@ const ScrumPage: React.FC = () => {
                                     )}
                                   </div>
 
-                                  {/* Tasks */}
+                                  {/* Tasks and Issues - Combined like BacklogPage */}
 
                                   {(() => {
                                     const visibleTasks = (story.tasks || []).filter(backlogTaskPassesFilters);
-                                    const overdueTasks = visibleTasks.filter((t: Task) => {
-                                      if (!t.dueDate) return false;
-                                      const taskDueDate = new Date(t.dueDate);
-                                      taskDueDate.setHours(0, 0, 0, 0);
-                                      const today = new Date();
-                                      today.setHours(0, 0, 0, 0);
-                                      return taskDueDate < today && t.status !== 'DONE' && t.status !== 'CANCELLED';
+                                    const visibleIssues = (story.issues || []).filter(backlogTaskPassesFilters as any);
+
+                                    // Combine tasks and issues into a single array with type labels
+                                    const visibleItems = [
+                                      ...visibleTasks.map(t => ({ ...t, type: 'TASK' as const })),
+                                      ...visibleIssues.map(i => ({ ...i, type: 'ISSUE' as const }))
+                                    ];
+
+                                    // Sort: done items last
+                                    visibleItems.sort((a, b) => {
+                                      if ((a.status || '').toUpperCase() === 'DONE' && (b.status || '').toUpperCase() !== 'DONE') return 1;
+                                      if ((a.status || '').toUpperCase() !== 'DONE' && (b.status || '').toUpperCase() === 'DONE') return -1;
+                                      return 0;
                                     });
 
-                                    return visibleTasks.length > 0 ? (
+                                    const overdueItems = visibleItems.filter((item: any) => {
+                                      if (!item.dueDate) return false;
+                                      const itemDueDate = new Date(item.dueDate);
+                                      itemDueDate.setHours(0, 0, 0, 0);
+                                      const today = new Date();
+                                      today.setHours(0, 0, 0, 0);
+                                      return itemDueDate < today && item.status !== 'DONE' && item.status !== 'CANCELLED';
+                                    });
+
+                                    return visibleItems.length > 0 ? (
                                       <div className="space-y-2">
                                         <div className="flex items-center justify-between">
-                                          <h4 className="text-sm font-medium">Tasks ({visibleTasks.length})</h4>
+                                          <h4 className="text-sm font-medium">
+                                            Items ({visibleItems.length})
+                                            {visibleTasks.length > 0 && <span className="text-green-600 ml-1">({visibleTasks.length} tasks)</span>}
+                                            {visibleIssues.length > 0 && <span className="text-red-600 ml-1">({visibleIssues.length} issues)</span>}
+                                          </h4>
                                           <div className="text-xs text-muted-foreground">
-                                            {visibleTasks.filter((t: Task) => t.status === 'DONE').length} completed
+                                            {visibleItems.filter((item: any) => (item.status || '').toUpperCase() === 'DONE').length} completed
                                           </div>
                                         </div>
 
-                                        {overdueTasks.length > 0 && (
+                                        {overdueItems.length > 0 && (
                                           <Badge variant="destructive" className="text-xs">
                                             <AlertCircle className="w-3 h-3 mr-1" />
-                                            {overdueTasks.length} overdue task{overdueTasks.length > 1 ? 's' : ''}
+                                            {overdueItems.length} overdue item{overdueItems.length > 1 ? 's' : ''}
                                           </Badge>
                                         )}
 
                                         <div className="space-y-2">
-                                          {visibleTasks.map((task: Task) => {
+                                          {visibleItems.map((item: any) => {
+                                            const isIssue = item.type === 'ISSUE';
                                             const today = new Date();
                                             today.setHours(0, 0, 0, 0);
-                                            const isOverdue = task.dueDate && new Date(task.dueDate) < today;
-                                            const taskStatusUpper = task.status?.toUpperCase() || '';
-                                            const isTaskDoneStatus = taskStatusUpper === 'DONE';
-                                            const isTaskCancelled = taskStatusUpper === 'CANCELLED';
-                                            const isIncomplete = !isTaskDoneStatus && !isTaskCancelled;
+                                            const isOverdue = item.dueDate && new Date(item.dueDate) < today;
+                                            const itemStatusUpper = (item.status || '').toUpperCase();
+                                            const isItemDoneStatus = itemStatusUpper === 'DONE';
+                                            const isItemCancelled = itemStatusUpper === 'CANCELLED';
+                                            const isIncomplete = !isItemDoneStatus && !isItemCancelled;
                                             const isOverdueAndIncomplete = isOverdue && isIncomplete;
-                                            const isDoneAfterDue = isTaskDoneStatus && isOverdue;
-                                            const isUserAssigned = user?.id && task.assigneeId === user.id;
-                                            const isDoneBeforeDue = isTaskDoneStatus && task.dueDate && new Date(task.dueDate) >= today;
+                                            const isDoneAfterDue = isItemDoneStatus && isOverdue;
+                                            const isUserAssigned = user?.id && item.assigneeId === user.id;
+                                            const isDoneBeforeDue = isItemDoneStatus && item.dueDate && new Date(item.dueDate) >= today;
 
-                                            const assigneeName = task.assigneeId ? users.find((u: any) => u.id === task.assigneeId)?.name : null;
-                                            const assigneeLabel = assigneeName || (!task.assigneeId ? 'Unassigned' : usersLoading ? 'Loading...' : 'Unknown user');
+                                            const assigneeName = item.assigneeId ? users.find((u: any) => u.id === item.assigneeId)?.name : null;
+                                            const assigneeLabel = assigneeName || (!item.assigneeId ? 'Unassigned' : usersLoading ? 'Loading...' : 'Unknown user');
 
                                             return (
                                               <Card
-                                                key={task.id}
+                                                key={item.id}
                                                 className={`border-l-4 ${isOverdueAndIncomplete ? 'border-l-red-500 bg-red-50' :
                                                   isDoneBeforeDue ? 'border-l-green-300 bg-green-50' :
-                                                    isTaskDoneStatus ? 'border-l-green-500 bg-green-50' :
-                                                      isUserAssigned ? 'border-l-purple-500 bg-purple-50' :
-                                                        'border-l-blue-500'
+                                                    isItemDoneStatus ? 'border-l-green-500 bg-green-50' :
+                                                      isIssue ? 'border-l-pink-500 bg-red-50/30' :
+                                                        isUserAssigned ? 'border-l-purple-500 bg-purple-50' :
+                                                          'border-l-blue-500'
                                                   }`}
                                               >
                                                 <CardContent className="p-3">
@@ -8514,10 +8559,12 @@ const ScrumPage: React.FC = () => {
                                                     <div className="flex-1">
                                                       <div className="flex items-center space-x-2 mb-1">
                                                         <h5 className="text-sm font-medium">
-                                                          {task.title}
+                                                          {isIssue && <span className="font-bold text-red-600 mr-1">[I]</span>}
+                                                          {!isIssue && <span className="font-bold text-green-600 mr-1">[T]</span>}
+                                                          {item.title}
                                                         </h5>
-                                                        <Badge variant="outline" className={`text-xs ${getBacklogStatusColor(task.status)}`}>
-                                                          {task.status?.replace('_', ' ') || 'TO_DO'}
+                                                        <Badge variant="outline" className={`text-xs ${getBacklogStatusColor(item.status)}`}>
+                                                          {item.status?.replace('_', ' ') || 'TO_DO'}
                                                         </Badge>
                                                         {isOverdueAndIncomplete && (
                                                           <Badge variant="destructive" className="text-xs">
@@ -8530,29 +8577,29 @@ const ScrumPage: React.FC = () => {
                                                           </Badge>
                                                         )}
                                                       </div>
-                                                      {task.description && (
-                                                        <p className="text-xs text-muted-foreground mb-2">{task.description}</p>
+                                                      {item.description && (
+                                                        <p className="text-xs text-muted-foreground mb-2">{item.description}</p>
                                                       )}
                                                       <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-                                                        <Badge variant="outline" className={`${getBacklogPriorityColor(task.priority)}`}>
-                                                          {task.priority}
+                                                        <Badge variant="outline" className={`${getBacklogPriorityColor(item.priority)}`}>
+                                                          {item.priority}
                                                         </Badge>
-                                                        {task.dueDate && (
+                                                        {item.dueDate && (
                                                           <div className="flex items-center space-x-1">
                                                             <CalendarIcon className={`w-3 h-3 ${isDoneBeforeDue ? 'text-green-400' : isOverdue ? 'text-red-600' : ''}`} />
                                                             <span className={
                                                               isDoneBeforeDue ? 'text-green-600 font-medium' :
                                                                 isOverdue ? 'text-red-600 font-medium' : ''
                                                             }>
-                                                              {formatBacklogDate(task.dueDate)}
+                                                              {formatBacklogDate(item.dueDate)}
                                                               {isDoneBeforeDue && ' (Completed Early)'}
                                                             </span>
                                                           </div>
                                                         )}
-                                                        {task.estimatedHours && (
+                                                        {item.estimatedHours && (
                                                           <div className="flex items-center space-x-1">
                                                             <Clock className="w-3 h-3" />
-                                                            <span>{task.estimatedHours}h</span>
+                                                            <span>{item.estimatedHours}h</span>
                                                           </div>
                                                         )}
                                                         {assigneeLabel && (
@@ -8563,10 +8610,10 @@ const ScrumPage: React.FC = () => {
                                                             </span>
                                                           </div>
                                                         )}
-                                                        {task.actualHours > 0 && (
+                                                        {item.actualHours > 0 && (
                                                           <div className="flex items-center space-x-1">
                                                             <Target className="w-3 h-3" />
-                                                            <span>{task.actualHours}h actual</span>
+                                                            <span>{item.actualHours}h actual</span>
                                                           </div>
                                                         )}
                                                       </div>
@@ -8586,12 +8633,12 @@ const ScrumPage: React.FC = () => {
                                                       <DropdownMenuContent align="end">
                                                         <DropdownMenuItem
                                                           onClick={() => {
-                                                            setBacklogTaskToView(task);
+                                                            setBacklogTaskToView(item);
                                                             setIsBacklogTaskDialogOpen(true);
                                                           }}
                                                         >
                                                           <Eye className="w-4 h-4 mr-2" />
-                                                          View Tasks
+                                                          View {isIssue ? 'Issue' : 'Task'}
                                                         </DropdownMenuItem>
                                                       </DropdownMenuContent>
                                                     </DropdownMenu>
@@ -8604,7 +8651,7 @@ const ScrumPage: React.FC = () => {
                                       </div>
                                     ) : (
                                       <div className="text-sm text-muted-foreground">
-                                        No tasks assigned to this story yet.
+                                        No items assigned to this story yet.
                                       </div>
                                     );
                                   })()}
@@ -13538,7 +13585,7 @@ const ScrumPage: React.FC = () => {
                                         await timeEntryApiService.createTimeEntry({
                                           userId: newAssigneeId,
                                           taskId: selectedTaskForDetails.id,
-                                          projectId: selectedTaskForDetails.projectId || "",
+                                          projectId: selectedProject || "",
                                           storyId: selectedTaskForDetails.storyId,
                                           description: "Assigned to task",
                                           entryType: "development",
@@ -14654,7 +14701,7 @@ const ScrumPage: React.FC = () => {
                                       await timeEntryApiService.createTimeEntry({
                                         userId: newAssigneeId,
                                         issueId: selectedIssueForDetails.id, // Use issueId for issues
-                                        projectId: selectedIssueForDetails.projectId || "",
+                                        projectId: selectedProject || "",
                                         storyId: selectedIssueForDetails.storyId,
                                         description: "Assigned to issue",
                                         entryType: "development",

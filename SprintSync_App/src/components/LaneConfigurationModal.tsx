@@ -91,7 +91,11 @@ const LaneConfigurationModal: React.FC<LaneConfigurationModalProps> = ({
         objective: objective.trim() || undefined,
         wipLimitEnabled,
         wipLimit: wipLimitEnabled && wipLimit ? Number(wipLimit) : undefined,
-        statusValue: existingLane?.statusValue || `custom_lane_${Date.now()}`,
+        // Always use current lane title as statusValue - this ensures title and statusValue stay in sync
+        // When editing a lane and changing name, statusValue will also change to match
+        statusValue: laneTitle.trim(),
+        // Preserve the lane ID for existing lanes
+        id: existingLane?.id,
       };
 
       await onSubmit(laneData);
@@ -155,11 +159,10 @@ const LaneConfigurationModal: React.FC<LaneConfigurationModalProps> = ({
                   key={index}
                   type="button"
                   onClick={() => setSelectedColor(color)}
-                  className={`w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center mx-auto ${
-                    selectedColor === color
-                      ? 'border-gray-800 scale-110 shadow-lg'
-                      : 'border-gray-300 hover:border-gray-500'
-                  }`}
+                  className={`w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center mx-auto ${selectedColor === color
+                    ? 'border-gray-800 scale-110 shadow-lg'
+                    : 'border-gray-300 hover:border-gray-500'
+                    }`}
                   style={{ backgroundColor: color }}
                   aria-label={`Select color ${color}`}
                 >

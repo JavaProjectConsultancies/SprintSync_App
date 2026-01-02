@@ -1,0 +1,10 @@
+SET
+                  id                  |    title    |       status_value        | display_order 
+--------------------------------------+-------------+---------------------------+---------------
+ WFLN60296350765c41a0b7f048f2810dad72 | V           | custom_lane_1767348268318 |            21
+ 8c67e26f-07e8-439c-9a3a-2d401c7f4f3e | Done        | DONE                      |             3
+ e0f047b7-ea7f-4ce6-89c4-7d45e9e4fecc | In Progress | IN_PROGRESS               |             2
+ 7f28a42d-81ca-4404-8235-8dcdc480baec | To Do       | TODO                      |             1
+ WFLN160d4ae8ad214f1ebc83f60167d3a17d | e           | E                         |            35
+(5 rows)
+
