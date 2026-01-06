@@ -102,6 +102,8 @@ import { formatDateDDMMYYYY } from '../utils/dateUtils';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 import { useAuth } from '../contexts/AuthContextEnhanced';
+import { useRoleSwitcher } from '../contexts/RoleSwitcherContext';
+import RoleSwitcherDropdown from '../components/RoleSwitcherDropdown';
 
 import TaskDetailsFullDialog from '../components/TaskDetailsFullDialog';
 import { API_CONFIG } from '../services/api/config';
@@ -143,6 +145,10 @@ interface StoryWithTasks extends Story {
 const BacklogPage: React.FC = () => {
 
   const { user } = useAuth();
+  const { activeRole } = useRoleSwitcher();
+
+  // Use activeRole for permission checks - admin stays admin, others use activeRole
+  const effectiveRole = user?.role === 'admin' ? 'admin' : activeRole;
 
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -182,9 +188,9 @@ const BacklogPage: React.FC = () => {
 
 
 
-  // Role-based permissions - Only managers can see all stories and tasks
-
-  const isManager = user?.role?.toUpperCase() === "MANAGER";
+  // Role-based permissions - Uses effectiveRole for dynamic role switching
+  // Managers see all stories and tasks, developers see only their assigned items
+  const isManager = effectiveRole?.toUpperCase() === "MANAGER";
 
 
 
@@ -983,9 +989,9 @@ const BacklogPage: React.FC = () => {
 
   // Story Card Component
 
-// Story Card Component
+  // Story Card Component
 
-const StoryCard: React.FC<{ story: StoryWithTasks }> = ({ story }) => {
+  const StoryCard: React.FC<{ story: StoryWithTasks }> = ({ story }) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -994,760 +1000,763 @@ const StoryCard: React.FC<{ story: StoryWithTasks }> = ({ story }) => {
 
     // Combine and sort items (simple sort by creation or just concat)
     const visibleItems = [
-        ...visibleTasks.map(t => ({ ...t, type: 'TASK' as const })),
-        ...visibleIssues.map(i => ({ ...i, type: 'ISSUE' as const }))
+      ...visibleTasks.map(t => ({ ...t, type: 'TASK' as const })),
+      ...visibleIssues.map(i => ({ ...i, type: 'ISSUE' as const }))
     ];
 
     visibleItems.sort((a, b) => {
-        // Sort by status (done last), then priority
-        if (a.status === 'DONE' && b.status !== 'DONE') return 1;
-        if (a.status !== 'DONE' && b.status === 'DONE') return -1;
-        return 0;
+      // Sort by status (done last), then priority
+      if (a.status === 'DONE' && b.status !== 'DONE') return 1;
+      if (a.status !== 'DONE' && b.status === 'DONE') return -1;
+      return 0;
     });
 
     const overdueTasks = visibleItems.filter(item => {
-        if (!item.dueDate) return false;
-        const itemDueDate = new Date(item.dueDate);
-        itemDueDate.setHours(0, 0, 0, 0);
-        return itemDueDate < today && item.status !== 'DONE' && item.status !== 'CANCELLED';
+      if (!item.dueDate) return false;
+      const itemDueDate = new Date(item.dueDate);
+      itemDueDate.setHours(0, 0, 0, 0);
+      return itemDueDate < today && item.status !== 'DONE' && item.status !== 'CANCELLED';
     });
 
     const isExpanded = expandedStories.has(story.id);
 
     return (
-        <Card className="mb-4">
-            <CardHeader
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => toggleStoryExpansion(story.id)}
-            >
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                        <ChevronDown
-                            className={`w-4 h-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-                        />
-                        <h3 className="font-semibold text-lg">{story.title}</h3>
-                        <Badge variant="outline" className={`text-xs ${getStoryStatusColor(story.status)}`}>
-                            {story.status}
-                        </Badge>
-                        {story.sprintId && getSprintName(story.sprintId) && (
-                            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                                <GitBranch className="w-3 h-3 mr-1" />
-                                {getSprintName(story.sprintId)}
-                            </Badge>
-                        )}
-                    </div>
-                </div>
-            </CardHeader>
-            {isExpanded && (
-                <CardContent>
-                    <div className="space-y-4">
-                        {/* Story Info */}
-                        {story.description && (
-                            <p className="text-sm text-muted-foreground">{story.description}</p>
-                        )}
-                        <div className="flex items-center space-x-4 text-sm">
-                            <Badge variant="outline" className={`${getPriorityColor(story.priority)}`}>
-                                <Flag className="w-3 h-3 mr-1" />
-                                {story.priority}
-                            </Badge>
-                            {story.storyPoints && (
-                                <div className="flex items-center space-x-1 text-muted-foreground">
-                                    <Target className="w-4 h-4" />
-                                    <span>{story.storyPoints} points</span>
-                                </div>
-                            )}
-                            {overdueTasks.length > 0 && (
-                                <Badge variant="destructive" className="text-xs">
-                                    <AlertCircle className="w-3 h-3 mr-1" />
-                                    {overdueTasks.length} overdue item{overdueTasks.length > 1 ? 's' : ''}
-                                </Badge>
-                            )}
-                        </div>
+      <Card className="mb-4">
+        <CardHeader
+          className="cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => toggleStoryExpansion(story.id)}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <ChevronDown
+                className={`w-4 h-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+              />
+              <h3 className="font-semibold text-lg">{story.title}</h3>
+              <Badge variant="outline" className={`text-xs ${getStoryStatusColor(story.status)}`}>
+                {story.status}
+              </Badge>
+              {story.sprintId && getSprintName(story.sprintId) && (
+                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                  <GitBranch className="w-3 h-3 mr-1" />
+                  {getSprintName(story.sprintId)}
+                </Badge>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        {isExpanded && (
+          <CardContent>
+            <div className="space-y-4">
+              {/* Story Info */}
+              {story.description && (
+                <p className="text-sm text-muted-foreground">{story.description}</p>
+              )}
+              <div className="flex items-center space-x-4 text-sm">
+                <Badge variant="outline" className={`${getPriorityColor(story.priority)}`}>
+                  <Flag className="w-3 h-3 mr-1" />
+                  {story.priority}
+                </Badge>
+                {story.storyPoints && (
+                  <div className="flex items-center space-x-1 text-muted-foreground">
+                    <Target className="w-4 h-4" />
+                    <span>{story.storyPoints} points</span>
+                  </div>
+                )}
+                {overdueTasks.length > 0 && (
+                  <Badge variant="destructive" className="text-xs">
+                    <AlertCircle className="w-3 h-3 mr-1" />
+                    {overdueTasks.length} overdue item{overdueTasks.length > 1 ? 's' : ''}
+                  </Badge>
+                )}
+              </div>
 
-                        {/* Items */}
-                        {visibleItems.length > 0 && (
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                    <h4 className="text-sm font-medium">Items ({visibleItems.length})</h4>
-                                    <div className="text-xs text-muted-foreground">
-                                        {visibleItems.filter(t => (t.status || '').toUpperCase() === 'DONE').length} completed
+              {/* Items */}
+              {visibleItems.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium">Items ({visibleItems.length})</h4>
+                    <div className="text-xs text-muted-foreground">
+                      {visibleItems.filter(t => (t.status || '').toUpperCase() === 'DONE').length} completed
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {visibleItems.map(item => {
+                      const isIssue = item.type === 'ISSUE';
+                      const isOverdue = item.dueDate && new Date(item.dueDate) < today;
+                      const itemStatusUpper = item.status?.toUpperCase() || '';
+                      const isItemDoneStatus = itemStatusUpper === 'DONE';
+                      const isItemCancelled = itemStatusUpper === 'CANCELLED';
+                      const isIncomplete = !isItemDoneStatus && !isItemCancelled;
+                      const isOverdueAndIncomplete = isOverdue && isIncomplete;
+                      const isDoneAfterDue = isItemDoneStatus && isOverdue; // Item completed after due date
+                      const isUserAssigned = user?.id && item.assigneeId === user.id;
+                      const isDoneBeforeDue = isItemDoneStatus && item.dueDate && new Date(item.dueDate) >= today;
+
+                      const enrichedItem = item as typeof item & { assigneeName?: string };
+                      const resolvedAssigneeName =
+                        enrichedItem.assigneeName ||
+                        (item.assigneeId ? userMap[item.assigneeId] : null);
+                      const assigneeLabel =
+                        resolvedAssigneeName ||
+                        (!item.assigneeId
+                          ? 'Unassigned'
+                          : usersLoading
+                            ? 'Loading...'
+                            : 'Unknown user');
+
+                      return (
+                        <Card
+                          key={item.id}
+                          className={`border-l-4 ${isOverdueAndIncomplete ? 'border-l-red-500 bg-red-50' :
+                            isDoneBeforeDue ? 'border-l-green-300 bg-green-50' :
+                              isItemDoneStatus ? 'border-l-green-500 bg-green-50' :
+                                isIssue ? 'border-l-pink-500 bg-red-50/30' :
+                                  isUserAssigned ? 'border-l-purple-500 bg-purple-50' :
+                                    'border-l-blue-500'
+                            }`}
+                        >
+                          <CardContent className="p-3">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <h5 className="text-sm font-medium">
+                                    {isIssue && <span className="font-bold text-red-600 mr-1">[I]</span>}
+                                    {!isIssue && <span className="font-bold text-green-600 mr-1">[T]</span>}
+                                    {item.title}
+                                  </h5>
+                                  <Badge variant="outline" className={`text-xs ${getStatusColor(item.status)}`}>
+                                    {getStatusLabelUtil(item.status, workflowLanes)}
+                                  </Badge>
+                                  {isOverdueAndIncomplete && (
+                                    <Badge variant="destructive" className="text-xs">
+                                      Overdue
+                                    </Badge>
+                                  )}
+                                  {isDoneAfterDue && (
+                                    <Badge variant="destructive" className="text-xs">
+                                      Overdue
+                                    </Badge>
+                                  )}
+                                </div>
+                                {item.description && (
+                                  <p className="text-xs text-muted-foreground mb-2">{item.description}</p>
+                                )}
+                                <div className="flex items-center space-x-4 text-xs text-muted-foreground">
+                                  <Badge variant="outline" className={`${getPriorityColor(item.priority)}`}>
+                                    {item.priority}
+                                  </Badge>
+                                  {item.dueDate && (
+                                    <div className="flex items-center space-x-1">
+                                      <Calendar className={`w-3 h-3 ${isDoneBeforeDue ? 'text-green-400' : isOverdue ? 'text-red-600' : ''}`} />
+                                      <span className={
+                                        isDoneBeforeDue ? 'text-green-600 font-medium' :
+                                          isOverdue ? 'text-red-600 font-medium' : ''
+                                      }>
+                                        {formatDate(item.dueDate)}
+                                        {isDoneBeforeDue && ' (Completed Early)'}
+                                      </span>
                                     </div>
+                                  )}
+                                  {item.estimatedHours !== undefined && (
+                                    <div className="flex items-center space-x-1">
+                                      <Clock className="w-3 h-3" />
+                                      <span>{item.estimatedHours}h</span>
+                                    </div>
+                                  )}
+                                  {assigneeLabel && (
+                                    <div className="flex items-center space-x-1">
+                                      <User className="w-3 h-3" />
+                                      <span className="font-bold text-black">
+                                        {assigneeLabel}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {item.actualHours !== undefined && item.actualHours > 0 && (
+                                    <div className="flex items-center space-x-1">
+                                      <Target className="w-3 h-3" />
+                                      <span>{item.actualHours}h actual</span>
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="space-y-2">
-                                    {visibleItems.map(item => {
-                                        const isIssue = item.type === 'ISSUE';
-                                        const isOverdue = item.dueDate && new Date(item.dueDate) < today;
-                                        const itemStatusUpper = item.status?.toUpperCase() || '';
-                                        const isItemDoneStatus = itemStatusUpper === 'DONE';
-                                        const isItemCancelled = itemStatusUpper === 'CANCELLED';
-                                        const isIncomplete = !isItemDoneStatus && !isItemCancelled;
-                                        const isOverdueAndIncomplete = isOverdue && isIncomplete;
-                                        const isDoneAfterDue = isItemDoneStatus && isOverdue; // Item completed after due date
-                                        const isUserAssigned = user?.id && item.assigneeId === user.id;
-                                        const isDoneBeforeDue = isItemDoneStatus && item.dueDate && new Date(item.dueDate) >= today;
-
-                                        const enrichedItem = item as typeof item & { assigneeName?: string };
-                                        const resolvedAssigneeName =
-                                            enrichedItem.assigneeName ||
-                                            (item.assigneeId ? userMap[item.assigneeId] : null);
-                                        const assigneeLabel =
-                                            resolvedAssigneeName ||
-                                            (!item.assigneeId
-                                                ? 'Unassigned'
-                                                : usersLoading
-                                                    ? 'Loading...'
-                                                    : 'Unknown user');
-
-                                        return (
-                                            <Card
-                                                key={item.id}
-                                                className={`border-l-4 ${isOverdueAndIncomplete ? 'border-l-red-500 bg-red-50' :
-                                                    isDoneBeforeDue ? 'border-l-green-300 bg-green-50' :
-                                                        isItemDoneStatus ? 'border-l-green-500 bg-green-50' :
-                                                            isIssue ? 'border-l-pink-500 bg-red-50/30' :
-                                                                isUserAssigned ? 'border-l-purple-500 bg-purple-50' :
-                                                                    'border-l-blue-500'
-                                                    }`}
-                                            >
-                                                <CardContent className="p-3">
-                                                    <div className="flex items-start justify-between">
-                                                        <div className="flex-1">
-                                                            <div className="flex items-center space-x-2 mb-1">
-                                                                <h5 className="text-sm font-medium">
-                                                                    {isIssue && <span className="font-bold text-red-600 mr-1">[I]</span>}
-                                                                    {!isIssue && <span className="font-bold text-green-600 mr-1">[T]</span>}
-                                                                    {item.title}
-                                                                </h5>
-                                                                <Badge variant="outline" className={`text-xs ${getStatusColor(item.status)}`}>
-                                                                    {getStatusLabelUtil(item.status, workflowLanes)}
-                                                                </Badge>
-                                                                {isOverdueAndIncomplete && (
-                                                                    <Badge variant="destructive" className="text-xs">
-                                                                        Overdue
-                                                                    </Badge>
-                                                                )}
-                                                                {isDoneAfterDue && (
-                                                                    <Badge variant="destructive" className="text-xs">
-                                                                        Overdue
-                                                                    </Badge>
-                                                                )}
-                                                            </div>
-                                                            {item.description && (
-                                                                <p className="text-xs text-muted-foreground mb-2">{item.description}</p>
-                                                            )}
-                                                            <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-                                                                <Badge variant="outline" className={`${getPriorityColor(item.priority)}`}>
-                                                                    {item.priority}
-                                                                </Badge>
-                                                                {item.dueDate && (
-                                                                    <div className="flex items-center space-x-1">
-                                                                        <Calendar className={`w-3 h-3 ${isDoneBeforeDue ? 'text-green-400' : isOverdue ? 'text-red-600' : ''}`} />
-                                                                        <span className={
-                                                                            isDoneBeforeDue ? 'text-green-600 font-medium' :
-                                                                                isOverdue ? 'text-red-600 font-medium' : ''
-                                                                        }>
-                                                                            {formatDate(item.dueDate)}
-                                                                            {isDoneBeforeDue && ' (Completed Early)'}
-                                                                        </span>
-                                                                    </div>
-                                                                )}
-                                                                {item.estimatedHours !== undefined && (
-                                                                    <div className="flex items-center space-x-1">
-                                                                        <Clock className="w-3 h-3" />
-                                                                        <span>{item.estimatedHours}h</span>
-                                                                    </div>
-                                                                )}
-                                                                {assigneeLabel && (
-                                                                    <div className="flex items-center space-x-1">
-                                                                        <User className="w-3 h-3" />
-                                                                        <span className="font-bold text-black">
-                                                                            {assigneeLabel}
-                                                                        </span>
-                                                                    </div>
-                                                                )}
-                                                                {item.actualHours !== undefined && item.actualHours > 0 && (
-                                                                    <div className="flex items-center space-x-1">
-                                                                        <Target className="w-3 h-3" />
-                                                                        <span>{item.actualHours}h actual</span>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                        <DropdownMenu>
-                                                            <DropdownMenuTrigger asChild>
-                                                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                                                                    <MoreVertical className="w-3 h-3" />
-                                                                </Button>
-                                                            </DropdownMenuTrigger>
-                                                            <DropdownMenuContent align="end">
-                                                                <DropdownMenuItem onClick={() => isIssue ? null /* TODO: issue dialog */ : handleOpenTaskDialog(item as Task)}>
-                                                                    <Eye className="w-4 h-4 mr-2" />
-                                                                    View {isIssue ? 'Issue' : 'Task'}
-                                                                </DropdownMenuItem>
-                                                            </DropdownMenuContent>
-                                                        </DropdownMenu>
-                                                    </div>
-                                                </CardContent>
-                                            </Card>
-                                        );
-                                    })}
-                                </div>
+                              </div>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                    <MoreVertical className="w-3 h-3" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => isIssue ? null /* TODO: issue dialog */ : handleOpenTaskDialog(item as Task)}>
+                                    <Eye className="w-4 h-4 mr-2" />
+                                    View {isIssue ? 'Issue' : 'Task'}
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
-                        )}
-                    </div>
-                </CardContent>
-            )}
-        </Card>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        )}
+      </Card>
     );
-};
+  };
 
 
 
 
-    return (
+  return (
 
-      <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6">
 
-        {/* Header */}
+      {/* Header */}
 
-        <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between">
 
-          <div>
+        <div>
 
-            <h1 className="text-2xl font-semibold">Product Backlog</h1>
+          <h1 className="text-2xl font-semibold">Product Backlog</h1>
 
-            <p className="text-muted-foreground">{isManager ? 'All stories and tasks in sprints' : 'Stories where you are assigned to tasks'}</p>
-
-          </div>
-
-          <div className="flex items-center space-x-3">
-
-            {/* Project Selector */}
-
-            <Select value={selectedProject || "all"} onValueChange={(value) => setSelectedProject(value === "all" ? "" : value)}>
-
-              <SelectTrigger className="w-[200px]">
-
-                <SelectValue placeholder={projectsLoading ? "Loading projects..." : "Select Project"} />
-
-              </SelectTrigger>
-
-              <SelectContent>
-
-                <SelectItem value="all">All Projects</SelectItem>
-
-                {projects?.map(project => (
-
-                  <SelectItem key={project.id} value={project.id}>
-
-                    {project.name}
-
-                  </SelectItem>
-
-                ))}
-
-              </SelectContent>
-
-            </Select>
-
-
-
-            {/* Sprint Selector */}
-
-            <Select
-
-              value={selectedSprint || "all"}
-
-              onValueChange={(value) => setSelectedSprint(value === "all" ? "" : value)}
-
-              disabled={!selectedProject || sprintsLoading}
-
-            >
-
-              <SelectTrigger className="w-[200px]">
-
-                <SelectValue placeholder={sprintsLoading ? "Loading sprints..." : (!selectedProject ? "Select project first" : "Select Sprint")} />
-
-              </SelectTrigger>
-
-              <SelectContent>
-
-                <SelectItem value="all">All Sprints</SelectItem>
-
-                {sprints?.map(sprint => (
-
-                  <SelectItem key={sprint.id} value={sprint.id}>
-
-                    {sprint.name}
-
-                  </SelectItem>
-
-                ))}
-
-              </SelectContent>
-
-            </Select>
-
-
-
-            {/* View toggle removed as requested */}
-
-          </div>
+          <p className="text-muted-foreground">{isManager ? 'All stories and tasks in sprints' : 'Stories where you are assigned to tasks'}</p>
 
         </div>
 
+        <div className="flex items-center space-x-3">
 
+          {/* Project Selector */}
 
-        {/* Filters and Search */}
+          <Select value={selectedProject || "all"} onValueChange={(value) => setSelectedProject(value === "all" ? "" : value)}>
 
-        <Card className="mb-6 mt-6">
+            <SelectTrigger className="w-[200px]">
 
-          <CardContent className="p-6">
+              <SelectValue placeholder={projectsLoading ? "Loading projects..." : "Select Project"} />
 
-            <div className="flex items-center gap-6 flex-nowrap">
+            </SelectTrigger>
 
-              {/* Search */}
+            <SelectContent>
 
-              <div className="relative flex-1 min-w-[260px]">
+              <SelectItem value="all">All Projects</SelectItem>
 
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              {projects?.map(project => (
 
-                <Input
+                <SelectItem key={project.id} value={project.id}>
 
-                  placeholder="Search stories..."
+                  {project.name}
 
-                  value={searchTerm}
+                </SelectItem>
 
-                  onChange={(e) => setSearchTerm(e.target.value)}
+              ))}
 
-                  className="pl-9"
+            </SelectContent>
 
-                />
+          </Select>
 
-              </div>
+          {/* Role Switcher - shows roles based on selected project */}
+          {selectedProject && (
+            <RoleSwitcherDropdown projectId={selectedProject} compact />
+          )}
 
+          {/* Sprint Selector */}
 
+          <Select
 
-              {/* Filters */}
+            value={selectedSprint || "all"}
 
-              <div className="shrink-0">
+            onValueChange={(value) => setSelectedSprint(value === "all" ? "" : value)}
 
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
+            disabled={!selectedProject || sprintsLoading}
 
-                  <SelectTrigger className="w-[140px]">
+          >
 
-                    <SelectValue placeholder="Status" />
+            <SelectTrigger className="w-[200px]">
 
-                  </SelectTrigger>
+              <SelectValue placeholder={sprintsLoading ? "Loading sprints..." : (!selectedProject ? "Select project first" : "Select Sprint")} />
 
-                  <SelectContent>
+            </SelectTrigger>
 
-                    <SelectItem value="all">All Status</SelectItem>
+            <SelectContent>
 
-                    <SelectItem value="BACKLOG">Backlog</SelectItem>
+              <SelectItem value="all">All Sprints</SelectItem>
 
-                    <SelectItem value="TODO">To Do</SelectItem>
+              {sprints?.map(sprint => (
 
-                    <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                <SelectItem key={sprint.id} value={sprint.id}>
 
-                    <SelectItem value="REVIEW">Review</SelectItem>
+                  {sprint.name}
 
-                    <SelectItem value="DONE">Done</SelectItem>
+                </SelectItem>
 
-                  </SelectContent>
+              ))}
 
-                </Select>
+            </SelectContent>
 
-              </div>
+          </Select>
 
 
 
-              <div className="shrink-0">
+          {/* View toggle removed as requested */}
 
-                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+        </div>
 
-                  <SelectTrigger className="w-[120px]">
+      </div>
 
-                    <SelectValue placeholder="Priority" />
 
-                  </SelectTrigger>
 
-                  <SelectContent>
+      {/* Filters and Search */}
 
-                    <SelectItem value="all">All Priority</SelectItem>
+      <Card className="mb-6 mt-6">
 
-                    <SelectItem value="critical">Critical</SelectItem>
+        <CardContent className="p-6">
 
-                    <SelectItem value="high">High</SelectItem>
+          <div className="flex items-center gap-6 flex-nowrap">
 
-                    <SelectItem value="medium">Medium</SelectItem>
+            {/* Search */}
 
-                    <SelectItem value="low">Low</SelectItem>
+            <div className="relative flex-1 min-w-[260px]">
 
-                  </SelectContent>
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
 
-                </Select>
+              <Input
 
-              </div>
+                placeholder="Search stories..."
 
+                value={searchTerm}
 
+                onChange={(e) => setSearchTerm(e.target.value)}
 
-              <div className="shrink-0">
+                className="pl-9"
 
-                <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+              />
 
-                  <SelectTrigger className="w-[200px]">
+            </div>
 
-                    <SelectValue placeholder={usersLoading ? 'Loading assignees...' : (selectedProject ? 'Assignee (project)' : 'Assignee')} />
 
-                  </SelectTrigger>
 
-                  <SelectContent>
+            {/* Filters */}
 
-                    <SelectItem value="all">All Assignees</SelectItem>
+            <div className="shrink-0">
 
-                    {assigneeOptions.length > 0 ? (
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
 
-                      assigneeOptions.map(u => (
+                <SelectTrigger className="w-[140px]">
 
-                        <SelectItem key={u.id} value={u.id}>
+                  <SelectValue placeholder="Status" />
 
-                          {u.name || u.email || u.id}
+                </SelectTrigger>
 
-                        </SelectItem>
+                <SelectContent>
 
-                      ))
+                  <SelectItem value="all">All Status</SelectItem>
 
-                    ) : (
+                  <SelectItem value="BACKLOG">Backlog</SelectItem>
 
-                      !usersLoading && <SelectItem value="none" disabled>No users found</SelectItem>
+                  <SelectItem value="TODO">To Do</SelectItem>
 
-                    )}
+                  <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
 
-                  </SelectContent>
+                  <SelectItem value="REVIEW">Review</SelectItem>
 
-                </Select>
+                  <SelectItem value="DONE">Done</SelectItem>
 
-              </div>
+                </SelectContent>
 
+              </Select>
 
+            </div>
 
-              {/* Sort */}
 
-              <div className="flex items-center space-x-4">
 
-                <Select value={sortBy} onValueChange={setSortBy}>
+            <div className="shrink-0">
 
-                  <SelectTrigger className="w-[120px]">
+              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
 
-                    <SelectValue />
+                <SelectTrigger className="w-[120px]">
 
-                  </SelectTrigger>
+                  <SelectValue placeholder="Priority" />
 
-                  <SelectContent>
+                </SelectTrigger>
 
-                    <SelectItem value="priority">Priority</SelectItem>
+                <SelectContent>
 
-                    <SelectItem value="storyPoints">Story Points</SelectItem>
+                  <SelectItem value="all">All Priority</SelectItem>
 
-                    <SelectItem value="dueDate">Due Date</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
 
-                    <SelectItem value="created">Created Date</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
 
-                    <SelectItem value="title">Title</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
 
-                  </SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
 
-                </Select>
+                </SelectContent>
 
-                <Button
+              </Select>
 
-                  variant="outline"
+            </div>
 
-                  size="sm"
 
-                  onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
 
-                  className="px-3"
+            <div className="shrink-0">
 
-                >
+              <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
 
-                  {sortOrder === 'asc' ? (
+                <SelectTrigger className="w-[200px]">
 
-                    <SortAsc className="w-4 h-4" />
+                  <SelectValue placeholder={usersLoading ? 'Loading assignees...' : (selectedProject ? 'Assignee (project)' : 'Assignee')} />
+
+                </SelectTrigger>
+
+                <SelectContent>
+
+                  <SelectItem value="all">All Assignees</SelectItem>
+
+                  {assigneeOptions.length > 0 ? (
+
+                    assigneeOptions.map(u => (
+
+                      <SelectItem key={u.id} value={u.id}>
+
+                        {u.name || u.email || u.id}
+
+                      </SelectItem>
+
+                    ))
 
                   ) : (
 
-                    <SortDesc className="w-4 h-4" />
+                    !usersLoading && <SelectItem value="none" disabled>No users found</SelectItem>
 
                   )}
 
-                </Button>
+                </SelectContent>
 
-                <Button
-
-                  variant="outline"
-
-                  size="sm"
-
-                  onClick={clearAllFilters}
-
-                  disabled={!filtersActive}
-
-                  className="px-3 border-red-300 text-red-600 hover:text-red-700 hover:border-red-400 hover:bg-red-50 disabled:text-red-300 disabled:border-red-200"
-
-                  title="Clear all filters"
-
-                >
-
-                  <X className="w-4 h-4 mr-1" />
-
-                  Clear
-
-                </Button>
-
-              </div>
+              </Select>
 
             </div>
+
+
+
+            {/* Sort */}
+
+            <div className="flex items-center space-x-4">
+
+              <Select value={sortBy} onValueChange={setSortBy}>
+
+                <SelectTrigger className="w-[120px]">
+
+                  <SelectValue />
+
+                </SelectTrigger>
+
+                <SelectContent>
+
+                  <SelectItem value="priority">Priority</SelectItem>
+
+                  <SelectItem value="storyPoints">Story Points</SelectItem>
+
+                  <SelectItem value="dueDate">Due Date</SelectItem>
+
+                  <SelectItem value="created">Created Date</SelectItem>
+
+                  <SelectItem value="title">Title</SelectItem>
+
+                </SelectContent>
+
+              </Select>
+
+              <Button
+
+                variant="outline"
+
+                size="sm"
+
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+
+                className="px-3"
+
+              >
+
+                {sortOrder === 'asc' ? (
+
+                  <SortAsc className="w-4 h-4" />
+
+                ) : (
+
+                  <SortDesc className="w-4 h-4" />
+
+                )}
+
+              </Button>
+
+              <Button
+
+                variant="outline"
+
+                size="sm"
+
+                onClick={clearAllFilters}
+
+                disabled={!filtersActive}
+
+                className="px-3 border-red-300 text-red-600 hover:text-red-700 hover:border-red-400 hover:bg-red-50 disabled:text-red-300 disabled:border-red-200"
+
+                title="Clear all filters"
+
+              >
+
+                <X className="w-4 h-4 mr-1" />
+
+                Clear
+
+              </Button>
+
+            </div>
+
+          </div>
+
+        </CardContent>
+
+      </Card>
+
+
+
+      {/* Stats */}
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 lg:gap-8">
+
+        <Card>
+
+          <CardContent className="p-4 text-center">
+
+            <div className="text-2xl font-semibold text-blue-600">{filteredStories.length}</div>
+
+            <div className="text-sm text-muted-foreground">{isManager ? 'All Stories' : 'My Assigned Stories'}</div>
 
           </CardContent>
 
         </Card>
 
+        <Card>
 
+          <CardContent className="p-4 text-center">
 
-        {/* Stats */}
+            <div className="text-2xl font-semibold text-red-600">
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 lg:gap-8">
+              {allTasksForStats.filter(t => {
 
-          <Card>
+                if (!t.dueDate) return false;
 
-            <CardContent className="p-4 text-center">
+                const today = new Date();
 
-              <div className="text-2xl font-semibold text-blue-600">{filteredStories.length}</div>
+                today.setHours(0, 0, 0, 0);
 
-              <div className="text-sm text-muted-foreground">{isManager ? 'All Stories' : 'My Assigned Stories'}</div>
+                const taskDueDate = new Date(t.dueDate);
 
-            </CardContent>
+                taskDueDate.setHours(0, 0, 0, 0);
 
-          </Card>
+                const statusUpper = (t.status || '').toUpperCase();
+                return taskDueDate < today && statusUpper !== 'CANCELLED';
 
-          <Card>
-
-            <CardContent className="p-4 text-center">
-
-              <div className="text-2xl font-semibold text-red-600">
-
-                {allTasksForStats.filter(t => {
-
-                  if (!t.dueDate) return false;
-
-                  const today = new Date();
-
-                  today.setHours(0, 0, 0, 0);
-
-                  const taskDueDate = new Date(t.dueDate);
-
-                  taskDueDate.setHours(0, 0, 0, 0);
-
-                  const statusUpper = (t.status || '').toUpperCase();
-                  return taskDueDate < today && statusUpper !== 'CANCELLED';
-
-                }).length}
-
-              </div>
-
-              <div className="text-sm text-muted-foreground">Overdue Tasks</div>
-
-            </CardContent>
-
-          </Card>
-
-          <Card>
-
-            <CardContent className="p-4 text-center">
-
-              <div className="text-2xl font-semibold text-yellow-600">
-
-                {allTasksForStats.filter(t => {
-                  const statusUpper = (t.status || '').toUpperCase();
-                  return statusUpper === 'IN_PROGRESS' || statusUpper === 'TO_DO' || statusUpper === 'TODO';
-                }).length}
-
-              </div>
-
-              <div className="text-sm text-muted-foreground">Incomplete Tasks</div>
-
-            </CardContent>
-
-          </Card>
-
-          <Card>
-
-            <CardContent className="p-4 text-center">
-
-              <div className="text-2xl font-semibold text-green-600">
-
-                {allTasksForStats.filter(t => {
-                  const statusUpper = (t.status || '').toUpperCase();
-                  if (statusUpper !== 'DONE') return false;
-                  if (!t.dueDate) return true;
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-                  const dueDate = new Date(t.dueDate);
-                  dueDate.setHours(0, 0, 0, 0);
-                  return dueDate >= today;
-                }).length}
-
-              </div>
-
-              <div className="text-sm text-muted-foreground">Completed Tasks</div>
-
-            </CardContent>
-
-          </Card>
-
-        </div>
-
-
-
-        {/* Loading State */}
-
-        {(projectsLoading && projects === null) || (storiesLoading && storiesData === null) || tasksLoading ? (
-
-          <LoadingSpinner message="Loading Backlog..." fullScreen />
-
-        ) : (
-
-          <>
-
-            <div className="space-y-4">
-
-              <div className="flex items-center justify-between">
-
-                <h3 className="font-medium">
-
-                  {isManager ? 'All Stories' : 'Stories with My Assigned Tasks'} ({filteredStories.length})
-
-                </h3>
-
-                <div className="flex items-center space-x-2">
-
-                  {filteredStories.reduce((sum, story) => sum + (story.storyPoints || 0), 0) > 0 && (
-
-                    <Badge variant="secondary">
-
-                      Total: {filteredStories.reduce((sum, story) => sum + (story.storyPoints || 0), 0)} points
-
-                    </Badge>
-
-                  )}
-
-                </div>
-
-              </div>
-
-
-
-              {filteredStories.length > 0 ? (
-
-                <div className="space-y-4">
-
-                  {filteredStories.map(story => (
-
-                    <StoryCard key={story.id} story={story} />
-
-                  ))}
-
-                </div>
-
-              ) : (
-
-                <Card>
-
-                  <CardContent className="p-12 text-center">
-
-                    <div className="text-muted-foreground space-y-2">
-
-                      <Target className="w-12 h-12 mx-auto opacity-50" />
-
-                      <p>{isManager ? 'No stories found' : 'No stories with your assigned tasks found'}</p>
-
-                      <p className="text-sm">
-
-                        {selectedProject
-
-                          ? (isManager
-
-                            ? "No stories found for this project."
-
-                            : "You are not assigned to any tasks in stories for this project.")
-
-                          : "Please select a project to view stories."}
-
-                      </p>
-
-                    </div>
-
-                  </CardContent>
-
-                </Card>
-
-              )}
+              }).length}
 
             </div>
 
-          </>
+            <div className="text-sm text-muted-foreground">Overdue Tasks</div>
 
-        )}
+          </CardContent>
 
+        </Card>
 
+        <Card>
 
-        {/* Task View Dialog (View Details) - aligned with Scrum board task dialog */}
+          <CardContent className="p-4 text-center">
 
-        <TaskDetailsFullDialog
+            <div className="text-2xl font-semibold text-yellow-600">
 
-          open={isTaskDialogOpen}
+              {allTasksForStats.filter(t => {
+                const statusUpper = (t.status || '').toUpperCase();
+                return statusUpper === 'IN_PROGRESS' || statusUpper === 'TO_DO' || statusUpper === 'TODO';
+              }).length}
 
-          onOpenChange={setIsTaskDialogOpen}
+            </div>
 
-          task={taskToView as any}
+            <div className="text-sm text-muted-foreground">Incomplete Tasks</div>
 
-          stories={filteredStories as any}
+          </CardContent>
 
-          resolveUserName={(id) => userMap[id]}
+        </Card>
 
-          formatDate={formatDate}
+        <Card>
 
-        />
+          <CardContent className="p-4 text-center">
 
+            <div className="text-2xl font-semibold text-green-600">
 
+              {allTasksForStats.filter(t => {
+                const statusUpper = (t.status || '').toUpperCase();
+                if (statusUpper !== 'DONE') return false;
+                if (!t.dueDate) return true;
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const dueDate = new Date(t.dueDate);
+                dueDate.setHours(0, 0, 0, 0);
+                return dueDate >= today;
+              }).length}
 
-        {/* Effort Manager */}
+            </div>
 
-        <EffortManager
+            <div className="text-sm text-muted-foreground">Completed Tasks</div>
 
-          open={isEffortManagerOpen}
+          </CardContent>
 
-          onOpenChange={setIsEffortManagerOpen}
-
-          onLogEffort={handleLogEffort}
-
-          task={selectedTaskForEffort as any}
-
-          allTasks={tasks as any}
-
-          allStories={[]}
-
-        />
+        </Card>
 
       </div>
 
-    );
-
-  };
 
 
+      {/* Loading State */}
 
-  export default BacklogPage;
+      {(projectsLoading && projects === null) || (storiesLoading && storiesData === null) || tasksLoading ? (
+
+        <LoadingSpinner message="Loading Backlog..." fullScreen />
+
+      ) : (
+
+        <>
+
+          <div className="space-y-4">
+
+            <div className="flex items-center justify-between">
+
+              <h3 className="font-medium">
+
+                {isManager ? 'All Stories' : 'Stories with My Assigned Tasks'} ({filteredStories.length})
+
+              </h3>
+
+              <div className="flex items-center space-x-2">
+
+                {filteredStories.reduce((sum, story) => sum + (story.storyPoints || 0), 0) > 0 && (
+
+                  <Badge variant="secondary">
+
+                    Total: {filteredStories.reduce((sum, story) => sum + (story.storyPoints || 0), 0)} points
+
+                  </Badge>
+
+                )}
+
+              </div>
+
+            </div>
+
+
+
+            {filteredStories.length > 0 ? (
+
+              <div className="space-y-4">
+
+                {filteredStories.map(story => (
+
+                  <StoryCard key={story.id} story={story} />
+
+                ))}
+
+              </div>
+
+            ) : (
+
+              <Card>
+
+                <CardContent className="p-12 text-center">
+
+                  <div className="text-muted-foreground space-y-2">
+
+                    <Target className="w-12 h-12 mx-auto opacity-50" />
+
+                    <p>{isManager ? 'No stories found' : 'No stories with your assigned tasks found'}</p>
+
+                    <p className="text-sm">
+
+                      {selectedProject
+
+                        ? (isManager
+
+                          ? "No stories found for this project."
+
+                          : "You are not assigned to any tasks in stories for this project.")
+
+                        : "Please select a project to view stories."}
+
+                    </p>
+
+                  </div>
+
+                </CardContent>
+
+              </Card>
+
+            )}
+
+          </div>
+
+        </>
+
+      )}
+
+
+
+      {/* Task View Dialog (View Details) - aligned with Scrum board task dialog */}
+
+      <TaskDetailsFullDialog
+
+        open={isTaskDialogOpen}
+
+        onOpenChange={setIsTaskDialogOpen}
+
+        task={taskToView as any}
+
+        stories={filteredStories as any}
+
+        resolveUserName={(id) => userMap[id]}
+
+        formatDate={formatDate}
+
+      />
+
+
+
+      {/* Effort Manager */}
+
+      <EffortManager
+
+        open={isEffortManagerOpen}
+
+        onOpenChange={setIsEffortManagerOpen}
+
+        onLogEffort={handleLogEffort}
+
+        task={selectedTaskForEffort as any}
+
+        allTasks={tasks as any}
+
+        allStories={[]}
+
+      />
+
+    </div>
+
+  );
+
+};
+
+
+
+export default BacklogPage;
 

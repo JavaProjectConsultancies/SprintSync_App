@@ -1,6 +1,8 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContextEnhanced';
+import { useRoleSwitcher } from '../contexts/RoleSwitcherContext';
+import RoleSwitcherDropdown from './RoleSwitcherDropdown';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
@@ -64,6 +66,11 @@ import taskChartGif from '../assets/taskchart.gif.gif';
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user, hasPermission, canAccessProject } = useAuth();
+  const { activeRole } = useRoleSwitcher();
+
+  // Use activeRole for filtering data when role is switched
+  // Admin always stays admin, others use the activeRole from context
+  const effectiveRole = user?.role === 'admin' ? 'admin' : activeRole;
 
   // API authentication is now handled by AuthContext
   // No need for demo auth setup
@@ -170,18 +177,18 @@ const Dashboard: React.FC = () => {
     return [];
   };
 
-  // Filter projects based on user permissions - optimized for performance
+  // Filter projects based on user permissions and effectiveRole - optimized for performance
   const accessibleProjects = useMemo(() => {
     if (!user) return [];
     const projectData = normalizeApiData(apiProjects);
 
     // Admins can access all projects
-    if (user.role === 'admin') {
+    if (effectiveRole === 'admin') {
       return projectData;
     }
 
     // Managers can only access projects they manage
-    if (user.role === 'manager') {
+    if (effectiveRole === 'manager') {
       return projectData.filter(project => {
         // Try multiple possible field names for managerId
         const managerId = (project as any).managerId || (project as any).manager?.id || (project as any).manager_id;
@@ -192,9 +199,18 @@ const Dashboard: React.FC = () => {
       });
     }
 
-    // QA and regular users filter by canAccessProject
-    return projectData.filter(project => canAccessProject(project.id));
-  }, [user, canAccessProject, apiProjects]);
+    // Developer view - only show projects where they are team members
+    return projectData.filter(project => {
+      const teamMembers = (project as any).teamMembers;
+      if (Array.isArray(teamMembers)) {
+        return teamMembers.some((member: any) =>
+          (typeof member === 'string' && member === user.id) ||
+          (typeof member === 'object' && (member.id === user.id || member.userId === user.id))
+        );
+      }
+      return canAccessProject(project.id);
+    });
+  }, [user, canAccessProject, apiProjects, effectiveRole]);
 
   // Filter projects for Recent Projects section - show only user's assigned projects
   const userAssignedProjects = useMemo(() => {
@@ -202,12 +218,12 @@ const Dashboard: React.FC = () => {
     const projectData = normalizeApiData(apiProjects);
 
     // Admins see all projects
-    if (user.role === 'admin') {
+    if (effectiveRole === 'admin') {
       return projectData;
     }
 
     // Managers see only projects they manage
-    if (user.role === 'manager') {
+    if (effectiveRole === 'manager') {
       return projectData.filter(project => {
         // Try multiple possible field names for managerId
         const managerId = (project as any).managerId || (project as any).manager?.id || (project as any).manager_id;
@@ -218,7 +234,7 @@ const Dashboard: React.FC = () => {
       });
     }
 
-    // For regular users, filter projects where they are team members
+    // Developer view - filter projects where they are team members
     return projectData.filter(project => {
       // Check if user is in teamMembers array (handle both string[] and object[] formats)
       const teamMembers = (project as any).teamMembers;
@@ -232,7 +248,7 @@ const Dashboard: React.FC = () => {
       // Fallback: check if canAccessProject allows access
       return canAccessProject(project.id);
     });
-  }, [user, apiProjects, canAccessProject]);
+  }, [user, apiProjects, canAccessProject, effectiveRole]);
 
   // Get role-based metrics from API data - optimized with early returns
   const metrics = useMemo(() => {
@@ -250,16 +266,16 @@ const Dashboard: React.FC = () => {
       console.warn('[Dashboard] No tasks found in API data. Tasks loading:', tasksLoading, 'Tasks data:', apiTasks);
     }
 
-    // Check if user is manager/admin
-    const isManagerOrAdmin = user.role === 'admin' || user.role === 'manager';
+    // Check if current view is manager/admin based on effectiveRole
+    const isManagerOrAdmin = effectiveRole === 'admin' || effectiveRole === 'manager';
 
     // Get user's project IDs first (needed for both sprint filtering and fallback)
     // For managers: only projects where they are the manager
     // For admins: all projects
     // For regular users: projects where they are team members
-    const userProjectIdsForFiltering = user.role === 'admin'
+    const userProjectIdsForFiltering = effectiveRole === 'admin'
       ? new Set(projects.map(p => p.id))  // Admins see all projects
-      : user.role === 'manager'
+      : effectiveRole === 'manager'
         ? new Set(
           projects
             .filter(project => {
@@ -271,7 +287,7 @@ const Dashboard: React.FC = () => {
               const userIdStr = user.id ? String(user.id) : null;
               const matches = managerIdStr === userIdStr;
 
-              if (!matches && user.role === 'manager') {
+              if (!matches && effectiveRole === 'manager') {
                 // Debug logging for manager project filtering
                 console.log('[Dashboard] Project manager mismatch:', {
                   projectId: project.id,
@@ -303,29 +319,29 @@ const Dashboard: React.FC = () => {
         );
 
     // Debug logging for manager project filtering
-    if (user.role === 'manager') {
+    if (effectiveRole === 'manager') {
       console.log('[Dashboard] Manager project filtering:', {
         userId: user.id,
-        userRole: user.role,
+        effectiveRole: effectiveRole,
         totalProjects: projects.length,
         managerProjects: userProjectIdsForFiltering.size,
         managerProjectIds: Array.from(userProjectIdsForFiltering).slice(0, 5)
       });
     }
 
-    // Filter sprints based on user role - get sprints from user's accessible projects
+    // Filter sprints based on effectiveRole - get sprints from user's accessible projects
     // For managers: filter sprints from their projects
     // For admins: show all sprints
-    // For regular users: only show sprints from projects they're assigned to
+    // For developers: only show sprints from projects they're assigned to
     let userSprints = allSprints;
-    if (user.role === 'manager') {
+    if (effectiveRole === 'manager') {
       // For managers, only show sprints from projects they manage
       userSprints = allSprints.filter(sprint => {
         const sprintProjectId = (sprint as any).projectId || (sprint as any).project?.id;
         return sprintProjectId && userProjectIdsForFiltering.has(sprintProjectId);
       });
     } else if (!isManagerOrAdmin) {
-      // For regular users, only show sprints from projects they're assigned to
+      // For developers, only show sprints from projects they're assigned to
       userSprints = allSprints.filter(sprint => {
         const sprintProjectId = (sprint as any).projectId || (sprint as any).project?.id;
         return sprintProjectId && userProjectIdsForFiltering.has(sprintProjectId);
@@ -356,12 +372,12 @@ const Dashboard: React.FC = () => {
     // This is more reliable than filtering through sprints/stories
     let sprintTasks: any[] = [];
 
-    if (user.role === 'admin') {
+    if (effectiveRole === 'admin') {
       // Admins: Show all tasks
       sprintTasks = allTasks.filter(task => {
         return task && task.id && typeof task.id === 'string';
       });
-    } else if (user.role === 'manager') {
+    } else if (effectiveRole === 'manager') {
       // Managers: Filter tasks by projects they have access to (similar to getTaskDistributionData logic)
       const beforeCount = allTasks.length;
 
@@ -386,7 +402,7 @@ const Dashboard: React.FC = () => {
 
       console.log('[Dashboard] Manager task filtering result:', {
         userId: user.id,
-        userRole: user.role,
+        effectiveRole: effectiveRole,
         beforeCount,
         afterCount: sprintTasks.length,
         projectStoryIdsCount: projectStoryIds.size,
@@ -422,7 +438,7 @@ const Dashboard: React.FC = () => {
 
     // Debug logging (temporary - check browser console to diagnose 0% issue)
     console.log('[Dashboard Metrics Debug]', {
-      userRole: user.role,
+      effectiveRole: effectiveRole,
       userId: user.id,
       totalSprints: allSprints.length,
       userSprints: userSprints.length,
@@ -466,7 +482,7 @@ const Dashboard: React.FC = () => {
 
     let totalUsers: number;
 
-    if (user.role === 'admin') {
+    if (effectiveRole === 'admin') {
       // Admin sees all users in the system
       totalUsers = users.length;
     } else {
@@ -654,7 +670,7 @@ const Dashboard: React.FC = () => {
       criticalItems: criticalItems || 0,
       upcomingDeadlines: upcomingDeadlines || 0
     };
-  }, [user, apiProjects, apiUsers, apiTasks, apiSprints, apiStories, userAssignedProjects, tasksLoading]);
+  }, [user, apiProjects, apiUsers, apiTasks, apiSprints, apiStories, userAssignedProjects, tasksLoading, effectiveRole]);
 
   // Helpers to normalize API Project fields for charts/UI
   const getProjectProgress = (project: any): number => {
@@ -1213,6 +1229,9 @@ const Dashboard: React.FC = () => {
           </p>
         </div>
 
+        {/* Role Switcher */}
+        <RoleSwitcherDropdown />
+
       </div>
 
       {/* Metrics Cards - Key Metrics First */}
@@ -1290,11 +1309,11 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* User Tasks & Pending Work - Hidden for admin users */}
-      {user.role !== 'admin' && (
+      {effectiveRole !== 'admin' && (
         <div className="animate-fadeInUp" style={{ animationDelay: '0.3s' }}>
           <UserTasks
             userId={user.id}
-            userRole={user.role}
+            userRole={effectiveRole}
             userName={user.name}
           />
         </div>
@@ -1563,7 +1582,7 @@ const Dashboard: React.FC = () => {
       </Card>
 
       {/* Team Performance Alerts - Only for Managers/Admins */}
-      {(user.role === 'admin' || user.role === 'manager') && underperformingMembers.length > 0 && (
+      {(effectiveRole === 'admin' || effectiveRole === 'manager') && underperformingMembers.length > 0 && (
         <Card className="border-orange-200 hover:shadow-xl transition-all duration-300 animate-fadeInUp" style={{ animationDelay: '0.8s' }}>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">

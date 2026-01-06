@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContextEnhanced';
+import { RoleSwitcherProvider } from './contexts/RoleSwitcherContext';
 import LoginForm from './components/LoginForm';
 import { NavigationProvider, useNavigation } from './contexts/NavigationContext';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from './components/ui/sidebar';
@@ -812,9 +813,11 @@ const App: React.FC = () => {
   return (
     <Router>
       <AuthProvider>
-        <NavigationProvider>
-          <AppContent />
-        </NavigationProvider>
+        <RoleSwitcherProvider>
+          <NavigationProvider>
+            <AppContent />
+          </NavigationProvider>
+        </RoleSwitcherProvider>
       </AuthProvider>
     </Router>
   );

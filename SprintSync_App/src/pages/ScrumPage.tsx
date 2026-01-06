@@ -66,6 +66,8 @@ import { Textarea } from "../components/ui/textarea";
 import { Progress } from "../components/ui/progress";
 
 import { useAuth } from "../contexts/AuthContextEnhanced";
+import { useRoleSwitcher } from "../contexts/RoleSwitcherContext";
+import RoleSwitcherDropdown from "../components/RoleSwitcherDropdown";
 import { API_CONFIG } from "../services/api/config";
 
 import { DndProvider, useDrag, useDrop } from "react-dnd";
@@ -254,10 +256,31 @@ const ItemTypes = {
 
 const ScrumPage: React.FC = () => {
   const { user } = useAuth();
+  const { activeRole, resetToOriginalRole, getRoleForProject, switchRole } = useRoleSwitcher();
 
+  // Reset to original role when navigating away from this page
+  useEffect(() => {
+    return () => {
+      // Cleanup: Reset to user's original login role when leaving ScrumPage
+      resetToOriginalRole();
+    };
+  }, [resetToOriginalRole]);
+
+  // Use activeRole for permission checks - admin stays admin, others use activeRole
+  const effectiveRole = user?.role === 'admin' ? 'admin' : activeRole;
   const [searchParams] = useSearchParams();
 
   const [selectedProject, setSelectedProject] = useState("");
+
+  // Auto-switch role to user's role for the selected project
+  useEffect(() => {
+    if (selectedProject) {
+      const projectRole = getRoleForProject(selectedProject);
+      if (projectRole && projectRole !== activeRole) {
+        switchRole(projectRole);
+      }
+    }
+  }, [selectedProject, getRoleForProject, switchRole, activeRole]);
 
   const notifyProjectBudgetUpdate = useCallback(
     (reason?: string) => {
@@ -304,6 +327,9 @@ const ScrumPage: React.FC = () => {
   // State for task logs/time entries
   const [taskLogs, setTaskLogs] = useState<TimeEntry[]>([]);
   const [loadingTaskLogs, setLoadingTaskLogs] = useState(false);
+  // State for issue logs/time entries
+  const [issueLogs, setIssueLogs] = useState<TimeEntry[]>([]);
+  const [loadingIssueLogs, setLoadingIssueLogs] = useState(false);
   const [selectedLogForEdit, setSelectedLogForEdit] = useState<TimeEntry | null>(null);
   const [isEditLogDialogOpen, setIsEditLogDialogOpen] = useState(false);
   const [editLogData, setEditLogData] = useState({
@@ -313,6 +339,19 @@ const ScrumPage: React.FC = () => {
     startTime: "",
     endTime: "",
   });
+
+  // Subtask log effort state
+  const [isSubtaskLogEffortOpen, setIsSubtaskLogEffortOpen] = useState(false);
+  const [selectedSubtaskForLog, setSelectedSubtaskForLog] = useState<Subtask | null>(null);
+  const [isLoggingSubtaskEffort, setIsLoggingSubtaskEffort] = useState(false);
+  const [subtaskLogEffort, setSubtaskLogEffort] = useState({
+    hours: 0,
+    description: "",
+    workDate: new Date().toISOString().split("T")[0],
+    startTime: "",
+    endTime: "",
+  });
+  const [subtaskLogAttachments, setSubtaskLogAttachments] = useState<File[]>([]);
 
   const [dashboardProject, setDashboardProject] = useState("all");
   const [dashboardSprint, setDashboardSprint] = useState("all");
@@ -542,14 +581,14 @@ const ScrumPage: React.FC = () => {
     labels: "",
   });
 
-  // Role-based permissions
+  // Role-based permissions - using effectiveRole for dynamic role switching
 
-  // Role checks for different user types
-  const isManager = user?.role?.toUpperCase() === "MANAGER";
-  const isQAManager = user?.role?.toUpperCase() === "QA_MANAGER";
-  const isQADeveloper = user?.role?.toUpperCase() === "QA_DEVELOPER";
-  const isAdmin = user?.role?.toUpperCase() === "ADMIN";
-  const isRegularDeveloper = user?.role?.toUpperCase() === "DEVELOPER"; // Regular developer only (not QA Developer)
+  // Role checks for different user types - using effectiveRole to support role switching
+  const isManager = effectiveRole?.toUpperCase() === "MANAGER";
+  const isQAManager = effectiveRole?.toUpperCase() === "QA_MANAGER";
+  const isQADeveloper = effectiveRole?.toUpperCase() === "QA_DEVELOPER";
+  const isAdmin = effectiveRole?.toUpperCase() === "ADMIN";
+  const isRegularDeveloper = effectiveRole?.toUpperCase() === "DEVELOPER"; // Regular developer only (not QA Developer)
 
   // QA Developers should be treated like developers but with extra permissions (view all, drag to Done)
   const isDeveloper = isRegularDeveloper || isQADeveloper;
@@ -558,7 +597,7 @@ const ScrumPage: React.FC = () => {
   const canManageSprintsAndStories =
     isManager ||
     isQAManager ||
-    user?.role?.toUpperCase() === "QA";
+    effectiveRole?.toUpperCase() === "QA";
 
   // Only Managers can create tasks (not QA Manager)
   const canAddTasks = isManager;
@@ -704,6 +743,31 @@ const ScrumPage: React.FC = () => {
 
     fetchTaskLogs();
   }, [selectedTaskForDetails?.id, isTaskDetailsOpen]);
+
+  // Fetch issue logs when issue details dialog opens
+  useEffect(() => {
+    const fetchIssueLogs = async () => {
+      if (selectedIssueForDetails?.id && isIssueDetailsOpen) {
+        setLoadingIssueLogs(true);
+        try {
+          const response = await timeEntryApiService.getTimeEntriesByIssue(selectedIssueForDetails.id);
+          const logs = Array.isArray(response.data)
+            ? response.data
+            : (Array.isArray(response) ? response : []);
+          setIssueLogs(logs);
+        } catch (error) {
+          console.error("Error fetching issue logs:", error);
+          setIssueLogs([]);
+        } finally {
+          setLoadingIssueLogs(false);
+        }
+      } else {
+        setIssueLogs([]);
+      }
+    };
+
+    fetchIssueLogs();
+  }, [selectedIssueForDetails?.id, isIssueDetailsOpen]);
 
   // Fetch parent story attachments when task details dialog opens
 
@@ -5532,6 +5596,9 @@ const ScrumPage: React.FC = () => {
         estimatedHours: newSubtask.estimatedHours,
         dueDate: formattedDueDate,
         category: newSubtask.category || undefined,
+        // Preserve the parent task/issue relationship
+        taskId: selectedSubtaskForEdit.taskId || undefined,
+        issueId: selectedSubtaskForEdit.issueId || undefined,
       };
 
       // Update subtask in database via API
@@ -5609,6 +5676,23 @@ const ScrumPage: React.FC = () => {
         }
       }
 
+      // Manually refetch subtasks for the specific issue (if it's an issue subtask)
+      if (selectedSubtaskForEdit.issueId) {
+        try {
+          const response = await subtaskApiService.getSubtasksByIssue(
+            selectedSubtaskForEdit.issueId,
+          );
+          setAllSubtasks((prev) => {
+            const otherSubtasks = prev.filter(
+              (st) => st.issueId !== selectedSubtaskForEdit.issueId,
+            );
+            return [...otherSubtasks, ...response.data];
+          });
+        } catch (error) {
+          console.error("Failed to refetch issue subtasks:", error);
+        }
+      }
+
       // Reset form and close dialog
       setNewSubtask({
         title: "",
@@ -5629,6 +5713,276 @@ const ScrumPage: React.FC = () => {
       );
     } finally {
       setIsCreatingSubtask(false);
+    }
+  };
+
+  // Handle subtask effort logging
+  const handleLogSubtaskEffort = async () => {
+    if (!selectedSubtaskForLog || !subtaskLogEffort.hours || subtaskLogEffort.hours <= 0) {
+      toast.error("Please enter valid hours");
+      return;
+    }
+    if (!subtaskLogEffort.description.trim()) {
+      toast.error("Please enter a description");
+      return;
+    }
+    if (!subtaskLogEffort.workDate) {
+      toast.error("Please select a work date");
+      return;
+    }
+
+    try {
+      setIsLoggingSubtaskEffort(true);
+      const timeEntryData = {
+        userId: user?.id || "",
+        subtaskId: selectedSubtaskForLog.id,
+        taskId: selectedSubtaskForLog.taskId || undefined,
+        issueId: selectedSubtaskForLog.issueId || undefined,
+        description: subtaskLogEffort.description,
+        entryType: "development" as const,
+        hoursWorked: subtaskLogEffort.hours,
+        workDate: subtaskLogEffort.workDate,
+        startTime: subtaskLogEffort.startTime?.trim() || undefined,
+        endTime: subtaskLogEffort.endTime?.trim() || undefined,
+        isBillable: true,
+      };
+
+      await timeEntryApiService.createTimeEntry(timeEntryData);
+
+      // Upload attachments if any
+      if (subtaskLogAttachments.length > 0) {
+        try {
+          for (const file of subtaskLogAttachments) {
+            const fileDataUrl = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.readAsDataURL(file);
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = (error) => reject(error);
+            });
+            await attachmentApiService.createAttachment({
+              uploadedBy: user?.id,
+              entityType: 'subtask',
+              entityId: selectedSubtaskForLog.id,
+              fileName: file.name,
+              fileSize: file.size,
+              fileType: file.type || "application/octet-stream",
+              fileUrl: fileDataUrl,
+              attachmentType: 'file' as const,
+              isPublic: true,
+            });
+          }
+        } catch (attachError) {
+          console.error("Error uploading attachments:", attachError);
+          toast.error("Effort logged, but some attachments failed to upload");
+        }
+      }
+
+      // Update subtask actual hours
+      const updatedActualHours = (selectedSubtaskForLog.actualHours || 0) + subtaskLogEffort.hours;
+      await subtaskApiService.updateSubtaskActualHours(selectedSubtaskForLog.id, updatedActualHours);
+
+      // Update local subtask state immediately for instant UI update
+      setAllSubtasks((prev) =>
+        prev.map((st) =>
+          st.id === selectedSubtaskForLog.id
+            ? { ...st, actualHours: updatedActualHours }
+            : st
+        )
+      );
+
+      // If this subtask belongs to an issue, ADD logged hours to parent issue's actual hours
+      if (selectedSubtaskForLog.issueId) {
+        const parentIssue = allIssues.find(i => i.id === selectedSubtaskForLog.issueId);
+        if (parentIssue) {
+          // Add the logged hours to parent issue's existing actual hours
+          const newParentActualHours = (parentIssue.actualHours || 0) + subtaskLogEffort.hours;
+
+          // Update parent issue's actual hours
+          await issueApiService.updateIssueActualHours(parentIssue.id, newParentActualHours);
+
+          // Update parent issue in allIssues state
+          setAllIssues((prev) =>
+            prev.map((issue) =>
+              issue.id === parentIssue.id
+                ? { ...issue, actualHours: newParentActualHours }
+                : issue
+            )
+          );
+
+          // Update selectedIssueForDetails if it matches the parent issue
+          setSelectedIssueForDetails((prev) =>
+            prev?.id === parentIssue.id
+              ? { ...prev, actualHours: newParentActualHours }
+              : prev
+          );
+        }
+      }
+
+      // If this subtask belongs to a task, ADD logged hours to parent task's actual hours
+      if (selectedSubtaskForLog.taskId) {
+        const parentTask = allTasks.find(t => t.id === selectedSubtaskForLog.taskId);
+        if (parentTask) {
+          // Add the logged hours to parent task's existing actual hours
+          const newParentActualHours = (parentTask.actualHours || 0) + subtaskLogEffort.hours;
+
+          await taskApiService.updateTaskActualHours(parentTask.id, newParentActualHours);
+
+          setAllTasks((prev) =>
+            prev.map((task) =>
+              task.id === parentTask.id
+                ? { ...task, actualHours: newParentActualHours }
+                : task
+            )
+          );
+
+          setSelectedTaskForDetails((prev) =>
+            prev?.id === parentTask.id
+              ? { ...prev, actualHours: newParentActualHours }
+              : prev
+          );
+        }
+      }
+
+      // Automatically move parent issue to IN_PROGRESS if it's currently in TO_DO status
+      if (selectedSubtaskForLog.issueId) {
+        const parentIssue = allIssues.find(i => i.id === selectedSubtaskForLog.issueId);
+        if (parentIssue) {
+          const currentStatus = parentIssue.status?.toUpperCase() || "";
+          if (currentStatus === "TO_DO" || currentStatus === "TODO") {
+            try {
+              // Use direct API call instead of mutate for proper async handling
+              await issueApiService.updateIssueStatus(parentIssue.id, "IN_PROGRESS");
+
+              // Update local state immediately
+              setAllIssues((prev) =>
+                prev.map((issue) =>
+                  issue.id === parentIssue.id
+                    ? { ...issue, status: "IN_PROGRESS" as any }
+                    : issue
+                )
+              );
+              setSelectedIssueForDetails((prev) =>
+                prev?.id === parentIssue.id
+                  ? { ...prev, status: "IN_PROGRESS" as any }
+                  : prev
+              );
+
+              // Log activity for status change
+              try {
+                await activityLogApiService.createActivityLog({
+                  userId: user?.id || "",
+                  entityType: "issues",
+                  entityId: parentIssue.id,
+                  action: "status_changed",
+                  description: `Issue automatically moved to IN_PROGRESS after logging subtask effort`,
+                  oldValues: JSON.stringify({ status: currentStatus }),
+                  newValues: JSON.stringify({ status: "IN_PROGRESS" }),
+                  ipAddress: undefined,
+                  userAgent: undefined,
+                });
+              } catch (error) {
+                console.error("Failed to log activity for status change:", error);
+              }
+
+              toast.success("Issue moved to In Progress automatically");
+            } catch (error) {
+              console.error("Failed to update issue status to IN_PROGRESS:", error);
+            }
+          }
+        }
+      }
+
+      // Automatically move parent task to IN_PROGRESS if it's currently in TO_DO status
+      if (selectedSubtaskForLog.taskId) {
+        const parentTask = allTasks.find(t => t.id === selectedSubtaskForLog.taskId);
+        if (parentTask) {
+          const currentStatus = parentTask.status?.toUpperCase() || "";
+          if (currentStatus === "TO_DO" || currentStatus === "TODO") {
+            try {
+              // Use direct API call instead of mutate for proper async handling
+              await taskApiService.updateTaskStatus(parentTask.id, "IN_PROGRESS");
+
+              // Update local state immediately
+              setAllTasks((prev) =>
+                prev.map((task) =>
+                  task.id === parentTask.id
+                    ? { ...task, status: "IN_PROGRESS" as any }
+                    : task
+                )
+              );
+              setSelectedTaskForDetails((prev) =>
+                prev?.id === parentTask.id
+                  ? { ...prev, status: "IN_PROGRESS" as any }
+                  : prev
+              );
+
+              // Log activity for status change
+              try {
+                await activityLogApiService.createActivityLog({
+                  userId: user?.id || "",
+                  entityType: "tasks",
+                  entityId: parentTask.id,
+                  action: "status_changed",
+                  description: `Task automatically moved to IN_PROGRESS after logging subtask effort`,
+                  oldValues: JSON.stringify({ status: currentStatus }),
+                  newValues: JSON.stringify({ status: "IN_PROGRESS" }),
+                  ipAddress: undefined,
+                  userAgent: undefined,
+                });
+              } catch (error) {
+                console.error("Failed to log activity for status change:", error);
+              }
+
+              toast.success("Task moved to In Progress automatically");
+            } catch (error) {
+              console.error("Failed to update task status to IN_PROGRESS:", error);
+            }
+          }
+        }
+      }
+
+      // Refresh task logs so the new time entry is visible in the Activities tab
+      if (selectedSubtaskForLog.taskId) {
+        try {
+          const response = await timeEntryApiService.getTimeEntriesByTask(selectedSubtaskForLog.taskId);
+          const logs = Array.isArray(response.data)
+            ? response.data
+            : (Array.isArray(response) ? response : []);
+          setTaskLogs(logs);
+        } catch (error) {
+          console.error("Failed to refresh task logs:", error);
+        }
+      }
+
+      // Refresh issue logs so the new time entry is visible in the Activities tab
+      if (selectedSubtaskForLog.issueId) {
+        try {
+          const response = await timeEntryApiService.getTimeEntriesByIssue(selectedSubtaskForLog.issueId);
+          const logs = Array.isArray(response.data)
+            ? response.data
+            : (Array.isArray(response) ? response : []);
+          setIssueLogs(logs);
+        } catch (error) {
+          console.error("Failed to refresh issue logs:", error);
+        }
+      }
+
+      toast.success("Subtask effort logged successfully");
+      setIsSubtaskLogEffortOpen(false);
+      setSelectedSubtaskForLog(null);
+      setSubtaskLogEffort({
+        hours: 0,
+        description: "",
+        workDate: new Date().toISOString().split("T")[0],
+        startTime: "",
+        endTime: "",
+      });
+      setSubtaskLogAttachments([]);
+    } catch (error) {
+      console.error("Error logging subtask effort:", error);
+      toast.error("Failed to log subtask effort");
+    } finally {
+      setIsLoggingSubtaskEffort(false);
     }
   };
 
@@ -7755,6 +8109,11 @@ const ScrumPage: React.FC = () => {
                   })}
                 </SelectContent>
               </Select>
+
+              {/* Role Switcher - shows roles based on selected project */}
+              {selectedProject && (
+                <RoleSwitcherDropdown projectId={selectedProject} compact />
+              )}
 
               {/* Sprint Selector */}
 
@@ -12264,6 +12623,191 @@ const ScrumPage: React.FC = () => {
           </DialogContent>
         </Dialog>
 
+        {/* Subtask Log Effort Dialog */}
+        <Dialog
+          open={isSubtaskLogEffortOpen}
+          onOpenChange={(open) => {
+            setIsSubtaskLogEffortOpen(open);
+            if (!open) {
+              setSelectedSubtaskForLog(null);
+              setSubtaskLogEffort({
+                hours: 0,
+                description: "",
+                workDate: new Date().toISOString().split("T")[0],
+                startTime: "",
+                endTime: "",
+              });
+              setSubtaskLogAttachments([]);
+            }
+          }}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-red-700">Log Subtask Work</DialogTitle>
+              <DialogDescription>
+                Log time spent on subtask: {selectedSubtaskForLog?.title}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="subtask-log-hours">Hours Worked *</Label>
+                <Input
+                  id="subtask-log-hours"
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  value={subtaskLogEffort.hours}
+                  onChange={(e) =>
+                    setSubtaskLogEffort((prev) => ({
+                      ...prev,
+                      hours: parseFloat(e.target.value) || 0,
+                    }))
+                  }
+                  placeholder="2.5"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="subtask-log-description">Work Description *</Label>
+                <Textarea
+                  id="subtask-log-description"
+                  value={subtaskLogEffort.description}
+                  onChange={(e) =>
+                    setSubtaskLogEffort((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                  placeholder="What did you work on?"
+                  rows={3}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="subtask-log-startTime">Start Time (Optional)</Label>
+                  <Input
+                    id="subtask-log-startTime"
+                    type="time"
+                    value={subtaskLogEffort.startTime}
+                    onChange={(e) =>
+                      setSubtaskLogEffort((prev) => ({
+                        ...prev,
+                        startTime: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="subtask-log-endTime">End Time (Optional)</Label>
+                  <Input
+                    id="subtask-log-endTime"
+                    type="time"
+                    value={subtaskLogEffort.endTime}
+                    onChange={(e) =>
+                      setSubtaskLogEffort((prev) => ({
+                        ...prev,
+                        endTime: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="subtask-log-date">Work Date *</Label>
+                <Input
+                  id="subtask-log-date"
+                  type="date"
+                  value={subtaskLogEffort.workDate}
+                  onChange={(e) =>
+                    setSubtaskLogEffort((prev) => ({
+                      ...prev,
+                      workDate: e.target.value,
+                    }))
+                  }
+                  required
+                />
+              </div>
+
+              {/* Attachments Section */}
+              <div className="border rounded-lg p-3 bg-red-50/30">
+                <Label className="flex items-center gap-2 mb-2 text-red-700">
+                  <Paperclip className="w-4 h-4" />
+                  Attachments (Optional)
+                </Label>
+                <div className="space-y-2">
+                  <Input
+                    type="file"
+                    multiple
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      setSubtaskLogAttachments((prev) => [...prev, ...files]);
+                      e.target.value = '';
+                    }}
+                    className="cursor-pointer bg-white"
+                  />
+                  {subtaskLogAttachments.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {subtaskLogAttachments.map((file, index) => (
+                        <div key={index} className="flex items-center gap-1 bg-white border rounded px-2 py-1 text-xs">
+                          <Paperclip className="w-3 h-3 text-gray-500" />
+                          <span className="max-w-[120px] truncate">{file.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setSubtaskLogAttachments(prev => prev.filter((_, i) => i !== index))}
+                            className="ml-1 text-red-500 hover:text-red-700"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Subtask Time Stats */}
+              {selectedSubtaskForLog && (
+                <div className="bg-red-50 p-4 rounded-lg border border-red-100 flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] text-red-600 uppercase font-bold mb-1">Estimated</p>
+                    <p className="text-lg font-bold text-red-700">{(selectedSubtaskForLog.estimatedHours || 0)}h</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-green-600 uppercase font-bold mb-1">Logged</p>
+                    <p className="text-lg font-bold text-green-700">{(selectedSubtaskForLog.actualHours || 0)}h</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-orange-600 uppercase font-bold mb-1">After Log</p>
+                    <p className="text-lg font-bold text-orange-700">{((selectedSubtaskForLog.actualHours || 0) + subtaskLogEffort.hours).toFixed(1)}h</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="flex space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsSubtaskLogEffortOpen(false);
+                  setSelectedSubtaskForLog(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleLogSubtaskEffort}
+                disabled={isLoggingSubtaskEffort || !subtaskLogEffort.hours || subtaskLogEffort.hours <= 0}
+              >
+                {isLoggingSubtaskEffort && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                Log {subtaskLogEffort.hours > 0 ? `${subtaskLogEffort.hours}h` : 'Work'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Log Effort Dialog (JIRA-style: on subtasks, tasks, and issues) */}
 
         <Dialog
@@ -13286,9 +13830,15 @@ const ScrumPage: React.FC = () => {
                                       size="sm"
                                       className="h-7 px-2 text-xs hover:bg-green-100 opacity-0 group-hover:opacity-100 transition-opacity"
                                       onClick={() => {
-                                        setSelectedSubtaskForEffort(subtask);
-
-                                        setIsLogEffortDialogOpen(true);
+                                        setSelectedSubtaskForLog(subtask);
+                                        setSubtaskLogEffort({
+                                          hours: 0,
+                                          description: "",
+                                          workDate: new Date().toISOString().split("T")[0],
+                                          startTime: "",
+                                          endTime: "",
+                                        });
+                                        setIsSubtaskLogEffortOpen(true);
                                       }}
                                       title="Log work on this subtask"
                                     >
@@ -13944,6 +14494,84 @@ const ScrumPage: React.FC = () => {
                       className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100"
                       style={{ maxHeight: 'calc(90vh - 200px)' }}
                     >
+                      {/* Issue Time Logs Section */}
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                          Time Logs
+                        </h3>
+                        {loadingIssueLogs ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                            <span className="ml-2 text-sm text-gray-600">
+                              Loading logs...
+                            </span>
+                          </div>
+                        ) : issueLogs.length > 0 ? (
+                          <div className="space-y-2">
+                            {issueLogs.map((log) => (
+                              <div
+                                key={log.id}
+                                className="bg-gray-50 border border-gray-200 rounded-lg p-3 hover:bg-gray-100 transition-colors group"
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <div className="flex items-center space-x-2 mb-1">
+                                      <Clock className="w-4 h-4 text-red-600" />
+                                      <span className="text-sm font-medium text-gray-900">
+                                        {log.hoursWorked}h logged
+                                      </span>
+                                      {log.workDate && (
+                                        <span className="text-xs text-gray-500">
+                                          on {new Date(log.workDate).toLocaleDateString("en-GB", {
+                                            day: "numeric",
+                                            month: "short",
+                                            year: "numeric",
+                                          })}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {log.description && (
+                                      <p className="text-sm text-gray-700 mt-1">
+                                        {log.description}
+                                      </p>
+                                    )}
+                                    <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500">
+                                      {log.userId && (
+                                        <div className="flex items-center space-x-1">
+                                          <User className="w-3 h-3" />
+                                          <span>{getUserName(log.userId)}</span>
+                                        </div>
+                                      )}
+                                      {log.startTime && log.endTime && (
+                                        <div className="flex items-center space-x-1">
+                                          <Timer className="w-3 h-3" />
+                                          <span>
+                                            {log.startTime} - {log.endTime}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {log.entryType && (
+                                        <Badge variant="outline" className="text-xs">
+                                          {log.entryType}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-6 text-gray-500 border border-gray-200 rounded-lg bg-gray-50">
+                            <Clock className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                            <p className="text-sm">No time logged yet</p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              Log effort on subtasks to track time
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
                       {/* Description */}
 
                       <div>
@@ -14415,6 +15043,52 @@ const ScrumPage: React.FC = () => {
                                         </p>
                                       )}
                                     </div>
+
+                                    {/* Log Button */}
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-7 px-2 hover:bg-red-100 text-red-700 border-red-200 flex-shrink-0"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedSubtaskForLog(subtask);
+                                        setSubtaskLogEffort({
+                                          hours: 0,
+                                          description: "",
+                                          workDate: new Date().toISOString().split("T")[0],
+                                          startTime: "",
+                                          endTime: "",
+                                        });
+                                        setIsSubtaskLogEffortOpen(true);
+                                      }}
+                                    >
+                                      <Clock className="w-3 h-3 mr-1" />
+                                      Log
+                                    </Button>
+
+                                    {/* Edit Button */}
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-7 px-2 hover:bg-blue-100 text-blue-700 border-blue-200 flex-shrink-0"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedSubtaskForEdit(subtask);
+                                        setNewSubtask({
+                                          title: subtask.title || "",
+                                          description: subtask.description || "",
+                                          taskId: subtask.taskId || "",
+                                          assigneeId: subtask.assigneeId || "",
+                                          estimatedHours: subtask.estimatedHours || 0,
+                                          category: subtask.category || "",
+                                          dueDate: subtask.dueDate ? subtask.dueDate.split('T')[0] : "",
+                                        });
+                                        setIsEditSubtaskDialogOpen(true);
+                                      }}
+                                    >
+                                      <Edit3 className="w-3 h-3 mr-1" />
+                                      Edit
+                                    </Button>
                                   </div>
 
                                   {/* Subtask Metadata */}

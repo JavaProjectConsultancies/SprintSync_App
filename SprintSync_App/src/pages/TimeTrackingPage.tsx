@@ -20,6 +20,8 @@ import { TimeEntry as ApiTimeEntry, User, Project, Story, Task, Sprint } from '.
 import { useWorkflowLanesByProject } from '../hooks/api/useWorkflowLanes';
 import { getStatusLabel as getStatusLabelUtil, isCustomLaneStatus } from '../utils/statusUtils';
 import { useAuth } from '../contexts/AuthContextEnhanced';
+import { useRoleSwitcher } from '../contexts/RoleSwitcherContext';
+import RoleSwitcherDropdown from '../components/RoleSwitcherDropdown';
 import LoadingSpinner from '../components/LoadingSpinner';
 import {
   Clock,
@@ -340,6 +342,18 @@ const buildTimeEntryKey = (entry: ApiTimeEntry, index: number): string => {
 
 const TimeTrackingPage: React.FC = () => {
   const { user: currentUser } = useAuth();
+  const { activeRole } = useRoleSwitcher();
+
+  // Use activeRole for permission checks - admin stays admin, others use activeRole
+  const effectiveRole = currentUser?.role === 'admin' ? 'admin' : activeRole;
+
+  // Centralized role check for manager/admin permissions using effectiveRole
+  const isManagerOrAdmin = currentUser && (
+    effectiveRole?.toLowerCase() === 'admin' ||
+    effectiveRole?.toLowerCase() === 'manager' ||
+    effectiveRole?.toLowerCase() === 'qa_manager'
+  );
+
   const [timeFilter, setTimeFilter] = useState('all-time');
   const [userFilter, setUserFilter] = useState('all');
   const [projectFilter, setProjectFilter] = useState('all');
@@ -2816,6 +2830,14 @@ const TimeTrackingPage: React.FC = () => {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Role Switcher - shows roles based on selected project */}
+              {projectFilter !== 'all' && (
+                <div className="space-y-1 flex min-w-[140px] flex-1 flex-col">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">View As</p>
+                  <RoleSwitcherDropdown projectId={projectFilter} compact />
+                </div>
+              )}
 
               <div className="space-y-1 flex min-w-[140px] flex-1 flex-col">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Sprint</p>

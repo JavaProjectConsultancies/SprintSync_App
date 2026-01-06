@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContextEnhanced';
+import { useRoleSwitcher, SwitchableRole } from '../contexts/RoleSwitcherContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import {
   Sidebar,
@@ -44,6 +45,7 @@ import {
   User,
   LogOut,
   ChevronUp,
+  ChevronDown,
   Target,
   GitBranch,
   Calendar,
@@ -80,6 +82,7 @@ interface MenuItem {
 
 const AppSidebar: React.FC = () => {
   const { user, logout, hasPermission } = useAuth();
+  const { activeRole, availableRoles, switchRole, isLoading: isRoleLoading } = useRoleSwitcher();
   const { navigationState, navigateTo } = useNavigation();
 
   // Change Password Dialog State
@@ -259,7 +262,7 @@ const AppSidebar: React.FC = () => {
       // Manager has access to all sidebar widgets
       return allMenuItems;
     } else {
-      // Developer has limited access (excluding admin panel and projects)
+      // Developer has limited access (excluding admin panel, projects, and team allocation)
       return allMenuItems
         .filter(item => item.title !== 'ADMINISTRATION')
         .map(item => {
@@ -270,6 +273,13 @@ const AppSidebar: React.FC = () => {
               children: item.children.filter(child => child.title !== 'Projects')
             };
           }
+          // Remove Team Allocation from AI & ANALYTICS section for developers
+          if (item.title === 'AI & ANALYTICS' && item.children) {
+            return {
+              ...item,
+              children: item.children.filter(child => child.title !== 'Team Allocation')
+            };
+          }
           return item;
         })
         .filter(item => {
@@ -277,12 +287,19 @@ const AppSidebar: React.FC = () => {
           if (item.title === 'PROJECT MANAGEMENT' && item.children) {
             return item.children.length > 0;
           }
+          // Remove AI & ANALYTICS section if it has no children after filtering
+          if (item.title === 'AI & ANALYTICS' && item.children) {
+            return item.children.length > 0;
+          }
           return true;
         });
     }
   };
 
-  const menuItems = user ? getRoleBasedMenuItems(user.role) : [];
+  // For admin users, always use their actual role to show admin menu
+  // For non-admin users, use activeRole for developer/manager switching
+  const effectiveRole = user?.role === 'admin' ? 'admin' : activeRole;
+  const menuItems = user ? getRoleBasedMenuItems(effectiveRole) : [];
 
   // Safely filter menu items with proper checks
   const filteredMenuItems = menuItems.filter(item => {
@@ -387,6 +404,54 @@ const AppSidebar: React.FC = () => {
             </div>
           </div>
         </SidebarHeader>
+
+        {/* Role Switcher Dropdown */}
+        {availableRoles.length > 1 && (
+          <div className="px-2 py-2 border-b">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-between text-sm font-medium"
+                  disabled={isRoleLoading}
+                >
+                  <div className="flex items-center gap-2">
+                    {activeRole === 'manager' ? (
+                      <Settings className="w-4 h-4 text-blue-600" />
+                    ) : (
+                      <Code className="w-4 h-4 text-green-600" />
+                    )}
+                    <span>
+                      {activeRole.charAt(0).toUpperCase() + activeRole.slice(1)} View
+                    </span>
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-[200px]">
+                {availableRoles.map((role) => (
+                  <DropdownMenuItem
+                    key={role}
+                    onClick={() => switchRole(role)}
+                    className={`cursor-pointer ${activeRole === role ? 'bg-accent' : ''}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {role === 'manager' ? (
+                        <Settings className="w-4 h-4 text-blue-600" />
+                      ) : (
+                        <Code className="w-4 h-4 text-green-600" />
+                      )}
+                      <span>{role.charAt(0).toUpperCase() + role.slice(1)}</span>
+                      {activeRole === role && (
+                        <CheckCircle2 className="w-4 h-4 ml-auto text-green-600" />
+                      )}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
 
         <SidebarContent>
           {filteredMenuItems.map((section) => (

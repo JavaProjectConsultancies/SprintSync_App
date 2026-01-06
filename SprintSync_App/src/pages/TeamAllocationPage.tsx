@@ -20,6 +20,7 @@ import { userApiService } from '../services/api/entities/userApi';
 import { projectApiService } from '../services/api/entities/projectApi';
 import { useTeamMembers as useProjectTeamMembers } from '../hooks/api/useTeamMembers';
 import { useAuth } from '../contexts/AuthContextEnhanced';
+import { useRoleSwitcher } from '../contexts/RoleSwitcherContext';
 import { toast } from 'sonner';
 import {
   Users,
@@ -93,6 +94,11 @@ const ItemTypes = {
 
 const TeamAllocationPage: React.FC = () => {
   const { user: currentUser } = useAuth();
+  const { activeRole } = useRoleSwitcher();
+
+  // Use activeRole for permission checks - admin stays admin, others use activeRole
+  const effectiveRole = currentUser?.role === 'admin' ? 'admin' : activeRole;
+
   const [selectedMember, setSelectedMember] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
@@ -737,7 +743,7 @@ const TeamAllocationPage: React.FC = () => {
   // For admin: show total count of all team members, not just filtered
   // For others: show filtered count
   const stats = useMemo(() => {
-    const isAdmin = currentUser?.role === 'admin';
+    const isAdmin = effectiveRole === 'admin';
     // For admin, use total teamMembers count; for others, use filtered count
     const totalMembers = isAdmin ? teamMembers.length : filteredMembers.length;
     const membersForStats = isAdmin ? teamMembers : filteredMembers;
@@ -747,7 +753,7 @@ const TeamAllocationPage: React.FC = () => {
     const overloadedCount = membersForStats.filter(member => member.utilization > 100).length;
 
     return { totalMembers, avgUtilization, availableHours, overloadedCount };
-  }, [filteredMembers, teamMembers, currentUser]);
+  }, [filteredMembers, teamMembers, effectiveRole]);
 
   // Get unique values for filters (prefer API, fallback to team data)
   const departments = useMemo(() => {

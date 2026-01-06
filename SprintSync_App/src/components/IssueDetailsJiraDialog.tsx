@@ -99,6 +99,18 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
     });
     const [effortLogAttachments, setEffortLogAttachments] = useState<File[]>([]);
 
+    // Subtask effort logging state
+    const [isSubtaskLogEffortOpen, setIsSubtaskLogEffortOpen] = useState(false);
+    const [selectedSubtaskForLog, setSelectedSubtaskForLog] = useState<Subtask | null>(null);
+    const [isLoggingSubtaskEffort, setIsLoggingSubtaskEffort] = useState(false);
+    const [subtaskEffortLog, setSubtaskEffortLog] = useState({
+        hours: 0,
+        description: "",
+        workDate: new Date().toISOString().split('T')[0],
+        startTime: "",
+        endTime: "",
+    });
+
     const [currentIssue, setCurrentIssue] = useState<Issue | null>(issue);
 
     useEffect(() => {
@@ -280,6 +292,65 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
         }
     };
 
+    // Handle subtask effort logging
+    const handleLogSubtaskEffort = async () => {
+        if (!selectedSubtaskForLog || !subtaskEffortLog.hours || subtaskEffortLog.hours <= 0) {
+            toast.error("Please enter valid hours");
+            return;
+        }
+        if (!subtaskEffortLog.description.trim()) {
+            toast.error("Please enter a description");
+            return;
+        }
+
+        try {
+            setIsLoggingSubtaskEffort(true);
+            const timeEntryData = {
+                userId: user?.id || "",
+                subtaskId: selectedSubtaskForLog.id,
+                issueId: currentIssue?.id,
+                storyId: currentIssue?.storyId?.trim() || undefined,
+                description: subtaskEffortLog.description,
+                entryType: "development" as const,
+                hoursWorked: subtaskEffortLog.hours,
+                workDate: subtaskEffortLog.workDate,
+                startTime: subtaskEffortLog.startTime && subtaskEffortLog.startTime.trim() ? subtaskEffortLog.startTime : undefined,
+                endTime: subtaskEffortLog.endTime && subtaskEffortLog.endTime.trim() ? subtaskEffortLog.endTime : undefined,
+                isBillable: true,
+            };
+
+            await timeEntryApiService.createTimeEntry(timeEntryData);
+
+            // Update subtask actual hours
+            if (selectedSubtaskForLog) {
+                const updatedActualHours = (selectedSubtaskForLog.actualHours || 0) + subtaskEffortLog.hours;
+                await subtaskApiService.updateSubtaskActualHours(selectedSubtaskForLog.id, updatedActualHours);
+            }
+
+            toast.success("Subtask effort logged successfully");
+            setIsSubtaskLogEffortOpen(false);
+            setSelectedSubtaskForLog(null);
+            setSubtaskEffortLog({
+                hours: 0,
+                description: "",
+                workDate: new Date().toISOString().split('T')[0],
+                startTime: "",
+                endTime: "",
+            });
+
+            // Refresh data
+            if (currentIssue) {
+                fetchIssueData(currentIssue.id, currentIssue.storyId);
+            }
+            if (onIssueUpdated) onIssueUpdated();
+        } catch (error) {
+            console.error("Error logging subtask effort:", error);
+            toast.error("Failed to log subtask effort");
+        } finally {
+            setIsLoggingSubtaskEffort(false);
+        }
+    };
+
     if (!currentIssue) return null;
 
     return (
@@ -458,14 +529,33 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                                             ) : subtasks.length > 0 ? (
                                                 <div className="space-y-2">
                                                     {subtasks.map((st) => (
-                                                        <div key={st.id} className="p-3 border border-gray-200 rounded-lg flex items-center justify-between hover:bg-gray-50 text-red-900">
+                                                        <div key={st.id} className="p-3 border border-gray-200 rounded-lg flex items-center justify-between hover:bg-gray-50 text-red-900 group">
                                                             <div className="flex items-center space-x-3">
                                                                 <Badge variant="outline" className="text-[10px] bg-red-50 text-red-700 border-red-200">ISTK</Badge>
                                                                 <span className="text-sm font-medium">{st.title}</span>
                                                             </div>
-                                                            <div className="flex items-center space-x-4">
+                                                            <div className="flex items-center space-x-3">
                                                                 <span className="text-xs text-gray-500">{st.status}</span>
-                                                                <Badge variant="secondary" className="text-xs bg-red-50 text-red-800 border-red-100">{st.actualHours}/{st.estimatedHours}h</Badge>
+                                                                <Badge variant="secondary" className="text-xs bg-red-50 text-red-800 border-red-100">{st.actualHours || 0}/{st.estimatedHours || 0}h</Badge>
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="h-7 px-2 hover:bg-red-100 text-red-700 border-red-200"
+                                                                    onClick={() => {
+                                                                        setSelectedSubtaskForLog(st);
+                                                                        setSubtaskEffortLog({
+                                                                            hours: 0,
+                                                                            description: "",
+                                                                            workDate: new Date().toISOString().split('T')[0],
+                                                                            startTime: "",
+                                                                            endTime: "",
+                                                                        });
+                                                                        setIsSubtaskLogEffortOpen(true);
+                                                                    }}
+                                                                >
+                                                                    <Clock className="w-3 h-3 mr-1" />
+                                                                    Log
+                                                                </Button>
                                                             </div>
                                                         </div>
                                                     ))}
@@ -713,6 +803,99 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                         >
                             {isLoggingEffort && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                             Log {effortLog.hours > 0 ? `${effortLog.hours}h` : 'Work'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Subtask Log Effort Dialog */}
+            <Dialog open={isSubtaskLogEffortOpen} onOpenChange={setIsSubtaskLogEffortOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="text-red-700">Log Subtask Work</DialogTitle>
+                        <DialogDescription>
+                            Log time spent on subtask: {selectedSubtaskForLog?.title}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div>
+                            <Label htmlFor="subtask-hours">Hours Worked *</Label>
+                            <Input
+                                id="subtask-hours"
+                                type="number"
+                                step="0.5"
+                                value={subtaskEffortLog.hours}
+                                onChange={(e) => setSubtaskEffortLog(p => ({ ...p, hours: parseFloat(e.target.value) || 0 }))}
+                            />
+                        </div>
+                        <div>
+                            <Label htmlFor="subtask-description">Work Description *</Label>
+                            <Textarea
+                                id="subtask-description"
+                                value={subtaskEffortLog.description}
+                                onChange={(e) => setSubtaskEffortLog(p => ({ ...p, description: e.target.value }))}
+                                placeholder="What did you work on?"
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <Label htmlFor="subtask-startTime">Start Time (Optional)</Label>
+                                <Input
+                                    id="subtask-startTime"
+                                    type="time"
+                                    value={subtaskEffortLog.startTime}
+                                    onChange={(e) => setSubtaskEffortLog(p => ({ ...p, startTime: e.target.value }))}
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor="subtask-endTime">End Time (Optional)</Label>
+                                <Input
+                                    id="subtask-endTime"
+                                    type="time"
+                                    value={subtaskEffortLog.endTime}
+                                    onChange={(e) => setSubtaskEffortLog(p => ({ ...p, endTime: e.target.value }))}
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <Label htmlFor="subtask-date">Work Date</Label>
+                            <Input
+                                id="subtask-date"
+                                type="date"
+                                value={subtaskEffortLog.workDate}
+                                onChange={(e) => setSubtaskEffortLog(p => ({ ...p, workDate: e.target.value }))}
+                            />
+                        </div>
+
+                        {/* Subtask Time Stats */}
+                        {selectedSubtaskForLog && (
+                            <div className="bg-red-50 p-4 rounded-lg border border-red-100 flex items-center justify-between">
+                                <div>
+                                    <p className="text-[10px] text-red-600 uppercase font-bold mb-1">Estimated</p>
+                                    <p className="text-lg font-bold text-red-700">{(selectedSubtaskForLog.estimatedHours || 0)}h</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] text-green-600 uppercase font-bold mb-1">Logged</p>
+                                    <p className="text-lg font-bold text-green-700">{(selectedSubtaskForLog.actualHours || 0)}h</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] text-orange-600 uppercase font-bold mb-1">After Log</p>
+                                    <p className="text-lg font-bold text-orange-700">{((selectedSubtaskForLog.actualHours || 0) + subtaskEffortLog.hours).toFixed(1)}h</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    <DialogFooter className="mt-6 gap-2 pt-4 border-t">
+                        <Button type="button" variant="outline" onClick={() => setIsSubtaskLogEffortOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={handleLogSubtaskEffort}
+                            disabled={isLoggingSubtaskEffort || subtaskEffortLog.hours <= 0}
+                        >
+                            {isLoggingSubtaskEffort && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                            Log {subtaskEffortLog.hours > 0 ? `${subtaskEffortLog.hours}h` : 'Work'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

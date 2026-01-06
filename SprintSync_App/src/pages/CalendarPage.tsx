@@ -22,7 +22,8 @@ import {
   Star,
   Briefcase,
   GitBranch,
-  Zap
+  Zap,
+  RotateCcw
 } from 'lucide-react';
 import { formatDateDDMMYYYY } from '../utils/dateUtils';
 
@@ -201,6 +202,15 @@ const CalendarPage: React.FC = () => {
     });
   };
 
+  // Reset all filters to default
+  const resetFilters = () => {
+    setFilterType('all');
+    setFilterProject('all');
+  };
+
+  // Check if any filters are active
+  const filtersActive = filterType !== 'all' || filterProject !== 'all';
+
   // Filter events
   const filteredEvents = events.filter(event => {
     const matchesType = filterType === 'all' || event.type === filterType;
@@ -333,6 +343,17 @@ const CalendarPage: React.FC = () => {
                 ))}
               </SelectContent>
             </Select>
+            {filtersActive && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={resetFilters}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <RotateCcw className="w-4 h-4 mr-1" />
+                Reset
+              </Button>
+            )}
             <div className="flex items-center space-x-2 text-sm text-muted-foreground">
               <span>Showing {currentMonthEvents.length} events</span>
             </div>

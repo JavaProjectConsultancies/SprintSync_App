@@ -18,6 +18,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
+
+import com.sprintsync.api.dto.UserProjectRolesDTO;
 
 /**
  * REST Controller for Project Team Member operations
@@ -56,14 +59,14 @@ public class ProjectTeamMemberController {
     public ResponseEntity<?> getAllProjectTeamMembers() {
         try {
             List<TeamMemberDto> teamMembers = new ArrayList<>();
-            
+
             for (ProjectTeamMember teamMember : projectTeamMemberRepository.findAll()) {
                 try {
                     if (teamMember.getUserId() == null || teamMember.getUserId().trim().isEmpty()) {
                         // Skip team members with invalid user IDs
                         continue;
                     }
-                    
+
                     userRepository.findById(teamMember.getUserId()).ifPresent(user -> {
                         try {
                             TeamMemberDto dto = new TeamMemberDto();
@@ -71,17 +74,19 @@ public class ProjectTeamMemberController {
                             dto.setName(user.getName() != null ? user.getName() : "Unknown User");
                             dto.setRole(teamMember.getRole() != null ? teamMember.getRole() : "developer");
                             dto.setIsTeamLead(teamMember.getIsTeamLead() != null ? teamMember.getIsTeamLead() : false);
-                            dto.setAvailability(teamMember.getAllocationPercentage() != null ? teamMember.getAllocationPercentage() : 100);
-                            
+                            dto.setAvailability(
+                                    teamMember.getAllocationPercentage() != null ? teamMember.getAllocationPercentage()
+                                            : 100);
+
                             // Set additional user fields with null checks
                             dto.setHourlyRate(user.getHourlyRate() != null ? user.getHourlyRate().doubleValue() : 0.0);
                             dto.setExperience(user.getExperience() != null ? user.getExperience().name() : "mid");
                             dto.setAvatar(user.getAvatarUrl());
-                            
+
                             // Set default values for missing fields
                             dto.setWorkload(0); // Default workload
                             dto.setPerformance(85); // Default performance
-                            
+
                             // Set skills from user (skills is stored as JSON string)
                             if (user.getSkills() != null && !user.getSkills().trim().isEmpty()) {
                                 try {
@@ -97,26 +102,26 @@ public class ProjectTeamMemberController {
                                         }
                                         dto.setSkills(skillsArray);
                                     } else {
-                                        dto.setSkills(new String[]{skillsJson});
+                                        dto.setSkills(new String[] { skillsJson });
                                     }
                                 } catch (Exception e) {
-                                    dto.setSkills(new String[]{"General"});
+                                    dto.setSkills(new String[] { "General" });
                                 }
                             } else {
-                                dto.setSkills(new String[]{"General"}); // Default skill
+                                dto.setSkills(new String[] { "General" }); // Default skill
                             }
-                            
+
                             // Get department name with null checks
                             if (user.getDepartmentId() != null && !user.getDepartmentId().trim().isEmpty()) {
                                 try {
                                     departmentRepository.findById(user.getDepartmentId())
-                                        .ifPresent(dept -> {
-                                            if (dept.getName() != null) {
-                                                dto.setDepartment(dept.getName());
-                                            } else {
-                                                dto.setDepartment("Unassigned");
-                                            }
-                                        });
+                                            .ifPresent(dept -> {
+                                                if (dept.getName() != null) {
+                                                    dto.setDepartment(dept.getName());
+                                                } else {
+                                                    dto.setDepartment("Unassigned");
+                                                }
+                                            });
                                     if (dto.getDepartment() == null) {
                                         dto.setDepartment("Unassigned");
                                     }
@@ -126,7 +131,7 @@ public class ProjectTeamMemberController {
                             } else {
                                 dto.setDepartment("Unassigned");
                             }
-                            
+
                             teamMembers.add(dto);
                         } catch (Exception e) {
                             // Log error but continue processing other team members
@@ -140,15 +145,14 @@ public class ProjectTeamMemberController {
                     e.printStackTrace();
                 }
             }
-            
+
             return ResponseEntity.ok(teamMembers);
         } catch (Exception e) {
             System.err.println("Error fetching all team members: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.status(500).body(Map.of(
-                "success", false,
-                "message", "Error fetching team members: " + e.getMessage()
-            ));
+                    "success", false,
+                    "message", "Error fetching team members: " + e.getMessage()));
         }
     }
 
@@ -159,23 +163,22 @@ public class ProjectTeamMemberController {
     public ResponseEntity<?> getTeamMembersByProject(@PathVariable String projectId) {
         try {
             List<TeamMemberDto> teamMembers = new ArrayList<>();
-            
+
             if (projectId == null || projectId.trim().isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "message", "Project ID cannot be empty"
-                ));
+                        "success", false,
+                        "message", "Project ID cannot be empty"));
             }
-            
+
             List<ProjectTeamMember> projectTeamMembers = projectTeamMemberRepository.findByProjectId(projectId);
-            
+
             for (ProjectTeamMember teamMember : projectTeamMembers) {
                 try {
                     if (teamMember.getUserId() == null || teamMember.getUserId().trim().isEmpty()) {
                         // Skip team members with invalid user IDs
                         continue;
                     }
-                    
+
                     userRepository.findById(teamMember.getUserId()).ifPresent(user -> {
                         try {
                             TeamMemberDto dto = new TeamMemberDto();
@@ -183,17 +186,19 @@ public class ProjectTeamMemberController {
                             dto.setName(user.getName() != null ? user.getName() : "Unknown User");
                             dto.setRole(teamMember.getRole() != null ? teamMember.getRole() : "developer");
                             dto.setIsTeamLead(teamMember.getIsTeamLead() != null ? teamMember.getIsTeamLead() : false);
-                            dto.setAvailability(teamMember.getAllocationPercentage() != null ? teamMember.getAllocationPercentage() : 100);
-                            
+                            dto.setAvailability(
+                                    teamMember.getAllocationPercentage() != null ? teamMember.getAllocationPercentage()
+                                            : 100);
+
                             // Set additional user fields with null checks
                             dto.setHourlyRate(user.getHourlyRate() != null ? user.getHourlyRate().doubleValue() : 0.0);
                             dto.setExperience(user.getExperience() != null ? user.getExperience().name() : "mid");
                             dto.setAvatar(user.getAvatarUrl());
-                            
+
                             // Set default values for missing fields
                             dto.setWorkload(0); // Default workload
                             dto.setPerformance(85); // Default performance
-                            
+
                             // Set skills from user (skills is stored as JSON string)
                             if (user.getSkills() != null && !user.getSkills().trim().isEmpty()) {
                                 try {
@@ -209,26 +214,26 @@ public class ProjectTeamMemberController {
                                         }
                                         dto.setSkills(skillsArray);
                                     } else {
-                                        dto.setSkills(new String[]{skillsJson});
+                                        dto.setSkills(new String[] { skillsJson });
                                     }
                                 } catch (Exception e) {
-                                    dto.setSkills(new String[]{"General"});
+                                    dto.setSkills(new String[] { "General" });
                                 }
                             } else {
-                                dto.setSkills(new String[]{"General"}); // Default skill
+                                dto.setSkills(new String[] { "General" }); // Default skill
                             }
-                            
+
                             // Get department name with null checks
                             if (user.getDepartmentId() != null && !user.getDepartmentId().trim().isEmpty()) {
                                 try {
                                     departmentRepository.findById(user.getDepartmentId())
-                                        .ifPresent(dept -> {
-                                            if (dept.getName() != null) {
-                                                dto.setDepartment(dept.getName());
-                                            } else {
-                                                dto.setDepartment("Unassigned");
-                                            }
-                                        });
+                                            .ifPresent(dept -> {
+                                                if (dept.getName() != null) {
+                                                    dto.setDepartment(dept.getName());
+                                                } else {
+                                                    dto.setDepartment("Unassigned");
+                                                }
+                                            });
                                     if (dto.getDepartment() == null) {
                                         dto.setDepartment("Unassigned");
                                     }
@@ -238,7 +243,7 @@ public class ProjectTeamMemberController {
                             } else {
                                 dto.setDepartment("Unassigned");
                             }
-                            
+
                             teamMembers.add(dto);
                         } catch (Exception e) {
                             // Log error but continue processing other team members
@@ -252,15 +257,14 @@ public class ProjectTeamMemberController {
                     e.printStackTrace();
                 }
             }
-            
+
             return ResponseEntity.ok(teamMembers);
         } catch (Exception e) {
             System.err.println("Error fetching team members for project " + projectId + ": " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.status(500).body(Map.of(
-                "success", false,
-                "message", "Error fetching team members: " + e.getMessage()
-            ));
+                    "success", false,
+                    "message", "Error fetching team members: " + e.getMessage()));
         }
     }
 
@@ -274,7 +278,7 @@ public class ProjectTeamMemberController {
             if (teamMember.getId() == null || teamMember.getId().isEmpty()) {
                 teamMember.setId(idGenerationService.generateProjectTeamMemberId());
             }
-            
+
             // Set timestamps
             if (teamMember.getCreatedAt() == null) {
                 teamMember.setCreatedAt(LocalDateTime.now());
@@ -282,9 +286,9 @@ public class ProjectTeamMemberController {
             if (teamMember.getJoinedAt() == null) {
                 teamMember.setJoinedAt(LocalDateTime.now());
             }
-            
+
             ProjectTeamMember savedTeamMember = projectTeamMemberRepository.save(teamMember);
-            
+
             // Create notification for the assigned user
             if (savedTeamMember.getUserId() != null && !savedTeamMember.getUserId().isEmpty()) {
                 try {
@@ -294,20 +298,19 @@ public class ProjectTeamMemberController {
                         String title = "Project Assignment";
                         String message = "You have been assigned to project: " + project.getName();
                         notificationService.createNotification(
-                            savedTeamMember.getUserId(),
-                            title,
-                            message,
-                            "project",
-                            "project",
-                            project.getId()
-                        );
+                                savedTeamMember.getUserId(),
+                                title,
+                                message,
+                                "project",
+                                "project",
+                                project.getId());
                     }
                 } catch (Exception e) {
                     // Log error but don't fail the assignment
                     System.err.println("Failed to create notification for project assignment: " + e.getMessage());
                 }
             }
-            
+
             return ResponseEntity.ok(savedTeamMember);
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
@@ -319,10 +322,10 @@ public class ProjectTeamMemberController {
      */
     @PutMapping("/{id}")
     public ResponseEntity<ProjectTeamMember> updateProjectTeamMember(
-            @PathVariable String id, 
+            @PathVariable String id,
             @RequestBody ProjectTeamMember teamMember) {
         Optional<ProjectTeamMember> existingTeamMember = projectTeamMemberRepository.findById(id);
-        
+
         if (existingTeamMember.isPresent()) {
             teamMember.setId(id);
             ProjectTeamMember updatedTeamMember = projectTeamMemberRepository.save(teamMember);
@@ -358,15 +361,14 @@ public class ProjectTeamMemberController {
             Optional<ProjectTeamMember> teamMemberOpt = teamMembers.stream()
                     .filter(tm -> tm.getUserId().equals(userId))
                     .findFirst();
-            
+
             if (teamMemberOpt.isPresent()) {
                 // Check if the user being removed is the current project manager
                 Optional<Project> projectOpt = projectService.findById(projectId);
                 if (projectOpt.isEmpty()) {
                     return ResponseEntity.badRequest().body(Map.of(
-                        "success", false,
-                        "message", "Project not found"
-                    ));
+                            "success", false,
+                            "message", "Project not found"));
                 }
 
                 Project project = projectOpt.get();
@@ -383,8 +385,8 @@ public class ProjectTeamMemberController {
 
                     // Prefer another member with role 'manager'
                     Optional<ProjectTeamMember> replacementManager = remaining.stream()
-                        .filter(tm -> "manager".equalsIgnoreCase(String.valueOf(tm.getRole())))
-                        .findFirst();
+                            .filter(tm -> "manager".equalsIgnoreCase(String.valueOf(tm.getRole())))
+                            .findFirst();
 
                     String replacementUserId = null;
                     if (replacementManager.isPresent()) {
@@ -397,35 +399,34 @@ public class ProjectTeamMemberController {
                     if (replacementUserId == null || replacementUserId.isEmpty()) {
                         // No replacement available; reject to keep invariant that managerId is not null
                         return ResponseEntity.badRequest().body(Map.of(
-                            "success", false,
-                            "message", "Cannot remove manager: no replacement team member available"
-                        ));
+                                "success", false,
+                                "message", "Cannot remove manager: no replacement team member available"));
                     }
 
                     // Update project manager
                     project.setManagerId(replacementUserId);
                     projectService.updateProject(project);
                 }
-                
+
                 Map<String, Object> response = new HashMap<>();
                 response.put("success", true);
                 response.put("message", "Team member removed successfully");
                 response.put("removedUserId", userId);
                 response.put("projectId", projectId);
-                
+
                 return ResponseEntity.ok(response);
             } else {
                 Map<String, Object> response = new HashMap<>();
                 response.put("success", false);
                 response.put("message", "Team member not found in project");
-                
+
                 return ResponseEntity.notFound().build();
             }
         } catch (Exception e) {
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
             response.put("message", "Error removing team member: " + e.getMessage());
-            
+
             return ResponseEntity.status(500).body(response);
         }
     }
@@ -441,7 +442,7 @@ public class ProjectTeamMemberController {
             String role = (String) request.get("role");
             Boolean isTeamLead = (Boolean) request.getOrDefault("isTeamLead", false);
             Integer allocationPercentage = (Integer) request.getOrDefault("allocationPercentage", 100);
-            
+
             ProjectTeamMember teamMember = new ProjectTeamMember();
             teamMember.setId(idGenerationService.generateProjectTeamMemberId());
             teamMember.setProjectId(projectId);
@@ -452,9 +453,9 @@ public class ProjectTeamMemberController {
             teamMember.setIsActive(true);
             teamMember.setCreatedAt(LocalDateTime.now());
             teamMember.setJoinedAt(LocalDateTime.now());
-            
+
             ProjectTeamMember savedTeamMember = projectTeamMemberRepository.save(teamMember);
-            
+
             // Create notification for the assigned user
             if (savedTeamMember.getUserId() != null && !savedTeamMember.getUserId().isEmpty()) {
                 try {
@@ -464,30 +465,27 @@ public class ProjectTeamMemberController {
                         String title = "Project Assignment";
                         String message = "You have been assigned to project: " + project.getName();
                         notificationService.createNotification(
-                            savedTeamMember.getUserId(),
-                            title,
-                            message,
-                            "project",
-                            "project",
-                            project.getId()
-                        );
+                                savedTeamMember.getUserId(),
+                                title,
+                                message,
+                                "project",
+                                "project",
+                                project.getId());
                     }
                 } catch (Exception e) {
                     // Log error but don't fail the assignment
                     System.err.println("Failed to create notification for project assignment: " + e.getMessage());
                 }
             }
-            
+
             return ResponseEntity.ok(Map.of(
-                "success", true,
-                "message", "Team member added successfully",
-                "data", savedTeamMember
-            ));
+                    "success", true,
+                    "message", "Team member added successfully",
+                    "data", savedTeamMember));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of(
-                "success", false,
-                "message", "Failed to add team member: " + e.getMessage()
-            ));
+                    "success", false,
+                    "message", "Failed to add team member: " + e.getMessage()));
         }
     }
 
@@ -496,17 +494,17 @@ public class ProjectTeamMemberController {
      */
     @PostMapping("/project/{projectId}/batch")
     public ResponseEntity<List<ProjectTeamMember>> addTeamMembersToProject(
-            @PathVariable String projectId, 
+            @PathVariable String projectId,
             @RequestBody List<Map<String, Object>> teamMembers) {
         try {
             List<ProjectTeamMember> savedTeamMembers = new ArrayList<>();
-            
+
             for (Map<String, Object> memberData : teamMembers) {
                 String userId = (String) memberData.get("userId");
                 String role = (String) memberData.get("role");
                 Boolean isTeamLead = (Boolean) memberData.getOrDefault("isTeamLead", false);
                 Integer allocationPercentage = (Integer) memberData.getOrDefault("allocationPercentage", 100);
-                
+
                 ProjectTeamMember teamMember = new ProjectTeamMember();
                 teamMember.setId(idGenerationService.generateProjectTeamMemberId());
                 teamMember.setProjectId(projectId);
@@ -517,18 +515,87 @@ public class ProjectTeamMemberController {
                 teamMember.setIsActive(true);
                 teamMember.setCreatedAt(LocalDateTime.now());
                 teamMember.setJoinedAt(LocalDateTime.now());
-                
+
                 ProjectTeamMember savedTeamMember = projectTeamMemberRepository.save(teamMember);
                 savedTeamMembers.add(savedTeamMember);
             }
-            
+
             return ResponseEntity.ok(savedTeamMembers);
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
         }
     }
+
+    /**
+     * Get all project roles for a specific user
+     * Returns the user's roles across all projects and a list of unique available
+     * roles
+     * Used for the role switcher feature in the frontend
+     */
+    @GetMapping("/user/{userId}/roles")
+    public ResponseEntity<?> getUserProjectRoles(@PathVariable String userId) {
+        try {
+            if (userId == null || userId.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "message", "User ID cannot be empty"));
+            }
+
+            // Fetch all project memberships for this user
+            List<ProjectTeamMember> userMemberships = projectTeamMemberRepository.findByUserId(userId);
+
+            // Build list of project roles with project names
+            List<UserProjectRolesDTO.ProjectRoleDTO> projectRoles = new ArrayList<>();
+
+            for (ProjectTeamMember membership : userMemberships) {
+                String projectName = "Unknown Project";
+                try {
+                    Optional<Project> projectOpt = projectService.findById(membership.getProjectId());
+                    if (projectOpt.isPresent()) {
+                        projectName = projectOpt.get().getName();
+                    }
+                } catch (Exception e) {
+                    System.err.println("Error fetching project name: " + e.getMessage());
+                }
+
+                String role = membership.getRole() != null ? membership.getRole().toLowerCase() : "developer";
+                projectRoles.add(new UserProjectRolesDTO.ProjectRoleDTO(
+                        membership.getProjectId(),
+                        projectName,
+                        role));
+            }
+
+            // Extract unique roles available to this user
+            List<String> availableRoles = projectRoles.stream()
+                    .map(UserProjectRolesDTO.ProjectRoleDTO::getRole)
+                    .distinct()
+                    .sorted() // Alphabetical: developer, manager
+                    .collect(Collectors.toList());
+
+            // If user has no project memberships, return their default role from user table
+            if (availableRoles.isEmpty()) {
+                try {
+                    userRepository.findById(userId).ifPresent(user -> {
+                        String defaultRole = user.getRole() != null ? user.getRole().name().toLowerCase() : "developer";
+                        availableRoles.add(defaultRole);
+                    });
+                } catch (Exception e) {
+                    availableRoles.add("developer");
+                }
+            }
+
+            // Build response DTO
+            UserProjectRolesDTO response = new UserProjectRolesDTO(userId, projectRoles, availableRoles);
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "data", response));
+        } catch (Exception e) {
+            System.err.println("Error fetching user project roles: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of(
+                    "success", false,
+                    "message", "Error fetching user project roles: " + e.getMessage()));
+        }
+    }
 }
-
-
-
-

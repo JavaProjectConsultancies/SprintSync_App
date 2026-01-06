@@ -8,7 +8,7 @@ import { Button } from '../components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { Badge } from '../components/ui/badge';
 import { cn } from '../components/ui/utils';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Loader2, Info, Timer, Users, Briefcase } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Loader2, Info, Timer, Users, Briefcase, RotateCcw } from 'lucide-react';
 import {
     Select,
     SelectContent,
@@ -254,6 +254,20 @@ const UserCalendarPage: React.FC = () => {
 
                     <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" onClick={handleToday} className="h-9 border-green-100 hover:bg-green-50">Today</Button>
+                        {isManagerOrAdmin && (selectedProjectId || selectedMemberId !== user?.id) && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                    setSelectedProjectId('');
+                                    setSelectedMemberId(user?.id || '');
+                                }}
+                                className="h-9 text-muted-foreground hover:text-foreground hover:bg-green-50"
+                            >
+                                <RotateCcw className="w-4 h-4 mr-1" />
+                                Reset
+                            </Button>
+                        )}
                         <div className="flex items-center gap-1 bg-white border border-green-100 rounded-md shadow-sm h-9 px-1">
                             <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-green-50" onClick={handlePrevMonth}>
                                 <ChevronLeft className="w-4 h-4 text-green-600" />
