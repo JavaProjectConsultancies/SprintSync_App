@@ -1,8 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContextEnhanced';
 import { timeEntryApiService } from '../services/api/entities/timeEntryApi';
-import { taskApiService } from '../services/api/entities/taskApi';
-import { issueApiService } from '../services/api/entities/issueApi';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
@@ -16,19 +14,43 @@ import {
     SelectTrigger,
     SelectValue
 } from '../components/ui/select';
-import { userApiService } from '../services/api/entities/userApi';
 import { projectApiService } from '../services/api/entities/projectApi';
 import { teamMemberApi } from '../services/api/entities/teamMemberApi';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
-import { TimeEntry, Task, Issue, User, Project } from '../types/api';
+import { TimeEntry, User, Project } from '../types/api';
+
+// Helper to resolve Project ID from complex TimeEntry objects (similar to TimeTrackingPage)
+const getProjectIdFromEntry = (entry: any): string | undefined => {
+    const projectObj =
+        entry?.project ??
+        entry?.projectDetails ??
+        entry?.projectDto ??
+        entry?.projectInfo ??
+        entry?.projectResponse ??
+        entry?.projectData;
+
+    const candidateIds = [
+        entry?.projectId,
+        entry?.projectID,
+        entry?.project_id,
+        projectObj?.id,
+        projectObj?.projectId,
+        projectObj?.projectID,
+        projectObj?.project_id,
+    ];
+
+    return candidateIds
+        .map(id => id ? String(id) : undefined)
+        .find(id => !!id);
+};
 
 const UserCalendarPage: React.FC = () => {
     const { user } = useAuth();
     const [currentDate, setCurrentDate] = useState(new Date());
 
     const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
-    const [tasks, setTasks] = useState<Task[]>([]);
-    const [issues, setIssues] = useState<Issue[]>([]);
+
+    // Removed metadata states to fetch directly from time entries table
     const [members, setMembers] = useState<User[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
     const [selectedMemberId, setSelectedMemberId] = useState<string>(user?.id || '');
@@ -103,15 +125,9 @@ const UserCalendarPage: React.FC = () => {
 
             setIsLoading(true);
             try {
-                const [entriesRes, tasksRes, issuesRes] = await Promise.all([
-                    timeEntryApiService.getTimeEntriesByUser(targetUserId),
-                    taskApiService.getTasksByAssignee(targetUserId),
-                    issueApiService.getIssuesByAssignee(targetUserId)
-                ]);
-
+                // Fetch ONLY time entries from the table as requested
+                const entriesRes = await timeEntryApiService.getTimeEntriesByUser(targetUserId);
                 setTimeEntries(entriesRes.data || []);
-                setTasks(tasksRes.data || []);
-                setIssues(issuesRes.data || []);
             } catch (error) {
                 console.error('Failed to fetch calendar data:', error);
             } finally {
@@ -120,7 +136,7 @@ const UserCalendarPage: React.FC = () => {
         };
 
         fetchData();
-    }, [selectedMemberId, user?.id]);
+    }, [selectedMemberId, user?.id, isManagerOrAdmin, selectedProjectId]); // Added isManagerOrAdmin, selectedProjectId to dependencies
 
     // Calendar logic
     const monthStart = startOfMonth(currentDate);
@@ -139,53 +155,33 @@ const UserCalendarPage: React.FC = () => {
 
     // Data processing logic
     const dayDataMap = useMemo(() => {
-        const map = new Map<string, { logged: number, estimated: number, items: any[] }>();
+        const map = new Map<string, { logged: number, items: any[] }>();
 
-        // For developers, show all entries. For managers, filter by project selection.
-        const filteredEntries = !isManagerOrAdmin
-            ? timeEntries
-            : (selectedProjectId ? timeEntries.filter(e => e.projectId === selectedProjectId) : []);
-
-        const filteredTasks = !isManagerOrAdmin
-            ? tasks
-            : (selectedProjectId ? tasks.filter(t => (t as any).projectId === selectedProjectId) : []);
-
-        const filteredIssues = !isManagerOrAdmin
-            ? issues
-            : (selectedProjectId ? issues.filter(i => (i as any).projectId === selectedProjectId) : []);
+        // For developers, show all entries.
+        // For managers: The user request "fetch and display actual hours... as per in tester developers calendar view"
+        // implies they want to see the FULL actual hours for the selected employee, not filtered by the valid project ID.
+        // The Project Selector helps FIND the user (via team membership), but once a user is selected, 
+        // we should show ALL their work (Actual Hours) to reflect their true availability/productivity,
+        // especially since many subtask entries might lack project IDs.
+        const filteredEntries = timeEntries;
 
         // Process time entries for logged hours
         filteredEntries.forEach(entry => {
             if (!entry.workDate) return;
-            const dateStr = format(new Date(entry.workDate), 'yyyy-MM-dd');
-            const current = map.get(dateStr) || { logged: 0, estimated: 0, items: [] };
+            // Fix: Use substring to get the date part directly from ISO string "YYYY-MM-DD..." to avoid timezone shifts
+            // This assumes workDate comes as "YYYY-MM-DD" or "YYYY-MM-DDTHH:mm:ss"
+            const dateStr = String(entry.workDate).substring(0, 10);
+
+            const current = map.get(dateStr) || { logged: 0, items: [] };
             current.logged += entry.hoursWorked || 0;
             current.items.push({ type: 'entry', ...entry });
             map.set(dateStr, current);
         });
 
-        // Process tasks for estimates
-        filteredTasks.forEach(task => {
-            if (!task.dueDate) return;
-            const dateStr = format(new Date(task.dueDate), 'yyyy-MM-dd');
-            const current = map.get(dateStr) || { logged: 0, estimated: 0, items: [] };
-            current.estimated += task.estimatedHours || 0;
-            current.items.push({ type: 'task', ...task });
-            map.set(dateStr, current);
-        });
-
-        // Process issues for estimates
-        filteredIssues.forEach(issue => {
-            if (!issue.dueDate) return;
-            const dateStr = format(new Date(issue.dueDate), 'yyyy-MM-dd');
-            const current = map.get(dateStr) || { logged: 0, estimated: 0, items: [] };
-            current.estimated += issue.estimatedHours || 0;
-            current.items.push({ type: 'issue', ...issue });
-            map.set(dateStr, current);
-        });
+        // Removed Task and Issue processing loops as we don't want to show allocated/estimated hours
 
         return map;
-    }, [timeEntries, tasks, issues, selectedProjectId]);
+    }, [timeEntries, selectedProjectId, isManagerOrAdmin]);
 
     if (isLoading) {
         return (
@@ -201,9 +197,9 @@ const UserCalendarPage: React.FC = () => {
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                         <CalendarIcon className="w-6 h-6 text-green-600" />
-                        My Work Calendar
+                        My Work Calendar (Actuals)
                     </h1>
-                    <p className="text-muted-foreground">Track your allocated estimates and logged hours across the month.</p>
+                    <p className="text-muted-foreground">Track your actual logged hours across the month.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                     {isManagerOrAdmin && (
@@ -296,15 +292,14 @@ const UserCalendarPage: React.FC = () => {
                     <div className="grid grid-cols-7 grid-rows-5 md:grid-rows-6 min-h-[600px]">
                         {days.map((day, idx) => {
                             const dateStr = format(day, 'yyyy-MM-dd');
-                            const data = dayDataMap.get(dateStr) || { logged: 0, estimated: 0, items: [] };
+                            const data = dayDataMap.get(dateStr) || { logged: 0, items: [] };
                             const isCurrentMonth = isSameMonth(day, monthStart);
                             const isTodayDate = isSameDay(day, new Date());
-                            const DAILY_TARGET = 8;
-                            const totalPotentialHours = data.logged + data.estimated;
-                            const isCompleted = data.logged >= DAILY_TARGET;
-                            const isOverloaded = totalPotentialHours > DAILY_TARGET;
-                            const remainingHours = Math.max(0, DAILY_TARGET - data.logged);
+                            // const DAILY_TARGET = 8; // Removing strict target visualization for now as we focus on actuals
+                            // const totalPotentialHours = data.logged + data.estimated;
+                            const isCompleted = data.logged >= 8;
 
+                            // Simple style for filtered view
                             return (
                                 <div
                                     key={idx}
@@ -315,10 +310,7 @@ const UserCalendarPage: React.FC = () => {
                                         idx % 7 === 6 && "border-r-0"
                                     )}
                                 >
-                                    {/* Overload Indicator */}
-                                    {isOverloaded && isCurrentMonth && (
-                                        <div className="absolute top-0 left-0 right-0 h-1 bg-red-500 animate-pulse" />
-                                    )}
+                                    {/* Overload Indicator Removed */}
 
                                     <div className="flex items-center justify-between mb-2">
                                         <div className="flex items-center gap-1.5">
@@ -332,11 +324,6 @@ const UserCalendarPage: React.FC = () => {
                                             >
                                                 {format(day, 'd')}
                                             </span>
-                                            {isOverloaded && isCurrentMonth && (
-                                                <Badge variant="destructive" className="h-4 px-1 text-[8px] animate-in zoom-in">
-                                                    +{(totalPotentialHours - DAILY_TARGET).toFixed(1)}h
-                                                </Badge>
-                                            )}
                                         </div>
 
                                         {data.items.length > 0 && (
@@ -351,8 +338,8 @@ const UserCalendarPage: React.FC = () => {
                                                         <div className="bg-gray-900 text-white p-3 text-xs flex justify-between items-center">
                                                             <span className="font-bold">{format(day, 'PPPP')}</span>
                                                             <div className="flex items-center gap-2">
-                                                                <span className="opacity-70">Total:</span>
-                                                                <span className="font-mono font-bold text-green-400">{totalPotentialHours.toFixed(1)}h</span>
+                                                                <span className="opacity-70">Logged:</span>
+                                                                <span className="font-mono font-bold text-green-400">{data.logged.toFixed(1)}h</span>
                                                             </div>
                                                         </div>
                                                         <div className="p-3 space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
@@ -365,25 +352,15 @@ const UserCalendarPage: React.FC = () => {
                                                                         )} />
                                                                         <span className="truncate text-gray-700 group-hover/item:text-black">
                                                                             {item.type === 'entry' ? (item.description || 'Logged Work') :
-                                                                                item.type === 'task' ? `TASK: ${item.title}` : `ISSUE: ${item.title}`}
+                                                                                (item.taskName || item.storyName || 'Activity')}
                                                                         </span>
                                                                     </div>
                                                                     <span className="font-mono font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-                                                                        {(item.hoursWorked || item.estimatedHours || 0).toFixed(1)}h
+                                                                        {(item.hoursWorked || 0).toFixed(1)}h
                                                                     </span>
                                                                 </div>
                                                             ))}
                                                         </div>
-                                                        {(isOverloaded || remainingHours > 0) && (
-                                                            <div className={cn(
-                                                                "p-2 text-center text-[10px] font-bold uppercase tracking-wider",
-                                                                isOverloaded ? "bg-red-50 text-red-600" : "bg-orange-50 text-orange-600"
-                                                            )}>
-                                                                {isOverloaded ?
-                                                                    `⚠️ Overloaded by ${(totalPotentialHours - DAILY_TARGET).toFixed(1)} hours` :
-                                                                    `🕒 ${remainingHours.toFixed(1)} hours remaining to goal`}
-                                                            </div>
-                                                        )}
                                                     </TooltipContent>
                                                 </Tooltip>
                                             </TooltipProvider>
@@ -399,22 +376,6 @@ const UserCalendarPage: React.FC = () => {
                                                 )}>
                                                     <span>Logged</span>
                                                     <span>{data.logged.toFixed(1)}h</span>
-                                                </div>
-                                            )}
-
-                                            {data.estimated > 0 && (
-                                                <div className="flex items-center justify-between px-2 py-1 rounded-md bg-blue-50 border border-blue-100 text-blue-700 text-[10px] font-medium shadow-sm">
-                                                    <span>Allocated</span>
-                                                    <span className="font-bold">{data.estimated.toFixed(1)}h</span>
-                                                </div>
-                                            )}
-
-                                            {!isCompleted && remainingHours > 0 && isCurrentMonth && (
-                                                <div className="mt-1 px-1 flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                                                    <Timer className="w-2.5 h-2.5 text-orange-500" />
-                                                    <span className="text-[9px] text-orange-600 font-semibold italic">
-                                                        {remainingHours.toFixed(1)}h left
-                                                    </span>
                                                 </div>
                                             )}
                                         </div>
@@ -434,14 +395,6 @@ const UserCalendarPage: React.FC = () => {
                             <div className="w-4 h-4 rounded bg-green-600 shadow-sm" />
                             <span className="text-gray-600">8h+ Goal Reached (Logged)</span>
                         </div>
-                        <div className="flex items-center gap-2 text-[11px]">
-                            <div className="w-4 h-4 rounded bg-red-500 animate-pulse shadow-sm" />
-                            <span className="text-gray-600">Daily Capacity Overloaded (&gt;8h)</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-[11px]">
-                            <div className="w-4 h-4 rounded bg-blue-100 border border-blue-200" />
-                            <span className="text-gray-600">Estimated Work (Tasks/Issues)</span>
-                        </div>
                     </div>
                 </div>
 
@@ -450,10 +403,10 @@ const UserCalendarPage: React.FC = () => {
                         <Info className="w-5 h-5 text-green-600" />
                     </div>
                     <div>
-                        <h4 className="text-sm font-bold text-green-800">Dynamic Capacity Tracking</h4>
+                        <h4 className="text-sm font-bold text-green-800">Actual Hours Tracking</h4>
                         <p className="text-xs text-green-700/80 leading-relaxed mt-1">
-                            The calendar automatically calculates your daily remaining hours based on a <strong>8-hour workday</strong>.
-                            Days turn solid green when you meet the target. Red indicators appear if your total logs and pending estimates exceed 8 hours.
+                            The calendar displays your actual logged hours.
+                            Days turn solid green when you meet the 8-hour daily target.
                         </p>
                     </div>
                 </div>
