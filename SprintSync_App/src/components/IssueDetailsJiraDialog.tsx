@@ -64,6 +64,7 @@ interface IssueDetailsJiraDialogProps {
     onIssueUpdated?: () => void;
     allSubtasks?: Subtask[];
     canManage?: boolean;
+    sprintEndDate?: string; // Used to block time logging after sprint ends
 }
 
 const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
@@ -73,6 +74,7 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
     onIssueUpdated,
     allSubtasks: initialSubtasks = [],
     canManage = true,
+    sprintEndDate,
 }) => {
     const { user } = useAuth();
     const [activeTab, setActiveTab] = useState<string>("details");
@@ -112,6 +114,9 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
     });
 
     const [currentIssue, setCurrentIssue] = useState<Issue | null>(issue);
+
+    // Check if sprint has ended - block time logging after sprint end
+    const isSprintEnded = sprintEndDate ? new Date() > new Date(sprintEndDate) : false;
 
     useEffect(() => {
         setCurrentIssue(issue);
@@ -270,6 +275,18 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                 }
             }
 
+            // Automatically move issue to IN_PROGRESS if it's currently in TO_DO status
+            const currentStatus = currentIssue.status?.toUpperCase() || "";
+            if (currentStatus === "TO_DO" || currentStatus === "TODO") {
+                try {
+                    await issueApiService.updateIssueStatus(currentIssue.id, "IN_PROGRESS");
+                    setCurrentIssue(prev => prev ? { ...prev, status: "IN_PROGRESS" as any } : prev);
+                    toast.success("Issue moved to In Progress automatically");
+                } catch (error) {
+                    console.error("Failed to update issue status to IN_PROGRESS:", error);
+                }
+            }
+
             toast.success("Effort logged successfully");
             setIsLogEffortOpen(false);
             setEffortLog({
@@ -327,6 +344,20 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                 await subtaskApiService.updateSubtaskActualHours(selectedSubtaskForLog.id, updatedActualHours);
             }
 
+            // Automatically move parent issue to IN_PROGRESS if it's currently in TO_DO status
+            if (currentIssue) {
+                const issueStatus = currentIssue.status?.toUpperCase() || "";
+                if (issueStatus === "TO_DO" || issueStatus === "TODO") {
+                    try {
+                        await issueApiService.updateIssueStatus(currentIssue.id, "IN_PROGRESS");
+                        setCurrentIssue(prev => prev ? { ...prev, status: "IN_PROGRESS" as any } : prev);
+                        toast.success("Issue moved to In Progress automatically");
+                    } catch (error) {
+                        console.error("Failed to update issue status to IN_PROGRESS:", error);
+                    }
+                }
+            }
+
             toast.success("Subtask effort logged successfully");
             setIsSubtaskLogEffortOpen(false);
             setSelectedSubtaskForLog(null);
@@ -381,8 +412,10 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-8 px-2 hover:bg-red-100 text-red-700"
-                                        onClick={() => setIsLogEffortOpen(true)}
+                                        className={`h-8 px-2 ${isSprintEnded ? 'opacity-50 cursor-not-allowed' : 'hover:bg-red-100'} text-red-700`}
+                                        onClick={() => !isSprintEnded && setIsLogEffortOpen(true)}
+                                        disabled={isSprintEnded}
+                                        title={isSprintEnded ? 'Cannot log time after sprint has ended' : 'Log time for this issue'}
                                     >
                                         <Clock className="w-4 h-4 mr-1 text-red-600" />
                                         Log
@@ -540,8 +573,11 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                                                                 <Button
                                                                     variant="outline"
                                                                     size="sm"
-                                                                    className="h-7 px-2 hover:bg-red-100 text-red-700 border-red-200"
+                                                                    className={`h-7 px-2 text-red-700 border-red-200 ${isSprintEnded ? 'opacity-50 cursor-not-allowed' : 'hover:bg-red-100'}`}
+                                                                    disabled={isSprintEnded}
+                                                                    title={isSprintEnded ? 'Cannot log time after sprint has ended' : 'Log time for this subtask'}
                                                                     onClick={() => {
+                                                                        if (isSprintEnded) return;
                                                                         setSelectedSubtaskForLog(st);
                                                                         setSubtaskEffortLog({
                                                                             hours: 0,

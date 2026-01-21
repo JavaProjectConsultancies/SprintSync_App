@@ -344,12 +344,13 @@ const TimeTrackingPage: React.FC = () => {
   const { user: currentUser } = useAuth();
   const { activeRole } = useRoleSwitcher();
 
-  // Use activeRole for permission checks - admin stays admin, others use activeRole
-  const effectiveRole = currentUser?.role === 'admin' ? 'admin' : activeRole;
+  // Use activeRole for permission checks - admin and master_admin stay as their roles, others use activeRole
+  const effectiveRole = currentUser?.role === 'admin' ? 'admin' : (currentUser?.role === 'master_admin' ? 'master_admin' : activeRole);
 
-  // Centralized role check for manager/admin permissions using effectiveRole
+  // Centralized role check for manager/admin/master_admin permissions using effectiveRole
   const isManagerOrAdmin = currentUser && (
     effectiveRole?.toLowerCase() === 'admin' ||
+    effectiveRole?.toLowerCase() === 'master_admin' ||
     effectiveRole?.toLowerCase() === 'manager' ||
     effectiveRole?.toLowerCase() === 'qa_manager'
   );
@@ -468,6 +469,7 @@ const TimeTrackingPage: React.FC = () => {
           const userRole = (currentUser?.role as string)?.toLowerCase() || '';
           const isManagerOrAdmin = currentUser && (
             userRole === 'admin' ||
+            userRole === 'master_admin' ||
             userRole === 'manager' ||
             userRole === 'qa_manager'
           );
@@ -583,6 +585,7 @@ const TimeTrackingPage: React.FC = () => {
     const userRole = (currentUser?.role as string)?.toLowerCase() || '';
     const isManagerOrAdmin = currentUser && (
       userRole === 'admin' ||
+      userRole === 'master_admin' ||
       userRole === 'manager' ||
       userRole === 'qa_manager'
     );
@@ -748,6 +751,7 @@ const TimeTrackingPage: React.FC = () => {
     const userRole = (currentUser?.role as string)?.toLowerCase() || '';
     const isManagerOrAdmin = currentUser && (
       userRole === 'admin' ||
+      userRole === 'master_admin' ||
       userRole === 'manager' ||
       userRole === 'qa_manager'
     );
@@ -934,8 +938,16 @@ const TimeTrackingPage: React.FC = () => {
 
     const normalizedCurrentUserId = currentUser?.id ? normalizeId(currentUser.id) : undefined;
 
+    // Admin and master_admin can see ALL projects (bypass filtering)
+    const userRole = (currentUser?.role as string)?.toLowerCase() || '';
+    const isAdminOrMasterAdmin = userRole === 'admin' || userRole === 'master_admin';
+
+    if (isAdminOrMasterAdmin) {
+      return merged; // Return all projects for admin/master_admin
+    }
+
     // Filter to only show projects where the user is listed (manager, creator, or team member)
-    // This applies to ALL users, including managers/admins
+    // This applies to non-admin users
     if (!normalizedCurrentUserId) {
       return [];
     }
@@ -989,20 +1001,11 @@ const TimeTrackingPage: React.FC = () => {
       return []; // No project selected, return empty array
     }
 
+    // When a project is selected, the hook fetches team members directly for that project
+    // So we don't need to filter by projectId - just return the team members from the API
     const members = Array.isArray(projectTeamMembersResult.teamMembers) ? projectTeamMembersResult.teamMembers : [];
-
-    // Filter to only show team members from projects where the user is listed
-    // The projects array already contains only projects where the user is listed
-    const accessibleProjectIds = new Set(
-      projects.map(p => normalizeId(p.id)).filter((id): id is string => Boolean(id))
-    );
-
-    // Filter members to only show those from accessible projects
-    return members.filter(member => {
-      const memberProjectId = normalizeId((member as any).projectId);
-      return memberProjectId ? accessibleProjectIds.has(memberProjectId) : false; // Exclude if no projectId
-    });
-  }, [projectFilter, projectTeamMembersResult.teamMembers, projects]);
+    return members;
+  }, [projectFilter, projectTeamMembersResult.teamMembers]);
 
   const stories = useMemo(() => {
     const data = storiesResult.data;
@@ -1226,11 +1229,14 @@ const TimeTrackingPage: React.FC = () => {
 
     const isManagerOrAdmin = currentUser && (
       (currentUser.role as string) === 'admin' ||
+      (currentUser.role as string) === 'master_admin' ||
       (currentUser.role as string) === 'manager' ||
       (currentUser.role as string) === 'MANAGER' ||
       (currentUser.role as string) === 'ADMIN' ||
+      (currentUser.role as string) === 'MASTER_ADMIN' ||
       (currentUser.role as string)?.toLowerCase() === 'manager' ||
-      (currentUser.role as string)?.toLowerCase() === 'admin'
+      (currentUser.role as string)?.toLowerCase() === 'admin' ||
+      (currentUser.role as string)?.toLowerCase() === 'master_admin'
     );
 
     const fetchKey = isManagerOrAdmin ? `${userId}-all` : userId;
@@ -1290,6 +1296,7 @@ const TimeTrackingPage: React.FC = () => {
         const role = (currentUser?.role || '').toString().toLowerCase().trim();
         const isManagerOrAdmin =
           role === 'admin' ||
+          role === 'master_admin' ||
           role === 'manager' ||
           role === 'qa_manager';
 
@@ -1669,6 +1676,7 @@ const TimeTrackingPage: React.FC = () => {
     const userRole = (currentUser?.role as string)?.toLowerCase() || '';
     const isManagerOrAdmin = currentUser && (
       userRole === 'admin' ||
+      userRole === 'master_admin' ||
       userRole === 'manager' ||
       userRole === 'qa_manager'
     );
@@ -2075,6 +2083,7 @@ const TimeTrackingPage: React.FC = () => {
     const userRole = (currentUser?.role as string)?.toLowerCase() || '';
     const isManagerOrAdmin = currentUser && (
       userRole === 'admin' ||
+      userRole === 'master_admin' ||
       userRole === 'manager' ||
       userRole === 'qa_manager'
     );
@@ -2313,10 +2322,67 @@ const TimeTrackingPage: React.FC = () => {
   const teamBreakdownData = useMemo(() => {
     const map = new Map<string, { name: string; billableMinutes: number; nonBillableMinutes: number }>();
 
+    // Build a map of userId to name from projectTeamMembers for additional lookups
+    const teamMemberNameMap = new Map<string, string>();
+    projectTeamMembers.forEach(member => {
+      const memberId = normalizeId(
+        (member as any).userId ||
+        (member as any).id ||
+        (member as any).memberId ||
+        (member as any).user?.id
+      );
+      const memberName = (member as any).name ||
+        (member as any).userName ||
+        (member as any).user?.name ||
+        (member as any).fullName;
+      if (memberId && memberName) {
+        teamMemberNameMap.set(memberId, memberName);
+      }
+    });
+
     filteredTimeEntries.forEach(entry => {
       const userId = entry.userId || 'unknown';
-      const userName = entry.user || getUserName(userId);
-      const current = map.get(userId) || { name: userName, billableMinutes: 0, nonBillableMinutes: 0 };
+
+      // Try multiple sources for the user name
+      let entryUserName = '';
+
+      // 1. Try entry.user if it's a non-empty string
+      if (entry.user && entry.user.trim() !== '') {
+        entryUserName = entry.user;
+      }
+
+      // 2. Try getUserName (from usersMap)
+      if (!entryUserName || entryUserName.trim() === '') {
+        const userMapName = getUserName(userId);
+        if (userMapName && userMapName !== 'Unknown User') {
+          entryUserName = userMapName;
+        }
+      }
+
+      // 3. Try projectTeamMembers
+      if (!entryUserName || entryUserName.trim() === '' || entryUserName === 'Unknown User') {
+        const teamMemberName = teamMemberNameMap.get(userId);
+        if (teamMemberName) {
+          entryUserName = teamMemberName;
+        }
+      }
+
+      // 4. Final fallback - use a formatted userId or 'Unknown User'
+      if (!entryUserName || entryUserName.trim() === '') {
+        entryUserName = userId !== 'unknown' ? `User ${userId.slice(-6)}` : 'Unknown User';
+      }
+
+      const current = map.get(userId) || { name: entryUserName, billableMinutes: 0, nonBillableMinutes: 0 };
+
+      // If the current name is empty, unknown, or just the userId, try to update it with a better name
+      if (!current.name || current.name === 'Unknown User' || current.name === userId || current.name.trim() === '' || current.name.startsWith('User ')) {
+        if (entryUserName && entryUserName !== 'Unknown User' && entryUserName !== userId && !entryUserName.startsWith('User ')) {
+          current.name = entryUserName;
+        } else if (!current.name || current.name.trim() === '') {
+          current.name = entryUserName;
+        }
+      }
+
       const minutes = parseTime(entry.timeSpent);
       if (entry.billable) {
         current.billableMinutes += minutes;
@@ -2331,7 +2397,7 @@ const TimeTrackingPage: React.FC = () => {
         const totalMinutes = billableMinutes + nonBillableMinutes;
         return {
           userId,
-          userName: name,
+          userName: name || `User ${userId.slice(-6)}`, // Ensure there's always a visible name
           billableHours: Math.round((billableMinutes / 60) * 10) / 10,
           nonBillableHours: Math.round((nonBillableMinutes / 60) * 10) / 10,
           totalHours: Math.round((totalMinutes / 60) * 10) / 10,

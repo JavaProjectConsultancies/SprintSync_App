@@ -43,13 +43,14 @@ public class PendingRegistrationService {
     /**
      * Create a new pending registration.
      */
-    public PendingRegistration createPendingRegistration(String name, String email, String password, UserRole role, String departmentId, String domainId) {
+    public PendingRegistration createPendingRegistration(String name, String email, String password, UserRole role,
+            String departmentId, String domainId, String designation) {
         try {
             // Check if email already exists in users or pending registrations
             if (userRepository.existsByEmail(email)) {
                 throw new RuntimeException("User with email " + email + " already exists");
             }
-            
+
             if (pendingRegistrationRepository.existsByEmail(email)) {
                 throw new RuntimeException("Registration request for email " + email + " already exists");
             }
@@ -63,6 +64,7 @@ public class PendingRegistrationService {
             pendingRegistration.setRole(role);
             pendingRegistration.setDepartmentId(departmentId);
             pendingRegistration.setDomainId(domainId);
+            pendingRegistration.setDesignation(designation);
             pendingRegistration.setCreatedAt(LocalDateTime.now());
             pendingRegistration.setUpdatedAt(LocalDateTime.now());
 
@@ -117,7 +119,8 @@ public class PendingRegistrationService {
     public User approveAndCreateUser(String pendingRegistrationId) {
         try {
             PendingRegistration pendingRegistration = pendingRegistrationRepository.findById(pendingRegistrationId)
-                .orElseThrow(() -> new RuntimeException("Pending registration not found: " + pendingRegistrationId));
+                    .orElseThrow(
+                            () -> new RuntimeException("Pending registration not found: " + pendingRegistrationId));
 
             // Create user from pending registration
             User user = new User();
@@ -129,6 +132,7 @@ public class PendingRegistrationService {
             user.setRole(pendingRegistration.getRole());
             user.setDepartmentId(pendingRegistration.getDepartmentId());
             user.setDomainId(pendingRegistration.getDomainId());
+            user.setDesignation(pendingRegistration.getDesignation());
             user.setIsActive(true);
             user.setCreatedAt(LocalDateTime.now());
             user.setUpdatedAt(LocalDateTime.now());
@@ -151,10 +155,3 @@ public class PendingRegistrationService {
         }
     }
 }
-
-
-
-
-
-
-

@@ -126,6 +126,7 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({ isOpen, onClose, us
       case 'DEVELOPER': return 'bg-green-100 text-green-800 border-green-200';
       case 'QA_MANAGER': return 'bg-orange-100 text-orange-800 border-orange-200';
       case 'QA_DEVELOPER': return 'bg-teal-100 text-teal-800 border-teal-200';
+      case 'MASTER_ADMIN': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'DESIGNER': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'QA': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'TESTER': return 'bg-orange-100 text-orange-800 border-orange-200';
@@ -221,6 +222,14 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({ isOpen, onClose, us
                 <Badge className={`${getRoleColor(user.role)} border`}>
                   {user.role}
                 </Badge>
+              </div>
+
+              <div className="user-details-field space-y-2">
+                <div className="flex items-center gap-2">
+                  <Briefcase className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm font-medium">Designation</span>
+                </div>
+                <p className="font-medium">{user.designation || 'Not Set'}</p>
               </div>
 
               <div className="user-details-field space-y-2">

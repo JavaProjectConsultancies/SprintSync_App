@@ -203,7 +203,8 @@ public class ProjectController {
                 if (currentUser == null) {
                     logger.debug("Unable to identify user from token, returning all projects.");
                     projects = projectService.getAllProjects();
-                } else if (currentUser.getRole() == UserRole.admin) {
+                } else if (currentUser.getRole() == UserRole.admin || currentUser.getRole() == UserRole.master_admin) {
+                    // Admin and master_admin can access all projects
                     projects = projectService.getAllProjects();
                 } else {
                     projects = projectService.getProjectsForUser(currentUser.getId());

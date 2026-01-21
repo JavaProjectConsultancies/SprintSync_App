@@ -96,8 +96,8 @@ const TeamAllocationPage: React.FC = () => {
   const { user: currentUser } = useAuth();
   const { activeRole } = useRoleSwitcher();
 
-  // Use activeRole for permission checks - admin stays admin, others use activeRole
-  const effectiveRole = currentUser?.role === 'admin' ? 'admin' : activeRole;
+  // Use activeRole for permission checks - admin and master_admin stay as their roles, others use activeRole
+  const effectiveRole = currentUser?.role === 'admin' ? 'admin' : (currentUser?.role === 'master_admin' ? 'master_admin' : activeRole);
 
   const [selectedMember, setSelectedMember] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -153,7 +153,7 @@ const TeamAllocationPage: React.FC = () => {
 
   const { teamMembers: projectTeamMembers, refreshTeamMembers } = useProjectTeamMembers(selectedProjectId || undefined);
 
-  const roleOptions = ['developer', 'manager', 'admin', 'qa_manager', 'qa_developer'];
+  const roleOptions = ['developer', 'manager', 'admin', 'qa_manager', 'qa_developer', 'master_admin'];
 
   // Project helpers: team members per project and manager names cache
   const [projectIdToMembers, setProjectIdToMembers] = useState<Record<string, any[]>>({});
@@ -743,7 +743,7 @@ const TeamAllocationPage: React.FC = () => {
   // For admin: show total count of all team members, not just filtered
   // For others: show filtered count
   const stats = useMemo(() => {
-    const isAdmin = effectiveRole === 'admin';
+    const isAdmin = effectiveRole === 'admin' || effectiveRole === 'master_admin';
     // For admin, use total teamMembers count; for others, use filtered count
     const totalMembers = isAdmin ? teamMembers.length : filteredMembers.length;
     const membersForStats = isAdmin ? teamMembers : filteredMembers;
@@ -1968,6 +1968,7 @@ const TeamAllocationPage: React.FC = () => {
                           <SelectItem value="admin">Admin</SelectItem>
                           <SelectItem value="qa_manager">QA Manager</SelectItem>
                           <SelectItem value="qa_developer">QA Developer</SelectItem>
+                          <SelectItem value="master_admin">Master Admin</SelectItem>
                         </SelectContent>
                       </Select>
 

@@ -32,7 +32,8 @@ interface Story {
   points: number;
   status: 'stories' | 'todo' | 'inprogress' | 'qa' | 'done';
   assignee?: string;
-  projectId?: string; // For deriving projectId from story
+  projectId?: string;
+  dueDate?: string;
 }
 
 interface Issue {
@@ -248,6 +249,18 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
 
     if (!formData.dueDate) {
       newErrors.dueDate = 'Due date is required';
+    } else if (formData.storyId && formData.storyId !== 'none') {
+      // Validate that issue due date is within story's due date
+      const selectedStory = stories.find(s => s.id === formData.storyId);
+      if (selectedStory && selectedStory.dueDate) {
+        const storyDueDate = new Date(selectedStory.dueDate);
+        storyDueDate.setHours(23, 59, 59, 999);
+        const issueDueDate = formData.dueDate;
+
+        if (issueDueDate > storyDueDate) {
+          newErrors.dueDate = `Issue due date cannot be after story's due date (${storyDueDate.toLocaleDateString()})`;
+        }
+      }
     }
 
     if (formData.estimatedHours < 0.5 || formData.estimatedHours > 40) {
@@ -798,6 +811,19 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                                   // Disable dates outside sprint range
                                   if (dateOnly < startDate || dateOnly > endDate) {
                                     return true;
+                                  }
+                                }
+
+                                // Check story due date restriction
+                                if (formData.storyId && formData.storyId !== 'none') {
+                                  const selectedStory = stories.find(s => s.id === formData.storyId);
+                                  if (selectedStory && selectedStory.dueDate) {
+                                    const storyDueDate = new Date(selectedStory.dueDate);
+                                    storyDueDate.setHours(0, 0, 0, 0);
+                                    // Disable dates after story due date
+                                    if (dateOnly > storyDueDate) {
+                                      return true;
+                                    }
                                   }
                                 }
                                 return false;

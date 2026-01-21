@@ -107,6 +107,7 @@ const DraggableTeamMember = ({ member, isSelected, onSelect, onViewDetails }: {
       case 'developer': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'qa_manager': return 'bg-orange-100 text-orange-800 border-orange-200';
       case 'qa_developer': return 'bg-teal-100 text-teal-800 border-teal-200';
+      case 'master_admin': return 'bg-violet-100 text-violet-800 border-violet-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -763,6 +764,7 @@ const TeamManager = ({
                         <SelectItem value="developer">Developer</SelectItem>
                         <SelectItem value="qa_manager">QA Manager</SelectItem>
                         <SelectItem value="qa_developer">QA Developer</SelectItem>
+                        <SelectItem value="master_admin">Master Admin</SelectItem>
                       </SelectContent>
                     </Select>
 

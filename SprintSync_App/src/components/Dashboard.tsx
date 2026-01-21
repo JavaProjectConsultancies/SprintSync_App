@@ -69,8 +69,8 @@ const Dashboard: React.FC = () => {
   const { activeRole } = useRoleSwitcher();
 
   // Use activeRole for filtering data when role is switched
-  // Admin always stays admin, others use the activeRole from context
-  const effectiveRole = user?.role === 'admin' ? 'admin' : activeRole;
+  // Admin and master_admin always stay as their roles (they see everything), others use the activeRole from context
+  const effectiveRole = user?.role === 'admin' ? 'admin' : (user?.role === 'master_admin' ? 'master_admin' : activeRole);
 
   // API authentication is now handled by AuthContext
   // No need for demo auth setup
@@ -182,8 +182,8 @@ const Dashboard: React.FC = () => {
     if (!user) return [];
     const projectData = normalizeApiData(apiProjects);
 
-    // Admins can access all projects
-    if (effectiveRole === 'admin') {
+    // Admins and master_admins can access all projects
+    if (effectiveRole === 'admin' || effectiveRole === 'master_admin') {
       return projectData;
     }
 
@@ -217,8 +217,8 @@ const Dashboard: React.FC = () => {
     if (!user) return [];
     const projectData = normalizeApiData(apiProjects);
 
-    // Admins see all projects
-    if (effectiveRole === 'admin') {
+    // Admins and master_admins see all projects
+    if (effectiveRole === 'admin' || effectiveRole === 'master_admin') {
       return projectData;
     }
 
@@ -266,15 +266,15 @@ const Dashboard: React.FC = () => {
       console.warn('[Dashboard] No tasks found in API data. Tasks loading:', tasksLoading, 'Tasks data:', apiTasks);
     }
 
-    // Check if current view is manager/admin based on effectiveRole
-    const isManagerOrAdmin = effectiveRole === 'admin' || effectiveRole === 'manager';
+    // Check if current view is manager/admin/master_admin based on effectiveRole
+    const isManagerOrAdmin = effectiveRole === 'admin' || effectiveRole === 'master_admin' || effectiveRole === 'manager';
 
     // Get user's project IDs first (needed for both sprint filtering and fallback)
     // For managers: only projects where they are the manager
     // For admins: all projects
     // For regular users: projects where they are team members
-    const userProjectIdsForFiltering = effectiveRole === 'admin'
-      ? new Set(projects.map(p => p.id))  // Admins see all projects
+    const userProjectIdsForFiltering = (effectiveRole === 'admin' || effectiveRole === 'master_admin')
+      ? new Set(projects.map(p => p.id))  // Admins and master_admins see all projects
       : effectiveRole === 'manager'
         ? new Set(
           projects
@@ -329,6 +329,29 @@ const Dashboard: React.FC = () => {
       });
     }
 
+    // EARLY RETURN: If manager or developer has no assigned projects, show empty dashboard
+    if ((effectiveRole === 'manager' || effectiveRole === 'developer' || effectiveRole === 'qa_manager' || effectiveRole === 'qa_developer') && userProjectIdsForFiltering.size === 0) {
+      console.log('[Dashboard] User has no assigned projects, returning empty metrics');
+      return {
+        totalProjects: 0,
+        totalUsers: 0,
+        openTasks: 0,
+        completedTasks: 0,
+        inProgressTasks: 0,
+        todoTasks: 0,
+        closedTasks: 0,
+        totalTasks: 0,
+        completedPercentage: 0,
+        inProgressPercentage: 0,
+        todoPercentage: 0,
+        closedPercentage: 0,
+        activeSprints: 0,
+        totalSprints: 0,
+        avgProgress: 0,
+        isLoading: false
+      };
+    }
+
     // Filter sprints based on effectiveRole - get sprints from user's accessible projects
     // For managers: filter sprints from their projects
     // For admins: show all sprints
@@ -372,8 +395,8 @@ const Dashboard: React.FC = () => {
     // This is more reliable than filtering through sprints/stories
     let sprintTasks: any[] = [];
 
-    if (effectiveRole === 'admin') {
-      // Admins: Show all tasks
+    if (effectiveRole === 'admin' || effectiveRole === 'master_admin') {
+      // Admins and master_admins: Show all tasks
       sprintTasks = allTasks.filter(task => {
         return task && task.id && typeof task.id === 'string';
       });
@@ -482,8 +505,8 @@ const Dashboard: React.FC = () => {
 
     let totalUsers: number;
 
-    if (effectiveRole === 'admin') {
-      // Admin sees all users in the system
+    if (effectiveRole === 'admin' || effectiveRole === 'master_admin') {
+      // Admin and master_admin sees all users in the system
       totalUsers = users.length;
     } else {
       // For non-admin users, show only users from projects where they are listed

@@ -21,13 +21,14 @@ export interface User extends BaseEntity {
   ctc?: number;
   availabilityPercentage?: number;
   skills?: string;
+  designation?: string;
   reportingManager?: string;
   dateOfJoining?: string;
   isActive: boolean;
   lastLogin?: string;
 }
 
-export type UserRole = 'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'QA_MANAGER' | 'QA_DEVELOPER' | 'TESTER' | 'ANALYST';
+export type UserRole = 'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'QA_MANAGER' | 'QA_DEVELOPER' | 'MASTER_ADMIN' | 'TESTER' | 'ANALYST';
 
 // Department entity
 export interface Department extends BaseEntity {

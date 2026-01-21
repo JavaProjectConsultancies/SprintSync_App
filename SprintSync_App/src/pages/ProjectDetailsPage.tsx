@@ -814,6 +814,53 @@ const ProjectDetailsPage = () => {
     return name.substring(0, 2).toUpperCase();
   };
 
+  // Helper function to get user name from user ID with multiple fallbacks
+  const getUserNameById = (userId: string): string => {
+    if (!userId) return 'System';
+
+    const normalizedUserId = userId.toLowerCase().trim();
+
+    // Search function that handles different user object structures
+    const extractName = (user: any): string | null => {
+      if (!user) return null;
+      // Try 'name' field first
+      if (user.name && typeof user.name === 'string' && user.name.trim()) {
+        return user.name.trim();
+      }
+      // Try firstName + lastName combination
+      const firstName = user.firstName || user.first_name || '';
+      const lastName = user.lastName || user.last_name || '';
+      const fullName = `${firstName} ${lastName}`.trim();
+      if (fullName) return fullName;
+      // Try displayName or username
+      if (user.displayName) return user.displayName;
+      if (user.username) return user.username;
+      if (user.email) return user.email.split('@')[0]; // Use email prefix as fallback
+      return null;
+    };
+
+    // Search in localTeamMembers
+    let foundUser = localTeamMembers.find((m: any) =>
+      m.id?.toLowerCase().trim() === normalizedUserId ||
+      m.userId?.toLowerCase().trim() === normalizedUserId
+    );
+    let name = extractName(foundUser);
+    if (name) return name;
+
+    // Search in allUsers with case-insensitive matching
+    if (allUsers && Array.isArray(allUsers)) {
+      foundUser = allUsers.find((u: any) =>
+        u.id?.toLowerCase().trim() === normalizedUserId ||
+        u.userId?.toLowerCase().trim() === normalizedUserId
+      );
+      name = extractName(foundUser);
+      if (name) return name;
+    }
+
+    // Return the userId as fallback (slightly better than 'Unknown User')
+    return userId;
+  };
+
   // Use local team members with real workload and performance
   const teamMembers = localTeamMembers.map((member: any) => {
     // Handle performance - it can be a number or an object
@@ -1222,12 +1269,8 @@ const ProjectDetailsPage = () => {
                         (activityLog as any).createdBy ||
                         (activityLog as any).user_id;
 
-                      // Find user in team members first, then fall back to all users
-                      const user = localTeamMembers.find(m => m.id === activityUserId) ||
-                        teamMembers.find(m => m.id === activityUserId) ||
-                        (allUsers && allUsers.find((u: any) => u.id === activityUserId));
-
-                      const userName = user?.name || activityUserId || 'Unknown User';
+                      // Use the improved helper function for user name resolution
+                      const userName = getUserNameById(activityUserId);
                       const userInitials = getInitials(userName);
                       const activityMessage = formatActivityMessage(activityLog);
 

@@ -9,7 +9,9 @@ import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Card, CardContent } from './ui/card';
 import { Separator } from './ui/separator';
-import { Plus, X, Target, User, Flag, BookOpen, CheckCircle2, FileText, Star, Bug, Code, Search, Paperclip, Link, Upload, Trash2, Eye } from 'lucide-react';
+import { Calendar } from './ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Plus, X, Target, User, Flag, BookOpen, CheckCircle2, FileText, Star, Bug, Code, Search, Paperclip, Link, Upload, Trash2, Eye, CalendarIcon, Clock } from 'lucide-react';
 import { storyTemplates, StoryTemplate, getStoriesByType } from '../data/storyTemplates';
 import { Epic } from '../types';
 
@@ -23,6 +25,7 @@ interface Story {
   avatar?: string;
   description?: string;
   acceptanceCriteria?: string[];
+  dueDate?: string;
 }
 
 interface AddStoryDialogProps {
@@ -30,9 +33,11 @@ interface AddStoryDialogProps {
   onOpenChange: (open: boolean) => void;
   onAddStory: (story: Omit<Story, 'id'>) => void;
   availableEpics?: Epic[];
+  sprintStartDate?: string;
+  sprintEndDate?: string;
 }
 
-const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onAddStory, availableEpics = [] }) => {
+const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onAddStory, availableEpics = [], sprintStartDate, sprintEndDate }) => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -42,8 +47,12 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
     acceptanceCriteria: [''],
     templateId: 'none',
     labels: [] as string[],
-    epicId: 'none'
+    epicId: 'none',
+    dueDate: undefined as Date | undefined
   });
+
+  // State to control due date popover
+  const [isDueDatePopoverOpen, setIsDueDatePopoverOpen] = useState(false);
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [attachments, setAttachments] = useState<File[]>([]);
@@ -84,6 +93,17 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
       newErrors.assignee = 'Please assign someone to this story';
     }
 
+    // Validate due date is required and within sprint range
+    if (!formData.dueDate) {
+      newErrors.dueDate = 'Due date is required';
+    } else if (sprintEndDate) {
+      const endDate = new Date(sprintEndDate);
+      endDate.setHours(23, 59, 59, 999);
+      if (formData.dueDate > endDate) {
+        newErrors.dueDate = `Due date cannot be after sprint end date (${endDate.toLocaleDateString()})`;
+      }
+    }
+
     const validCriteria = formData.acceptanceCriteria.filter(criteria => criteria.trim());
     if (validCriteria.length === 0) {
       newErrors.acceptanceCriteria = 'At least one acceptance criteria is required';
@@ -98,6 +118,14 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
 
     const validCriteria = formData.acceptanceCriteria.filter(criteria => criteria.trim());
 
+    // Helper function to format date in local timezone (YYYY-MM-DD)
+    const formatDateLocal = (date: Date): string => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
     const newStory: Omit<Story, 'id'> & { attachments?: File[]; attachmentUrls?: Array<{ url: string; name: string }> } = {
       title: formData.title.trim(),
       description: formData.description.trim(),
@@ -106,6 +134,7 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
       status: 'stories',
       assignee: formData.assignee,
       acceptanceCriteria: validCriteria,
+      dueDate: formData.dueDate ? formatDateLocal(formData.dueDate) : undefined,
       attachments: attachments.length > 0 ? attachments : undefined,
       attachmentUrls: attachmentUrls.length > 0 ? attachmentUrls : undefined
     };
@@ -125,13 +154,15 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
       acceptanceCriteria: [''],
       templateId: 'none',
       labels: [],
-      epicId: 'none'
+      epicId: 'none',
+      dueDate: undefined
     });
     setErrors({});
     setAttachments([]);
     setAttachmentUrls([]);
     setAttachmentUrl('');
     setAttachmentUrlName('');
+    setIsDueDatePopoverOpen(false);
   };
 
   // File upload handlers
@@ -457,6 +488,81 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
                       </Select>
                       {errors.points && <p className="text-sm text-red-600">{errors.points}</p>}
                     </div>
+                  </div>
+
+                  {/* Due Date */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center space-x-1">
+                      <span>Due Date</span>
+                      <span className="text-red-500">*</span>
+                    </Label>
+                    <Popover open={isDueDatePopoverOpen} onOpenChange={setIsDueDatePopoverOpen} modal={true}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={`w-full justify-start text-left font-normal ${!formData.dueDate && "text-muted-foreground"
+                            } ${errors.dueDate ? 'border-red-300' : ''}`}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {formData.dueDate ? formData.dueDate.toLocaleDateString('en-US', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          }) : "Pick a due date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 !z-[9999]" align="start" side="top" sideOffset={5} style={{ zIndex: 9999 }}>
+                        <Calendar
+                          mode="single"
+                          selected={formData.dueDate}
+                          onSelect={(date) => {
+                            if (!date) {
+                              setFormData(prev => ({ ...prev, dueDate: undefined }));
+                              return;
+                            }
+
+                            // Normalize date to midnight in local timezone
+                            const normalizedDate = new Date(date);
+                            normalizedDate.setHours(0, 0, 0, 0);
+
+                            setFormData(prev => ({ ...prev, dueDate: normalizedDate }));
+                            setIsDueDatePopoverOpen(false);
+                            // Clear error when date is selected
+                            setErrors(prev => {
+                              const newErrors = { ...prev };
+                              delete newErrors.dueDate;
+                              return newErrors;
+                            });
+                          }}
+                          disabled={(date) => {
+                            const dateOnly = new Date(date);
+                            dateOnly.setHours(0, 0, 0, 0);
+
+                            // Check sprint date restrictions
+                            if (sprintStartDate && sprintEndDate) {
+                              const startDate = new Date(sprintStartDate);
+                              startDate.setHours(0, 0, 0, 0);
+                              const endDate = new Date(sprintEndDate);
+                              endDate.setHours(0, 0, 0, 0);
+
+                              // Disable dates outside sprint range
+                              if (dateOnly < startDate || dateOnly > endDate) {
+                                return true;
+                              }
+                            }
+                            return false;
+                          }}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    {errors.dueDate && <p className="text-sm text-red-600">{errors.dueDate}</p>}
+                    {sprintEndDate && (
+                      <p className="text-xs text-muted-foreground">
+                        Sprint ends: {new Date(sprintEndDate).toLocaleDateString()}
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>

@@ -38,6 +38,9 @@ public class User extends BaseEntity {
     @Column(name = "name", nullable = false)
     private String name;
 
+    @Column(name = "designation", length = 100)
+    private String designation;
+
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "role", nullable = false, columnDefinition = "user_role")
@@ -117,6 +120,14 @@ public class User extends BaseEntity {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getDesignation() {
+        return designation;
+    }
+
+    public void setDesignation(String designation) {
+        this.designation = designation;
     }
 
     public UserRole getRole() {

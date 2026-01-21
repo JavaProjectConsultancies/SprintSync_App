@@ -130,6 +130,8 @@ const getRoleColor = (role?: string) => {
       return 'bg-orange-100 text-orange-800 border-orange-200';
     case 'qa_developer':
       return 'bg-teal-100 text-teal-800 border-teal-200';
+    case 'master_admin':
+      return 'bg-purple-100 text-purple-800 border-purple-200';
     case 'designer':
     case 'qa':
       return 'bg-purple-100 text-purple-800 border-purple-200';
@@ -177,6 +179,11 @@ const ProfilePage: React.FC = () => {
   const [editableSkills, setEditableSkills] = useState('');
   const [savingSkills, setSavingSkills] = useState(false);
 
+  // State for designation editing
+  const [isEditingDesignation, setIsEditingDesignation] = useState(false);
+  const [editableDesignation, setEditableDesignation] = useState('');
+  const [savingDesignation, setSavingDesignation] = useState(false);
+
   // Handler to save skills to database
   const handleSaveSkills = async () => {
     if (!userId) return;
@@ -203,6 +210,24 @@ const ProfilePage: React.FC = () => {
     }
   };
 
+  // Handler to save designation to database
+  const handleSaveDesignation = async () => {
+    if (!userId) return;
+
+    try {
+      setSavingDesignation(true);
+      await userApiService.updateUser(userId, { designation: editableDesignation.trim() });
+      toast.success('Designation updated successfully!');
+      setIsEditingDesignation(false);
+      refetch(); // Refetch user data to update UI
+    } catch (error: any) {
+      console.error('Error saving designation:', error);
+      toast.error(error?.message || 'Failed to save designation. Please try again.');
+    } finally {
+      setSavingDesignation(false);
+    }
+  };
+
   // Start editing skills
   const handleStartEditSkills = () => {
     const currentSkills = parseSkills(profile?.skills);
@@ -214,6 +239,18 @@ const ProfilePage: React.FC = () => {
   const handleCancelEditSkills = () => {
     setIsEditingSkills(false);
     setEditableSkills('');
+  };
+
+  // Start editing designation
+  const handleStartEditDesignation = () => {
+    setEditableDesignation(profile?.designation || '');
+    setIsEditingDesignation(true);
+  };
+
+  // Cancel editing designation
+  const handleCancelEditDesignation = () => {
+    setIsEditingDesignation(false);
+    setEditableDesignation('');
   };
 
   const getDepartmentName = useMemo(
@@ -485,6 +522,51 @@ const ProfilePage: React.FC = () => {
           hint: ctc ? 'Annualized (INR)' : undefined,
         },
         {
+          icon: Briefcase,
+          label: 'Designation',
+          value: isEditingDesignation ? (
+            <div className="flex items-center gap-2 w-full">
+              <Input
+                value={editableDesignation}
+                onChange={(e) => setEditableDesignation(e.target.value)}
+                placeholder="Enter designation"
+                className="h-8 py-1 max-w-[200px]"
+                autoFocus
+              />
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0 text-green-600 hover:text-green-700"
+                onClick={handleSaveDesignation}
+                disabled={savingDesignation}
+              >
+                {savingDesignation ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                onClick={handleCancelEditDesignation}
+                disabled={savingDesignation}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 group">
+              <span>{profile?.designation || 'Not Set'}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={handleStartEditDesignation}
+              >
+                <Pencil className="w-3 h-3 text-muted-foreground" />
+              </Button>
+            </div>
+          ),
+        },
+        {
           icon: Percent,
           label: 'Availability',
           value: (
@@ -587,7 +669,8 @@ const ProfilePage: React.FC = () => {
                   </Badge>
                 </div>
                 <p className="text-white/90 text-base">
-                  {roleLabel} • {department}
+                  {profile?.designation && <span className="font-medium">{profile.designation} • </span>}
+                  {roleDisplay} • {department}
                 </p>
                 <div className="hero-meta-row">
                   {heroMetaDetails.map((item, index) => (

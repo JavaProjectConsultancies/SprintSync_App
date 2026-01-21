@@ -1748,7 +1748,7 @@ const ProjectsPage: React.FC = () => {
 
   // Check if user can add projects/milestones
   const canAddProject = () => {
-    return user?.role === 'admin' || user?.role === 'manager';
+    return user?.role === 'admin' || user?.role === 'master_admin' || user?.role === 'manager';
   };
 
   // Handle create project query param from Dashboard

@@ -207,34 +207,22 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
       ? rawTasksData
       : (rawTasksData as any).data || (rawTasksData as any).content || [];
 
-    // For managers: Filter tasks to include those they manage OR are effective members of projects
+    // For managers: Filter tasks to only show tasks from projects they manage
     if (userRole === 'manager') {
       const beforeCount = tasks.length;
 
-      // Use simpler, more permissive logic first: 
-      // If we used useAllTasks, we have everything. Now filter to what manager should see.
-      // Dashboard.tsx logic: Task -> Story -> Project -> User Assigned/Managed
-
-      const projects = normalizeApiData(apiProjects);
-      // Manager's accessible projects (managed + assigned)
-      const allowedProjectIds = new Set(projects.map(p => p.id));
-
-      /* 
-         Note: apiProjects should already be filtered by backend/hooks to only return what user can see?
-         If useProjects() returns all public projects, we need to be careful.
-         But assuming useProjects returns accessible projects:
-      */
+      // IMPORTANT: If manager has no projects, return empty array immediately
+      if (managerProjectIds.size === 0) {
+        console.log('[UserTasks] Manager has no projects, returning empty tasks');
+        return [];
+      }
 
       const stories = normalizeApiData(apiStories);
 
       tasks = tasks.filter((task: Task) => {
         if (!task || !task.id) return false;
 
-        // 1. Explicitly assigned
-        const assigneeId = (task as any).assigneeId || (task as any).assignee?.id || (task as any).assignee?.userId;
-        if (assigneeId && String(assigneeId) === String(userId)) return true;
-
-        // 2. Linked to accessible project
+        // Only include tasks linked to manager's projects via story
         const storyId = (task as any).storyId || (task as any).story?.id;
         if (!storyId) return false;
 
@@ -242,7 +230,13 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
         if (!story) return false;
 
         const projectId = story.projectId || (story as any).project?.id;
-        return projectId && allowedProjectIds.has(projectId);
+        return projectId && managerProjectIds.has(projectId);
+      });
+
+      console.log('[UserTasks] Manager task filtering:', {
+        beforeCount,
+        afterCount: tasks.length,
+        managerProjectIds: Array.from(managerProjectIds)
       });
     }
 
@@ -314,68 +308,92 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
     }
 
     // Process issues (for all roles)
+    // For managers: Only show issues from projects they manage
     if (rawIssuesData) {
-      const issues = Array.isArray(rawIssuesData)
-        ? rawIssuesData
-        : (rawIssuesData as any).data || (rawIssuesData as any).content || [];
+      // EARLY RETURN for managers with no projects - don't process issues at all
+      if (userRole === 'manager' && managerProjectIds.size === 0) {
+        console.log('[UserTasks] Manager has no projects, skipping issues');
+        // Don't add any issues
+      } else {
+        let issues = Array.isArray(rawIssuesData)
+          ? rawIssuesData
+          : (rawIssuesData as any).data || (rawIssuesData as any).content || [];
 
-      issues.forEach((issue: Issue) => {
-        // Normalize issue status
-        const issueStatus = (issue.status || '').toString().toUpperCase().trim();
+        // Filter issues for managers - only show issues from their projects
+        if (userRole === 'manager' && managerProjectIds.size > 0) {
+          const stories = normalizeApiData(apiStories);
+          issues = issues.filter((issue: Issue) => {
+            const storyId = (issue as any).storyId || (issue as any).story?.id;
+            if (!storyId) return false;
+            const story = stories.find(s => s.id === storyId);
+            if (!story) return false;
+            const projectId = story.projectId || (story as any).project?.id;
+            return projectId && managerProjectIds.has(projectId);
+          });
+          console.log('[UserTasks] Manager issue filtering:', {
+            before: (Array.isArray(rawIssuesData) ? rawIssuesData : (rawIssuesData as any).data || (rawIssuesData as any).content || []).length,
+            after: issues.length
+          });
+        }
 
-        // Map API status to display status
-        const statusMap: Record<string, 'pending' | 'in-progress' | 'completed'> = {
-          'OPEN': 'pending',
-          'TO_DO': 'pending',
-          'TODO': 'pending',
-          'IN_PROGRESS': 'in-progress',
-          'IN PROGRESS': 'in-progress',
-          'INVESTIGATING': 'in-progress',
-          'RESOLVED': 'completed',
-          'CLOSED': 'completed',
-          'DONE': 'completed',
-          'COMPLETED': 'completed',
-          'REJECTED': 'completed'
-        };
+        issues.forEach((issue: Issue) => {
+          // Normalize issue status
+          const issueStatus = (issue.status || '').toString().toUpperCase().trim();
 
-        // Map API priority to display priority
-        const issuePriority = (issue.priority || '').toString().toUpperCase().trim();
-        const priorityMap: Record<string, 'critical' | 'high' | 'medium' | 'low'> = {
-          'CRITICAL': 'critical',
-          'HIGH': 'high',
-          'MEDIUM': 'medium',
-          'LOW': 'low'
-        };
+          // Map API status to display status
+          const statusMap: Record<string, 'pending' | 'in-progress' | 'completed'> = {
+            'OPEN': 'pending',
+            'TO_DO': 'pending',
+            'TODO': 'pending',
+            'IN_PROGRESS': 'in-progress',
+            'IN PROGRESS': 'in-progress',
+            'INVESTIGATING': 'in-progress',
+            'RESOLVED': 'completed',
+            'CLOSED': 'completed',
+            'DONE': 'completed',
+            'COMPLETED': 'completed',
+            'REJECTED': 'completed'
+          };
 
-        const displayStatus = statusMap[issueStatus] || 'pending';
+          // Map API priority to display priority
+          const issuePriority = (issue.priority || '').toString().toUpperCase().trim();
+          const priorityMap: Record<string, 'critical' | 'high' | 'medium' | 'low'> = {
+            'CRITICAL': 'critical',
+            'HIGH': 'high',
+            'MEDIUM': 'medium',
+            'LOW': 'low'
+          };
 
-        // Get assignee information
-        const assigneeId = (issue as any).assigneeId || (issue as any).assignee?.id;
-        const assignee = assigneeId ? normalizeApiData(apiUsers).find((u: any) => String(u.id) === String(assigneeId)) : null;
-        const assigneeName = assignee ? (assignee.name || assignee.email || 'Unassigned') : 'Unassigned';
+          const displayStatus = statusMap[issueStatus] || 'pending';
 
-        taskItems.push({
-          id: issue.id,
-          title: `[Issue] ${issue.title}`,
-          description: issue.description || 'No description provided',
-          status: displayStatus,
-          priority: priorityMap[issuePriority] || 'medium',
-          dueDate: (issue as any).dueDate || new Date().toISOString(),
-          estimatedHours: (issue as any).estimatedHours || 0,
-          projectId: (issue as any).storyId || 'unknown',
-          projectName: `Issue ${issue.id.slice(-4)}`,
-          type: 'bug-fix', // Issues are treated as bug-fix type
-          assignedBy: 'System',
-          createdAt: (issue as any).createdAt || new Date().toISOString(),
-          assigneeName: assigneeName,
-          assigneeId: assigneeId,
-          itemType: 'issue'
+          // Get assignee information
+          const assigneeId = (issue as any).assigneeId || (issue as any).assignee?.id;
+          const assignee = assigneeId ? normalizeApiData(apiUsers).find((u: any) => String(u.id) === String(assigneeId)) : null;
+          const assigneeName = assignee ? (assignee.name || assignee.email || 'Unassigned') : 'Unassigned';
+
+          taskItems.push({
+            id: issue.id,
+            title: `[Issue] ${issue.title}`,
+            description: issue.description || 'No description provided',
+            status: displayStatus,
+            priority: priorityMap[issuePriority] || 'medium',
+            dueDate: (issue as any).dueDate || new Date().toISOString(),
+            estimatedHours: (issue as any).estimatedHours || 0,
+            projectId: (issue as any).storyId || 'unknown',
+            projectName: `Issue ${issue.id.slice(-4)}`,
+            type: 'bug-fix', // Issues are treated as bug-fix type
+            assignedBy: 'System',
+            createdAt: (issue as any).createdAt || new Date().toISOString(),
+            assigneeName: assigneeName,
+            assigneeId: assigneeId,
+            itemType: 'issue'
+          });
         });
-      });
+      }
     }
 
     return taskItems;
-  }, [assignedTasks, rawIssuesData, apiUsers, isQARole, userRole]);
+  }, [assignedTasks, rawIssuesData, apiUsers, isQARole, userRole, managerProjectIds, apiStories]);
 
   // Navigation handlers
   const handleTaskClick = (task: UserTask) => {

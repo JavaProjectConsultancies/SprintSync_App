@@ -43,8 +43,12 @@ public class PendingRegistration extends BaseEntity {
     @Column(name = "domain_id", length = 255)
     private String domainId;
 
+    @Column(name = "designation", length = 100)
+    private String designation;
+
     // Constructors
-    public PendingRegistration() {}
+    public PendingRegistration() {
+    }
 
     public PendingRegistration(String email, String passwordHash, String name, UserRole role) {
         this.email = email;
@@ -101,5 +105,12 @@ public class PendingRegistration extends BaseEntity {
     public void setDomainId(String domainId) {
         this.domainId = domainId;
     }
-}
 
+    public String getDesignation() {
+        return designation;
+    }
+
+    public void setDesignation(String designation) {
+        this.designation = designation;
+    }
+}

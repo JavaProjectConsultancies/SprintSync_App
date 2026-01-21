@@ -4,13 +4,13 @@ import { User, UserRole } from '../types';
 import { authApiService, LoginResponse } from '../services/api/authApi';
 import { apiClient } from '../services/api/client';
 
-// Define role permissions
 const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   admin: ['view_projects', 'manage_projects', 'view_team', 'manage_users', 'view_analytics', 'manage_system'],
   manager: ['view_projects', 'manage_projects', 'view_team', 'view_analytics'],
   developer: ['view_projects', 'view_team'],
   qa_manager: ['view_projects', 'manage_projects', 'view_team', 'view_analytics'],
-  qa_developer: ['view_projects', 'view_team']
+  qa_developer: ['view_projects', 'view_team'],
+  master_admin: ['view_projects', 'view_team', 'view_analytics', 'view_all_data']
 };
 
 interface AuthContextType {
@@ -120,9 +120,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           name: userName,
           email: userData.email,
           role: (userData.role ? (typeof userData.role === 'string' ? userData.role.toLowerCase() : String(userData.role).toLowerCase()) : 'developer') as UserRole,
-          avatar: userData.avatarUrl || userData.avatar,
-          department: userData.departmentId || userData.department,
-          domain: userData.domainId || userData.domain,
+          avatar: (userData as any).avatarUrl || userData.avatar,
+          department: (userData as any).departmentId || userData.department,
+          domain: (userData as any).domainId || userData.domain,
           assignedProjects: [], // This would come from a separate API call
         };
 
@@ -231,7 +231,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         // Extract name with better fallbacks
         const userName = userData.name ||
-          userData.fullName ||
+          (userData as any).fullName ||
           (userData.email ? userData.email.split('@')[0] : null) ||
           'User';
 
@@ -240,9 +240,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           name: userName,
           email: userData.email,
           role: (userRole as UserRole) || 'developer',
-          avatar: userData.avatar || userData.avatarUrl,
-          department: userData.department || userData.departmentId,
-          domain: userData.domain || userData.domainId,
+          avatar: userData.avatar || (userData as any).avatarUrl,
+          department: userData.department || (userData as any).departmentId,
+          domain: userData.domain || (userData as any).domainId,
           assignedProjects: [],
         };
 
@@ -267,8 +267,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const canAccessProject = (projectId: string): boolean => {
     if (!user) return false;
 
-    // Admin and Manager can access all projects
-    if (user.role === 'admin' || user.role === 'manager') return true;
+    // Admin, Manager, and Master Admin can access all projects
+    if (user.role === 'admin' || user.role === 'manager' || user.role === 'master_admin') return true;
 
     // Other roles can only access assigned projects
     return user.assignedProjects?.includes(projectId) || false;

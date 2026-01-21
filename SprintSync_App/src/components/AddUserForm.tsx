@@ -66,6 +66,7 @@ interface FormData {
   ctc: string;
   availabilityPercentage: string;
   skills: string;
+  designation: string;
   reportingManager: string;
   dateOfJoining: string;
   isActive: boolean;
@@ -86,6 +87,7 @@ interface FormErrors {
   ctc?: string;
   availabilityPercentage?: string;
   skills?: string;
+  designation?: string;
   reportingManager?: string;
   dateOfJoining?: string;
 }
@@ -106,6 +108,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
     ctc: '',
     availabilityPercentage: '100',
     skills: '',
+    designation: '',
     reportingManager: '',
     dateOfJoining: '',
     isActive: true
@@ -159,6 +162,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
         ctc: initialData?.ctc || '',
         availabilityPercentage: initialData?.availabilityPercentage || '100',
         skills: initialData?.skills || '',
+        designation: (initialData as any)?.designation || '',
         reportingManager: initialData?.reportingManager || '',
         dateOfJoining: normalizeDateInputValue(initialData?.dateOfJoining),
         isActive: initialData?.isActive !== undefined ? initialData.isActive : true
@@ -290,6 +294,13 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
       }
     }
 
+    if (formData.designation) {
+      const trimmed = formData.designation.trim();
+      if (trimmed.length > 100) {
+        newErrors.designation = 'Designation must be less than 100 characters';
+      }
+    }
+
     if (formData.dateOfJoining) {
       const timestamp = Date.parse(formData.dateOfJoining);
       if (isNaN(timestamp)) {
@@ -379,6 +390,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
         ctc: formData.ctc ? parseFloat(formData.ctc) : undefined,
         availabilityPercentage: parseInt(formData.availabilityPercentage) || 100,
         skills: formData.skills.trim() ? JSON.stringify(formData.skills.split(',').map(s => s.trim())) : undefined,
+        designation: formData.designation.trim() || undefined,
         reportingManager: formData.reportingManager.trim() || undefined,
         dateOfJoining: formData.dateOfJoining || undefined
       };
@@ -441,6 +453,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
         ctc: '',
         availabilityPercentage: '100',
         skills: '',
+        designation: '',
         reportingManager: '',
         dateOfJoining: '',
         isActive: true
@@ -482,6 +495,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
       ctc: '',
       availabilityPercentage: '100',
       skills: '',
+      designation: '',
       reportingManager: '',
       dateOfJoining: '',
       isActive: true
@@ -551,6 +565,27 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                     <p className="text-sm text-red-600 flex items-center gap-1">
                       <AlertCircle className="w-4 h-4" />
                       {errors.lastName}
+                    </p>
+                  )}
+                </div>
+
+                {/* Designation */}
+                <div className="add-user-form-field space-y-2">
+                  <Label htmlFor="designation" className="text-sm font-semibold text-gray-700">
+                    Designation
+                  </Label>
+                  <Input
+                    id="designation"
+                    value={formData.designation}
+                    onChange={(e) => handleInputChange('designation', e.target.value)}
+                    className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.designation ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                      }`}
+                    placeholder="e.g. Senior Software Engineer"
+                  />
+                  {errors.designation && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.designation}
                     </p>
                   )}
                 </div>
@@ -678,6 +713,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                       <SelectItem value="developer">Developer</SelectItem>
                       <SelectItem value="qa_manager">QA Manager</SelectItem>
                       <SelectItem value="qa_developer">QA Developer</SelectItem>
+                      <SelectItem value="master_admin">Master Admin</SelectItem>
                     </SelectContent>
                   </Select>
                   {errors.role && (

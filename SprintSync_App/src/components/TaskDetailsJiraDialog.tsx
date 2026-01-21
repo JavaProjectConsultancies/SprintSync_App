@@ -61,6 +61,7 @@ interface TaskDetailsJiraDialogProps {
     onTaskUpdated?: () => void;
     allSubtasks?: Subtask[]; // Optional, will fetch if not provided
     canManage?: boolean;
+    sprintEndDate?: string; // Used to block time logging after sprint ends
 }
 
 const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
@@ -70,6 +71,7 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
     onTaskUpdated,
     allSubtasks: initialSubtasks = [],
     canManage = true,
+    sprintEndDate,
 }) => {
     const { user } = useAuth();
     const [activeTab, setActiveTab] = useState<string>("details");
@@ -95,6 +97,9 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
     const [effortLogAttachments, setEffortLogAttachments] = useState<File[]>([]);
 
     const [currentTask, setCurrentTask] = useState<Task | null>(task);
+
+    // Check if sprint has ended - block time logging after sprint end
+    const isSprintEnded = sprintEndDate ? new Date() > new Date(sprintEndDate) : false;
 
     useEffect(() => {
         setCurrentTask(task);
@@ -279,8 +284,10 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-8 px-2 hover:bg-blue-100"
-                                        onClick={() => setIsLogEffortOpen(true)}
+                                        className={`h-8 px-2 ${isSprintEnded ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-100'}`}
+                                        onClick={() => !isSprintEnded && setIsLogEffortOpen(true)}
+                                        disabled={isSprintEnded}
+                                        title={isSprintEnded ? 'Cannot log time after sprint has ended' : 'Log time for this task'}
                                     >
                                         <Clock className="w-4 h-4 mr-1 text-blue-600" />
                                         Log

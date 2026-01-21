@@ -212,8 +212,50 @@ const AppSidebar: React.FC = () => {
 
   // Role-based menu filtering
   const getRoleBasedMenuItems = (userRole: string): MenuItem[] => {
-    if (userRole === 'admin') {
-      // Admin only has Dashboard, Projects, Team Allocation, and Reports
+    if (userRole === 'master_admin') {
+      // Master Admin has access to ALL menus (full view access to everything)
+      return [
+        {
+          title: 'Dashboard',
+          icon: LayoutDashboard,
+          id: 'dashboard'
+        },
+        {
+          title: 'PROJECT MANAGEMENT',
+          icon: FolderKanban,
+          children: [
+            { title: 'Projects', icon: FolderKanban, id: 'projects' },
+            { title: 'Backlog', icon: Target, id: 'backlog' },
+            { title: 'Scrum Management', icon: GitBranch, id: 'scrum' },
+            { title: 'Time Tracking', icon: Clock, id: 'time-tracking' },
+            { title: 'Calendar View', icon: Calendar, id: 'calendar' },
+          ]
+        },
+        {
+          title: 'AI & ANALYTICS',
+          icon: Brain,
+          children: [
+            { title: 'Team Allocation', icon: Users, id: 'team-allocation' },
+          ]
+        },
+        {
+          title: 'ACCOUNT',
+          icon: User,
+          children: [
+            { title: 'Profile', icon: User, id: 'profile' },
+            { title: 'My Tasks', icon: CheckSquare, id: 'todo-list' },
+          ]
+        },
+        {
+          title: 'ADMINISTRATION',
+          icon: UserCog,
+          children: [
+            { title: 'Admin Panel', icon: Shield, id: 'admin-panel' },
+          ]
+        },
+      ];
+    } else if (userRole === 'admin') {
+      // Admin has Dashboard, Projects, Team Allocation, and Reports
       return [
         {
           title: 'Dashboard',
@@ -297,8 +339,9 @@ const AppSidebar: React.FC = () => {
   };
 
   // For admin users, always use their actual role to show admin menu
+  // For master_admin users, always use their actual role to show all menus
   // For non-admin users, use activeRole for developer/manager switching
-  const effectiveRole = user?.role === 'admin' ? 'admin' : activeRole;
+  const effectiveRole = user?.role === 'admin' ? 'admin' : (user?.role === 'master_admin' ? 'master_admin' : activeRole);
   const menuItems = user ? getRoleBasedMenuItems(effectiveRole) : [];
 
   // Safely filter menu items with proper checks
@@ -336,9 +379,11 @@ const AppSidebar: React.FC = () => {
         return 'bg-orange-100 text-orange-800 border-orange-200';
       case 'qa_developer':
         return 'bg-teal-100 text-teal-800 border-teal-200';
+      case 'master_admin':
+        return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'designer':
       case 'qa':
-        return 'bg-purple-100 text-purple-800 border-purple-200';
+        return 'bg-pink-100 text-pink-800 border-pink-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }
@@ -356,6 +401,8 @@ const AppSidebar: React.FC = () => {
         return Shield;
       case 'qa_developer':
         return TestTube;
+      case 'master_admin':
+        return Eye;
       case 'designer':
       case 'qa':
         return TestTube;

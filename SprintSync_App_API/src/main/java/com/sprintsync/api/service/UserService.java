@@ -144,6 +144,9 @@ public class UserService {
         if (user.getDateOfJoining() != null) {
             existingUser.setDateOfJoining(user.getDateOfJoining());
         }
+        if (user.getDesignation() != null) {
+            existingUser.setDesignation(user.getDesignation());
+        }
         if (user.getIsActive() != null) {
             existingUser.setIsActive(user.getIsActive());
         }

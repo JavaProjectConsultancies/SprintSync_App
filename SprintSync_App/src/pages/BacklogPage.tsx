@@ -147,8 +147,8 @@ const BacklogPage: React.FC = () => {
   const { user } = useAuth();
   const { activeRole } = useRoleSwitcher();
 
-  // Use activeRole for permission checks - admin stays admin, others use activeRole
-  const effectiveRole = user?.role === 'admin' ? 'admin' : activeRole;
+  // Use activeRole for permission checks - admin and master_admin stay as their roles, others use activeRole
+  const effectiveRole = user?.role === 'admin' ? 'admin' : (user?.role === 'master_admin' ? 'master_admin' : activeRole);
 
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -189,8 +189,8 @@ const BacklogPage: React.FC = () => {
 
 
   // Role-based permissions - Uses effectiveRole for dynamic role switching
-  // Managers see all stories and tasks, developers see only their assigned items
-  const isManager = effectiveRole?.toUpperCase() === "MANAGER";
+  // Admins, master_admins, and managers see all stories and tasks, developers see only their assigned items
+  const isManager = effectiveRole?.toUpperCase() === "MANAGER" || effectiveRole?.toUpperCase() === "ADMIN" || effectiveRole?.toUpperCase() === "MASTER_ADMIN";
 
 
 

@@ -39,6 +39,16 @@ const RoleSwitcherDropdown: React.FC<RoleSwitcherDropdownProps> = ({
         isLoading
     } = useRoleSwitcher();
 
+    // If master_admin, show Master_admin View badge (view-only access)
+    if (user?.role === 'master_admin') {
+        return (
+            <Badge variant="outline" className={cn("bg-violet-50 text-violet-700 border-violet-200", className)}>
+                <Shield className="w-3 h-3 mr-1" />
+                Master_admin View
+            </Badge>
+        );
+    }
+
     // If admin, don't show role switcher - they have full access
     if (user?.role === 'admin') {
         return (

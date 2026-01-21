@@ -266,8 +266,8 @@ const ScrumPage: React.FC = () => {
     };
   }, [resetToOriginalRole]);
 
-  // Use activeRole for permission checks - admin stays admin, others use activeRole
-  const effectiveRole = user?.role === 'admin' ? 'admin' : activeRole;
+  // Use activeRole for permission checks - admin and master_admin stay as their roles, others use activeRole
+  const effectiveRole = user?.role === 'admin' ? 'admin' : (user?.role === 'master_admin' ? 'master_admin' : activeRole);
   const [searchParams] = useSearchParams();
 
   const [selectedProject, setSelectedProject] = useState("");
@@ -588,39 +588,52 @@ const ScrumPage: React.FC = () => {
   const isQAManager = effectiveRole?.toUpperCase() === "QA_MANAGER";
   const isQADeveloper = effectiveRole?.toUpperCase() === "QA_DEVELOPER";
   const isAdmin = effectiveRole?.toUpperCase() === "ADMIN";
+  const isMasterAdmin = effectiveRole?.toUpperCase() === "MASTER_ADMIN";
   const isRegularDeveloper = effectiveRole?.toUpperCase() === "DEVELOPER"; // Regular developer only (not QA Developer)
+
+  // Master Admin has VIEW-ONLY access - can see everything like manager but cannot add/edit/log
+  const isViewOnly = isMasterAdmin;
+
+  // Check original user role for QA permissions (even when role is switched to developer_review)
+  const isOriginalQAManager = user?.role?.toUpperCase() === "QA_MANAGER";
+  const isOriginalQADeveloper = user?.role?.toUpperCase() === "QA_DEVELOPER";
 
   // QA Developers should be treated like developers but with extra permissions (view all, drag to Done)
   const isDeveloper = isRegularDeveloper || isQADeveloper;
 
   // Managers, QA (deprecated), and QA Managers can manage sprints, stories, and boards
+  // Master Admin has view-only access, so excluded from management permissions
   const canManageSprintsAndStories =
-    isManager ||
-    isQAManager ||
-    effectiveRole?.toUpperCase() === "QA";
+    !isViewOnly && (
+      isManager ||
+      isQAManager ||
+      effectiveRole?.toUpperCase() === "QA"
+    );
 
-  // Only Managers can create tasks (not QA Manager)
-  const canAddTasks = isManager;
+  // Managers and QA Managers can create tasks (Master Admin cannot - view only)
+  const canAddTasks = !isViewOnly && (isManager || isOriginalQAManager);
 
-  // Managers, QA Managers, and QA Developers can create issues
-  const canAddIssues = isManager || isQAManager || isQADeveloper;
+  // Managers, QA Managers, and QA Developers can create issues (Master Admin cannot - view only)
+  const canAddIssues = !isViewOnly && (isManager || isQAManager || isQADeveloper || isOriginalQAManager || isOriginalQADeveloper);
 
-  // Managers, QA (deprecated), and QA Managers can create boards
+  // Managers, QA (deprecated), and QA Managers can create boards (Master Admin cannot - view only)
   const canCreateBoards = canManageSprintsAndStories;
 
-  const canLogEffort = true;
+  // Master Admin cannot log effort (view only)
+  const canLogEffort = !isViewOnly;
   // QA Manager and QA Developer CANNOT log effort on TASKS (only on issues)
-  const canLogEffortOnTasks = !isQAManager && !isQADeveloper;
+  const canLogEffortOnTasks = !isViewOnly && !isQAManager && !isQADeveloper;
   // QA Manager and QA Developer can log effort on OTHER users' tasks (like managers)
-  const canLogEffortForOthers = canManageSprintsAndStories || isQADeveloper;
+  const canLogEffortForOthers = !isViewOnly && (canManageSprintsAndStories || isQADeveloper);
 
-  // QA Developer and QA Manager can drag items from ANY column to Done (like managers)
-  const canDragToDone = isManager || isQAManager || isQADeveloper;
+  // Master Admin cannot drag items (view only), but QA Developer and QA Manager can
+  const canDragToDone = !isViewOnly && (isManager || isQAManager || isQADeveloper || isOriginalQAManager || isOriginalQADeveloper);
 
-  // QA Developer can see ALL tasks AND issues (like managers)
+  // Master Admin CAN view all tasks and issues (like managers) - this is their primary access
+  // QA Developer and QA Manager can see ALL tasks AND issues (like managers)
   // Regular Developer sees only their assigned tasks AND issues
-  const canViewAllTasks = canManageSprintsAndStories || isQADeveloper;
-  const canViewAllIssues = canManageSprintsAndStories || isQADeveloper; // QA Developer sees ALL issues
+  const canViewAllTasks = isMasterAdmin || canManageSprintsAndStories || isQADeveloper || isOriginalQAManager || isOriginalQADeveloper;
+  const canViewAllIssues = isMasterAdmin || canManageSprintsAndStories || isQADeveloper || isOriginalQAManager || isOriginalQADeveloper;
 
   // All users can create subtasks (checked individually where needed)
 
@@ -4636,9 +4649,9 @@ const ScrumPage: React.FC = () => {
   };
 
   const handleAddTask = async (taskDataFromDialog: any) => {
-    // Only managers can create tasks
-    if (!isManager) {
-      toast.error("Only managers can create tasks");
+    // Only managers and QA managers can create tasks
+    if (!canAddTasks) {
+      toast.error("Only managers and QA managers can create tasks");
       return;
     }
 
@@ -4830,7 +4843,7 @@ const ScrumPage: React.FC = () => {
   const handleAddIssue = async (issueDataFromDialog: any) => {
     // Managers and QA Managers can create issues
     if (!canAddIssues) {
-      toast.error("Only managers and QA managers can create issues");
+      toast.error("Only managers, QA managers, and QA developers can create issues");
       return;
     }
 
@@ -5718,6 +5731,11 @@ const ScrumPage: React.FC = () => {
 
   // Handle subtask effort logging
   const handleLogSubtaskEffort = async () => {
+    // Block logging if sprint has ended
+    if (isSprintEnded) {
+      toast.error("Cannot log time - sprint has ended");
+      return;
+    }
     if (!selectedSubtaskForLog || !subtaskLogEffort.hours || subtaskLogEffort.hours <= 0) {
       toast.error("Please enter valid hours");
       return;
@@ -6509,6 +6527,11 @@ const ScrumPage: React.FC = () => {
   // Log Effort Handler (JIRA-style: log on subtasks)
 
   const handleLogEffort = async () => {
+    // Block logging if sprint has ended
+    if (isSprintEnded) {
+      toast.error("Cannot log time - sprint has ended");
+      return;
+    }
     if (!selectedSubtaskForEffort || !effortLog.hours || effortLog.hours <= 0) {
       toast.error("Please enter valid hours");
 
@@ -6723,6 +6746,11 @@ const ScrumPage: React.FC = () => {
 
   // Log Effort Handler for Tasks
   const handleLogTaskEffort = async () => {
+    // Block logging if sprint has ended
+    if (isSprintEnded) {
+      toast.error("Cannot log time - sprint has ended");
+      return;
+    }
     if (!selectedTaskForEffort || !effortLog.hours || effortLog.hours <= 0) {
       toast.error("Please enter valid hours");
       return;
@@ -6867,6 +6895,11 @@ const ScrumPage: React.FC = () => {
 
   // Log Effort Handler for Issues
   const handleLogIssueEffort = async () => {
+    // Block logging if sprint has ended
+    if (isSprintEnded) {
+      toast.error("Cannot log time - sprint has ended");
+      return;
+    }
     if (!selectedIssueForEffort || !effortLog.hours || effortLog.hours <= 0) {
       toast.error("Please enter valid hours");
       return;
@@ -6949,6 +6982,51 @@ const ScrumPage: React.FC = () => {
         });
       } catch (error) {
         console.error("Failed to log activity:", error);
+      }
+
+      // Automatically move issue to IN_PROGRESS if it's currently in TO_DO status
+      const currentStatus = selectedIssueForEffort.status?.toUpperCase() || "";
+      if (currentStatus === "TO_DO" || currentStatus === "TODO") {
+        try {
+          await issueApiService.updateIssueStatus(selectedIssueForEffort.id, "IN_PROGRESS");
+
+          // Update local state immediately
+          setAllIssues((prev) =>
+            prev.map((issue) =>
+              issue.id === selectedIssueForEffort.id
+                ? { ...issue, status: "IN_PROGRESS" as any }
+                : issue
+            )
+          );
+
+          // Update selectedIssueForDetails if it matches
+          setSelectedIssueForDetails((prev) =>
+            prev?.id === selectedIssueForEffort.id
+              ? { ...prev, status: "IN_PROGRESS" as any }
+              : prev
+          );
+
+          // Log activity for status change
+          try {
+            await activityLogApiService.createActivityLog({
+              userId: user?.id || "",
+              entityType: "issues",
+              entityId: selectedIssueForEffort.id,
+              action: "status_changed",
+              description: `Issue automatically moved to IN_PROGRESS after logging effort`,
+              oldValues: JSON.stringify({ status: currentStatus }),
+              newValues: JSON.stringify({ status: "IN_PROGRESS" }),
+              ipAddress: undefined,
+              userAgent: undefined,
+            });
+          } catch (error) {
+            console.error("Failed to log activity for status change:", error);
+          }
+
+          toast.success("Issue moved to In Progress automatically");
+        } catch (error) {
+          console.error("Failed to update issue status to IN_PROGRESS:", error);
+        }
       }
 
       toast.success(`Logged ${effortLog.hours}h effort on issue successfully`);
@@ -11355,10 +11433,38 @@ const ScrumPage: React.FC = () => {
                             setIsDueDatePopoverOpen(false);
                           }
                         }}
+                        disabled={(date) => {
+                          // Get selected sprint dates for validation
+                          const selectedSprintData = sprints.find(s => s.id === (newStory.sprintId || selectedSprint));
+                          if (selectedSprintData && selectedSprintData.startDate && selectedSprintData.endDate) {
+                            const sprintStart = new Date(selectedSprintData.startDate);
+                            sprintStart.setHours(0, 0, 0, 0);
+                            const sprintEnd = new Date(selectedSprintData.endDate);
+                            sprintEnd.setHours(0, 0, 0, 0);
+                            const dateOnly = new Date(date);
+                            dateOnly.setHours(0, 0, 0, 0);
+                            // Disable dates outside sprint range
+                            if (dateOnly < sprintStart || dateOnly > sprintEnd) {
+                              return true;
+                            }
+                          }
+                          return false;
+                        }}
                         initialFocus
                       />
                     </PopoverContent>
                   </Popover>
+                  {(() => {
+                    const selectedSprintData = sprints.find(s => s.id === (newStory.sprintId || selectedSprint));
+                    if (selectedSprintData && selectedSprintData.endDate) {
+                      return (
+                        <p className="text-xs text-muted-foreground">
+                          Sprint ends: {new Date(selectedSprintData.endDate).toLocaleDateString()}
+                        </p>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </div>
 
@@ -13828,8 +13934,11 @@ const ScrumPage: React.FC = () => {
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      className="h-7 px-2 text-xs hover:bg-green-100 opacity-0 group-hover:opacity-100 transition-opacity"
+                                      className={`h-7 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity ${isSprintEnded ? 'cursor-not-allowed opacity-50' : 'hover:bg-green-100'}`}
+                                      disabled={isSprintEnded}
+                                      title={isSprintEnded ? 'Cannot log time - sprint has ended' : 'Log work on this subtask'}
                                       onClick={() => {
+                                        if (isSprintEnded) return;
                                         setSelectedSubtaskForLog(subtask);
                                         setSubtaskLogEffort({
                                           hours: 0,
@@ -13840,7 +13949,6 @@ const ScrumPage: React.FC = () => {
                                         });
                                         setIsSubtaskLogEffortOpen(true);
                                       }}
-                                      title="Log work on this subtask"
                                     >
                                       <Clock className="w-3 h-3 mr-1 text-green-600" />
                                       Log
@@ -15048,9 +15156,12 @@ const ScrumPage: React.FC = () => {
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      className="h-7 px-2 hover:bg-red-100 text-red-700 border-red-200 flex-shrink-0"
+                                      className={`h-7 px-2 text-red-700 border-red-200 flex-shrink-0 ${isSprintEnded ? 'cursor-not-allowed opacity-50' : 'hover:bg-red-100'}`}
+                                      disabled={isSprintEnded}
+                                      title={isSprintEnded ? 'Cannot log time - sprint has ended' : 'Log work on this subtask'}
                                       onClick={(e) => {
                                         e.stopPropagation();
+                                        if (isSprintEnded) return;
                                         setSelectedSubtaskForLog(subtask);
                                         setSubtaskLogEffort({
                                           hours: 0,

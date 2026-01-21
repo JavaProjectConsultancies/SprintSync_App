@@ -63,6 +63,7 @@ interface FormData {
   ctc: string;
   availabilityPercentage: string;
   skills: string;
+  designation: string;
   reportingManager: string;
   dateOfJoining: string;
   isActive: boolean;
@@ -83,6 +84,7 @@ interface FormErrors {
   ctc?: string;
   availabilityPercentage?: string;
   skills?: string;
+  designation?: string;
   reportingManager?: string;
   dateOfJoining?: string;
 }
@@ -103,6 +105,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
     ctc: '',
     availabilityPercentage: '100',
     skills: '',
+    designation: '',
     reportingManager: '',
     dateOfJoining: '',
     isActive: true
@@ -158,6 +161,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
         ctc: (user.ctc != null && user.ctc !== undefined) ? String(user.ctc) : '',
         availabilityPercentage: (user.availabilityPercentage != null && user.availabilityPercentage !== undefined) ? String(user.availabilityPercentage) : '100',
         skills: user.skills || '',
+        designation: (user as any).designation || '',
         reportingManager: user.reportingManager || '',
         dateOfJoining: normalizeDateInputValue(user.dateOfJoining),
         isActive: user.isActive ?? true
@@ -182,6 +186,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
         ctc: '',
         availabilityPercentage: '100',
         skills: '',
+        designation: '',
         reportingManager: '',
         dateOfJoining: '',
         isActive: true
@@ -237,7 +242,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
   // Role validation and conversion logic
   const validateAndConvertRole = (selectedRole: string): string => {
     // Define accepted roles in the exact case expected by database (lowercase)
-    const acceptedRoles = ['admin', 'manager', 'developer', 'qa_manager', 'qa_developer'];
+    const acceptedRoles = ['admin', 'manager', 'developer', 'qa_manager', 'qa_developer', 'master_admin'];
 
     // Normalize the selected role to lowercase
     const normalizedRole = selectedRole.toLowerCase();
@@ -252,7 +257,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
   };
 
   // Allowed roles matching backend enum values (lowercase)
-  const allowedRoles = ['admin', 'manager', 'developer', 'qa_manager', 'qa_developer'] as const;
+  const allowedRoles = ['admin', 'manager', 'developer', 'qa_manager', 'qa_developer', 'master_admin'] as const;
 
   const convertRoleForBackend = (frontendRole: string): string => frontendRole.toLowerCase();
 
@@ -280,6 +285,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
     experience: (value: string) => isString(value) && ['E1', 'E2', 'M1', 'M2', 'M3', 'L1', 'L2', 'L3', 'S1'].includes(value.toUpperCase()),
     skills: (value: string) => isString(value),
     reportingManager: (value: string) => value === '' || (isString(value) && value.trim().length >= 2 && value.trim().length <= 100),
+    designation: (value: string) => value === '' || (isString(value) && value.trim().length <= 100),
     dateOfJoining: (value: string) => value === '' || (isString(value) && !isNaN(Date.parse(value)) && Date.parse(value) <= Date.now()),
 
     // Profile Section
@@ -311,6 +317,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
   });
 
   const convertReportingAndJoining = (data: FormData) => ({
+    designation: data.designation.trim() || undefined,
     reportingManager: data.reportingManager.trim() || undefined,
     dateOfJoining: data.dateOfJoining || undefined
   });
@@ -342,6 +349,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
         skills: { type: 'string', valid: validationSchema.skills(data.skills), value: data.skills }
       },
       reportingAndJoining: {
+        designation: { type: 'string', valid: validationSchema.designation(data.designation), value: data.designation },
         reportingManager: { type: 'string', valid: validationSchema.reportingManager(data.reportingManager), value: data.reportingManager },
         dateOfJoining: { type: 'date', valid: validationSchema.dateOfJoining(data.dateOfJoining), value: data.dateOfJoining }
       },
@@ -397,6 +405,9 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
             break;
           case 'dateOfJoining':
             newErrors.dateOfJoining = 'Please select a valid date (cannot be in the future)';
+            break;
+          case 'designation':
+            newErrors.designation = 'Designation must be less than 100 characters';
             break;
         }
       }
@@ -537,6 +548,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
           availabilityPercentage: userData.availabilityPercentage,
           skills: userData.skills,
           avatarUrl: userData.avatarUrl,
+          designation: userData.designation,
           reportingManager: userData.reportingManager,
           dateOfJoining: userData.dateOfJoining,
           // Include password if it was changed
@@ -589,6 +601,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
         ctc: '',
         availabilityPercentage: '100',
         skills: '',
+        designation: '',
         reportingManager: '',
         dateOfJoining: '',
         isActive: true
@@ -639,6 +652,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
       ctc: '',
       availabilityPercentage: '100',
       skills: '',
+      designation: '',
       reportingManager: '',
       dateOfJoining: '',
       isActive: true
@@ -708,6 +722,27 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                     <p className="text-sm text-red-600 flex items-center gap-1">
                       <AlertCircle className="w-4 h-4" />
                       {errors.lastName}
+                    </p>
+                  )}
+                </div>
+
+                {/* Designation */}
+                <div className="edit-user-form-field space-y-2">
+                  <Label htmlFor="editDesignation" className="text-sm font-semibold text-gray-700">
+                    Designation
+                  </Label>
+                  <Input
+                    id="editDesignation"
+                    value={formData.designation}
+                    onChange={(e) => handleInputChange('designation', e.target.value)}
+                    className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.designation ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                      }`}
+                    placeholder="e.g. Senior Software Engineer"
+                  />
+                  {errors.designation && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.designation}
                     </p>
                   )}
                 </div>
@@ -829,6 +864,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                       <SelectItem value="developer">Developer</SelectItem>
                       <SelectItem value="qa_manager">QA Manager</SelectItem>
                       <SelectItem value="qa_developer">QA Developer</SelectItem>
+                      <SelectItem value="master_admin">Master Admin</SelectItem>
                     </SelectContent>
                   </Select>
                   {errors.role && (
