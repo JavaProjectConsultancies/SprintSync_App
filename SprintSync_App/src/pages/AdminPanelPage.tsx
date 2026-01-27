@@ -4,6 +4,8 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Input } from '../components/ui/input';
+import { Search } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -12,7 +14,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../components/ui/dialog';
-import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import {
   Select,
@@ -71,6 +72,7 @@ const AdminPanelPage: React.FC = () => {
   // User Details Modal State
   const [userDetailsModalOpen, setUserDetailsModalOpen] = useState(false);
   const [viewingUser, setViewingUser] = useState<User | null>(null);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
 
   // Fetch users and projects from API - fetch ALL users without any filters
   // Using very large page size to ensure all users are fetched
@@ -90,6 +92,14 @@ const AdminPanelPage: React.FC = () => {
   const activeProjects = projectsData?.length || 0;
   const activeUsers = users.filter(u => u.isActive).length;
   const inactiveUsers = users.filter(u => !u.isActive).length;
+  const filteredUsers = users.filter((u) => {
+    if (!userSearchTerm.trim()) return true;
+    const search = userSearchTerm.toLowerCase();
+    return (
+      u.name.toLowerCase().includes(search) ||
+      u.email.toLowerCase().includes(search)
+    );
+  });
 
   // Resolve department name from id
   const getDepartmentName = (deptId?: string) => {
@@ -371,12 +381,22 @@ const AdminPanelPage: React.FC = () => {
         <TabsContent value="users" className="space-y-4 mt-6">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
                   <CardTitle>User Management</CardTitle>
                   <CardDescription>Manage user accounts, roles, and access permissions</CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:ml-auto md:gap-4">
+                  <div className="relative w-full md:w-80 lg:w-96">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-green-500" />
+                    <Input
+                      type="text"
+                      placeholder="Search users by name or email..."
+                      value={userSearchTerm}
+                      onChange={(e) => setUserSearchTerm(e.target.value)}
+                      className="pl-9 pr-3 bg-white border-2 border-green-500 focus-visible:border-green-600 focus-visible:ring-0 focus-visible:ring-offset-0 outline-none"
+                    />
+                  </div>
                   <Button
                     variant="outline"
                     onClick={() => refetchUsers()}
@@ -407,14 +427,14 @@ const AdminPanelPage: React.FC = () => {
                   <AlertTriangle className="w-6 h-6 mr-2" />
                   <span>Failed to load users: {usersError.message}</span>
                 </div>
-              ) : users.length === 0 ? (
+              ) : filteredUsers.length === 0 ? (
                 <div className="flex items-center justify-center py-12 text-muted-foreground">
                   <Users className="w-6 h-6 mr-2" />
-                  <span>No users found</span>
+                  <span>No users found{userSearchTerm ? ` for "${userSearchTerm}"` : ''}</span>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {users.map((user) => (
+                  {filteredUsers.map((user) => (
                     <div
                       key={user.id}
                       className={`flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors ${selectedUser === user.id ? 'border-green-500 bg-green-50' : ''

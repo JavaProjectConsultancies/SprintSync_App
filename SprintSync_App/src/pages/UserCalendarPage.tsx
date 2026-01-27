@@ -57,7 +57,12 @@ const UserCalendarPage: React.FC = () => {
     const [selectedProjectId, setSelectedProjectId] = useState<string>('');
     const [isLoading, setIsLoading] = useState(true);
 
-    const isManagerOrAdmin = user?.role === 'manager' || user?.role === 'admin' || user?.role === 'qa_manager';
+    // Treat managers, admins, QA managers, and super managers (master_admin) the same for calendar filters
+    const isManagerOrAdmin =
+        user?.role === 'manager' ||
+        user?.role === 'admin' ||
+        user?.role === 'qa_manager' ||
+        user?.role === 'master_admin';
 
     useEffect(() => {
         const fetchProjects = async () => {
@@ -197,7 +202,7 @@ const UserCalendarPage: React.FC = () => {
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                         <CalendarIcon className="w-6 h-6 text-green-600" />
-                        My Work Calendar (Actuals)
+                        My Work Calendar
                     </h1>
                     <p className="text-muted-foreground">Track your actual logged hours across the month.</p>
                 </div>
@@ -369,13 +374,17 @@ const UserCalendarPage: React.FC = () => {
 
                                     {isCurrentMonth && (
                                         <div className="space-y-1.5 mt-1">
-                                            {data.logged > 0 && (
+                                            {data.logged > 0 ? (
                                                 <div className={cn(
                                                     "flex items-center justify-between px-2 py-1 rounded-md text-[10px] shadow-sm transition-all",
                                                     isCompleted ? "bg-green-600 text-white font-bold" : "bg-green-50 border border-green-100 text-green-700 font-medium"
                                                 )}>
                                                     <span>Logged</span>
                                                     <span>{data.logged.toFixed(1)}h</span>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center justify-center px-2 py-1 rounded-md text-[10px] bg-red-50 border border-red-100 text-red-600 font-medium shadow-sm">
+                                                    <span>Not Logged</span>
                                                 </div>
                                             )}
                                         </div>
@@ -394,6 +403,10 @@ const UserCalendarPage: React.FC = () => {
                         <div className="flex items-center gap-2 text-[11px]">
                             <div className="w-4 h-4 rounded bg-green-600 shadow-sm" />
                             <span className="text-gray-600">8h+ Goal Reached (Logged)</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-[11px]">
+                            <div className="w-4 h-4 rounded bg-red-50 border border-red-100 shadow-sm" />
+                            <span className="text-gray-600">Not Logged (No hours recorded)</span>
                         </div>
                     </div>
                 </div>

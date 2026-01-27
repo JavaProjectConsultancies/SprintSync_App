@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popove
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '../components/ui/chart';
+import { Input } from '../components/ui/input';
 import { timeEntryApiService } from '../services/api/entities/timeEntryApi';
 import { useUsers, useActiveUsers } from '../hooks/api/useUsers';
 import { useProjects } from '../hooks/api/useProjects';
@@ -29,7 +30,10 @@ import {
   Users,
   TrendingUp,
   BarChart3,
-  CheckCircle2
+  CheckCircle2,
+  Search,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { Calendar } from '../components/ui/calendar';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -50,6 +54,9 @@ interface TimeEntry {
   user: string;
   userId: string;
   userRole: string;
+  reporterName?: string;
+  reporterId?: string;
+  dueDate?: string;
   duration: string;
   date: string;
   status: 'active' | 'completed';
@@ -357,6 +364,7 @@ const TimeTrackingPage: React.FC = () => {
 
   const [timeFilter, setTimeFilter] = useState('all-time');
   const [userFilter, setUserFilter] = useState('all');
+  const [reporterFilter, setReporterFilter] = useState('all');
   const [projectFilter, setProjectFilter] = useState('all');
   const [sprintFilter, setSprintFilter] = useState('all');
   const [workTypeFilter, setWorkTypeFilter] = useState('all');
@@ -364,11 +372,14 @@ const TimeTrackingPage: React.FC = () => {
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>(undefined);
   const [customRangeOpen, setCustomRangeOpen] = useState(false);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
+  const [timeEntrySearch, setTimeEntrySearch] = useState('');
   const [additionalSprints, setAdditionalSprints] = useState<Sprint[]>([]);
   const [projectSprints, setProjectSprints] = useState<Sprint[]>([]);
   const [additionalUsers, setAdditionalUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const rawTimeEntriesRef = useRef<Map<string, any[]>>(new Map());
 
   // Fetch team members for selected project (will be defined after projects)
   const projectTeamMembersResult = useTeamMembers(projectFilter !== 'all' ? projectFilter : undefined);
@@ -471,7 +482,8 @@ const TimeTrackingPage: React.FC = () => {
             userRole === 'admin' ||
             userRole === 'master_admin' ||
             userRole === 'manager' ||
-            userRole === 'qa_manager'
+            userRole === 'qa_manager' ||
+            userRole === 'support'
           );
 
           if (!isManagerOrAdmin) {
@@ -538,6 +550,7 @@ const TimeTrackingPage: React.FC = () => {
   const resetFilters = useCallback(() => {
     setTimeFilter('all-time');
     setUserFilter('all');
+    setReporterFilter('all');
     setProjectFilter('all');
     setSprintFilter('all');
     setWorkTypeFilter('all');
@@ -1483,23 +1496,28 @@ const TimeTrackingPage: React.FC = () => {
         let fetchedIssues: any[] = [];
 
         if (missingIssueIds.length > 0) {
-          const { issueApiService } = await import('../services/api/entities/issueApi');
-          const issueResults = await Promise.all(
-            missingIssueIds.map(async id => {
-              try {
-                const response = await issueApiService.getIssueById(id);
-                return response.data;
-              } catch (err) {
-                console.warn(`Failed to fetch issue ${id}:`, err);
-                return null;
-              }
-            })
-          );
+          try {
+            const { issueApiService } = await import('../services/api/entities/issueApi');
+            const issueResults = await Promise.all(
+              missingIssueIds.map(async id => {
+                try {
+                  const response = await issueApiService.getIssueById(id);
+                  return response.data;
+                } catch (err) {
+                  console.warn(`Failed to fetch issue ${id}:`, err);
+                  return null;
+                }
+              })
+            );
 
-          fetchedIssues = issueResults.filter((issue): issue is any => Boolean(issue));
+            fetchedIssues = issueResults.filter((issue): issue is any => Boolean(issue));
 
-          if (fetchedIssues.length > 0) {
-            setAllIssues(prev => mergeById(prev, fetchedIssues));
+            if (fetchedIssues.length > 0) {
+              setAllIssues(prev => mergeById(prev, fetchedIssues));
+            }
+          } catch (err) {
+            console.warn('Error fetching issues, continuing without them:', err);
+            // Continue without issues - time entries will still display
           }
         }
 
@@ -1658,7 +1676,8 @@ const TimeTrackingPage: React.FC = () => {
           }
         }
       } catch (err) {
-        console.error('Failed to ensure related time entry entities:', err);
+        console.warn('Some related entities could not be fetched. Continuing with available data.');
+        // Don't block the UI - time entries will display with whatever data is available
       }
     };
 
@@ -1879,6 +1898,21 @@ const TimeTrackingPage: React.FC = () => {
       const displayUserName = assigneeUser?.name || user?.name || 'Unknown User';
       const displayUserRole = assigneeUser?.role || user?.role || 'DEVELOPER';
 
+      // Get reporter (creator) with fallback chain:
+      // 1. Task/Issue reporterId
+      // 2. Story reporterId
+      // 3. Time entry userId (person who logged the time)
+      const reporterId = 
+        (task?.reporterId ? normalizeId(task.reporterId) : undefined) ||
+        (issue?.reporterId ? normalizeId(issue.reporterId) : undefined) ||
+        (story?.reporterId ? normalizeId(story.reporterId) : undefined) ||
+        normalizedUserId;
+      const reporterUser = reporterId ? usersMap.get(reporterId) : undefined;
+      const reporterName = reporterUser?.name || undefined;
+
+      // Get due date from task or issue
+      const dueDate = task?.dueDate || issue?.dueDate || undefined;
+
       return {
         id: normalizedEntryId,
         task: task?.title || issue?.title || 'Unassigned Task',
@@ -1893,6 +1927,9 @@ const TimeTrackingPage: React.FC = () => {
         user: displayUserName,
         userId: assigneeId || normalizedUserId || '',
         userRole: displayUserRole,
+        reporterName: reporterName,
+        reporterId: reporterId,
+        dueDate: dueDate,
         duration: timeSpent,
         date: entry.workDate || entry.createdAt,
         status: entryStatus,
@@ -1917,12 +1954,31 @@ const TimeTrackingPage: React.FC = () => {
 
     // Group entries by taskId/issueId and aggregate hours
     const entryGroupMap = new Map<string, TimeEntry[]>();
+    const rawEntriesByTask = new Map<string, any[]>(); // Store raw entries for expansion
+    
     validEntries.forEach(entry => {
       const groupId = entry.taskId || entry.issueId!;
       if (!entryGroupMap.has(groupId)) {
         entryGroupMap.set(groupId, []);
+        rawEntriesByTask.set(groupId, []);
       }
       entryGroupMap.get(groupId)!.push(entry);
+    });
+
+    // Also store raw API entries for each task/issue for date-wise breakdown
+    entriesToMap.forEach(entry => {
+      const entrySubtaskId = normalizeId((entry as any).subtaskId);
+      let resolvedTaskId = normalizeId(entry.taskId);
+      if (entrySubtaskId && !resolvedTaskId) {
+        resolvedTaskId = subtaskToTaskMap.get(entrySubtaskId);
+      }
+      const entryTaskId = resolvedTaskId;
+      const entryIssueId = normalizeId((entry as any).issueId);
+      const groupId = entryTaskId || entryIssueId;
+      
+      if (groupId && rawEntriesByTask.has(groupId)) {
+        rawEntriesByTask.get(groupId)!.push(entry);
+      }
     });
 
     // Aggregate entries by task or issue
@@ -1949,6 +2005,8 @@ const TimeTrackingPage: React.FC = () => {
       return {
         ...baseEntry,
         id: `${groupId}-aggregated`,
+        taskId: baseEntry.taskId,
+        issueId: baseEntry.issueId,
         hoursWorked: totalHoursRounded,
         timeSpent: aggregatedTimeSpent,
         duration: aggregatedTimeSpent,
@@ -1957,6 +2015,9 @@ const TimeTrackingPage: React.FC = () => {
       };
     });
 
+    // Store raw entries in ref for expansion
+    rawTimeEntriesRef.current = rawEntriesByTask;
+    
     setTimeEntries(aggregatedEntries);
   }, [rawTimeEntries, usersMap, projectsMap, storiesMap, tasksMap, sprintsMap, projectToSprintMap, subtaskToTaskMap, currentUser?.id, currentUser?.role]);
 
@@ -2007,6 +2068,10 @@ const TimeTrackingPage: React.FC = () => {
       filtered = filtered.filter(entry => entry.userId === userFilter);
     }
 
+    if (reporterFilter !== 'all') {
+      filtered = filtered.filter(entry => entry.reporterId === reporterFilter);
+    }
+
     if (projectFilter !== 'all') {
       filtered = filtered.filter(entry => entry.projectId === projectFilter);
     }
@@ -2024,6 +2089,23 @@ const TimeTrackingPage: React.FC = () => {
       filtered = filtered.filter(entry => entry.billable);
     } else if (billableFilter === 'non-billable') {
       filtered = filtered.filter(entry => !entry.billable);
+    }
+
+    if (timeEntrySearch.trim()) {
+      const query = timeEntrySearch.trim().toLowerCase();
+      filtered = filtered.filter(entry => {
+        const taskTitle = entry.task || '';
+        const storyTitle = entry.story || '';
+        const taskId = entry.taskId || '';
+        const issueId = entry.issueId || '';
+
+        return (
+          taskTitle.toLowerCase().includes(query) ||
+          storyTitle.toLowerCase().includes(query) ||
+          taskId.toLowerCase().includes(query) ||
+          issueId.toLowerCase().includes(query)
+        );
+      });
     }
 
     const isWithinRange = (entry: TimeEntry, start: Date, end?: Date) => {
@@ -2074,7 +2156,7 @@ const TimeTrackingPage: React.FC = () => {
     }
 
     return filtered;
-  }, [timeEntries, userFilter, projectFilter, sprintFilter, workTypeFilter, billableFilter, timeFilter, customDateRange]);
+  }, [timeEntries, userFilter, reporterFilter, projectFilter, sprintFilter, workTypeFilter, billableFilter, timeFilter, customDateRange, timeEntrySearch]);
 
   // Calculate summary statistics - show all users' data for managers/admins/qa_developers, only current user for others
   // Calculate summary statistics - show all users' data for managers/admins, only current user for others
@@ -2238,28 +2320,106 @@ const TimeTrackingPage: React.FC = () => {
 
   const dailyTrendData = useMemo(() => {
     const map = new Map<string, number>();
-    filteredTimeEntries.forEach(entry => {
-      const parsedDate = new Date(entry.date);
+    
+    // If no filtered entries, return empty data
+    if (filteredTimeEntries.length === 0) {
+      return [];
+    }
+    
+    // Get task and issue IDs from filtered entries to match raw entries
+    const filteredTaskIds = new Set(filteredTimeEntries.map(e => e.taskId).filter(Boolean));
+    const filteredIssueIds = new Set(filteredTimeEntries.map(e => e.issueId).filter(Boolean));
+    
+    // Helper to check if raw entry is within date range
+    const isRawEntryInRange = (entry: ApiTimeEntry): boolean => {
+      const date = entry.workDate || entry.createdAt;
+      if (!date) return false;
+      
+      const parsedDate = new Date(date);
+      if (Number.isNaN(parsedDate.getTime())) return false;
+      
+      const now = new Date();
+      
+      if (timeFilter === 'this-week') {
+        const start = startOfDay(now);
+        start.setDate(now.getDate() - now.getDay());
+        return parsedDate.getTime() >= start.getTime() && parsedDate.getTime() <= endOfDay(now).getTime();
+      } else if (timeFilter === 'last-week') {
+        const startOfThisWeek = startOfDay(now);
+        startOfThisWeek.setDate(now.getDate() - now.getDay());
+        const start = new Date(startOfThisWeek);
+        start.setDate(start.getDate() - 7);
+        const end = new Date(startOfThisWeek.getTime() - 1);
+        return parsedDate.getTime() >= start.getTime() && parsedDate.getTime() <= end.getTime();
+      } else if (timeFilter === 'this-month') {
+        const start = startOfDay(new Date(now.getFullYear(), now.getMonth(), 1));
+        return parsedDate.getTime() >= start.getTime() && parsedDate.getTime() <= endOfDay(now).getTime();
+      } else if (timeFilter === 'last-month') {
+        const startOfThisMonth = startOfDay(new Date(now.getFullYear(), now.getMonth(), 1));
+        const start = new Date(startOfThisMonth);
+        start.setMonth(start.getMonth() - 1);
+        const end = new Date(startOfThisMonth.getTime() - 1);
+        return parsedDate.getTime() >= start.getTime() && parsedDate.getTime() <= end.getTime();
+      } else if (timeFilter === 'custom') {
+        if (customDateRange?.from && customDateRange?.to) {
+          return parsedDate.getTime() >= startOfDay(customDateRange.from).getTime() && 
+                 parsedDate.getTime() <= endOfDay(customDateRange.to).getTime();
+        }
+        return false;
+      }
+      // 'all-time' or default
+      return true;
+    };
+    
+    // Filter raw entries to match the filtered aggregated entries
+    const relevantRawEntries = rawTimeEntries.filter(entry => {
+      // Match by taskId or issueId from filtered entries
+      const taskId = normalizeId((entry as any).taskId);
+      const issueId = normalizeId((entry as any).issueId);
+      const userId = normalizeId(entry.userId);
+      
+      const matchesTask = taskId && filteredTaskIds.has(taskId);
+      const matchesIssue = issueId && filteredIssueIds.has(issueId);
+      
+      // If doesn't match task/issue, skip
+      if (!matchesTask && !matchesIssue) return false;
+      
+      // Apply user filter
+      if (userFilter !== 'all' && userId !== userFilter) return false;
+      
+      // Apply date range filter
+      if (!isRawEntryInRange(entry)) return false;
+      
+      return true;
+    });
+    
+    // Group by date and sum hours
+    relevantRawEntries.forEach(entry => {
+      const date = entry.workDate || entry.createdAt;
+      if (!date) return;
+      
+      const parsedDate = new Date(date);
       if (Number.isNaN(parsedDate.getTime())) {
         return;
       }
+      
       const key = parsedDate.toISOString().split('T')[0];
-      const minutes = parseTime(entry.timeSpent);
-      map.set(key, (map.get(key) || 0) + minutes);
+      const hours = entry.hoursWorked || 0;
+      map.set(key, (map.get(key) || 0) + hours);
     });
 
     return Array.from(map.entries())
       .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
-      .map(([dateKey, minutes]) => {
-        const label = new Date(dateKey).toLocaleDateString(undefined, { weekday: 'short' });
+      .map(([dateKey, hours]) => {
+        const label = format(new Date(dateKey), 'MMM dd');
         return {
           dateKey,
           label,
-          hours: Math.round((minutes / 60) * 10) / 10,
-          minutes,
+          hours: Math.round(hours * 10) / 10,
+          minutes: Math.round(hours * 60),
         };
       });
-  }, [filteredTimeEntries]);
+  }, [rawTimeEntries, filteredTimeEntries, userFilter, timeFilter, customDateRange]);
 
   const sprintBreakdownData = useMemo(() => {
     const map = new Map<
@@ -2422,7 +2582,7 @@ const TimeTrackingPage: React.FC = () => {
   useEffect(() => {
     // Reset to first page when filters or data change
     setCurrentPage(1);
-  }, [filteredTimeEntries.length, pageSize, userFilter, projectFilter, sprintFilter, workTypeFilter, billableFilter, timeFilter, customDateRange]);
+  }, [filteredTimeEntries.length, pageSize, userFilter, reporterFilter, projectFilter, sprintFilter, workTypeFilter, billableFilter, timeFilter, customDateRange]);
 
   useEffect(() => {
     // Clamp current page if total pages decreased
@@ -2956,13 +3116,123 @@ const TimeTrackingPage: React.FC = () => {
               </div>
 
               <div className="space-y-1 flex min-w-[140px] flex-1 flex-col">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Team Member</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Assignee</p>
                 <Select value={userFilter} onValueChange={setUserFilter}>
                   <SelectTrigger className="h-10 w-full">
-                    <SelectValue placeholder="All Members" />
+                    <SelectValue placeholder="All Assignees" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Members</SelectItem>
+                    <SelectItem value="all">All Assignees</SelectItem>
+                    {(() => {
+                      // Get all team members from projects where the user is listed
+                      const allProjectTeamMemberIds = new Set<string>();
+
+                      // Collect team members from all accessible projects
+                      projects.forEach(project => {
+                        const teamList: any[] =
+                          Array.isArray((project as any).teamMembers) ? (project as any).teamMembers :
+                            Array.isArray((project as any).members) ? (project as any).members :
+                              Array.isArray((project as any).team) ? (project as any).team :
+                                [];
+
+                        teamList.forEach(member => {
+                          const memberId = normalizeId(
+                            member?.userId ??
+                            member?.id ??
+                            member?.memberId ??
+                            member?.assigneeId ??
+                            member?.user?.id
+                          );
+                          if (memberId) {
+                            allProjectTeamMemberIds.add(memberId);
+                          }
+                        });
+                      });
+
+                      // If a specific project is selected, filter to only that project's team members
+                      let filteredUsers = users;
+                      if (projectFilter !== 'all') {
+                        const normalizedProjectFilter = normalizeId(projectFilter);
+
+                        // Get team members from the selected project (from API)
+                        const projectTeamMemberIds = new Set(
+                          projectTeamMembers
+                            .map(member => {
+                              const memberId = normalizeId(
+                                (member as any).userId ||
+                                (member as any).id ||
+                                (member as any).memberId ||
+                                (member as any).user?.id ||
+                                (member as any).user?.userId
+                              );
+                              return memberId;
+                            })
+                            .filter((id): id is string => Boolean(id))
+                        );
+
+                        // Fallback: If no team members from API, try to get from project data
+                        if (projectTeamMemberIds.size === 0) {
+                          const selectedProject = projects.find(p => normalizeId(p.id) === normalizedProjectFilter);
+                          if (selectedProject) {
+                            const projectTeamList: any[] =
+                              Array.isArray((selectedProject as any).teamMembers) ? (selectedProject as any).teamMembers :
+                                Array.isArray((selectedProject as any).members) ? (selectedProject as any).members :
+                                  Array.isArray((selectedProject as any).team) ? (selectedProject as any).team :
+                                    [];
+
+                            projectTeamList.forEach(member => {
+                              const memberId = normalizeId(
+                                member?.userId ??
+                                member?.id ??
+                                member?.memberId ??
+                                member?.assigneeId ??
+                                member?.user?.id ??
+                                member?.user?.userId
+                              );
+                              if (memberId) {
+                                projectTeamMemberIds.add(memberId);
+                              }
+                            });
+                          }
+                        }
+
+                        // Filter users to only show team members from the selected project
+                        filteredUsers = users.filter(user => {
+                          const userId = normalizeId(user.id);
+                          return userId ? projectTeamMemberIds.has(userId) : false;
+                        });
+                      } else {
+                        // No project selected, show all team members from projects where user is listed
+                        filteredUsers = users.filter(user => {
+                          const userId = normalizeId(user.id);
+                          return userId ? allProjectTeamMemberIds.has(userId) : false;
+                        });
+                      }
+
+                      return filteredUsers.map(user => {
+                        const userId = normalizeId(user.id);
+                        if (!userId) {
+                          return null;
+                        }
+                        return (
+                          <SelectItem key={userId} value={userId}>
+                            {user.name}
+                          </SelectItem>
+                        );
+                      });
+                    })()}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1 flex min-w-[140px] flex-1 flex-col">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Reporter</p>
+                <Select value={reporterFilter} onValueChange={setReporterFilter}>
+                  <SelectTrigger className="h-10 w-full">
+                    <SelectValue placeholder="All Reporters" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Reporters</SelectItem>
                     {(() => {
                       // Get all team members from projects where the user is listed
                       const allProjectTeamMemberIds = new Set<string>();
@@ -3225,21 +3495,34 @@ const TimeTrackingPage: React.FC = () => {
 
       <Card className="shadow-sm">
         <CardContent className="p-0">
-          <div className="border-b border-slate-200 px-6 py-4">
-            <h2 className="text-lg font-semibold text-foreground">Time Entries</h2>
-            <p className="text-sm text-muted-foreground">
-              Showing {paginated.total === 0 ? 0 : paginated.start + 1}–{paginated.end} of {filteredTimeEntries.length} entries
-            </p>
+          <div className="border-b border-slate-200 px-6 py-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Time Entries</h2>
+              <p className="text-sm text-muted-foreground">
+                Showing {paginated.total === 0 ? 0 : paginated.start + 1}–{paginated.end} of {filteredTimeEntries.length} entries
+              </p>
+            </div>
+            <div className="relative md:ml-auto">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-4 text-green-500" />
+              <Input
+                placeholder="Search by task/issue name or ID..."
+                value={timeEntrySearch}
+                onChange={e => setTimeEntrySearch(e.target.value)}
+                className="w-auto pl-9 h-9 text-sm bg-white border-2 border-green-500 focus-visible:border-green-600 focus-visible:ring-0 focus-visible:ring-offset-0 outline-none"
+              />
+            </div>
           </div>
           {paginated.rows.length > 0 ? (
             <Table className="[&_th]:text-xs [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-muted-foreground [&_td]:text-sm">
               <TableHeader>
                 <TableRow>
-                  <TableHead>User</TableHead>
+                  <TableHead className="w-8"></TableHead>
+                  <TableHead>Assignee</TableHead>
+                  <TableHead>Reporter</TableHead>
                   <TableHead>Task / Issues Title</TableHead>
                   <TableHead>Project</TableHead>
                   <TableHead>Sprint</TableHead>
-                  <TableHead>Date</TableHead>
+                  <TableHead>Due Date</TableHead>
                   <TableHead>Estimated Hours</TableHead>
                   <TableHead>Actual Hours</TableHead>
                   <TableHead>Work Type</TableHead>
@@ -3250,6 +3533,40 @@ const TimeTrackingPage: React.FC = () => {
               </TableHeader>
               <TableBody>
                 {paginated.rows.map(entry => {
+                  const isExpanded = expandedRows.has(entry.id);
+                  const taskOrIssueId = entry.taskId || entry.issueId;
+                  const rawEntries = taskOrIssueId ? rawTimeEntriesRef.current.get(taskOrIssueId) || [] : [];
+                  
+                  // Get date-wise logs
+                  const dateMap = new Map<string, { date: string; hours: number; description: string; userName: string }>();
+                  rawEntries.forEach(raw => {
+                    const date = raw.workDate || raw.createdAt;
+                    const hours = raw.hoursWorked || 0;
+                    const desc = raw.description || '';
+                    const userId = normalizeId(raw.userId);
+                    const user = userId ? usersMap.get(userId) : undefined;
+                    const userName = user?.name || 'Unknown';
+                    
+                    if (date) {
+                      const dateKey = format(new Date(date), 'yyyy-MM-dd');
+                      if (dateMap.has(dateKey)) {
+                        const existing = dateMap.get(dateKey)!;
+                        existing.hours += hours;
+                        if (desc && !existing.description.includes(desc)) {
+                          existing.description += existing.description ? `; ${desc}` : desc;
+                        }
+                      } else {
+                        dateMap.set(dateKey, { date: dateKey, hours, description: desc, userName });
+                      }
+                    }
+                  });
+                  
+                  const dateWiseLogs = Array.from(dateMap.values())
+                    .sort((a, b) => b.date.localeCompare(a.date));
+                  
+                  // Get due date from entry (already populated during processing)
+                  const dueDateDisplay = entry.dueDate ? format(new Date(entry.dueDate), 'MMM dd, yyyy') : '—';
+                  
                   const sprintName = entry.sprintName
                     || (entry.sprintId ? sprintsMap.get(entry.sprintId)?.name : undefined)
                     || '—';
@@ -3264,10 +3581,8 @@ const TimeTrackingPage: React.FC = () => {
                       : entry.estimation
                         ? Math.round((parseTime(entry.estimation) / 60) * 10) / 10
                         : undefined;
-                  const actualHoursTotal =
-                    (entry as any).actualHoursNum !== undefined
-                      ? (entry as any).actualHoursNum
-                      : undefined;
+                  // Use the aggregated hours from time entries (entry.hoursWorked) to match date-wise breakdown
+                  const actualHoursTotal = entryHours;
                   // Get the actual task status style for display
                   const taskStatusStyle = getTaskStatusStyle(entry.taskStatus);
                   const billableBadgeClass = entry.billable
@@ -3275,20 +3590,48 @@ const TimeTrackingPage: React.FC = () => {
                     : 'bg-slate-100 text-slate-600 border-slate-200';
 
                   return (
-                    <TableRow key={entry.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-8 w-8">
-                            <AvatarFallback className="bg-indigo-100 text-indigo-700 text-xs font-semibold">
-                              {getInitials(entry.user)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="text-sm font-medium text-foreground">{entry.user}</p>
-                            <p className="text-xs text-muted-foreground">{formatDisplayName(entry.userRole)}</p>
+                    <React.Fragment key={entry.id}>
+                      <TableRow className="cursor-pointer hover:bg-slate-50">
+                        <TableCell className="w-8">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={() => {
+                              setExpandedRows(prev => {
+                                const newSet = new Set(prev);
+                                if (newSet.has(entry.id)) {
+                                  newSet.delete(entry.id);
+                                } else {
+                                  newSet.add(entry.id);
+                                }
+                                return newSet;
+                              });
+                            }}
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Avatar className="h-8 w-8">
+                              <AvatarFallback className="bg-indigo-100 text-indigo-700 text-xs font-semibold">
+                                {getInitials(entry.user)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="text-sm font-medium text-foreground">{entry.user}</p>
+                              <p className="text-xs text-muted-foreground">{formatDisplayName(entry.userRole)}</p>
+                            </div>
                           </div>
-                        </div>
-                      </TableCell>
+                        </TableCell>
+                        <TableCell>
+                          <p className="text-sm font-medium text-foreground">{entry.reporterName || '—'}</p>
+                        </TableCell>
                       <TableCell className="max-w-[220px]">
                         <div className="flex items-center gap-1.5">
                           {entry.taskId ? (
@@ -3308,7 +3651,7 @@ const TimeTrackingPage: React.FC = () => {
                       </TableCell>
                       <TableCell className="max-w-[160px] truncate">{entry.project}</TableCell>
                       <TableCell>{sprintName}</TableCell>
-                      <TableCell>{formatEntryDateDisplay(entry.date)}</TableCell>
+                      <TableCell>{dueDateDisplay}</TableCell>
                       <TableCell>{estimatedHours !== undefined ? estimatedHours.toFixed(1) : '—'}</TableCell>
                       <TableCell>
                         <span
@@ -3338,18 +3681,67 @@ const TimeTrackingPage: React.FC = () => {
                           {entry.billable ? 'Billable' : 'Non-billable'}
                         </Badge>
                       </TableCell>
-                      <TableCell className="max-w-[220px]">
-                        {entry.notes ? (
-                          <p
-                            className="truncate"
-                            title={entry.notes}
-                            style={{ maxWidth: '220px' }}
-                          >
-                            {entry.notes.length > 50 ? `${entry.notes.substring(0, 50)}...` : entry.notes}
-                          </p>
-                        ) : '—'}
-                      </TableCell>
-                    </TableRow>
+                        <TableCell className="max-w-[220px]">
+                          {entry.notes ? (
+                            <p
+                              className="truncate"
+                              title={entry.notes}
+                              style={{ maxWidth: '220px' }}
+                            >
+                              {entry.notes.length > 50 ? `${entry.notes.substring(0, 50)}...` : entry.notes}
+                            </p>
+                          ) : '—'}
+                        </TableCell>
+                      </TableRow>
+
+                      {/* Expanded Date-wise Logs */}
+                      {isExpanded && dateWiseLogs.length > 0 && (
+                        <TableRow className="bg-slate-50/50">
+                          <TableCell className="pb-0"></TableCell>
+                          <TableCell colSpan={12} className="pb-0">
+                            <div className="py-2">
+                              <Table className="border border-slate-200 rounded-md overflow-hidden">
+                                <TableHeader>
+                                  <TableRow className="bg-slate-100">
+                                    <TableHead className="text-xs font-semibold">Date</TableHead>
+                                    <TableHead className="text-xs font-semibold">Logged By</TableHead>
+                                    <TableHead className="text-xs font-semibold">Hours</TableHead>
+                                    <TableHead className="text-xs font-semibold">Description</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {dateWiseLogs.map((log, idx) => (
+                                    <TableRow key={idx} className="bg-white border-b border-slate-100 last:border-0">
+                                      <TableCell className="text-sm font-medium text-slate-900">
+                                        {format(new Date(log.date), 'MMM dd, yyyy')}
+                                      </TableCell>
+                                      <TableCell className="text-sm text-slate-700">
+                                        {log.userName}
+                                      </TableCell>
+                                      <TableCell className="text-sm font-semibold text-indigo-600">
+                                        {log.hours.toFixed(1)} hrs
+                                      </TableCell>
+                                      <TableCell className="text-sm text-slate-600">
+                                        {log.description || '—'}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                  <TableRow className="bg-slate-50 font-semibold">
+                                    <TableCell colSpan={2} className="text-xs text-slate-700">
+                                      Total ({dateWiseLogs.length} {dateWiseLogs.length === 1 ? 'day' : 'days'})
+                                    </TableCell>
+                                    <TableCell className="text-sm font-bold text-indigo-700">
+                                      {dateWiseLogs.reduce((sum, log) => sum + log.hours, 0).toFixed(1)} hrs
+                                    </TableCell>
+                                    <TableCell></TableCell>
+                                  </TableRow>
+                                </TableBody>
+                              </Table>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </TableBody>

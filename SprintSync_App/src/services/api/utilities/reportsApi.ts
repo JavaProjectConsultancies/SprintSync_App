@@ -139,6 +139,25 @@ export class ReportsApiService {
   async getScheduledReports(): Promise<ApiResponse<any[]>> {
     return apiClient.get<any[]>(`${API_ENDPOINTS.REPORTS}/scheduled`);
   }
+
+  // Get bug report data
+  async getBugReport(projectId?: string): Promise<ApiResponse<any[]>> {
+    if (projectId) {
+      return apiClient.get<any[]>(`${API_ENDPOINTS.REPORTS}/bug-report/project/${projectId}`);
+    }
+    return apiClient.get<any[]>(`${API_ENDPOINTS.REPORTS}/bug-report`);
+  }
+
+  // Export bug report to Excel
+  async exportBugReportToExcel(projectId?: string): Promise<Blob> {
+    const params = projectId ? { projectId } : undefined;
+    // IMPORTANT: Use /export/bug-report/excel (NOT /bug-report/export/excel)
+    const endpoint = `${API_ENDPOINTS.REPORTS}/export/bug-report/excel`;
+    console.log('🔵 EXPORT DEBUG - Full endpoint path:', endpoint);
+    console.log('🔵 EXPORT DEBUG - API_ENDPOINTS.REPORTS:', API_ENDPOINTS.REPORTS);
+    console.log('🔵 EXPORT DEBUG - Params:', params);
+    return apiClient.download(endpoint, params);
+  }
 }
 
 // Export singleton instance

@@ -126,6 +126,9 @@ public class UserService {
         if (user.getExperience() != null) {
             existingUser.setExperience(user.getExperience());
         }
+        if (user.getExperienceYears() != null) {
+            existingUser.setExperienceYears(user.getExperienceYears());
+        }
         if (user.getHourlyRate() != null) {
             existingUser.setHourlyRate(user.getHourlyRate());
         }

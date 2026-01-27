@@ -59,6 +59,7 @@ interface FormData {
   domainId: string;
   avatarUrl: string;
   experience: string;
+  experienceYears: string;
   hourlyRate: string;
   ctc: string;
   availabilityPercentage: string;
@@ -80,6 +81,7 @@ interface FormErrors {
   domainId?: string;
   avatarUrl?: string;
   experience?: string;
+  experienceYears?: string;
   hourlyRate?: string;
   ctc?: string;
   availabilityPercentage?: string;
@@ -101,6 +103,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
     domainId: 'none',
     avatarUrl: '',
     experience: 'E1',
+    experienceYears: '',
     hourlyRate: '',
     ctc: '',
     availabilityPercentage: '100',
@@ -157,6 +160,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
         domainId: user.domainId || 'none',
         avatarUrl: user.avatarUrl || '',
         experience: normalizeExperienceValue(user.experience) || 'E1',
+        experienceYears: (user as any).experienceYears != null ? String((user as any).experienceYears) : '',
         hourlyRate: (user.hourlyRate != null && user.hourlyRate !== undefined) ? String(user.hourlyRate) : '',
         ctc: (user.ctc != null && user.ctc !== undefined) ? String(user.ctc) : '',
         availabilityPercentage: (user.availabilityPercentage != null && user.availabilityPercentage !== undefined) ? String(user.availabilityPercentage) : '100',
@@ -182,6 +186,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
         domainId: 'none',
         avatarUrl: '',
         experience: 'E1',
+        experienceYears: '',
         hourlyRate: '',
         ctc: '',
         availabilityPercentage: '100',
@@ -283,6 +288,8 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
     ctc: (value: string) => value === '' || (isString(value) && !isNaN(Number(value)) && Number(value) >= 0),
     availabilityPercentage: (value: string) => isString(value) && !isNaN(Number(value)) && isPercentage(Number(value)),
     experience: (value: string) => isString(value) && ['E1', 'E2', 'M1', 'M2', 'M3', 'L1', 'L2', 'L3', 'S1'].includes(value.toUpperCase()),
+    experienceYears: (value: string) =>
+      value === '' || (isString(value) && !isNaN(Number(value)) && Number(value) >= 0 && Number(value) <= 60),
     skills: (value: string) => isString(value),
     reportingManager: (value: string) => value === '' || (isString(value) && value.trim().length >= 2 && value.trim().length <= 100),
     designation: (value: string) => value === '' || (isString(value) && value.trim().length <= 100),
@@ -313,6 +320,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
     experience: data.experience
       ? normalizeExperienceValue(data.experience) || 'E1'
       : undefined,
+    experienceYears: data.experienceYears ? Number(data.experienceYears) : undefined,
     skills: data.skills.trim() ? JSON.stringify(data.skills.split(',').map(s => s.trim())) : undefined
   });
 
@@ -346,6 +354,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
         ctc: { type: 'number', valid: validationSchema.ctc(data.ctc), value: data.ctc },
         availabilityPercentage: { type: 'percentage', valid: validationSchema.availabilityPercentage(data.availabilityPercentage), value: data.availabilityPercentage },
         experience: { type: 'enum', valid: validationSchema.experience(data.experience), value: data.experience },
+        experienceYears: { type: 'number', valid: validationSchema.experienceYears(data.experienceYears), value: data.experienceYears },
         skills: { type: 'string', valid: validationSchema.skills(data.skills), value: data.skills }
       },
       reportingAndJoining: {
@@ -396,6 +405,9 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
             break;
           case 'experience':
             newErrors.experience = 'Please select a valid experience level';
+            break;
+          case 'experienceYears':
+            newErrors.experienceYears = 'Experience years must be between 0 and 60';
             break;
           case 'avatarUrl':
             newErrors.avatarUrl = 'Please enter a valid URL starting with http:// or https://';
@@ -546,6 +558,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
           hourlyRate: userData.hourlyRate,
           ctc: userData.ctc,
           availabilityPercentage: userData.availabilityPercentage,
+          experienceYears: (userData as any).experienceYears,
           skills: userData.skills,
           avatarUrl: userData.avatarUrl,
           designation: userData.designation,
@@ -648,6 +661,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
       domainId: 'none',
       avatarUrl: '',
       experience: 'E1',
+      experienceYears: '',
       hourlyRate: '',
       ctc: '',
       availabilityPercentage: '100',
@@ -1118,6 +1132,31 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                     <p className="text-sm text-red-600 flex items-center gap-1">
                       <AlertCircle className="w-4 h-4" />
                       {errors.availabilityPercentage}
+                    </p>
+                  )}
+                </div>
+
+                {/* Experience Years */}
+                <div className="edit-user-form-field space-y-2">
+                  <Label htmlFor="editExperienceYears" className="text-sm font-semibold text-gray-700">
+                    Experience Years
+                  </Label>
+                  <Input
+                    id="editExperienceYears"
+                    type="number"
+                    min="0"
+                    max="60"
+                    step="0.5"
+                    value={formData.experienceYears || ''}
+                    onChange={(e) => handleInputChange('experienceYears', e.target.value)}
+                    className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.experienceYears ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                      }`}
+                    placeholder="e.g. 5"
+                  />
+                  {errors.experienceYears && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.experienceYears}
                     </p>
                   )}
                 </div>

@@ -129,4 +129,128 @@ public interface IssueRepository extends JpaRepository<Issue, String> {
      */
     @Query("SELECT COALESCE(SUM(t.hoursWorked), 0) FROM TimeEntry t WHERE t.issueId = :issueId")
     java.math.BigDecimal sumHoursWorkedByIssueId(@Param("issueId") String issueId);
+
+    /**
+     * Fetch bug report data with joined information from related tables.
+     * This query retrieves issues along with their story, sprint, project, and user information.
+     */
+    @Query(value = """
+        SELECT 
+            i.id as defectCode,
+            i.title as defectName,
+            COALESCE(
+                CASE 
+                    WHEN i.labels::text LIKE '%bug%' OR i.labels::text LIKE '%defect%' THEN 'Bug'
+                    ELSE 'Issue'
+                END, 
+                'Issue'
+            ) as type,
+            i.story_id as parentCode,
+            s.id as storyCode,
+            s.title as storyName,
+            NULL as linkedToTask,
+            COALESCE(u_assignee.name, 'Unassigned') as assignedTo,
+            i.assignee_id as assignedToId,
+            i.status as workflowLane,
+            i.priority as priority,
+            CASE 
+                WHEN i.priority = 'critical' THEN 'Critical'
+                WHEN i.priority = 'high' THEN 'Major'
+                WHEN i.priority = 'medium' THEN 'Moderate'
+                WHEN i.priority = 'low' THEN 'Minor'
+                ELSE 'Minor'
+            END as severity,
+            COALESCE(
+                CASE 
+                    WHEN i.labels::text LIKE '%ui%' OR i.labels::text LIKE '%frontend%' THEN 'UI'
+                    WHEN i.labels::text LIKE '%backend%' OR i.labels::text LIKE '%api%' THEN 'Backend'
+                    WHEN i.labels::text LIKE '%database%' OR i.labels::text LIKE '%db%' THEN 'Database'
+                    ELSE 'General'
+                END,
+                'General'
+            ) as defectCategory,
+            CASE 
+                WHEN i.status = 'done' OR i.status = 'closed' THEN 'Resolved'
+                WHEN i.status = 'in_progress' OR i.status = 'in_review' THEN 'In Progress'
+                WHEN i.status = 'to_do' OR i.status = 'backlog' THEN 'Open'
+                ELSE 'Open'
+            END as resolution,
+            COALESCE(u_reporter.name, 'Unknown') as reportedBy,
+            i.reporter_id as reportedById,
+            TO_CHAR(i.created_at, 'YYYY-MM-DD') as createdDate,
+            COALESCE(r.version, 'Not Assigned') as release,
+            COALESCE(spr.name, 'Backlog') as sprint,
+            COALESCE(p.name, 'Unknown') as board
+        FROM issues i
+        LEFT JOIN stories s ON i.story_id = s.id
+        LEFT JOIN sprints spr ON s.sprint_id = spr.id
+        LEFT JOIN projects p ON s.project_id = p.id
+        LEFT JOIN releases r ON s.release_id = r.id
+        LEFT JOIN users u_assignee ON i.assignee_id = u_assignee.id
+        LEFT JOIN users u_reporter ON i.reporter_id = u_reporter.id
+        ORDER BY i.created_at DESC
+        """, nativeQuery = true)
+    List<Object[]> findBugReportData();
+
+    /**
+     * Fetch bug report data filtered by project ID.
+     */
+    @Query(value = """
+        SELECT 
+            i.id as defectCode,
+            i.title as defectName,
+            COALESCE(
+                CASE 
+                    WHEN i.labels::text LIKE '%bug%' OR i.labels::text LIKE '%defect%' THEN 'Bug'
+                    ELSE 'Issue'
+                END, 
+                'Issue'
+            ) as type,
+            i.story_id as parentCode,
+            s.id as storyCode,
+            s.title as storyName,
+            NULL as linkedToTask,
+            COALESCE(u_assignee.name, 'Unassigned') as assignedTo,
+            i.assignee_id as assignedToId,
+            i.status as workflowLane,
+            i.priority as priority,
+            CASE 
+                WHEN i.priority = 'critical' THEN 'Critical'
+                WHEN i.priority = 'high' THEN 'Major'
+                WHEN i.priority = 'medium' THEN 'Moderate'
+                WHEN i.priority = 'low' THEN 'Minor'
+                ELSE 'Minor'
+            END as severity,
+            COALESCE(
+                CASE 
+                    WHEN i.labels::text LIKE '%ui%' OR i.labels::text LIKE '%frontend%' THEN 'UI'
+                    WHEN i.labels::text LIKE '%backend%' OR i.labels::text LIKE '%api%' THEN 'Backend'
+                    WHEN i.labels::text LIKE '%database%' OR i.labels::text LIKE '%db%' THEN 'Database'
+                    ELSE 'General'
+                END,
+                'General'
+            ) as defectCategory,
+            CASE 
+                WHEN i.status = 'done' OR i.status = 'closed' THEN 'Resolved'
+                WHEN i.status = 'in_progress' OR i.status = 'in_review' THEN 'In Progress'
+                WHEN i.status = 'to_do' OR i.status = 'backlog' THEN 'Open'
+                ELSE 'Open'
+            END as resolution,
+            COALESCE(u_reporter.name, 'Unknown') as reportedBy,
+            i.reporter_id as reportedById,
+            TO_CHAR(i.created_at, 'YYYY-MM-DD') as createdDate,
+            COALESCE(r.version, 'Not Assigned') as release,
+            COALESCE(spr.name, 'Backlog') as sprint,
+            COALESCE(p.name, 'Unknown') as board
+        FROM issues i
+        INNER JOIN stories s ON i.story_id = s.id
+        INNER JOIN projects p ON s.project_id = p.id
+        LEFT JOIN sprints spr ON s.sprint_id = spr.id
+        LEFT JOIN releases r ON s.release_id = r.id
+        LEFT JOIN users u_assignee ON i.assignee_id = u_assignee.id
+        LEFT JOIN users u_reporter ON i.reporter_id = u_reporter.id
+        WHERE p.id = :projectId
+        ORDER BY i.created_at DESC
+        """, nativeQuery = true)
+    List<Object[]> findBugReportDataByProject(@Param("projectId") String projectId);
 }

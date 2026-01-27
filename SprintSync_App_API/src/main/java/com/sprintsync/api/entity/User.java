@@ -60,6 +60,9 @@ public class User extends BaseEntity {
     @Column(name = "experience")
     private ExperienceLevel experience;
 
+    @Column(name = "experience_years")
+    private Integer experienceYears;
+
     @Column(name = "hourly_rate", precision = 10, scale = 2)
     private BigDecimal hourlyRate;
 
@@ -168,6 +171,14 @@ public class User extends BaseEntity {
 
     public void setExperience(ExperienceLevel experience) {
         this.experience = experience;
+    }
+
+    public Integer getExperienceYears() {
+        return experienceYears;
+    }
+
+    public void setExperienceYears(Integer experienceYears) {
+        this.experienceYears = experienceYears;
     }
 
     public BigDecimal getHourlyRate() {

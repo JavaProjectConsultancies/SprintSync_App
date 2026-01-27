@@ -33,16 +33,18 @@ export const EXPERIENCE_LEVEL_ORDER: ExperienceLevelCode[] = [
   'S1',
 ];
 
+// Labels used in dropdowns / columns. We now show only the level codes (E1, E2, ...)
+// without attaching year ranges, as requested.
 export const EXPERIENCE_LEVEL_LABELS: Record<ExperienceLevelCode, string> = {
-  E1: 'E1 - 0-1 yr',
-  E2: 'E2 - 1-3 yrs',
-  M1: 'M1 - 3-7 yrs',
-  M2: 'M2 - 5-8 yrs',
-  M3: 'M3 - 7-10 yrs',
-  L1: 'L1 - 10-15 yrs',
-  L2: 'L2 - 12-18 yrs',
-  L3: 'L3 - 15+ yrs',
-  S1: 'S1 - 20+ yrs',
+  E1: 'E1',
+  E2: 'E2',
+  M1: 'M1',
+  M2: 'M2',
+  M3: 'M3',
+  L1: 'L1',
+  L2: 'L2',
+  L3: 'L3',
+  S1: 'S1',
 };
 
 const LEGACY_EXPERIENCE_MAP: Record<string, ExperienceLevelCode> = {

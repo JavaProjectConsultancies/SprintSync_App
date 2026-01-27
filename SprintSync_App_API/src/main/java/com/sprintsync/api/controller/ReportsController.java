@@ -3,10 +3,13 @@ package com.sprintsync.api.controller;
 import com.sprintsync.api.service.ReportsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.time.LocalDate;
 import java.util.Map;
 
@@ -491,6 +494,67 @@ public class ReportsController {
             Map<String, Object> templates = reportsService.getReportTemplates();
             return ResponseEntity.ok(templates);
         } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Export bug report to Excel
+     * @param projectId Optional project ID to filter by. If not provided, exports all bug reports
+     * @return Excel file as byte array
+     */
+    @GetMapping(value = "/export/bug-report/excel", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    public ResponseEntity<byte[]> exportBugReportToExcel(
+            @RequestParam(required = false) String projectId) {
+        try {
+            byte[] excelData = reportsService.exportBugReportToExcel(projectId);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            String filename = projectId != null && !projectId.isEmpty() 
+                ? String.format("bug-report-project-%s.xlsx", projectId)
+                : "bug-report.xlsx";
+            headers.setContentDispositionFormData("attachment", filename);
+            headers.setContentLength(excelData.length);
+            
+            return ResponseEntity.ok()
+                .headers(headers)
+                .body(excelData);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Generate bug report
+     * Fetches bug/defect data from issues table with joined data from related tables
+     */
+    @GetMapping("/bug-report")
+    public ResponseEntity<java.util.List<com.sprintsync.api.dto.BugReportDto>> generateBugReport() {
+        try {
+            java.util.List<com.sprintsync.api.dto.BugReportDto> bugReport = reportsService.generateBugReport();
+            return ResponseEntity.ok(bugReport);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Generate bug report filtered by project
+     */
+    @GetMapping("/bug-report/project/{projectId}")
+    public ResponseEntity<java.util.List<com.sprintsync.api.dto.BugReportDto>> generateBugReportByProject(
+            @PathVariable String projectId) {
+        try {
+            java.util.List<com.sprintsync.api.dto.BugReportDto> bugReport = reportsService.generateBugReport(projectId);
+            return ResponseEntity.ok(bugReport);
+        } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }

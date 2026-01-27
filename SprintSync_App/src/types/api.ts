@@ -17,6 +17,7 @@ export interface User extends BaseEntity {
   domainId?: string;
   avatarUrl?: string;
   experience?: string;
+  experienceYears?: number;
   hourlyRate?: number;
   ctc?: number;
   availabilityPercentage?: number;

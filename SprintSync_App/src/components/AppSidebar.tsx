@@ -181,6 +181,7 @@ const AppSidebar: React.FC = () => {
       permission: 'view_analytics',
       children: [
         { title: 'Team Allocation', icon: Users, permission: 'view_team', id: 'team-allocation' },
+        { title: 'Reports', icon: BarChart3, permission: 'view_analytics', id: 'reports' },
       ]
     },
     // {
@@ -236,6 +237,7 @@ const AppSidebar: React.FC = () => {
           icon: Brain,
           children: [
             { title: 'Team Allocation', icon: Users, id: 'team-allocation' },
+            { title: 'Reports', icon: BarChart3, id: 'reports' },
           ]
         },
         {
@@ -274,6 +276,7 @@ const AppSidebar: React.FC = () => {
           icon: Brain,
           children: [
             { title: 'Team Allocation', icon: Users, id: 'team-allocation' },
+            { title: 'Reports', icon: BarChart3, id: 'reports' },
           ]
         },
         // {
@@ -304,7 +307,7 @@ const AppSidebar: React.FC = () => {
       // Manager has access to all sidebar widgets
       return allMenuItems;
     } else {
-      // Developer has limited access (excluding admin panel, projects, and team allocation)
+      // Developer/QA Developer have limited access (excluding admin panel, projects, team allocation, and reports)
       return allMenuItems
         .filter(item => item.title !== 'ADMINISTRATION')
         .map(item => {
@@ -315,11 +318,11 @@ const AppSidebar: React.FC = () => {
               children: item.children.filter(child => child.title !== 'Projects')
             };
           }
-          // Remove Team Allocation from AI & ANALYTICS section for developers
+          // Remove Team Allocation and Reports from AI & ANALYTICS section for developers
           if (item.title === 'AI & ANALYTICS' && item.children) {
             return {
               ...item,
-              children: item.children.filter(child => child.title !== 'Team Allocation')
+              children: item.children.filter(child => child.title !== 'Team Allocation' && child.title !== 'Reports')
             };
           }
           return item;

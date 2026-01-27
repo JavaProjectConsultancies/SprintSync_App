@@ -342,6 +342,16 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({ isOpen, onClose, us
 
               <div className="user-details-field space-y-2">
                 <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm font-medium">Experience Years</span>
+                </div>
+                <p className="font-medium">
+                  {(user as any).experienceYears != null ? (user as any).experienceYears : 'Not Set'}
+                </p>
+              </div>
+
+              <div className="user-details-field space-y-2">
+                <div className="flex items-center gap-2">
                   <IndianRupee className="w-4 h-4 text-gray-500" />
                   <span className="text-sm font-medium">Hourly Rate</span>
                 </div>

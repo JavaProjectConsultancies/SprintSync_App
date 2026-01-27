@@ -2,10 +2,14 @@ package com.sprintsync.api.service;
 
 import com.sprintsync.api.entity.*;
 import com.sprintsync.api.repository.*;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -41,6 +45,9 @@ public class ReportsService {
 
     @Autowired
     private TimeEntryRepository timeEntryRepository;
+
+    @Autowired
+    private IssueRepository issueRepository;
 
 
     /**
@@ -605,6 +612,161 @@ public class ReportsService {
 
     public Map<String, Object> getReportTemplates() {
         return new HashMap<>();
+    }
+
+    /**
+     * Generate bug report with data from issues and activity logs
+     * @return List of bug report DTOs
+     */
+    public List<com.sprintsync.api.dto.BugReportDto> generateBugReport() {
+        List<Object[]> results = issueRepository.findBugReportData();
+        return mapToBugReportDtos(results);
+    }
+
+    /**
+     * Generate bug report filtered by project ID
+     * @param projectId the project ID to filter by
+     * @return List of bug report DTOs
+     */
+    public List<com.sprintsync.api.dto.BugReportDto> generateBugReport(String projectId) {
+        List<Object[]> results = issueRepository.findBugReportDataByProject(projectId);
+        return mapToBugReportDtos(results);
+    }
+
+    /**
+     * Helper method to map Object[] results to BugReportDto
+     */
+    private List<com.sprintsync.api.dto.BugReportDto> mapToBugReportDtos(List<Object[]> results) {
+        return results.stream()
+            .map(row -> com.sprintsync.api.dto.BugReportDto.builder()
+                .defectCode((String) row[0])
+                .defectName((String) row[1])
+                .type((String) row[2])
+                .parentCode((String) row[3])
+                .storyCode((String) row[4])
+                .storyName((String) row[5])
+                .linkedToTask((String) row[6])
+                .assignedTo((String) row[7])
+                .assignedToId((String) row[8])
+                .workflowLane((String) row[9])
+                .priority((String) row[10])
+                .severity((String) row[11])
+                .defectCategory((String) row[12])
+                .resolution((String) row[13])
+                .reportedBy((String) row[14])
+                .reportedById((String) row[15])
+                .createdDate((String) row[16])
+                .release((String) row[17])
+                .sprint((String) row[18])
+                .board((String) row[19])
+                .build())
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Export bug report to Excel format
+     * @param projectId Optional project ID to filter by. If null, exports all bug reports
+     * @return Byte array containing the Excel file
+     */
+    public byte[] exportBugReportToExcel(String projectId) throws IOException {
+        List<com.sprintsync.api.dto.BugReportDto> bugReports;
+        if (projectId != null && !projectId.isEmpty()) {
+            bugReports = generateBugReport(projectId);
+        } else {
+            bugReports = generateBugReport();
+        }
+
+        try (Workbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("Bug Report");
+            
+            // Create header style
+            CellStyle headerStyle = workbook.createCellStyle();
+            Font headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            headerFont.setFontHeightInPoints((short) 12);
+            headerStyle.setFont(headerFont);
+            headerStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            headerStyle.setBorderBottom(BorderStyle.THIN);
+            headerStyle.setBorderTop(BorderStyle.THIN);
+            headerStyle.setBorderLeft(BorderStyle.THIN);
+            headerStyle.setBorderRight(BorderStyle.THIN);
+            headerStyle.setAlignment(HorizontalAlignment.CENTER);
+            
+            // Create data style
+            CellStyle dataStyle = workbook.createCellStyle();
+            dataStyle.setBorderBottom(BorderStyle.THIN);
+            dataStyle.setBorderTop(BorderStyle.THIN);
+            dataStyle.setBorderLeft(BorderStyle.THIN);
+            dataStyle.setBorderRight(BorderStyle.THIN);
+            dataStyle.setWrapText(true);
+            
+            // Create header row
+            Row headerRow = sheet.createRow(0);
+            String[] headers = {
+                "Defect Code", "Defect Name", "Type", "Parent Code", "Story Code", "Story Name",
+                "Linked To Task", "Assigned To", "Assigned To ID", "Workflow Lane", "Priority",
+                "Severity", "Defect Category", "Resolution", "Reported By", "Reported By ID",
+                "Created Date", "Release", "Sprint", "Board"
+            };
+            
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+            }
+            
+            // Create data rows
+            int rowNum = 1;
+            for (com.sprintsync.api.dto.BugReportDto bugReport : bugReports) {
+                Row row = sheet.createRow(rowNum++);
+                
+                int cellNum = 0;
+                createCell(row, cellNum++, bugReport.getDefectCode(), dataStyle);
+                createCell(row, cellNum++, bugReport.getDefectName(), dataStyle);
+                createCell(row, cellNum++, bugReport.getType(), dataStyle);
+                createCell(row, cellNum++, bugReport.getParentCode(), dataStyle);
+                createCell(row, cellNum++, bugReport.getStoryCode(), dataStyle);
+                createCell(row, cellNum++, bugReport.getStoryName(), dataStyle);
+                createCell(row, cellNum++, bugReport.getLinkedToTask(), dataStyle);
+                createCell(row, cellNum++, bugReport.getAssignedTo(), dataStyle);
+                createCell(row, cellNum++, bugReport.getAssignedToId(), dataStyle);
+                createCell(row, cellNum++, bugReport.getWorkflowLane(), dataStyle);
+                createCell(row, cellNum++, bugReport.getPriority(), dataStyle);
+                createCell(row, cellNum++, bugReport.getSeverity(), dataStyle);
+                createCell(row, cellNum++, bugReport.getDefectCategory(), dataStyle);
+                createCell(row, cellNum++, bugReport.getResolution(), dataStyle);
+                createCell(row, cellNum++, bugReport.getReportedBy(), dataStyle);
+                createCell(row, cellNum++, bugReport.getReportedById(), dataStyle);
+                createCell(row, cellNum++, bugReport.getCreatedDate(), dataStyle);
+                createCell(row, cellNum++, bugReport.getRelease(), dataStyle);
+                createCell(row, cellNum++, bugReport.getSprint(), dataStyle);
+                createCell(row, cellNum++, bugReport.getBoard(), dataStyle);
+            }
+            
+            // Auto-size columns
+            for (int i = 0; i < headers.length; i++) {
+                sheet.autoSizeColumn(i);
+                // Set minimum column width
+                if (sheet.getColumnWidth(i) < 3000) {
+                    sheet.setColumnWidth(i, 3000);
+                }
+            }
+            
+            // Write workbook to byte array
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            workbook.write(outputStream);
+            return outputStream.toByteArray();
+        }
+    }
+    
+    /**
+     * Helper method to create a cell with value
+     */
+    private void createCell(Row row, int column, String value, CellStyle style) {
+        Cell cell = row.createCell(column);
+        cell.setCellValue(value != null ? value : "");
+        cell.setCellStyle(style);
     }
 }
 

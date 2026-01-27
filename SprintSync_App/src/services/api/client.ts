@@ -314,6 +314,10 @@ class ApiClient {
 
       if (contentType && contentType.includes('application/json')) {
         data = await response.json();
+      } else if (contentType && (contentType.includes('application/octet-stream') || 
+                                  contentType.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') ||
+                                  contentType.includes('application/vnd.ms-excel'))) {
+        data = await response.blob();
       } else {
         data = await response.text();
       }
@@ -427,6 +431,88 @@ class ApiClient {
 
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, { method: 'DELETE' });
+  }
+
+  // Download method for binary files (blobs)
+  async download(endpoint: string, params?: Record<string, any>): Promise<Blob> {
+    const method = 'GET';
+    const requestOptions: RequestInit = { method };
+
+    try {
+      await this.waitForProjectPrefetch(endpoint, method);
+
+      // Build full URL with query params
+      const normalizedParams = this.normalizeParams(params);
+      const url = normalizedParams
+        ? `${this.baseURL}${endpoint}${this.buildQueryString(normalizedParams)}`
+        : `${this.baseURL}${endpoint}`;
+
+      console.log('🔵 DOWNLOAD DEBUG - Full URL:', url);
+
+      // Merge headers - customize for binary downloads
+      const headers: Record<string, string> = { ...this.defaultHeaders };
+      // Remove JSON content-type for binary downloads
+      delete headers['Content-Type'];
+      delete headers['content-type'];
+      // VERY IMPORTANT: tell backend we accept Excel/binary
+      headers['Accept'] = 'application/octet-stream';
+
+      // Create request with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+      const response = await fetch(url, {
+        ...requestOptions,
+        headers,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      console.log('🔵 DOWNLOAD DEBUG - Response status:', response.status);
+      console.log('🔵 DOWNLOAD DEBUG - Response headers:', Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        // Try to parse error message
+        const contentType = response.headers.get('content-type');
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorMessage;
+          } catch {
+            // Ignore JSON parse errors
+          }
+        }
+
+        const error: ApiError = {
+          message: errorMessage,
+          status: response.status,
+          code: `HTTP_${response.status}`,
+        };
+        toast.error(errorMessage);
+        throw error;
+      }
+
+      // Return blob for successful responses
+      const blob = await response.blob();
+      console.log('🔵 DOWNLOAD DEBUG - Blob size:', blob.size, 'bytes');
+      console.log('🔵 DOWNLOAD DEBUG - Blob type:', blob.type);
+      return blob;
+    } catch (error) {
+      console.error('🔴 DOWNLOAD ERROR:', error);
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw {
+            message: 'Request timeout - The server took too long to respond',
+            status: 408,
+            code: 'TIMEOUT',
+          } as ApiError;
+        }
+      }
+      throw error;
+    }
   }
 }
 

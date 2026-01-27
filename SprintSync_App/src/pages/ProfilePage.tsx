@@ -288,6 +288,8 @@ const ProfilePage: React.FC = () => {
       ? Number(profile.ctc).toLocaleString('en-IN', { maximumFractionDigits: 2 })
       : undefined;
   const skills = parseSkills(profile?.skills);
+  const experienceYears =
+    (profile as any)?.experienceYears != null ? (profile as any).experienceYears : undefined;
   const isActive = profile?.isActive !== false;
   const joiningDateRaw = profile?.dateOfJoining || profile?.createdAt;
   const joiningDate = joiningDateRaw ? new Date(joiningDateRaw) : undefined;
@@ -361,6 +363,12 @@ const ProfilePage: React.FC = () => {
       value: getExperienceDisplayLabel(profile?.experience),
       icon: Briefcase,
       detail: profile?.experience ? 'Based on HR ladder' : 'Set via admin portal',
+    },
+    {
+      label: 'Experience Years',
+      value: experienceYears != null ? String(experienceYears) : 'Not Set',
+      icon: Calendar,
+      detail: experienceYears != null ? 'Total professional experience in years' : 'Optional metadata',
     },
     {
       label: 'Availability',
@@ -508,6 +516,12 @@ const ProfilePage: React.FC = () => {
             </Badge>
           ),
           hint: profile?.experience ? 'HR ladder aligned' : 'Not configured',
+        },
+        {
+          icon: Calendar,
+          label: 'Experience Years',
+          value: experienceYears != null ? `${experienceYears} years` : 'Not Set',
+          hint: 'Total professional experience',
         },
         {
           icon: IndianRupee,

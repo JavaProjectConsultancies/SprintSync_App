@@ -2339,7 +2339,13 @@ const ProjectsPage: React.FC = () => {
                       <div className="flex items-center space-x-2">
                         <Calendar className="w-4 h-4 text-muted-foreground" />
                         <span className="text-muted-foreground">
-                          {project.endDate ? new Date(project.endDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }) : 'No date'}
+                          {project.endDate
+                            ? new Date(project.endDate).toLocaleDateString('en-IN', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                              })
+                            : 'No date'}
                         </span>
                       </div>
                       <div className="flex items-center space-x-2">
@@ -2423,7 +2429,15 @@ const ProjectsPage: React.FC = () => {
                       <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                         <span className="flex items-center space-x-1">
                           <Calendar className="w-4 h-4" />
-                          <span>{project.endDate ? new Date(project.endDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }) : 'No date'}</span>
+                          <span>
+                            {project.endDate
+                              ? new Date(project.endDate).toLocaleDateString('en-IN', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })
+                              : 'No date'}
+                          </span>
                         </span>
                         <span className="flex items-center space-x-1">
                           <Users className="w-4 h-4" />

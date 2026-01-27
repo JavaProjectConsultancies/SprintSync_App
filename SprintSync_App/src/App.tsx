@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContextEnhanced';
-import { RoleSwitcherProvider } from './contexts/RoleSwitcherContext';
+import { RoleSwitcherProvider, useRoleSwitcher } from './contexts/RoleSwitcherContext';
 import LoginForm from './components/LoginForm';
 import { NavigationProvider, useNavigation } from './contexts/NavigationContext';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from './components/ui/sidebar';
@@ -26,7 +26,7 @@ import BacklogPage from './pages/BacklogPage';
 import ScrumPage from './pages/ScrumPage';
 import TimeTrackingPage from './pages/TimeTrackingPage';
 import TeamAllocationPage from './pages/TeamAllocationPage';
-// ReportsPage removed from routes (hidden)
+import ReportsPage from './pages/ReportsPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPanelPage from './pages/AdminPanelPage';
 import TodoListPage from './pages/TodoListPage';
@@ -46,17 +46,24 @@ const ProtectedRoute: React.FC<{
 }> = ({ children, allowedRoles, requiredRoute }) => {
   const { user } = useAuth();
   const location = useLocation();
+  const { activeRole } = useRoleSwitcher();
 
   // If no role restrictions, allow access
   if (!allowedRoles || allowedRoles.length === 0) {
     return <>{children}</>;
   }
 
-  // Check if user's role is in allowed roles
+  // Check if user's effective role is in allowed roles
   if (user) {
-    const normalizedUserRole = (user.role || '').toLowerCase();
+    // Admin and master_admin always use their actual role; others use the active view role
+    const baseRole = (user.role || '').toLowerCase();
+    const effectiveRole =
+      baseRole === 'admin' || baseRole === 'master_admin'
+        ? baseRole
+        : (activeRole || baseRole).toLowerCase();
+
     const normalizedAllowed = allowedRoles.map(r => (r || '').toLowerCase());
-    if (normalizedAllowed.includes(normalizedUserRole)) {
+    if (normalizedAllowed.includes(effectiveRole)) {
       return <>{children}</>;
     }
   }
@@ -79,7 +86,7 @@ const AppContent: React.FC = () => {
     if (user) {
       // If somehow user lands on a non-existent route, redirect to dashboard
       const validRoutes = ['/', '/projects', '/backlog', '/scrum', '/time-tracking',
-        '/team-allocation', '/profile',
+        '/team-allocation', '/reports', '/profile',
         '/admin-panel', '/todo-list', '/calendar'];
       const isValidRoute = validRoutes.includes(location.pathname) ||
         location.pathname.startsWith('/projects/');
@@ -107,7 +114,7 @@ const AppContent: React.FC = () => {
       '/scrum': { title: 'Scrum Management', description: 'Sprint planning and tracking', icon: '🏃' },
       '/time-tracking': { title: 'Time Tracking', description: 'Monitor work hours and productivity', icon: '⏱️' },
       '/team-allocation': { title: 'Team Allocation', description: 'Resource management and planning', icon: '👥' },
-      // '/reports' intentionally hidden from UI
+      '/reports': { title: 'Reports', description: 'Bug reports and analytics', icon: '📊' },
       '/profile': { title: 'Profile', description: 'Your account settings', icon: '👤' },
       '/admin-panel': { title: 'Admin Panel', description: 'System administration', icon: '⚙️' },
       '/todo-list': { title: 'My Tasks', description: 'Personal task management', icon: '✅' },
@@ -780,8 +787,12 @@ const AppContent: React.FC = () => {
                   </ProtectedRoute>
                 } />
 
-                {/* Reports - accessible by all roles */}
-                {/* Reports route removed: reports page hidden */}
+                {/* Reports - accessible by all roles except developers and qa_developers */}
+                <Route path="/reports" element={
+                  <ProtectedRoute allowedRoles={['admin', 'manager', 'qa_manager', 'master_admin']}>
+                    <ReportsPage />
+                  </ProtectedRoute>
+                } />
 
                 {/* Profile - accessible by all roles */}
                 <Route path="/profile" element={<ProfilePage />} />

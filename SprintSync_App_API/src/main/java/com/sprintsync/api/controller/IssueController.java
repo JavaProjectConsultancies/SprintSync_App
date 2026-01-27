@@ -50,6 +50,8 @@ public class IssueController {
             List<Issue> issues = issueService.getAllIssues();
             return ResponseEntity.ok(issues);
         } catch (Exception e) {
+            System.err.println("Error fetching all issues: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }

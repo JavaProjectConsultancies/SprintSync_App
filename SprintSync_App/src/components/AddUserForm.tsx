@@ -62,6 +62,7 @@ interface FormData {
   domainId: string;
   avatarUrl: string;
   experience: string;
+   experienceYears: string;
   hourlyRate: string;
   ctc: string;
   availabilityPercentage: string;
@@ -83,6 +84,7 @@ interface FormErrors {
   domainId?: string;
   avatarUrl?: string;
   experience?: string;
+  experienceYears?: string;
   hourlyRate?: string;
   ctc?: string;
   availabilityPercentage?: string;
@@ -104,6 +106,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
     domainId: 'none',
     avatarUrl: '',
     experience: 'E1',
+    experienceYears: '',
     hourlyRate: '',
     ctc: '',
     availabilityPercentage: '100',
@@ -158,6 +161,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
         domainId: initialData?.domainId || 'none',
         avatarUrl: initialData?.avatarUrl || '',
         experience: normalizeExperienceValue(initialData?.experience) || 'E1',
+        experienceYears: (initialData as any)?.experienceYears?.toString() || '',
         hourlyRate: initialData?.hourlyRate || '',
         ctc: initialData?.ctc || '',
         availabilityPercentage: initialData?.availabilityPercentage || '100',
@@ -263,6 +267,16 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
         newErrors.hourlyRate = 'Hourly rate must be a positive number';
       } else if (rate > 999999.99) {
         newErrors.hourlyRate = 'Hourly rate must be less than 1,000,000';
+      }
+    }
+
+    // Experience years validation (optional but must be a non-negative number if provided)
+    if (formData.experienceYears) {
+      const years = parseFloat(formData.experienceYears);
+      if (isNaN(years) || years < 0) {
+        newErrors.experienceYears = 'Experience years must be a positive number';
+      } else if (years > 60) {
+        newErrors.experienceYears = 'Experience years seems too high (max 60)';
       }
     }
 
@@ -386,6 +400,9 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
         experience: formData.experience
           ? normalizeExperienceValue(formData.experience) || 'E1'
           : undefined,
+        experienceYears: formData.experienceYears
+          ? parseInt(formData.experienceYears, 10)
+          : undefined,
         hourlyRate: formData.hourlyRate ? parseFloat(formData.hourlyRate) : undefined,
         ctc: formData.ctc ? parseFloat(formData.ctc) : undefined,
         availabilityPercentage: parseInt(formData.availabilityPercentage) || 100,
@@ -449,6 +466,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
         domainId: 'none',
         avatarUrl: '',
         experience: 'E1',
+        experienceYears: '',
         hourlyRate: '',
         ctc: '',
         availabilityPercentage: '100',
@@ -491,6 +509,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
       domainId: 'none',
       avatarUrl: '',
       experience: 'E1',
+      experienceYears: '',
       hourlyRate: '',
       ctc: '',
       availabilityPercentage: '100',
@@ -1004,6 +1023,34 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                       </SelectContent>
                     </Select>
                   )}
+                </div>
+
+                {/* Experience Years */}
+                <div className="add-user-form-field space-y-2">
+                  <Label htmlFor="experienceYears" className="text-sm font-semibold text-gray-700">
+                    Experience Years
+                  </Label>
+                  <Input
+                    id="experienceYears"
+                    type="number"
+                    value={formData.experienceYears}
+                    onChange={(e) => handleInputChange('experienceYears', e.target.value)}
+                    className={`w-full h-10 px-3 border-2 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 ${errors.experienceYears ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                      }`}
+                    placeholder="e.g. 5"
+                    min="0"
+                    max="60"
+                    step="0.5"
+                  />
+                  {errors.experienceYears && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.experienceYears}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-500">
+                    Total professional experience in years (stored as INTEGER in database)
+                  </p>
                 </div>
 
                 {/* Skills */}

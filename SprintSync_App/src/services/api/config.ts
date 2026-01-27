@@ -11,7 +11,7 @@ const getApiBaseUrl = () => {
   }
   // Default to server - backend WAR deploys at /sprintsync-1.0/ context path
   // return 'http://192.168.0.236:8080/sprintsync-1.0/api';
-  return 'http://localhost:8080/api';
+  return 'http://localhost:8081/api';
 };
 
 export const API_CONFIG = {
