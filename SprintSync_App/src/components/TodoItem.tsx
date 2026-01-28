@@ -225,7 +225,7 @@ const TodoItem: React.FC<TodoItemProps> = ({ item, onUpdate, onDelete, onTaskUpd
                   className="h-8 px-3 text-xs hover:bg-blue-100 text-blue-700 border-blue-300"
                 >
                   <Clock className="w-3 h-3 mr-1" />
-                  Log
+                  Add Log
                 </Button>
                 <Button
                   size="sm"

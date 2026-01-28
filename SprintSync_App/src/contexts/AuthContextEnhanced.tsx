@@ -9,7 +9,7 @@ const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   manager: ['view_projects', 'manage_projects', 'view_team', 'view_analytics'],
   developer: ['view_projects', 'view_team'],
   qa_manager: ['view_projects', 'manage_projects', 'view_team', 'view_analytics'],
-  qa_developer: ['view_projects', 'view_team'],
+  qa_developer: ['view_projects', 'view_team', 'view_analytics'],
   master_admin: ['view_projects', 'view_team', 'view_analytics', 'view_all_data']
 };
 

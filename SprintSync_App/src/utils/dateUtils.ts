@@ -13,7 +13,18 @@ export const formatDateDDMMYYYY = (dateInput: Date | string | null | undefined):
     if (!dateInput) return '';
 
     try {
-        const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+        let date: Date;
+        if (typeof dateInput === 'string') {
+            // If it's a YYYY-MM-DD string (no time), parse it manually to avoid UTC offset
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+                const [year, month, day] = dateInput.split('-').map(Number);
+                date = new Date(year, month - 1, day);
+            } else {
+                date = new Date(dateInput);
+            }
+        } else {
+            date = dateInput;
+        }
 
         if (isNaN(date.getTime())) {
             return '';
@@ -134,6 +145,13 @@ export const parseDDMMYYYY = (dateString: string): Date | null => {
         }
 
         // Try parsing as ISO string or other formats
+        // If it's a YYYY-MM-DD string, parse it as local time
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+            const [year, month, day] = dateString.split('-').map(Number);
+            const date = new Date(year, month - 1, day);
+            return isNaN(date.getTime()) ? null : date;
+        }
+
         const date = new Date(dateString);
         return isNaN(date.getTime()) ? null : date;
     } catch {

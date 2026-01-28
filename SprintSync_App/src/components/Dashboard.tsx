@@ -38,14 +38,14 @@ import {
   ArrowUpRight,
   Brain,
   Sparkles,
-  MessageSquare,
   User,
   BookOpen,
   Zap,
   Coffee,
   Eye,
   Filter,
-  X
+  X,
+  UserPlus
 } from 'lucide-react';
 // Removed mock data imports - using API data only
 import UserTasks from './UserTasks';
@@ -66,11 +66,11 @@ import taskChartGif from '../assets/taskchart.gif.gif';
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user, hasPermission, canAccessProject } = useAuth();
-  const { activeRole } = useRoleSwitcher();
+  const { activeRole, projectRoles } = useRoleSwitcher();
 
   // Use activeRole for filtering data when role is switched
   // Admin and master_admin always stay as their roles (they see everything), others use the activeRole from context
-  const effectiveRole = user?.role === 'admin' ? 'admin' : (user?.role === 'master_admin' ? 'master_admin' : activeRole);
+  const effectiveRole: string = user?.role === 'admin' ? 'admin' : (user?.role === 'master_admin' ? 'master_admin' : activeRole);
 
   // API authentication is now handled by AuthContext
   // No need for demo auth setup
@@ -187,30 +187,46 @@ const Dashboard: React.FC = () => {
       return projectData;
     }
 
-    // Managers can only access projects they manage
+    // Get project IDs where user is a manager (from projectRoles API)
+    const managerProjectIds = new Set(
+      projectRoles
+        .filter(pr => pr.role?.toLowerCase() === 'manager')
+        .map(pr => pr.projectId)
+    );
+
+    console.log('[Dashboard] Manager project IDs from projectRoles:', {
+      userId: user.id,
+      effectiveRole,
+      managerProjectIds: Array.from(managerProjectIds),
+      allProjectRoles: projectRoles
+    });
+
+    // Managers can access projects where they are manager (from projectRoles OR managerId)
     if (effectiveRole === 'manager') {
       return projectData.filter(project => {
-        // Try multiple possible field names for managerId
+        // Check 1: User is project owner (managerId)
         const managerId = (project as any).managerId || (project as any).manager?.id || (project as any).manager_id;
-        // Compare as strings to handle any type mismatches
         const managerIdStr = managerId ? String(managerId) : null;
         const userIdStr = user.id ? String(user.id) : null;
-        return managerIdStr === userIdStr;
+        if (managerIdStr === userIdStr) return true;
+
+        // Check 2: User has role='manager' in projectRoles (from API)
+        if (managerProjectIds.has(project.id)) return true;
+
+        return false;
       });
     }
 
     // Developer view - only show projects where they are team members
     return projectData.filter(project => {
-      const teamMembers = (project as any).teamMembers;
-      if (Array.isArray(teamMembers)) {
-        return teamMembers.some((member: any) =>
-          (typeof member === 'string' && member === user.id) ||
-          (typeof member === 'object' && (member.id === user.id || member.userId === user.id))
-        );
-      }
+      // Check if user has any role in this project from projectRoles
+      const hasRoleInProject = projectRoles.some(pr => pr.projectId === project.id);
+      if (hasRoleInProject) return true;
+
+      // Fallback to canAccessProject
       return canAccessProject(project.id);
     });
-  }, [user, canAccessProject, apiProjects, effectiveRole]);
+  }, [user, canAccessProject, apiProjects, effectiveRole, projectRoles]);
 
   // Filter projects for Recent Projects section - show only user's assigned projects
   const userAssignedProjects = useMemo(() => {
@@ -222,33 +238,39 @@ const Dashboard: React.FC = () => {
       return projectData;
     }
 
-    // Managers see only projects they manage
+    // Get project IDs where user is a manager (from projectRoles API)
+    const managerProjectIds = new Set(
+      projectRoles
+        .filter(pr => pr.role?.toLowerCase() === 'manager')
+        .map(pr => pr.projectId)
+    );
+
+    // Managers see projects where they are manager
     if (effectiveRole === 'manager') {
       return projectData.filter(project => {
-        // Try multiple possible field names for managerId
+        // Check 1: User is project owner (managerId)
         const managerId = (project as any).managerId || (project as any).manager?.id || (project as any).manager_id;
-        // Compare as strings to handle any type mismatches
         const managerIdStr = managerId ? String(managerId) : null;
         const userIdStr = user.id ? String(user.id) : null;
-        return managerIdStr === userIdStr;
+        if (managerIdStr === userIdStr) return true;
+
+        // Check 2: User has role='manager' in projectRoles (from API)
+        if (managerProjectIds.has(project.id)) return true;
+
+        return false;
       });
     }
 
-    // Developer view - filter projects where they are team members
+    // Developer view - filter projects where they are assigned
     return projectData.filter(project => {
-      // Check if user is in teamMembers array (handle both string[] and object[] formats)
-      const teamMembers = (project as any).teamMembers;
-      if (Array.isArray(teamMembers)) {
-        return teamMembers.some((member: any) =>
-          (typeof member === 'string' && member === user.id) ||
-          (typeof member === 'object' && (member.id === user.id || member.userId === user.id))
-        );
-      }
+      // Check if user has any role in this project from projectRoles
+      const hasRoleInProject = projectRoles.some(pr => pr.projectId === project.id);
+      if (hasRoleInProject) return true;
 
       // Fallback: check if canAccessProject allows access
       return canAccessProject(project.id);
     });
-  }, [user, apiProjects, canAccessProject, effectiveRole]);
+  }, [user, apiProjects, canAccessProject, effectiveRole, projectRoles]);
 
   // Get role-based metrics from API data - optimized with early returns
   const metrics = useMemo(() => {
@@ -269,53 +291,46 @@ const Dashboard: React.FC = () => {
     // Check if current view is manager/admin/master_admin based on effectiveRole
     const isManagerOrAdmin = effectiveRole === 'admin' || effectiveRole === 'master_admin' || effectiveRole === 'manager';
 
+    // Get project IDs where user is a manager (from projectRoles API - reliable source)
+    const projectsWhereUserIsManager = new Set<string>(
+      projectRoles
+        .filter(pr => pr.role?.toLowerCase() === 'manager')
+        .map(pr => pr.projectId)
+    );
+    const isProjectLevelManager = projectsWhereUserIsManager.size > 0;
+
+    if (isProjectLevelManager) {
+      console.log('[Dashboard] User is project-level manager (from projectRoles API):', {
+        userId: user.id,
+        systemRole: effectiveRole,
+        managedProjectIds: Array.from(projectsWhereUserIsManager)
+      });
+    }
+
     // Get user's project IDs first (needed for both sprint filtering and fallback)
-    // For managers: only projects where they are the manager
-    // For admins: all projects
-    // For regular users: projects where they are team members
+    // Using projectRoles from API for reliable project assignment data
     const userProjectIdsForFiltering = (effectiveRole === 'admin' || effectiveRole === 'master_admin')
       ? new Set(projects.map(p => p.id))  // Admins and master_admins see all projects
       : effectiveRole === 'manager'
         ? new Set(
           projects
             .filter(project => {
-              // Managers only see projects where they are the manager
-              // Try multiple possible field names for managerId
-              const managerId = (project as any).managerId || (project as any).manager?.id || (project as any).manager_id || (project as any).managerId;
-              // Compare with user.id as string
+              // Check 1: User is the project owner (managerId)
+              const managerId = (project as any).managerId || (project as any).manager?.id || (project as any).manager_id;
               const managerIdStr = managerId ? String(managerId) : null;
               const userIdStr = user.id ? String(user.id) : null;
-              const matches = managerIdStr === userIdStr;
+              if (managerIdStr === userIdStr) return true;
 
-              if (!matches && effectiveRole === 'manager') {
-                // Debug logging for manager project filtering
-                console.log('[Dashboard] Project manager mismatch:', {
-                  projectId: project.id,
-                  projectName: (project as any).name,
-                  managerId: managerId,
-                  managerIdStr,
-                  userIdStr,
-                  userId: user.id
-                });
-              }
+              // Check 2: User has role='manager' in projectRoles (from API)
+              if (projectsWhereUserIsManager.has(project.id)) return true;
 
-              return matches;
+              return false;
             })
             .map(project => project.id)
         )
         : new Set(
-          projects
-            .filter(project => {
-              const teamMembers = (project as any).teamMembers;
-              if (Array.isArray(teamMembers)) {
-                return teamMembers.some((member: any) =>
-                  (typeof member === 'string' && member === user.id) ||
-                  (typeof member === 'object' && (member.id === user.id || member.userId === user.id))
-                );
-              }
-              return false;
-            })
-            .map(project => project.id)
+          // For developers: use projectRoles API to get all assigned projects
+          projectRoles.map(pr => pr.projectId)
         );
 
     // Debug logging for manager project filtering
@@ -333,22 +348,12 @@ const Dashboard: React.FC = () => {
     if ((effectiveRole === 'manager' || effectiveRole === 'developer' || effectiveRole === 'qa_manager' || effectiveRole === 'qa_developer') && userProjectIdsForFiltering.size === 0) {
       console.log('[Dashboard] User has no assigned projects, returning empty metrics');
       return {
-        totalProjects: 0,
-        totalUsers: 0,
-        openTasks: 0,
-        completedTasks: 0,
-        inProgressTasks: 0,
-        todoTasks: 0,
-        closedTasks: 0,
-        totalTasks: 0,
-        completedPercentage: 0,
-        inProgressPercentage: 0,
-        todoPercentage: 0,
-        closedPercentage: 0,
-        activeSprints: 0,
-        totalSprints: 0,
-        avgProgress: 0,
-        isLoading: false
+        projectCount: 0,
+        teamMembers: 0,
+        sprintProgress: 0,
+        taskCompletion: 0,
+        criticalItems: 0,
+        upcomingDeadlines: 0
       };
     }
 
@@ -395,42 +400,47 @@ const Dashboard: React.FC = () => {
     // This is more reliable than filtering through sprints/stories
     let sprintTasks: any[] = [];
 
-    if (effectiveRole === 'admin' || effectiveRole === 'master_admin') {
-      // Admins and master_admins: Show all tasks
+    if (effectiveRole === 'admin' || effectiveRole === 'master_admin' || effectiveRole === 'manager') {
+      // Admins, master_admins, and Managers: Show all tasks
+      // Managers should see all tasks/issues regardless of team lead constraint
       sprintTasks = allTasks.filter(task => {
         return task && task.id && typeof task.id === 'string';
       });
-    } else if (effectiveRole === 'manager') {
-      // Managers: Filter tasks by projects they have access to (similar to getTaskDistributionData logic)
-      const beforeCount = allTasks.length;
 
-      // Use the same robust logic as the chart: Task -> Story -> Project -> User Access
+      if (effectiveRole === 'manager') {
+        console.log('[Dashboard] Manager full visibility enabled - showing all tasks:', {
+          userId: user.id,
+          effectiveRole: effectiveRole,
+          totalTasks: sprintTasks.length
+        });
+      }
+    } else if (isProjectLevelManager) {
+      // Project-level manager (e.g., developer with manager role in some projects)
+      // Show all tasks from projects they manage + their own assigned tasks from other projects
       sprintTasks = allTasks.filter(task => {
         if (!task || !task.id) return false;
 
-        // 1. Allow tasks assigned to the manager explicitly
+        // Always allow tasks assigned to user
         const assigneeId = (task as any).assigneeId || (task as any).assignee?.id || (task as any).assignee?.userId;
         if (assigneeId === user.id) return true;
 
-        // 2. Filter by project via story
+        // Allow ALL tasks from projects where user is manager
         const story = allStories.find(s => s.id === ((task as any).storyId || (task as any).story?.id));
-        if (!story) return false; // Orphan task
+        if (story) {
+          const storyProjectId = (story as any).projectId || (story as any).project?.id;
+          if (storyProjectId && projectsWhereUserIsManager.has(storyProjectId)) {
+            return true;
+          }
+        }
 
-        const project = projects.find(p => p.id === story.projectId);
-        if (!project) return false; // Orphan story
-
-        // Check if user has access to this project (assignments, management, etc.)
-        return userAssignedProjects.some(up => up.id === project.id);
+        return false;
       });
 
-      console.log('[Dashboard] Manager task filtering result:', {
+      console.log('[Dashboard] Project-level manager visibility:', {
         userId: user.id,
-        effectiveRole: effectiveRole,
-        beforeCount,
-        afterCount: sprintTasks.length,
-        projectStoryIdsCount: projectStoryIds.size,
-        filteredOut: beforeCount - sprintTasks.length,
-        managerProjectIds: Array.from(userProjectIdsForFiltering).slice(0, 5)
+        systemRole: effectiveRole,
+        managedProjects: Array.from(projectsWhereUserIsManager),
+        totalTasks: sprintTasks.length
       });
     } else {
       // Regular users: Get tasks directly assigned to them
@@ -509,54 +519,12 @@ const Dashboard: React.FC = () => {
       // Admin and master_admin sees all users in the system
       totalUsers = users.length;
     } else {
-      // For non-admin users, show only users from projects where they are listed
-      const normalizedCurrentUserId = user?.id ? normalizeId(user.id) : undefined;
-
-      // Get all projects where the user is listed (manager, creator, or team member)
-      const userAccessibleProjects = projects.filter(project => {
-        if (!project || !normalizedCurrentUserId) return false;
-
-        const projectIdNormalized = normalizeId(project.id);
-        const teamList: any[] =
-          Array.isArray((project as any).teamMembers) ? (project as any).teamMembers :
-            Array.isArray((project as any).members) ? (project as any).members :
-              Array.isArray((project as any).team) ? (project as any).team :
-                [];
-
-        const managerId = normalizeId((project as any).managerId);
-        const createdById = normalizeId((project as any).createdBy);
-
-        // Check if user is the manager
-        if (managerId && managerId === normalizedCurrentUserId) {
-          return true;
-        }
-
-        // Check if user is the creator
-        if (createdById && createdById === normalizedCurrentUserId) {
-          return true;
-        }
-
-        // Check if user is a team member
-        if (teamList.length > 0) {
-          return teamList.some(member => {
-            const memberId = normalizeId(
-              member?.userId ??
-              member?.id ??
-              member?.memberId ??
-              member?.assigneeId ??
-              member?.user?.id ??
-              member?.user?.userId
-            );
-            return memberId ? memberId === normalizedCurrentUserId : false;
-          });
-        }
-
-        return false;
-      });
-
-      // Collect all unique team member IDs from accessible projects
+      // For non-admin users, show only users from projects they can filter on (including managed projects)
       const allProjectTeamMemberIds = new Set<string>();
-      userAccessibleProjects.forEach(project => {
+
+      projects.forEach(project => {
+        if (!userProjectIdsForFiltering.has(project.id)) return;
+
         const teamList: any[] =
           Array.isArray((project as any).teamMembers) ? (project as any).teamMembers :
             Array.isArray((project as any).members) ? (project as any).members :
@@ -580,15 +548,10 @@ const Dashboard: React.FC = () => {
         // Also include manager and creator if they exist
         const managerId = normalizeId((project as any).managerId);
         const createdById = normalizeId((project as any).createdBy);
-        if (managerId) {
-          allProjectTeamMemberIds.add(managerId);
-        }
-        if (createdById) {
-          allProjectTeamMemberIds.add(createdById);
-        }
+        if (managerId) allProjectTeamMemberIds.add(managerId);
+        if (createdById) allProjectTeamMemberIds.add(createdById);
       });
 
-      // Count unique users from projects where the user is listed
       totalUsers = allProjectTeamMemberIds.size;
     }
     const totalTasks = sprintTasks.length;
@@ -693,7 +656,7 @@ const Dashboard: React.FC = () => {
       criticalItems: criticalItems || 0,
       upcomingDeadlines: upcomingDeadlines || 0
     };
-  }, [user, apiProjects, apiUsers, apiTasks, apiSprints, apiStories, userAssignedProjects, tasksLoading, effectiveRole]);
+  }, [user, apiProjects, apiUsers, apiTasks, apiSprints, apiStories, userAssignedProjects, tasksLoading, effectiveRole, projectRoles]);
 
   // Helpers to normalize API Project fields for charts/UI
   const getProjectProgress = (project: any): number => {
@@ -746,13 +709,40 @@ const Dashboard: React.FC = () => {
   }, [apiProjects, apiTasks]);
 
   const teamPerformanceData = useMemo(() => {
-    // TODO: Generate team performance data from user and task data
-    return [
-      { id: 'member-1', member: 'Team Member 1', tasks: 12, completed: 10 },
-      { id: 'member-2', member: 'Team Member 2', tasks: 8, completed: 7 },
-      { id: 'member-3', member: 'Team Member 3', tasks: 15, completed: 12 }
-    ];
-  }, [apiUsers, apiTasks]);
+    const normalizedUsers = normalizeApiData(apiUsers);
+    const normalizedTasks = normalizeApiData(apiTasks);
+
+    if (normalizedUsers.length === 0) return [];
+
+    // Identify users who are part of the projects we can see
+    // For managers, this usually means project team members.
+    // For now, let's include all users but focus on those with tasks in our project scope if possible.
+
+    return normalizedUsers
+      .filter(u => {
+        // Simple heuristic: only show users who have at least one task in the system (to keep dashboard clean)
+        // OR if admin, show everyone.
+        if (effectiveRole === 'admin') return true;
+        return normalizedTasks.some(t => String((t as any).assigneeId || (t as any).assignee?.id) === String(u.id));
+      })
+      .map(user => {
+        const userTasks = normalizedTasks.filter(t => String((t as any).assigneeId || (t as any).assignee?.id) === String(user.id));
+        const completedTasks = userTasks.filter(t => {
+          const status = ((t as any).status || (t as any).taskStatus)?.toString().toLowerCase().trim();
+          return status === 'done' || status === 'completed';
+        }).length;
+
+        return {
+          id: user.id,
+          member: user.name || user.email || 'Unknown',
+          tasks: userTasks.length,
+          completed: completedTasks,
+          performance: userTasks.length > 0 && (completedTasks / userTasks.length < 0.5) ? 'needs_attention' : 'good'
+        };
+      })
+      .sort((a, b) => b.tasks - a.tasks) // Show busiest users first
+      .slice(0, 10); // Limit to top 10 for dashboard
+  }, [apiUsers, apiTasks, effectiveRole]);
 
   const aiInsights = useMemo(() => {
     // TODO: Generate AI insights from data patterns
@@ -1212,25 +1202,21 @@ const Dashboard: React.FC = () => {
   }
 
   const firstName = user.name.split(' ')[0];
-  const underperformingMembers = teamPerformanceData.filter(member => (member as any).performance === 'needs_attention' || (member.completed as number) / Math.max(member.tasks as number, 1) < 0.7);
 
   // Show loading animation until all APIs are fetched
   if (isLoadingAny) {
     return <LoadingSpinner message="Loading Dashboard..." fullScreen />;
   }
 
-  // If metrics is null but APIs are loaded, show a fallback
-  if (!metrics) {
-    return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-8rem)]">
-        <div className="text-center space-y-4">
-          <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto" />
-          <h2 className="text-xl font-semibold">Unable to load metrics</h2>
-          <p className="text-muted-foreground">Please refresh the page or check your connection.</p>
-        </div>
-      </div>
-    );
-  }
+  // If metrics is null but APIs are loaded, use default metrics with zeros
+  const displayMetrics = metrics || {
+    projectCount: 0,
+    teamMembers: 0,
+    sprintProgress: 0,
+    taskCompletion: 0,
+    criticalItems: 0,
+    upcomingDeadlines: 0
+  };
 
   return (
     <div className="space-y-6 p-6 animate-fadeIn">
@@ -1270,9 +1256,9 @@ const Dashboard: React.FC = () => {
             <img src={projectsGif} alt="Active Projects" className="h-12 w-12 object-contain" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-900">{metrics.projectCount}</div>
+            <div className="text-2xl font-bold text-blue-900">{displayMetrics.projectCount}</div>
             <p className="text-xs text-blue-700">Total projects</p>
-            <Progress value={metrics.projectCount > 0 ? 100 : 0} className="mt-2 h-1.5" />
+            <Progress value={displayMetrics.projectCount > 0 ? 100 : 0} className="mt-2 h-1.5" />
           </CardContent>
         </Card>
 
@@ -1287,9 +1273,9 @@ const Dashboard: React.FC = () => {
             <img src={tasksCompletedIconGif} alt="Tasks Complete" className="h-12 w-12 object-contain" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-900">{metrics.taskCompletion}%</div>
+            <div className="text-2xl font-bold text-green-900">{displayMetrics.taskCompletion}%</div>
             <p className="text-xs text-green-700">Task completion rate</p>
-            <Progress value={metrics.taskCompletion} className="mt-2 h-1.5" />
+            <Progress value={displayMetrics.taskCompletion} className="mt-2 h-1.5" />
           </CardContent>
         </Card>
 
@@ -1304,7 +1290,7 @@ const Dashboard: React.FC = () => {
             <img src={userGif} alt="Total Users" className="h-12 w-12 object-contain" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-900">{metrics.teamMembers}</div>
+            <div className="text-2xl font-bold text-purple-900">{displayMetrics.teamMembers}</div>
             <p className="text-xs text-purple-700">Total users</p>
             <Progress value={100} className="mt-2 h-1.5" />
           </CardContent>
@@ -1321,12 +1307,12 @@ const Dashboard: React.FC = () => {
             <img src={sprintCardGif} alt="Sprint Progress" className="h-12 w-12 object-contain" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-900">{metrics.sprintProgress}%</div>
+            <div className="text-2xl font-bold text-orange-900">{displayMetrics.sprintProgress}%</div>
             <div className="flex items-center text-xs text-orange-700">
               <TrendingUp className="w-3 h-3 mr-1" />
               Completed sprints
             </div>
-            <Progress value={metrics.sprintProgress} className="mt-2 h-1.5" />
+            <Progress value={displayMetrics.sprintProgress} className="mt-2 h-1.5" />
           </CardContent>
         </Card>
       </div>
@@ -1343,7 +1329,7 @@ const Dashboard: React.FC = () => {
       )}
 
       {/* Charts and Analytics */}
-      {hasPermission('view_analytics') && (
+      {(hasPermission('view_analytics') || effectiveRole === 'manager') && (
         <>
           {/* Filter Status Bar */}
           {hasActiveFilters && (
@@ -1604,108 +1590,69 @@ const Dashboard: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Team Performance Alerts - Only for Managers/Admins */}
-      {(effectiveRole === 'admin' || effectiveRole === 'manager') && underperformingMembers.length > 0 && (
-        <Card className="border-orange-200 hover:shadow-xl transition-all duration-300 animate-fadeInUp" style={{ animationDelay: '0.8s' }}>
+      {/* Team Allocation Summary - Only for Managers/Admins */}
+      {(effectiveRole === 'admin' || effectiveRole === 'manager' || effectiveRole === 'qa_manager') && (
+        <Card className="hover:shadow-xl transition-all duration-300 animate-fadeInUp" style={{ animationDelay: '0.75s' }}>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <AlertTriangle className="w-5 h-5 text-orange-600" />
-                <span>Team Performance Alerts</span>
-                <Badge variant="destructive">{underperformingMembers.length} need attention</Badge>
+                <Users className="w-5 h-5 text-purple-600" />
+                <span>Team Workload & Allocation</span>
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate('/team-allocation')}
+                title="View team management"
+              >
+                Manage Team
+                <ArrowUpRight className="w-4 h-4 ml-1" />
+              </Button>
             </CardTitle>
             <CardDescription>
-              Team members requiring performance improvement support
+              Real-time overview of team member tasks and completion rates
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {underperformingMembers.map((member, index) => (
-                <Card key={member.id} className="p-4 hover:shadow-md transition-all duration-300 hover:scale-[1.01] animate-fadeInUp" style={{ animationDelay: `${0.9 + index * 0.1}s` }}>
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-3">
-                      <div className="flex items-center space-x-3">
-                        <User className="w-5 h-5 text-muted-foreground" />
-                        <div>
-                          <h4 className="font-medium">{(member as any).name || member.member}</h4>
-                          <p className="text-sm text-muted-foreground">{(member as any).role || 'Team Member'}</p>
-                        </div>
-                        <Badge variant="destructive">{(member as any).taskCompletion || Math.round((member.completed / Math.max(member.tasks, 1)) * 100)}/100</Badge>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {teamPerformanceData.length === 0 ? (
+                <div className="col-span-2 text-center py-6 text-muted-foreground">
+                  <UserPlus className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                  <p>No team data available for current selection.</p>
+                </div>
+              ) : (
+                teamPerformanceData.map((member, index) => {
+                  const completionRate = member.tasks > 0 ? Math.round((member.completed / member.tasks) * 100) : 0;
+                  return (
+                    <div
+                      key={member.id}
+                      className="p-3 rounded-lg border bg-white hover:bg-purple-50/30 transition-colors"
+                    >
+                      <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center space-x-2">
-                          <AlertTriangle className="w-4 h-4 text-orange-500" />
-                          <span>Task completion: {(member as any).taskCompletion || Math.round((member.completed / Math.max(member.tasks, 1)) * 100)}% (target: 70%)</span>
+                          <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold text-xs">
+                            {member.member.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium">{member.member}</div>
+                            <div className="text-[10px] text-muted-foreground">{member.tasks} tasks assigned</div>
+                          </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <Clock className="w-4 h-4 text-red-500" />
-                          <span>Missed 8/12 deadlines (target: &lt;20%)</span>
+                        <Badge variant="outline" className={member.performance === 'needs_attention' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-green-50 text-green-700 border-green-100'}>
+                          {completionRate}% Done
+                        </Badge>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[10px] text-muted-foreground">
+                          <span>Progress</span>
+                          <span>{member.completed} / {member.tasks}</span>
                         </div>
-                      </div>
-
-                      <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-                        <span>Tasks: ✓2 →5 !3</span>
-                        <span>Last: 3 days ago</span>
-                      </div>
-
-                      <div className="flex items-center space-x-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => navigate('/team-allocation')}
-                          title="Go to team management"
-                        >
-                          <MessageSquare className="w-4 h-4 mr-1" />
-                          Schedule 1-on-1
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => navigate('/team-allocation')}
-                          title="View team allocation"
-                        >
-                          <Eye className="w-4 h-4 mr-1" />
-                          View Details
-                        </Button>
-                      </div>
-
-                      <div className="flex items-center space-x-2 text-sm">
-                        <Brain className="w-4 h-4 text-blue-500" />
-                        <span className="text-blue-700">Recommended: Schedule 1-on-1 meeting</span>
+                        <Progress value={completionRate} className="h-1.5" />
                       </div>
                     </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-
-            <div className="flex items-center space-x-2 mt-4 pt-4 border-t">
-              <Button
-                variant="outline"
-                onClick={() => navigate('/team-allocation')}
-                title="Go to team management"
-              >
-                <Users className="w-4 h-4 mr-1" />
-                Schedule Team Review
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => navigate('/team-allocation')}
-                title="Generate team allocation"
-              >
-                <BookOpen className="w-4 h-4 mr-1" />
-                Generate Report
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => navigate('/team-allocation')}
-                title="Access training resources"
-              >
-                <Coffee className="w-4 h-4 mr-1" />
-                Training
-              </Button>
+                  );
+                })
+              )}
             </div>
           </CardContent>
         </Card>

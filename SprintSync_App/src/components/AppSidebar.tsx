@@ -213,7 +213,10 @@ const AppSidebar: React.FC = () => {
 
   // Role-based menu filtering
   const getRoleBasedMenuItems = (userRole: string): MenuItem[] => {
-    if (userRole === 'master_admin') {
+    // Normalize role to lowercase for consistent comparison
+    const normalizedRole = userRole?.toLowerCase() || '';
+
+    if (normalizedRole === 'master_admin') {
       // Master Admin has access to ALL menus (full view access to everything)
       return [
         {
@@ -233,7 +236,7 @@ const AppSidebar: React.FC = () => {
           ]
         },
         {
-          title: 'AI & ANALYTICS',
+          title: 'ANALYTICS',
           icon: Brain,
           children: [
             { title: 'Team Allocation', icon: Users, id: 'team-allocation' },
@@ -256,7 +259,7 @@ const AppSidebar: React.FC = () => {
           ]
         },
       ];
-    } else if (userRole === 'admin') {
+    } else if (normalizedRole === 'admin') {
       // Admin has Dashboard, Projects, Team Allocation, and Reports
       return [
         {
@@ -272,22 +275,13 @@ const AppSidebar: React.FC = () => {
           ]
         },
         {
-          title: 'AI & ANALYTICS',
+          title: 'ANALYTICS',
           icon: Brain,
           children: [
             { title: 'Team Allocation', icon: Users, id: 'team-allocation' },
             { title: 'Reports', icon: BarChart3, id: 'reports' },
           ]
         },
-        // {
-        //   title: 'API INTEGRATION',
-        //   icon: Plug,
-        //   children: [
-        //     { title: 'API Demo', icon: Plug, id: 'api-demo' },
-        //     { title: 'API Status', icon: Activity, id: 'api-status' },
-        //     { title: 'API Test', icon: TestTube, id: 'api-test' },
-        //   ]
-        // },
         {
           title: 'ACCOUNT',
           icon: User,
@@ -303,9 +297,114 @@ const AppSidebar: React.FC = () => {
           ]
         },
       ];
-    } else if (userRole === 'manager') {
-      // Manager has access to all sidebar widgets
-      return allMenuItems;
+    } else if (normalizedRole === 'manager') {
+      // Manager has a customized sidebar with consolidated Analytics (Team Allocation & Reports)
+      return [
+        {
+          title: 'Dashboard',
+          icon: LayoutDashboard,
+          id: 'dashboard'
+        },
+        {
+          title: 'PROJECT MANAGEMENT',
+          icon: FolderKanban,
+          children: [
+            { title: 'Projects', icon: FolderKanban, id: 'projects' },
+            { title: 'Backlog', icon: Target, id: 'backlog' },
+            { title: 'Scrum Management', icon: GitBranch, id: 'scrum' },
+            { title: 'Time Tracking', icon: Clock, id: 'time-tracking' },
+            { title: 'Calendar View', icon: Calendar, id: 'calendar' },
+          ]
+        },
+        {
+          title: 'ANALYTICS',
+          icon: Brain,
+          children: [
+            { title: 'Team Allocation', icon: Users, id: 'team-allocation' },
+            { title: 'Reports', icon: BarChart3, id: 'reports' },
+          ]
+        },
+        {
+          title: 'ACCOUNT',
+          icon: User,
+          children: [
+            { title: 'Profile', icon: User, id: 'profile' },
+            { title: 'My Tasks', icon: CheckSquare, id: 'todo-list' },
+          ]
+        }
+      ];
+    } else if (normalizedRole === 'qa_manager') {
+      // QA Manager has access to Projects, Backlog, Scrum, Time Tracking, Calendar, Team Allocation, Profile, and My Tasks
+      return [
+        {
+          title: 'Dashboard',
+          icon: LayoutDashboard,
+          id: 'dashboard'
+        },
+        {
+          title: 'PROJECT MANAGEMENT',
+          icon: FolderKanban,
+          permission: 'view_projects',
+          children: [
+            { title: 'Projects', icon: FolderKanban, permission: 'view_projects', id: 'projects' },
+            { title: 'Backlog', icon: Target, permission: 'view_projects', id: 'backlog' },
+            { title: 'Scrum Management', icon: GitBranch, permission: 'view_projects', id: 'scrum' },
+            { title: 'Time Tracking', icon: Clock, permission: 'view_projects', id: 'time-tracking' },
+            { title: 'Calendar View', icon: Calendar, permission: 'view_projects', id: 'calendar' },
+          ]
+        },
+        {
+          title: 'ANALYTICS',
+          icon: Brain,
+          permission: 'view_analytics',
+          children: [
+            { title: 'Team Allocation', icon: Users, permission: 'view_team', id: 'team-allocation' },
+            { title: 'Reports', icon: BarChart3, permission: 'view_analytics', id: 'reports' },
+          ]
+        },
+        {
+          title: 'ACCOUNT',
+          icon: User,
+          children: [
+            { title: 'Profile', icon: User, id: 'profile' },
+            { title: 'My Tasks', icon: CheckSquare, id: 'todo-list' },
+          ]
+        },
+      ];
+    } else if (normalizedRole === 'qa_developer') {
+      // QA Developer has access to typical dev tools plus Reports grouped under ANALYTICS
+      return [
+        {
+          title: 'Dashboard',
+          icon: LayoutDashboard,
+          id: 'dashboard'
+        },
+        {
+          title: 'PROJECT MANAGEMENT',
+          icon: FolderKanban,
+          children: [
+            { title: 'Backlog', icon: Target, id: 'backlog' },
+            { title: 'Scrum Management', icon: GitBranch, id: 'scrum' },
+            { title: 'Time Tracking', icon: Clock, id: 'time-tracking' },
+            { title: 'Calendar View', icon: Calendar, id: 'calendar' },
+          ]
+        },
+        {
+          title: 'ANALYTICS',
+          icon: Brain,
+          children: [
+            { title: 'Reports', icon: BarChart3, id: 'reports' },
+          ]
+        },
+        {
+          title: 'ACCOUNT',
+          icon: User,
+          children: [
+            { title: 'Profile', icon: User, id: 'profile' },
+            { title: 'My Tasks', icon: CheckSquare, id: 'todo-list' },
+          ]
+        },
+      ];
     } else {
       // Developer/QA Developer have limited access (excluding admin panel, projects, team allocation, and reports)
       return allMenuItems
@@ -343,8 +442,14 @@ const AppSidebar: React.FC = () => {
 
   // For admin users, always use their actual role to show admin menu
   // For master_admin users, always use their actual role to show all menus
+  // For QA Manager users, always use their actual role (they don't switch roles)
   // For non-admin users, use activeRole for developer/manager switching
-  const effectiveRole = user?.role === 'admin' ? 'admin' : (user?.role === 'master_admin' ? 'master_admin' : activeRole);
+  const normalizedUserRole = user?.role?.toLowerCase() || '';
+  const effectiveRole = normalizedUserRole === 'admin' ? 'admin'
+    : (normalizedUserRole === 'master_admin' ? 'master_admin'
+      : (normalizedUserRole === 'qa_manager' ? 'qa_manager'
+        : (normalizedUserRole === 'qa_developer' ? 'qa_developer'
+          : activeRole)));
   const menuItems = user ? getRoleBasedMenuItems(effectiveRole) : [];
 
   // Safely filter menu items with proper checks

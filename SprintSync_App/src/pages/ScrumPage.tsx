@@ -222,6 +222,7 @@ import EffortManager from "../components/EffortManager";
 import TaskDetailsFullDialog from "../components/TaskDetailsFullDialog";
 
 import LoadingSpinner from "../components/LoadingSpinner";
+import AttachmentViewer from "../components/AttachmentViewer";
 
 // import CreateSprintDialog from "../components/CreateSprintDialog";
 
@@ -295,6 +296,10 @@ const ScrumPage: React.FC = () => {
   const [selectedSprint, setSelectedSprint] = useState("");
 
   const [activeView, setActiveView] = useState("scrum-board");
+
+  // Attachment viewer state
+  const [viewingAttachment, setViewingAttachment] = useState<any | null>(null);
+  const [isAttachmentViewerOpen, setIsAttachmentViewerOpen] = useState(false);
 
   const [isSprintDialogOpen, setIsSprintDialogOpen] = useState(false);
 
@@ -537,6 +542,9 @@ const ScrumPage: React.FC = () => {
 
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Scrum board search - filters tasks and issues by title or UUID (prefixed with T) or I))
+  const [scrumBoardSearch, setScrumBoardSearch] = useState("");
+
   const [backlogFilter, setBacklogFilter] = useState("all");
 
   // Backlog page functionality state
@@ -580,6 +588,11 @@ const ScrumPage: React.FC = () => {
     acceptanceCriteria: "",
     labels: "",
   });
+
+  // Description editing state (added for inline editing in details dialogs)
+  const [isEditingTaskDescription, setIsEditingTaskDescription] = useState(false);
+  const [isEditingIssueDescription, setIsEditingIssueDescription] = useState(false);
+  const [tempDescription, setTempDescription] = useState("");
 
   // Role-based permissions - using effectiveRole for dynamic role switching
 
@@ -1346,6 +1359,105 @@ const ScrumPage: React.FC = () => {
 
     fetchSubtasks();
   }, [allIssues]);
+
+  // Handlers for Description Editing
+  const handleSaveTaskDescription = async () => {
+    if (!selectedTaskForDetails) return;
+    try {
+      // Sanitize ID in case it comes from a Draggable with index suffix (e.g. TASK...:0)
+      const cleanId = selectedTaskForDetails.id.split(':')[0];
+
+      // Map UI status to Backend valid Enum (names)
+      // The backend expects: TO_DO, IN_PROGRESS, QA_REVIEW, DONE, BLOCKED, CANCELLED
+      const statusMap: Record<string, string> = {
+        'todo': 'TO_DO',
+        'to_do': 'TO_DO',
+        'inprogress': 'IN_PROGRESS',
+        'in_progress': 'IN_PROGRESS',
+        'qa': 'QA_REVIEW',
+        'qa_review': 'QA_REVIEW',
+        'done': 'DONE',
+        'blocked': 'BLOCKED',
+        'cancelled': 'CANCELLED'
+      };
+
+      const currentStatus = (selectedTaskForDetails.status || '').toLowerCase();
+      const validStatus = (statusMap[currentStatus] || selectedTaskForDetails.status.toUpperCase()) as any;
+
+      // Priority mapping: LOW, MEDIUM, HIGH, CRITICAL
+      const validPriority = (selectedTaskForDetails.priority || 'MEDIUM').toUpperCase() as any;
+
+      // Ensure we send the full object as required by the backend PUT validation
+      const updatedTask = {
+        ...selectedTaskForDetails,
+        id: cleanId,
+        description: tempDescription,
+        status: validStatus,
+        priority: validPriority
+      };
+
+      await taskApiService.updateTask(cleanId, updatedTask as any);
+
+      // Update local state
+      setSelectedTaskForDetails(prev => prev ? { ...prev, description: tempDescription } : prev);
+      setAllTasks(prev => prev.map(t => t.id === selectedTaskForDetails.id ? { ...t, description: tempDescription } : t));
+
+      setIsEditingTaskDescription(false);
+      toast.success("Description updated successfully");
+    } catch (error) {
+      console.error("Error updating description:", error);
+      toast.error("Failed to update description");
+    }
+  };
+
+  const handleSaveIssueDescription = async () => {
+    if (!selectedIssueForDetails) return;
+    try {
+      // Sanitize ID in case it comes from a Draggable with index suffix
+      const cleanId = selectedIssueForDetails.id.split(':')[0];
+
+      // Map UI status to Backend valid Enum (names)
+      // The backend Issue entity uses TaskStatus enum: TO_DO, IN_PROGRESS, QA_REVIEW, DONE, BLOCKED, CANCELLED
+      const statusMap: Record<string, string> = {
+        'todo': 'TO_DO',
+        'to_do': 'TO_DO',
+        'inprogress': 'IN_PROGRESS',
+        'in_progress': 'IN_PROGRESS',
+        'qa': 'QA_REVIEW',
+        'qa_review': 'QA_REVIEW',
+        'done': 'DONE',
+        'blocked': 'BLOCKED',
+        'cancelled': 'CANCELLED'
+      };
+
+      const currentStatus = (selectedIssueForDetails.status || '').toLowerCase();
+      const validStatus = (statusMap[currentStatus] || selectedIssueForDetails.status.toUpperCase()) as any;
+
+      // Priority mapping: LOW, MEDIUM, HIGH, CRITICAL
+      const validPriority = (selectedIssueForDetails.priority || 'MEDIUM').toUpperCase() as any;
+
+      // Ensure we send the full object as required by the backend PUT validation
+      const updatedIssue = {
+        ...selectedIssueForDetails,
+        id: cleanId,
+        description: tempDescription,
+        status: validStatus,
+        priority: validPriority
+      };
+
+      await issueApiService.updateIssue(cleanId, updatedIssue as any);
+
+      // Update local state
+      setSelectedIssueForDetails(prev => prev ? { ...prev, description: tempDescription } : prev);
+      setAllIssues(prev => prev.map(i => i.id === selectedIssueForDetails.id ? { ...i, description: tempDescription } : i));
+
+      setIsEditingIssueDescription(false);
+      toast.success("Description updated successfully");
+    } catch (error) {
+      console.error("Error updating description:", error);
+      toast.error("Failed to update description");
+    }
+  };
 
   // User data for displaying names instead of IDs
 
@@ -2201,7 +2313,7 @@ const ScrumPage: React.FC = () => {
       } else if (backlogStories.length > 0) {
         fetchAllTasks(backlogStories, true);
       }
-    }, 30000); // Refresh every 30 seconds
+    }, 1110000); // Refresh every 1110 seconds (18.5 minutes)
 
     return () => clearInterval(interval);
   }, [selectedProject, selectedSprint, sprintStories, backlogStories, fetchAllTasks]);
@@ -2351,6 +2463,9 @@ const ScrumPage: React.FC = () => {
 
   const getPriorityColor = (priority: string) => {
     switch (priority.toUpperCase()) {
+      case "BLOCKER":
+        return "bg-purple-100 text-purple-800 border-purple-200";
+
       case "CRITICAL":
         return "bg-red-100 text-red-800 border-red-200";
 
@@ -3977,7 +4092,7 @@ const ScrumPage: React.FC = () => {
           "todo",
           "inprogress",
           "qa",
-          "done",
+          "done"
         ];
 
         if (validStatuses.includes(newStatus)) {
@@ -4690,19 +4805,21 @@ const ScrumPage: React.FC = () => {
         }
       }
 
-      // Map priority from dialog format (high/medium/low) to API format (HIGH/MEDIUM/LOW)
+      // Map priority from dialog format to API format (HIGH/MEDIUM/LOW/BLOCKER/CRITICAL)
+      // Handle both lowercase and uppercase inputs
 
       const priorityMap: Record<string, Priority> = {
+        blocker: "BLOCKER",
+        critical: "CRITICAL",
         high: "HIGH",
-
         medium: "MEDIUM",
-
         low: "LOW",
       };
 
+      const priorityInput = taskDataFromDialog.priority || "medium";
       const apiPriority =
-        priorityMap[taskDataFromDialog.priority?.toLowerCase() || "medium"] ||
-        "MEDIUM";
+        priorityMap[priorityInput.toLowerCase()] ||
+        (["BLOCKER", "CRITICAL", "HIGH", "MEDIUM", "LOW"].includes(priorityInput.toUpperCase()) ? priorityInput.toUpperCase() as Priority : "MEDIUM");
 
       // Map status from dialog format (todo/inprogress/qa/done) to API format
 
@@ -4892,19 +5009,21 @@ const ScrumPage: React.FC = () => {
         }
       }
 
-      // Map priority from dialog format (high/medium/low) to API format (HIGH/MEDIUM/LOW)
+      // Map priority from dialog format to API format (HIGH/MEDIUM/LOW/BLOCKER/CRITICAL)
+      // Handle both lowercase and uppercase inputs
 
       const priorityMap: Record<string, Priority> = {
+        blocker: "BLOCKER",
+        critical: "CRITICAL",
         high: "HIGH",
-
         medium: "MEDIUM",
-
         low: "LOW",
       };
 
+      const priorityInput = issueDataFromDialog.priority || "medium";
       const apiPriority =
-        priorityMap[issueDataFromDialog.priority?.toLowerCase() || "medium"] ||
-        "MEDIUM";
+        priorityMap[priorityInput.toLowerCase()] ||
+        (["BLOCKER", "CRITICAL", "HIGH", "MEDIUM", "LOW"].includes(priorityInput.toUpperCase()) ? priorityInput.toUpperCase() as Priority : "MEDIUM");
 
       // Map status from dialog format (todo/inprogress/qa/done) to API format
 
@@ -4937,25 +5056,30 @@ const ScrumPage: React.FC = () => {
       let dueDate: string | undefined = undefined;
 
       if (issueDataFromDialog.dueDate) {
-        try {
-          // Try parsing dd/MM/yy format
+        const dateStr = issueDataFromDialog.dueDate;
 
-          const [day, month, year] = issueDataFromDialog.dueDate.split("/");
+        // Check if already in ISO format (YYYY-MM-DD)
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+          dueDate = dateStr;
+        } else {
+          try {
+            // Try parsing dd/MM/yy format (legacy fallback)
+            const [day, month, year] = dateStr.split("/");
 
-          if (day && month && year) {
-            const fullYear =
-              parseInt(year) < 100 ? 2000 + parseInt(year) : parseInt(year);
+            if (day && month && year) {
+              const fullYear =
+                parseInt(year) < 100 ? 2000 + parseInt(year) : parseInt(year);
 
-            const date = new Date(fullYear, parseInt(month) - 1, parseInt(day));
+              const date = new Date(fullYear, parseInt(month) - 1, parseInt(day));
 
-            if (!isNaN(date.getTime())) {
-              dueDate = date.toISOString().slice(0, 10);
+              if (!isNaN(date.getTime())) {
+                dueDate = date.toISOString().slice(0, 10);
+              }
             }
+          } catch (e) {
+            // If parsing fails, try using as-is
+            dueDate = dateStr;
           }
-        } catch (e) {
-          // If parsing fails, try using as-is if it's already ISO format
-
-          dueDate = issueDataFromDialog.dueDate;
         }
       }
 
@@ -7431,11 +7555,35 @@ const ScrumPage: React.FC = () => {
                 : "border-l-green-500"
             } issue-card hover:shadow-lg transition-all duration-200 rounded-lg overflow-hidden w-full aspect-square flex flex-col`}        >
           <CardContent className="p-3 flex flex-col flex-1 justify-between">
-            {/* Top Row: Issue ID and Due Date */}
+            {/* Top Row: Issue ID, Priority Badge, and Due Date */}
             <div className="flex items-center justify-between mb-2 flex-shrink-0">
-              <span className="text-xs font-semibold text-red-600">
-                I#{issueNumber}
-              </span>
+              <div className="flex items-center space-x-1">
+                <span
+                  className="text-xs font-semibold text-red-600 cursor-help"
+                  title={`Issue UUID: ${issue.id}`}
+                >
+                  I){issue.id.slice(-6).toUpperCase()}
+                </span>
+                {issue.priority && (
+                  <Badge
+                    variant="outline"
+                    className={`text-[9px] px-1 py-0 h-4 cursor-help ${issue.priority === 'BLOCKER' ? 'bg-purple-100 text-purple-800 border-purple-300' :
+                      issue.priority === 'CRITICAL' ? 'bg-red-100 text-red-800 border-red-300' :
+                        issue.priority === 'HIGH' ? 'bg-orange-100 text-orange-800 border-orange-300' :
+                          issue.priority === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
+                            'bg-green-100 text-green-800 border-green-300'
+                      }`}
+                    title={`Priority: ${issue.priority} - ${issue.priority === 'BLOCKER' ? 'Blocking further progress' :
+                      issue.priority === 'CRITICAL' ? 'Requires immediate attention' :
+                        issue.priority === 'HIGH' ? 'High priority issue' :
+                          issue.priority === 'MEDIUM' ? 'Normal priority' :
+                            'Low priority issue'
+                      }`}
+                  >
+                    {issue.priority.charAt(0)}
+                  </Badge>
+                )}
+              </div>
               {issue.dueDate && (
                 <div className="flex items-center space-x-1">
                   <CalendarIcon className="w-3 h-3 text-red-500" />
@@ -7618,11 +7766,35 @@ const ScrumPage: React.FC = () => {
             } task-card hover:shadow-lg transition-all duration-200 rounded-lg overflow-hidden w-full aspect-square flex flex-col`}
         >
           <CardContent className="p-3 flex flex-col flex-1 justify-between">
-            {/* Top Row: Task ID and Due Date */}
+            {/* Top Row: Task ID, Priority Badge, and Due Date */}
             <div className="flex items-center justify-between mb-2 flex-shrink-0">
-              <span className="text-xs font-semibold text-blue-600">
-                TK#{taskNumber}
-              </span>
+              <div className="flex items-center space-x-1">
+                <span
+                  className="text-xs font-semibold text-blue-600 cursor-help"
+                  title={`Task UUID: ${task.id}`}
+                >
+                  T){task.id.slice(-6).toUpperCase()}
+                </span>
+                {task.priority && (
+                  <Badge
+                    variant="outline"
+                    className={`text-[9px] px-1 py-0 h-4 cursor-help ${task.priority === 'BLOCKER' ? 'bg-purple-100 text-purple-800 border-purple-300' :
+                      task.priority === 'CRITICAL' ? 'bg-red-100 text-red-800 border-red-300' :
+                        task.priority === 'HIGH' ? 'bg-orange-100 text-orange-800 border-orange-300' :
+                          task.priority === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
+                            'bg-green-100 text-green-800 border-green-300'
+                      }`}
+                    title={`Priority: ${task.priority} - ${task.priority === 'BLOCKER' ? 'Blocking further progress' :
+                      task.priority === 'CRITICAL' ? 'Requires immediate attention' :
+                        task.priority === 'HIGH' ? 'High priority task' :
+                          task.priority === 'MEDIUM' ? 'Normal priority' :
+                            'Low priority task'
+                      }`}
+                  >
+                    {task.priority.charAt(0)}
+                  </Badge>
+                )}
+              </div>
               {task.dueDate && (
                 <div className="flex items-center space-x-1">
                   <CalendarIcon className="w-3 h-3 text-red-500" />
@@ -7706,9 +7878,9 @@ const ScrumPage: React.FC = () => {
                 </DropdownMenu>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </CardContent >
+        </Card >
+      </div >
     );
   };
 
@@ -8633,6 +8805,8 @@ const ScrumPage: React.FC = () => {
                       <SelectContent>
                         <SelectItem value="all">All Priority</SelectItem>
 
+                        <SelectItem value="blocker">Blocker</SelectItem>
+
                         <SelectItem value="critical">Critical</SelectItem>
 
                         <SelectItem value="high">High</SelectItem>
@@ -9293,360 +9467,176 @@ const ScrumPage: React.FC = () => {
               </Card>
             </div>
           ) : (
-            <div className="relative border rounded-lg bg-white shadow-sm">
-              <div
-                className="overflow-auto"
-                style={{ maxHeight: "calc(100vh - 120px)" }}
-              >
-                <div className="min-w-[1200px]">
-                  {/* Fixed Column Headers */}
-
-                  <div
-                    className="sticky top-0 z-10 grid gap-0 bg-gray-100 border-b shadow-sm"
-                    style={{
-                      // Fixed-width columns so the board can scroll horizontally when needed
-                      gridTemplateColumns: `300px repeat(${3 + lanesAfterInProgress.length + lanesAfterQA.length}, 260px) 260px`,
-                    }}
+            <>
+              {/* Search Bar - Completely outside the scrum board */}
+              <div className="bg-white border rounded-lg mb-4 p-3 flex items-center gap-3 shadow-sm">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    type="text"
+                    placeholder="Search by title or full UUID (T) for tasks, I) for issues - hover ID for full UUID)..."
+                    value={scrumBoardSearch}
+                    onChange={(e) => setScrumBoardSearch(e.target.value)}
+                    className="pl-9 h-9 text-sm"
+                  />
+                </div>
+                {scrumBoardSearch && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                    onClick={() => setScrumBoardSearch("")}
                   >
-                    <div className="p-3 bg-green-100/80 border-r border-gray-200">
-                      <div className="flex items-center space-x-2">
-                        <BookOpen className="w-4 h-4 text-green-600" />
+                    Clear
+                  </Button>
+                )}
+              </div>
 
-                        <span className="font-semibold text-sm">Stories</span>
+              {/* Scrum Board Container - Restructured for separate header/body scroll */}
+              <div className="relative border rounded-lg bg-white shadow-sm flex flex-col" style={{ height: "calc(100vh - 240px)", minHeight: "450px" }}>
+                {/* Fixed Lane Headers - Always visible at top */}
+                <div className="flex-shrink-0 overflow-x-auto scrum-board-header" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                  <div className="min-w-[1200px]">
+                    <div
+                      className="grid gap-0 bg-gray-100 border-b shadow-sm"
+                      style={{
+                        gridTemplateColumns: `300px repeat(${3 + lanesAfterInProgress.length + lanesAfterQA.length}, 260px) 260px`,
+                      }}
+                    >
+                      <div className="p-3 bg-green-100/80 border-r border-gray-200">
+                        <div className="flex items-center space-x-2">
+                          <BookOpen className="w-4 h-4 text-green-600" />
 
-                        <Badge variant="secondary" className="text-xs">
-                          {boardStories.length}
-                        </Badge>
+                          <span className="font-semibold text-sm">Stories</span>
 
-                        {canManageSprintsAndStories && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-7 px-2 text-xs font-medium flex items-center gap-1"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                }}
-                              >
-                                <span>Pull Stories</span>
+                          <Badge variant="secondary" className="text-xs">
+                            {boardStories.length}
+                          </Badge>
 
-                                <span className="text-[10px] uppercase text-muted-foreground">
-                                  {storyScopeLabel}
-                                </span>
-
-                                <ChevronDown className="w-3 h-3" />
-                              </Button>
-                            </DropdownMenuTrigger>
-
-                            <DropdownMenuContent align="start" sideOffset={4}>
-                              <DropdownMenuLabel>Pull Stories</DropdownMenuLabel>
-
-                              <DropdownMenuLabel className="text-xs text-muted-foreground">
-                                Current: {storyScopeLabel}
-                              </DropdownMenuLabel>
-
-                              <DropdownMenuSeparator />
-
-                              {/* Pull from Backlog - Only for Managers */}
-                              {canManageSprintsAndStories && (
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    setPendingBacklogStoryIds(
-                                      selectedBacklogStoryIds,
-                                    );
-
-                                    setIsPullStoriesDialogOpen(true);
-
-                                    refetchSprintStories();
-                                    refetchBacklogStories();
+                          {canManageSprintsAndStories && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-2 text-xs font-medium flex items-center gap-1"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                   }}
                                 >
-                                  <GitBranch className="w-4 h-4 mr-2" />
-                                  Pull from Backlog...
-                                </DropdownMenuItem>
-                              )}
+                                  <span>Pull Stories</span>
 
-                              <DropdownMenuSeparator />
+                                  <span className="text-[10px] uppercase text-muted-foreground">
+                                    {storyScopeLabel}
+                                  </span>
 
-                              <DropdownMenuItem
-                                onClick={() => handlePullStories("sprint")}
-                                disabled={!selectedSprint}
-                                className={
-                                  storiesScope === "sprint"
-                                    ? "font-semibold text-green-700"
-                                    : ""
-                                }
-                              >
-                                <Download className="w-4 h-4 mr-2" />
-                                Sprint Stories
-                              </DropdownMenuItem>
+                                  <ChevronDown className="w-3 h-3" />
+                                </Button>
+                              </DropdownMenuTrigger>
 
-                              <DropdownMenuItem
-                                onClick={() => handlePullStories("backlog")}
-                                className={
-                                  storiesScope === "backlog"
-                                    ? "font-semibold text-purple-700"
-                                    : ""
-                                }
-                              >
-                                <Layers3 className="w-4 h-4 mr-2" />
-                                Backlog Stories
-                              </DropdownMenuItem>
+                              <DropdownMenuContent align="start" sideOffset={4}>
+                                <DropdownMenuLabel>Pull Stories</DropdownMenuLabel>
 
-                              <DropdownMenuSeparator />
+                                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                                  Current: {storyScopeLabel}
+                                </DropdownMenuLabel>
 
-                              <DropdownMenuItem
-                                onClick={() => handlePullStories("all")}
-                                disabled={!selectedSprint}
-                                className={
-                                  storiesScope === "all"
-                                    ? "font-semibold text-blue-700"
-                                    : ""
-                                }
-                              >
-                                <GitBranch className="w-4 h-4 mr-2" />
-                                Sprint + Backlog
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                      </div>
-                    </div>
+                                <DropdownMenuSeparator />
 
-                    <div className="p-3 bg-blue-100/80 border-r border-gray-200 min-w-[240px]">
-                      <div className="flex items-center space-x-2">
-                        <Timer className="w-4 h-4 text-blue-600" />
+                                {/* Pull from Backlog - Only for Managers */}
+                                {canManageSprintsAndStories && (
+                                  <DropdownMenuItem
+                                    onClick={() => {
+                                      setPendingBacklogStoryIds(
+                                        selectedBacklogStoryIds,
+                                      );
 
-                        <span className="font-semibold text-sm">To Do</span>
+                                      setIsPullStoriesDialogOpen(true);
 
-                        <Badge variant="secondary" className="text-xs">
-                          {getTasksByStatus("todo").length + getIssuesByStatus("todo").length}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    {/* Default In Progress Column */}
-
-                    <div className="p-3 bg-orange-100/80 border-r border-gray-200 min-w-[240px]">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center space-x-2 min-w-0">
-                          <PlayCircle className="w-4 h-4 text-orange-600 flex-shrink-0" />
-
-                          <span className="font-semibold text-sm whitespace-nowrap">
-                            In Progress
-                          </span>
-
-                          <Badge
-                            variant="secondary"
-                            className="text-xs flex-shrink-0"
-                          >
-                            {getTasksByStatus("inprogress").length + getIssuesByStatus("inprogress").length}
-                          </Badge>
-                        </div>
-
-                        {canManageSprintsAndStories && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0 hover:bg-orange-200 flex-shrink-0"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                }}
-                              >
-                                <MoreHorizontal className="w-4 h-4 text-orange-600" />
-                              </Button>
-                            </DropdownMenuTrigger>
-
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={(e) => {
-                                  e.preventDefault();
-
-                                  e.stopPropagation();
-
-                                  console.log("Add Lane clicked from In Progress");
-
-                                  handleOpenLaneConfigForStatus("inprogress");
-                                }}
-                              >
-                                <Settings className="w-4 h-4 mr-2" />
-                                Add Lane
-                              </DropdownMenuItem>
-
-                              <DropdownMenuSeparator />
-
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  const lane = workflowLanes.find(
-                                    (l) =>
-                                      l.statusValue
-                                        ?.toLowerCase()
-                                        .includes("in_progress") ||
-                                      l.statusValue
-                                        ?.toLowerCase()
-                                        .includes("inprogress"),
-                                  );
-
-                                  if (lane?.id) {
-                                    handleDeleteWorkflowLane(lane.id);
-                                  }
-                                }}
-                                className="text-red-600"
-                              >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Delete Lane
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Render Custom Lanes After In Progress (before QA) */}
-
-                    {lanesAfterInProgress.map((lane) => {
-                      const tasksInLane = getTasksByStatus(lane.statusValue);
-                      const issuesInLane = getIssuesByStatus(lane.statusValue);
-
-                      const laneColor = lane.color || "#3B82F6";
-
-                      // Convert hex color to RGB for background opacity
-
-                      const hexToRgb = (hex: string) => {
-                        const result =
-                          /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-
-                        return result
-                          ? {
-                            r: parseInt(result[1], 16),
-
-                            g: parseInt(result[2], 16),
-
-                            b: parseInt(result[3], 16),
-                          }
-                          : { r: 59, g: 130, b: 246 };
-                      };
-
-                      const rgb = hexToRgb(laneColor);
-
-                      const bgColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)`;
-
-                      const borderColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`;
-
-                      return (
-                        <div
-                          key={lane.id}
-                          className="p-3 border-r border-gray-200 min-w-[240px]"
-                          style={{
-                            backgroundColor: bgColor,
-
-                            borderRightColor: borderColor,
-                          }}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center space-x-2 min-w-0">
-                              <div
-                                className="w-4 h-4 rounded-full border-2 border-white shadow-sm flex-shrink-0"
-                                style={{ backgroundColor: laneColor }}
-                              />
-
-                              <span
-                                className="font-semibold text-sm whitespace-nowrap"
-                                style={{ color: laneColor }}
-                              >
-                                {lane.title}
-                              </span>
-
-                              <Badge
-                                variant="secondary"
-                                className="text-xs flex-shrink-0"
-                              >
-                                {tasksInLane.length + issuesInLane.length}
-                              </Badge>
-
-                              {lane.wipLimitEnabled && lane.wipLimit && (
-                                <Badge
-                                  variant={
-                                    tasksInLane.length > lane.wipLimit
-                                      ? "destructive"
-                                      : "secondary"
-                                  }
-                                  className="text-xs flex-shrink-0"
-                                >
-                                  WIP: {tasksInLane.length}/{lane.wipLimit}
-                                </Badge>
-                              )}
-                            </div>
-
-                            {canManageSprintsAndStories && (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 w-6 p-0 flex-shrink-0"
-                                    style={{ color: laneColor }}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
+                                      refetchSprintStories();
+                                      refetchBacklogStories();
                                     }}
                                   >
-                                    <MoreHorizontal className="w-4 h-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem
-                                    onClick={() => handleOpenLaneConfig(lane)}
-                                  >
-                                    <Settings className="w-4 h-4 mr-2" />
-                                    Configure Lane
+                                    <GitBranch className="w-4 h-4 mr-2" />
+                                    Pull from Backlog...
                                   </DropdownMenuItem>
+                                )}
 
-                                  <DropdownMenuSeparator />
+                                <DropdownMenuSeparator />
 
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      handleDeleteWorkflowLane(lane.id)
-                                    }
-                                    className="text-red-600"
-                                  >
-                                    <Trash2 className="w-4 h-4 mr-2" />
-                                    Delete Lane
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            )}
-                          </div>
+                                <DropdownMenuItem
+                                  onClick={() => handlePullStories("sprint")}
+                                  disabled={!selectedSprint}
+                                  className={
+                                    storiesScope === "sprint"
+                                      ? "font-semibold text-green-700"
+                                      : ""
+                                  }
+                                >
+                                  <Download className="w-4 h-4 mr-2" />
+                                  Sprint Stories
+                                </DropdownMenuItem>
 
-                          {lane.objective && (
-                            <p className="text-xs text-gray-600 mt-1 line-clamp-1 truncate">
-                              {lane.objective}
-                            </p>
+                                <DropdownMenuItem
+                                  onClick={() => handlePullStories("backlog")}
+                                  className={
+                                    storiesScope === "backlog"
+                                      ? "font-semibold text-purple-700"
+                                      : ""
+                                  }
+                                >
+                                  <Layers3 className="w-4 h-4 mr-2" />
+                                  Backlog Stories
+                                </DropdownMenuItem>
+
+                                <DropdownMenuSeparator />
+
+                                <DropdownMenuItem
+                                  onClick={() => handlePullStories("all")}
+                                  disabled={!selectedSprint}
+                                  className={
+                                    storiesScope === "all"
+                                      ? "font-semibold text-blue-700"
+                                      : ""
+                                  }
+                                >
+                                  <GitBranch className="w-4 h-4 mr-2" />
+                                  Sprint + Backlog
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           )}
                         </div>
-                      );
-                    })}
+                      </div>
 
-                    {/* QA Column - Show for all boards (default and custom) to match default board styling */}
+                      <div className="p-3 bg-blue-100/80 border-r border-gray-200 min-w-[240px]">
+                        <div className="flex items-center space-x-2">
+                          <Timer className="w-4 h-4 text-blue-600" />
 
-                    <>
-                      <div className="p-3 bg-purple-100/80 border-r border-gray-200 min-w-[240px]">
+                          <span className="font-semibold text-sm">To Do</span>
+
+                          <Badge variant="secondary" className="text-xs">
+                            {getTasksByStatus("todo").length + getIssuesByStatus("todo").length}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      {/* Default In Progress Column */}
+
+                      <div className="p-3 bg-orange-100/80 border-r border-gray-200 min-w-[240px]">
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center space-x-2 min-w-0">
-                            <Shield className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                            <PlayCircle className="w-4 h-4 text-orange-600 flex-shrink-0" />
 
                             <span className="font-semibold text-sm whitespace-nowrap">
-                              QA
+                              In Progress
                             </span>
 
                             <Badge
                               variant="secondary"
                               className="text-xs flex-shrink-0"
                             >
-                              {getTasksByStatus("qa").length + getIssuesByStatus("qa").length}
+                              {getTasksByStatus("inprogress").length + getIssuesByStatus("inprogress").length}
                             </Badge>
                           </div>
 
@@ -9656,12 +9646,12 @@ const ScrumPage: React.FC = () => {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-6 w-6 p-0 hover:bg-purple-200 flex-shrink-0"
+                                  className="h-6 w-6 p-0 hover:bg-orange-200 flex-shrink-0"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                   }}
                                 >
-                                  <MoreHorizontal className="w-4 h-4 text-purple-600" />
+                                  <MoreHorizontal className="w-4 h-4 text-orange-600" />
                                 </Button>
                               </DropdownMenuTrigger>
 
@@ -9672,9 +9662,9 @@ const ScrumPage: React.FC = () => {
 
                                     e.stopPropagation();
 
-                                    console.log("Add Lane clicked from QA");
+                                    console.log("Add Lane clicked from In Progress");
 
-                                    handleOpenLaneConfigForStatus("qa");
+                                    handleOpenLaneConfigForStatus("inprogress");
                                   }}
                                 >
                                   <Settings className="w-4 h-4 mr-2" />
@@ -9689,10 +9679,10 @@ const ScrumPage: React.FC = () => {
                                       (l) =>
                                         l.statusValue
                                           ?.toLowerCase()
-                                          .includes("qa") ||
+                                          .includes("in_progress") ||
                                         l.statusValue
                                           ?.toLowerCase()
-                                          .includes("review"),
+                                          .includes("inprogress"),
                                     );
 
                                     if (lane?.id) {
@@ -9710,83 +9700,149 @@ const ScrumPage: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Render Custom Lanes After QA (before Done) - Show for all boards */}
-                    </>
+                      {/* Render Custom Lanes After In Progress (before QA) */}
 
-                    {/* Render Custom Lanes After QA (before Done) - Show for all boards to match default board styling */}
+                      {lanesAfterInProgress.map((lane) => {
+                        const tasksInLane = getTasksByStatus(lane.statusValue);
+                        const issuesInLane = getIssuesByStatus(lane.statusValue);
 
-                    {lanesAfterQA.map((lane) => {
-                      const tasksInLane = getTasksByStatus(lane.statusValue);
-                      const issuesInLane = getIssuesByStatus(lane.statusValue);
+                        const laneColor = lane.color || "#3B82F6";
 
-                      const laneColor = lane.color || "#3B82F6";
+                        // Convert hex color to RGB for background opacity
 
-                      // Convert hex color to RGB for background opacity
+                        const hexToRgb = (hex: string) => {
+                          const result =
+                            /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
 
-                      const hexToRgb = (hex: string) => {
-                        const result =
-                          /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                          return result
+                            ? {
+                              r: parseInt(result[1], 16),
 
-                        return result
-                          ? {
-                            r: parseInt(result[1], 16),
+                              g: parseInt(result[2], 16),
 
-                            g: parseInt(result[2], 16),
+                              b: parseInt(result[3], 16),
+                            }
+                            : { r: 59, g: 130, b: 246 };
+                        };
 
-                            b: parseInt(result[3], 16),
-                          }
-                          : { r: 59, g: 130, b: 246 };
-                      };
+                        const rgb = hexToRgb(laneColor);
 
-                      const rgb = hexToRgb(laneColor);
+                        const bgColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)`;
 
-                      const bgColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)`;
+                        const borderColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`;
 
-                      const borderColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`;
+                        return (
+                          <div
+                            key={lane.id}
+                            className="p-3 border-r border-gray-200 min-w-[240px]"
+                            style={{
+                              backgroundColor: bgColor,
 
-                      return (
-                        <div
-                          key={lane.id}
-                          className="p-3 border-r border-gray-200 min-w-[240px]"
-                          style={{
-                            backgroundColor: bgColor,
+                              borderRightColor: borderColor,
+                            }}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center space-x-2 min-w-0">
+                                <div
+                                  className="w-4 h-4 rounded-full border-2 border-white shadow-sm flex-shrink-0"
+                                  style={{ backgroundColor: laneColor }}
+                                />
 
-                            borderRightColor: borderColor,
-                          }}
-                        >
+                                <span
+                                  className="font-semibold text-sm whitespace-nowrap"
+                                  style={{ color: laneColor }}
+                                >
+                                  {lane.title}
+                                </span>
+
+                                <Badge
+                                  variant="secondary"
+                                  className="text-xs flex-shrink-0"
+                                >
+                                  {tasksInLane.length + issuesInLane.length}
+                                </Badge>
+
+                                {lane.wipLimitEnabled && lane.wipLimit && (
+                                  <Badge
+                                    variant={
+                                      tasksInLane.length > lane.wipLimit
+                                        ? "destructive"
+                                        : "secondary"
+                                    }
+                                    className="text-xs flex-shrink-0"
+                                  >
+                                    WIP: {tasksInLane.length}/{lane.wipLimit}
+                                  </Badge>
+                                )}
+                              </div>
+
+                              {canManageSprintsAndStories && (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0 flex-shrink-0"
+                                      style={{ color: laneColor }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                      }}
+                                    >
+                                      <MoreHorizontal className="w-4 h-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem
+                                      onClick={() => handleOpenLaneConfig(lane)}
+                                    >
+                                      <Settings className="w-4 h-4 mr-2" />
+                                      Configure Lane
+                                    </DropdownMenuItem>
+
+                                    <DropdownMenuSeparator />
+
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        handleDeleteWorkflowLane(lane.id)
+                                      }
+                                      className="text-red-600"
+                                    >
+                                      <Trash2 className="w-4 h-4 mr-2" />
+                                      Delete Lane
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              )}
+                            </div>
+
+                            {lane.objective && (
+                              <p className="text-xs text-gray-600 mt-1 line-clamp-1 truncate">
+                                {lane.objective}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {/* QA Column - Show for all boards (default and custom) to match default board styling */}
+
+                      <>
+                        <div className="p-3 bg-purple-100/80 border-r border-gray-200 min-w-[240px]">
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center space-x-2 min-w-0">
-                              <div
-                                className="w-4 h-4 rounded-full border-2 border-white shadow-sm flex-shrink-0"
-                                style={{ backgroundColor: laneColor }}
-                              />
+                              <Shield className="w-4 h-4 text-purple-600 flex-shrink-0" />
 
-                              <span
-                                className="font-semibold text-sm whitespace-nowrap"
-                                style={{ color: laneColor }}
-                              >
-                                {lane.title}
+                              <span className="font-semibold text-sm whitespace-nowrap">
+                                QA
                               </span>
 
                               <Badge
                                 variant="secondary"
                                 className="text-xs flex-shrink-0"
                               >
-                                {tasksInLane.length + issuesInLane.length}
+                                {getTasksByStatus("qa").length + getIssuesByStatus("qa").length}
                               </Badge>
-
-                              {lane.wipLimitEnabled && lane.wipLimit && (
-                                <Badge
-                                  variant={
-                                    tasksInLane.length > lane.wipLimit
-                                      ? "destructive"
-                                      : "secondary"
-                                  }
-                                  className="text-xs flex-shrink-0"
-                                >
-                                  WIP: {tasksInLane.length}/{lane.wipLimit}
-                                </Badge>
-                              )}
                             </div>
 
                             {canManageSprintsAndStories && (
@@ -9795,30 +9851,49 @@ const ScrumPage: React.FC = () => {
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-6 w-6 p-0 flex-shrink-0"
-                                    style={{ color: laneColor }}
+                                    className="h-6 w-6 p-0 hover:bg-purple-200 flex-shrink-0"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                     }}
                                   >
-                                    <MoreHorizontal className="w-4 h-4" />
+                                    <MoreHorizontal className="w-4 h-4 text-purple-600" />
                                   </Button>
                                 </DropdownMenuTrigger>
 
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem
-                                    onClick={() => handleOpenLaneConfig(lane)}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+
+                                      e.stopPropagation();
+
+                                      console.log("Add Lane clicked from QA");
+
+                                      handleOpenLaneConfigForStatus("qa");
+                                    }}
                                   >
                                     <Settings className="w-4 h-4 mr-2" />
-                                    Configure Lane
+                                    Add Lane
                                   </DropdownMenuItem>
 
                                   <DropdownMenuSeparator />
 
                                   <DropdownMenuItem
-                                    onClick={() =>
-                                      handleDeleteWorkflowLane(lane.id)
-                                    }
+                                    onClick={() => {
+                                      const lane = workflowLanes.find(
+                                        (l) =>
+                                          l.statusValue
+                                            ?.toLowerCase()
+                                            .includes("qa") ||
+                                          l.statusValue
+                                            ?.toLowerCase()
+                                            .includes("review"),
+                                      );
+
+                                      if (lane?.id) {
+                                        handleDeleteWorkflowLane(lane.id);
+                                      }
+                                    }}
                                     className="text-red-600"
                                   >
                                     <Trash2 className="w-4 h-4 mr-2" />
@@ -9828,479 +9903,648 @@ const ScrumPage: React.FC = () => {
                               </DropdownMenu>
                             )}
                           </div>
-
-                          {lane.objective && (
-                            <p className="text-xs text-gray-600 mt-1 line-clamp-1 truncate">
-                              {lane.objective}
-                            </p>
-                          )}
                         </div>
-                      );
-                    })}
 
-                    <div className="p-3 bg-emerald-100/80 border-r border-gray-200 min-w-[240px]">
-                      <div className="flex items-center space-x-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        {/* Render Custom Lanes After QA (before Done) - Show for all boards */}
+                      </>
 
-                        <span className="font-semibold text-sm">Done</span>
+                      {/* Render Custom Lanes After QA (before Done) - Show for all boards to match default board styling */}
 
-                        <Badge variant="secondary" className="text-xs">
-                          {getTasksByStatus("done").length + getIssuesByStatus("done").length}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
+                      {lanesAfterQA.map((lane) => {
+                        const tasksInLane = getTasksByStatus(lane.statusValue);
+                        const issuesInLane = getIssuesByStatus(lane.statusValue);
 
-                  {/* Story Rows Content */}
+                        const laneColor = lane.color || "#3B82F6";
 
-                  <div className="w-full h-[calc(100vh-240px)]">
-                    {boardStories.length === 0 ? (
-                      <div className="flex items-center justify-center py-12">
-                        <div className="text-center">
-                          <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                        // Convert hex color to RGB for background opacity
 
-                          <h3 className="font-medium text-gray-600 mb-2">
-                            No stories in this view
-                          </h3>
+                        const hexToRgb = (hex: string) => {
+                          const result =
+                            /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
 
-                          <p className="text-sm text-gray-500">
-                            Add stories or change the pull scope to see the grid
-                            layout
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      boardStories.map((story, storyIndex) => {
-                        // Get tasks for this story by status
+                          return result
+                            ? {
+                              r: parseInt(result[1], 16),
 
-                        // Backend returns: to_do, in_progress, qa_review, done, blocked, cancelled
+                              g: parseInt(result[2], 16),
 
-                        const todoTasks = allTasks.filter(
-                          (task) =>
-                            task.storyId === story.id &&
-                            ((task.status as any) === "to_do" ||
-                              (task.status as any) === "TO_DO" ||
-                              (task.status as any) === "todo" ||
-                              (task.status as any) === "TODO"),
-                        );
-
-                        const inProgressTasks = allTasks.filter(
-                          (task) =>
-                            task.storyId === story.id &&
-                            ((task.status as any) === "in_progress" ||
-                              (task.status as any) === "IN_PROGRESS" ||
-                              (task.status as any) === "inprogress" ||
-                              (task.status as any) === "INPROGRESS"),
-                        );
-
-                        const qaTasks = allTasks.filter(
-                          (task) =>
-                            task.storyId === story.id &&
-                            ((task.status as any) === "qa_review" ||
-                              (task.status as any) === "QA_REVIEW" ||
-                              (task.status as any) === "qa" ||
-                              (task.status as any) === "QA"),
-                        );
-
-                        const doneTasks = allTasks.filter(
-                          (task) =>
-                            task.storyId === story.id &&
-                            ((task.status as any) === "done" || (task.status as any) === "DONE"),
-                        );
-
-                        // Get issues for this story by status (same status mapping as tasks)
-
-                        const todoIssues = allIssues.filter(
-                          (issue) =>
-                            issue.storyId === story.id &&
-                            ((issue.status as any) === "to_do" ||
-                              (issue.status as any) === "TO_DO" ||
-                              (issue.status as any) === "todo" ||
-                              (issue.status as any) === "TODO"),
-                        );
-
-                        const inProgressIssues = allIssues.filter(
-                          (issue) =>
-                            issue.storyId === story.id &&
-                            ((issue.status as any) === "in_progress" ||
-                              (issue.status as any) === "IN_PROGRESS" ||
-                              (issue.status as any) === "inprogress" ||
-                              (issue.status as any) === "INPROGRESS"),
-                        );
-
-                        const qaIssues = allIssues.filter(
-                          (issue) =>
-                            issue.storyId === story.id &&
-                            ((issue.status as any) === "qa_review" ||
-                              (issue.status as any) === "QA_REVIEW" ||
-                              (issue.status as any) === "qa" ||
-                              (issue.status as any) === "QA"),
-                        );
-
-                        const doneIssues = allIssues.filter(
-                          (issue) =>
-                            issue.storyId === story.id &&
-                            issue.storyId === story.id &&
-                            ((issue.status as any) === "done" || (issue.status as any) === "DONE"),
-                        );
-
-                        const maxTaskCount = Math.max(
-                          todoTasks.length + todoIssues.length,
-
-                          inProgressTasks.length + inProgressIssues.length,
-
-                          qaTasks.length + qaIssues.length,
-
-                          doneTasks.length + doneIssues.length,
-
-                          1,
-                        );
-
-                        // Debug logging
-
-                        console.log(`Story ${story.id} (${story.title}):`, {
-                          allTasksCount: allTasks.length,
-
-                          storyTasks: allTasks.filter(
-                            (t) => t.storyId === story.id,
-                          ),
-
-                          todoTasks: todoTasks.length,
-
-                          inProgressTasks: inProgressTasks.length,
-
-                          qaTasks: qaTasks.length,
-
-                          doneTasks: doneTasks.length,
-
-                          allTaskStatuses: allTasks.map((t) => ({
-                            id: t.id,
-                            storyId: t.storyId,
-                            status: t.status,
-                            statusType: typeof t.status,
-                          })),
-                        });
-
-                        // Drop zone component for each cell (displays both tasks and issues)
-
-                        const TaskDropZone: React.FC<{
-                          status: string;
-                          tasks: Task[];
-                          issues: Issue[];
-                          bgClass: string;
-                          style?: React.CSSProperties;
-                        }> = ({ status, tasks, issues, bgClass, style }) => {
-                          // Disable drop for REGULAR developers on Done column only
-                          // QA Developer and QA Manager CAN drop to Done from any column
-                          // Developers can add tasks to all other lanes including manager-created lanes
-                          const isDoneColumn = status === "done";
-                          // Check if the status maps to DONE
-                          const mappedStatus = mapColumnToTaskStatus(status);
-                          const isDoneStatus = isDoneColumn || mappedStatus === "DONE";
-                          // Only block regular developers from Done, QA roles can drop to Done
-                          const canDropForDeveloper = !(isRegularDeveloper && isDoneStatus);
-
-                          // Check if trying to drop from "In Progress" to "To Do" (only managers allowed)
-                          const isTodoColumn = status === "todo" || status === "TO_DO" || status === "TODO" ||
-                            (status && status.toLowerCase() === "todo");
-
-                          // Check if trying to drop to "In Progress" column
-                          const isInProgressColumn = status === "inprogress" || status === "IN_PROGRESS" || status === "in_progress" ||
-                            (status && status.toLowerCase() === "inprogress");
-
-                          const canDropForManager = (item: { id: string; type: string } | null) => {
-                            // QA Developer has same drag permissions as managers (can drag between all columns)
-                            if (!item || canManageSprintsAndStories || isQADeveloper) {
-                              return true; // Allow if user is manager or QA Developer
+                              b: parseInt(result[3], 16),
                             }
-
-                            // Check if trying to drop from "In Progress" to "To Do" (only managers allowed)
-                            if (isTodoColumn) {
-                              if (item.type === ItemTypes.TASK) {
-                                const task = allTasks.find((t) => t.id === item.id);
-                                const taskStatus = task?.status?.toUpperCase() || "";
-                                if (taskStatus === "IN_PROGRESS" || taskStatus === "in_progress".toUpperCase()) {
-                                  return false; // Prevent non-managers from dropping
-                                }
-                              } else if (item.type === ItemTypes.ISSUE) {
-                                const issue = allIssues.find((i) => i.id === item.id);
-                                const issueStatus = issue?.status?.toUpperCase() || "";
-                                if (issueStatus === "IN_PROGRESS" || issueStatus === "in_progress".toUpperCase()) {
-                                  return false; // Prevent non-managers from dropping
-                                }
-                              }
-                            }
-
-                            // Check if trying to drop from "To Do" to "In Progress" (only managers allowed)
-                            if (isInProgressColumn) {
-                              if (item.type === ItemTypes.TASK) {
-                                const task = allTasks.find((t) => t.id === item.id);
-                                const taskStatus = task?.status?.toUpperCase() || "";
-                                if (taskStatus === "TO_DO" || taskStatus === "TODO" || taskStatus === "todo".toUpperCase() || taskStatus === "to_do".toUpperCase()) {
-                                  return false; // Prevent non-managers from dropping
-                                }
-                              } else if (item.type === ItemTypes.ISSUE) {
-                                const issue = allIssues.find((i) => i.id === item.id);
-                                const issueStatus = issue?.status?.toUpperCase() || "";
-                                if (issueStatus === "TO_DO" || issueStatus === "TODO" || issueStatus === "todo".toUpperCase() || issueStatus === "to_do".toUpperCase()) {
-                                  return false; // Prevent non-managers from dropping
-                                }
-                              }
-                            }
-
-                            return true;
-                          };
-
-                          const [{ isOver }, drop] = useDrop(() => ({
-                            accept: [ItemTypes.TASK, ItemTypes.ISSUE],
-
-                            drop: (item: { id: string; type: string }) => {
-                              if (canDropForDeveloper && canDropForManager(item)) {
-                                moveItem(item.id, status, item.type);
-                              }
-                            },
-
-                            canDrop: (item: { id: string; type: string }) => {
-                              return canDropForDeveloper && canDropForManager(item);
-                            },
-
-                            collect: (monitor) => ({
-                              isOver: monitor.isOver() && canDropForDeveloper && canDropForManager(monitor.getItem()),
-                            }),
-                          }));
-
-                          return (
-                            <div
-                              ref={drop as unknown as React.Ref<HTMLDivElement>}
-                              className={`p-3 border-r border-gray-200 ${bgClass} ${isOver ? "bg-blue-100 ring-2 ring-blue-400 ring-inset" : ""} transition-all`}
-                              style={style}
-                              title={
-                                !canDropForDeveloper
-                                  ? "Developers cannot move items to Done column"
-                                  : isTodoColumn && !canManageSprintsAndStories
-                                    ? "Only managers can move items from In Progress back to To Do"
-                                    : isInProgressColumn && !canManageSprintsAndStories
-                                      ? "Only managers can move items from To Do to In Progress"
-                                      : undefined
-                              }
-                            >
-                              <div className="grid grid-cols-2 gap-2 min-h-[80px]">
-                                {tasks.map((task, taskIndex) => (
-                                  <DraggableTask
-                                    key={task.id}
-                                    task={task}
-                                    index={taskIndex}
-                                  />
-                                ))}
-
-                                {issues.map((issue, issueIndex) => (
-                                  <DraggableIssue
-                                    key={issue.id}
-                                    issue={issue}
-                                    index={issueIndex}
-                                  />
-                                ))}
-
-                                {tasks.length === 0 &&
-                                  issues.length === 0 &&
-                                  !isOver && (
-                                    <div className="col-span-2 text-center py-6 text-gray-300 text-xs">
-                                      Drop here
-                                    </div>
-                                  )}
-                              </div>
-                            </div>
-                          );
+                            : { r: 59, g: 130, b: 246 };
                         };
 
-                        // Helper to get tasks for a custom lane
+                        const rgb = hexToRgb(laneColor);
 
-                        const getTasksForLane = (statusValue: string) => {
-                          return allTasks.filter((task) => {
-                            if (task.storyId !== story.id) return false;
+                        const bgColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)`;
 
-                            // Check if task status directly matches the lane's statusValue
-
-                            if (task.status === statusValue) return true;
-
-                            // Also check mapped status
-
-                            const mappedColumn = mapTaskStatusToColumn(task.status);
-
-                            return mappedColumn === statusValue;
-                          });
-                        };
-
-                        // Helper to get issues for a custom lane
-
-                        const getIssuesForLane = (statusValue: string) => {
-                          return allIssues.filter((issue) => {
-                            if (issue.storyId !== story.id) return false;
-
-                            // Check if issue status directly matches the lane's statusValue
-
-                            if (issue.status === statusValue) return true;
-
-                            // Also check mapped status
-
-                            const mappedColumn = mapTaskStatusToColumn(
-                              issue.status,
-                            );
-
-                            return mappedColumn === statusValue;
-                          });
-                        };
+                        const borderColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`;
 
                         return (
                           <div
-                            key={story.id}
-                            className="grid gap-0 border-b border-gray-200 bg-white"
+                            key={lane.id}
+                            className="p-3 border-r border-gray-200 min-w-[240px]"
                             style={{
-                              // Match header layout with fixed-width columns for consistent scrolling
-                              gridTemplateColumns: `300px repeat(${3 + lanesAfterInProgress.length + lanesAfterQA.length}, 260px) 260px`,
+                              backgroundColor: bgColor,
+
+                              borderRightColor: borderColor,
                             }}
                           >
-                            {/* Story Column */}
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center space-x-2 min-w-0">
+                                <div
+                                  className="w-4 h-4 rounded-full border-2 border-white shadow-sm flex-shrink-0"
+                                  style={{ backgroundColor: laneColor }}
+                                />
 
-                            <div
-                              className="p-4 border-r border-gray-200 bg-green-50/20"
-                              style={{ minHeight: "280px" }}
-                            >
-                              <DraggableStory story={story} index={storyIndex} />
+                                <span
+                                  className="font-semibold text-sm whitespace-nowrap"
+                                  style={{ color: laneColor }}
+                                >
+                                  {lane.title}
+                                </span>
+
+                                <Badge
+                                  variant="secondary"
+                                  className="text-xs flex-shrink-0"
+                                >
+                                  {tasksInLane.length + issuesInLane.length}
+                                </Badge>
+
+                                {lane.wipLimitEnabled && lane.wipLimit && (
+                                  <Badge
+                                    variant={
+                                      tasksInLane.length > lane.wipLimit
+                                        ? "destructive"
+                                        : "secondary"
+                                    }
+                                    className="text-xs flex-shrink-0"
+                                  >
+                                    WIP: {tasksInLane.length}/{lane.wipLimit}
+                                  </Badge>
+                                )}
+                              </div>
+
+                              {canManageSprintsAndStories && (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0 flex-shrink-0"
+                                      style={{ color: laneColor }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                      }}
+                                    >
+                                      <MoreHorizontal className="w-4 h-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem
+                                      onClick={() => handleOpenLaneConfig(lane)}
+                                    >
+                                      <Settings className="w-4 h-4 mr-2" />
+                                      Configure Lane
+                                    </DropdownMenuItem>
+
+                                    <DropdownMenuSeparator />
+
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        handleDeleteWorkflowLane(lane.id)
+                                      }
+                                      className="text-red-600"
+                                    >
+                                      <Trash2 className="w-4 h-4 mr-2" />
+                                      Delete Lane
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              )}
                             </div>
 
-                            {/* To Do Column */}
+                            {lane.objective && (
+                              <p className="text-xs text-gray-600 mt-1 line-clamp-1 truncate">
+                                {lane.objective}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
 
-                            <TaskDropZone
-                              status="todo"
-                              tasks={todoTasks}
-                              issues={todoIssues}
-                              bgClass="bg-blue-50/10"
-                              style={{ minWidth: "260px" }}
-                            />
+                      <div className="p-3 bg-emerald-100/80 border-r border-gray-200 min-w-[240px]">
+                        <div className="flex items-center space-x-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
 
-                            {/* In Progress Column */}
+                          <span className="font-semibold text-sm">Done</span>
 
-                            <TaskDropZone
-                              status="inprogress"
-                              tasks={inProgressTasks}
-                              issues={inProgressIssues}
-                              bgClass="bg-orange-50/10"
-                              style={{ minWidth: "260px" }}
-                            />
+                          <Badge variant="secondary" className="text-xs">
+                            {getTasksByStatus("done").length + getIssuesByStatus("done").length}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {/* End of Fixed Lane Headers */}
 
-                            {/* Render custom lanes after In Progress */}
+                {/* Scrollable Story Rows Body - Synced horizontal scroll with header */}
+                <div
+                  className="flex-1 overflow-auto scrum-board-body"
+                  onScroll={(e) => {
+                    const target = e.target as HTMLElement;
+                    const header = document.querySelector('.scrum-board-header') as HTMLElement;
+                    if (header) {
+                      header.scrollLeft = target.scrollLeft;
+                    }
+                  }}
+                >
+                  <div className="min-w-[1200px]">
+                    {/* Story Rows Content */}
+                    <div className="w-full">
+                      {boardStories.length === 0 ? (
+                        <div className="flex items-center justify-center py-12">
+                          <div className="text-center">
+                            <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-400" />
 
-                            {lanesAfterInProgress.map((lane) => {
-                              const laneTasks = getTasksForLane(lane.statusValue);
+                            <h3 className="font-medium text-gray-600 mb-2">
+                              No stories in this view
+                            </h3>
 
-                              const laneIssues = getIssuesForLane(lane.statusValue);
+                            <p className="text-sm text-gray-500">
+                              Add stories or change the pull scope to see the grid
+                              layout
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        boardStories.map((story, storyIndex) => {
+                          // Get tasks for this story by status
 
-                              const laneColor = lane.color || "#3B82F6";
+                          // Search filter helper - checks title and UUID with T)/I) prefix support
+                          const matchesTaskSearch = (task: Task) => {
+                            if (!scrumBoardSearch) return true;
+                            const search = scrumBoardSearch.toLowerCase().trim();
+                            // Check if searching for task UUID with T) prefix
+                            if (search.startsWith('t)')) {
+                              const uuidSearch = search.substring(2).trim();
+                              return task.id.toLowerCase().includes(uuidSearch);
+                            }
+                            // Otherwise search by title or ID
+                            return task.title.toLowerCase().includes(search) ||
+                              task.id.toLowerCase().includes(search);
+                          };
 
-                              const hexToRgb = (hex: string) => {
-                                const result =
-                                  /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(
-                                    hex,
-                                  );
+                          const matchesIssueSearch = (issue: Issue) => {
+                            if (!scrumBoardSearch) return true;
+                            const search = scrumBoardSearch.toLowerCase().trim();
+                            // Check if searching for issue UUID with I) prefix
+                            if (search.startsWith('i)')) {
+                              const uuidSearch = search.substring(2).trim();
+                              return issue.id.toLowerCase().includes(uuidSearch);
+                            }
+                            // Otherwise search by title or ID
+                            return issue.title.toLowerCase().includes(search) ||
+                              issue.id.toLowerCase().includes(search);
+                          };
 
-                                return result
-                                  ? {
-                                    r: parseInt(result[1], 16),
+                          // Backend returns: to_do, in_progress, qa_review, done, blocked, cancelled
 
-                                    g: parseInt(result[2], 16),
+                          const todoTasks = allTasks.filter(
+                            (task) =>
+                              task.storyId === story.id &&
+                              matchesTaskSearch(task) &&
+                              ((task.status as any) === "to_do" ||
+                                (task.status as any) === "TO_DO" ||
+                                (task.status as any) === "todo" ||
+                                (task.status as any) === "TODO"),
+                          );
 
-                                    b: parseInt(result[3], 16),
+                          const inProgressTasks = allTasks.filter(
+                            (task) =>
+                              task.storyId === story.id &&
+                              matchesTaskSearch(task) &&
+                              ((task.status as any) === "in_progress" ||
+                                (task.status as any) === "IN_PROGRESS" ||
+                                (task.status as any) === "inprogress" ||
+                                (task.status as any) === "INPROGRESS"),
+                          );
+
+                          const qaTasks = allTasks.filter(
+                            (task) =>
+                              task.storyId === story.id &&
+                              matchesTaskSearch(task) &&
+                              ((task.status as any) === "qa_review" ||
+                                (task.status as any) === "QA_REVIEW" ||
+                                (task.status as any) === "qa" ||
+                                (task.status as any) === "QA"),
+                          );
+
+                          const doneTasks = allTasks.filter(
+                            (task) =>
+                              task.storyId === story.id &&
+                              matchesTaskSearch(task) &&
+                              ((task.status as any) === "done" || (task.status as any) === "DONE"),
+                          );
+
+                          // Get issues for this story by status (same status mapping as tasks)
+
+                          const todoIssues = allIssues.filter(
+                            (issue) =>
+                              issue.storyId === story.id &&
+                              matchesIssueSearch(issue) &&
+                              ((issue.status as any) === "to_do" ||
+                                (issue.status as any) === "TO_DO" ||
+                                (issue.status as any) === "todo" ||
+                                (issue.status as any) === "TODO"),
+                          );
+
+                          const inProgressIssues = allIssues.filter(
+                            (issue) =>
+                              issue.storyId === story.id &&
+                              matchesIssueSearch(issue) &&
+                              ((issue.status as any) === "in_progress" ||
+                                (issue.status as any) === "IN_PROGRESS" ||
+                                (issue.status as any) === "inprogress" ||
+                                (issue.status as any) === "INPROGRESS"),
+                          );
+
+                          const qaIssues = allIssues.filter(
+                            (issue) =>
+                              issue.storyId === story.id &&
+                              matchesIssueSearch(issue) &&
+                              ((issue.status as any) === "qa_review" ||
+                                (issue.status as any) === "QA_REVIEW" ||
+                                (issue.status as any) === "qa" ||
+                                (issue.status as any) === "QA"),
+                          );
+
+                          const doneIssues = allIssues.filter(
+                            (issue) =>
+                              issue.storyId === story.id &&
+                              matchesIssueSearch(issue) &&
+                              ((issue.status as any) === "done" || (issue.status as any) === "DONE"),
+                          );
+
+                          const maxTaskCount = Math.max(
+                            todoTasks.length + todoIssues.length,
+
+                            inProgressTasks.length + inProgressIssues.length,
+
+                            qaTasks.length + qaIssues.length,
+
+                            doneTasks.length + doneIssues.length,
+
+                            1,
+                          );
+
+                          // Debug logging
+
+                          console.log(`Story ${story.id} (${story.title}):`, {
+                            allTasksCount: allTasks.length,
+
+                            storyTasks: allTasks.filter(
+                              (t) => t.storyId === story.id,
+                            ),
+
+                            todoTasks: todoTasks.length,
+
+                            inProgressTasks: inProgressTasks.length,
+
+                            qaTasks: qaTasks.length,
+
+                            doneTasks: doneTasks.length,
+
+                            allTaskStatuses: allTasks.map((t) => ({
+                              id: t.id,
+                              storyId: t.storyId,
+                              status: t.status,
+                              statusType: typeof t.status,
+                            })),
+                          });
+
+                          // Drop zone component for each cell (displays both tasks and issues)
+
+                          const TaskDropZone: React.FC<{
+                            status: string;
+                            tasks: Task[];
+                            issues: Issue[];
+                            bgClass: string;
+                            style?: React.CSSProperties;
+                          }> = ({ status, tasks, issues, bgClass, style }) => {
+                            // Disable drop for REGULAR developers on Done column only
+                            // QA Developer and QA Manager CAN drop to Done from any column
+                            // Developers can add tasks to all other lanes including manager-created lanes
+                            const isDoneColumn = status === "done";
+                            // Check if the status maps to DONE
+                            const mappedStatus = mapColumnToTaskStatus(status);
+                            const isDoneStatus = isDoneColumn || mappedStatus === "DONE";
+                            // Only block regular developers from Done, QA roles (including original role) can drop to Done
+                            const canDropForDeveloper = !(isRegularDeveloper && isDoneStatus) || isOriginalQADeveloper || isQADeveloper;
+
+                            // Check if trying to drop from "In Progress" to "To Do" (only managers allowed)
+                            const isTodoColumn = status === "todo" || status === "TO_DO" || status === "TODO" ||
+                              (status && status.toLowerCase() === "todo");
+
+                            // Check if trying to drop to "In Progress" column
+                            const isInProgressColumn = status === "inprogress" || status === "IN_PROGRESS" || status === "in_progress" ||
+                              (status && status.toLowerCase() === "inprogress");
+
+                            const canDropForManager = (item: { id: string; type: string } | null) => {
+                              // QA Developer has same drag permissions as managers (can drag between all columns)
+                              // Also check isOriginalQADeveloper for role-switched users
+                              if (!item || canManageSprintsAndStories || isQADeveloper || isOriginalQADeveloper) {
+                                return true; // Allow if user is manager or QA Developer (current or original role)
+                              }
+
+                              // Check if trying to drop from "In Progress" to "To Do" (only managers allowed)
+                              if (isTodoColumn) {
+                                if (item.type === ItemTypes.TASK) {
+                                  const task = allTasks.find((t) => t.id === item.id);
+                                  const taskStatus = task?.status?.toUpperCase() || "";
+                                  if (taskStatus === "IN_PROGRESS" || taskStatus === "in_progress".toUpperCase()) {
+                                    return false; // Prevent non-managers from dropping
                                   }
-                                  : { r: 59, g: 130, b: 246 };
-                              };
-
-                              const rgb = hexToRgb(laneColor);
-
-                              const bgColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.05)`;
-
-                              return (
-                                <TaskDropZone
-                                  key={lane.id}
-                                  status={lane.statusValue}
-                                  tasks={laneTasks}
-                                  issues={laneIssues}
-                                  bgClass=""
-                                  style={{
-                                    backgroundColor: bgColor,
-                                    minWidth: "260px",
-                                  }}
-                                />
-                              );
-                            })}
-
-                            {/* QA Column - Show for all boards (default and custom) to match default board styling */}
-
-                            <TaskDropZone
-                              status="qa"
-                              tasks={qaTasks}
-                              issues={qaIssues}
-                              bgClass="bg-purple-50/10"
-                              style={{ minWidth: "260px" }}
-                            />
-
-                            {/* Render custom lanes after QA - Show for all boards to match default board styling */}
-
-                            {lanesAfterQA.map((lane) => {
-                              const laneTasks = getTasksForLane(lane.statusValue);
-
-                              const laneIssues = getIssuesForLane(lane.statusValue);
-
-                              const laneColor = lane.color || "#3B82F6";
-
-                              const hexToRgb = (hex: string) => {
-                                const result =
-                                  /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(
-                                    hex,
-                                  );
-
-                                return result
-                                  ? {
-                                    r: parseInt(result[1], 16),
-
-                                    g: parseInt(result[2], 16),
-
-                                    b: parseInt(result[3], 16),
+                                } else if (item.type === ItemTypes.ISSUE) {
+                                  const issue = allIssues.find((i) => i.id === item.id);
+                                  const issueStatus = issue?.status?.toUpperCase() || "";
+                                  if (issueStatus === "IN_PROGRESS" || issueStatus === "in_progress".toUpperCase()) {
+                                    return false; // Prevent non-managers from dropping
                                   }
-                                  : { r: 59, g: 130, b: 246 };
-                              };
+                                }
+                              }
 
-                              const rgb = hexToRgb(laneColor);
+                              // Check if trying to drop from "To Do" to "In Progress" (only managers allowed)
+                              if (isInProgressColumn) {
+                                if (item.type === ItemTypes.TASK) {
+                                  const task = allTasks.find((t) => t.id === item.id);
+                                  const taskStatus = task?.status?.toUpperCase() || "";
+                                  if (taskStatus === "TO_DO" || taskStatus === "TODO" || taskStatus === "todo".toUpperCase() || taskStatus === "to_do".toUpperCase()) {
+                                    return false; // Prevent non-managers from dropping
+                                  }
+                                } else if (item.type === ItemTypes.ISSUE) {
+                                  const issue = allIssues.find((i) => i.id === item.id);
+                                  const issueStatus = issue?.status?.toUpperCase() || "";
+                                  if (issueStatus === "TO_DO" || issueStatus === "TODO" || issueStatus === "todo".toUpperCase() || issueStatus === "to_do".toUpperCase()) {
+                                    return false; // Prevent non-managers from dropping
+                                  }
+                                }
+                              }
 
-                              const bgColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.05)`;
+                              return true;
+                            };
 
-                              return (
-                                <TaskDropZone
-                                  key={lane.id}
-                                  status={lane.statusValue}
-                                  tasks={laneTasks}
-                                  issues={laneIssues}
-                                  bgClass=""
-                                  style={{
-                                    backgroundColor: bgColor,
-                                    minWidth: "260px",
-                                  }}
-                                />
+                            const [{ isOver }, drop] = useDrop(() => ({
+                              accept: [ItemTypes.TASK, ItemTypes.ISSUE],
+
+                              drop: (item: { id: string; type: string }) => {
+                                if (canDropForDeveloper && canDropForManager(item)) {
+                                  moveItem(item.id, status, item.type);
+                                }
+                              },
+
+                              canDrop: (item: { id: string; type: string }) => {
+                                return canDropForDeveloper && canDropForManager(item);
+                              },
+
+                              collect: (monitor) => ({
+                                isOver: monitor.isOver() && canDropForDeveloper && canDropForManager(monitor.getItem()),
+                              }),
+                            }));
+
+                            return (
+                              <div
+                                ref={drop as unknown as React.Ref<HTMLDivElement>}
+                                className={`p-3 border-r border-gray-200 ${bgClass} ${isOver ? "bg-blue-100 ring-2 ring-blue-400 ring-inset" : ""} transition-all`}
+                                style={style}
+                                title={
+                                  !canDropForDeveloper
+                                    ? "Developers cannot move items to Done column"
+                                    : isTodoColumn && !canManageSprintsAndStories
+                                      ? "Only managers can move items from In Progress back to To Do"
+                                      : isInProgressColumn && !canManageSprintsAndStories
+                                        ? "Only managers can move items from To Do to In Progress"
+                                        : undefined
+                                }
+                              >
+                                <div className="grid grid-cols-2 gap-2 min-h-[80px]">
+                                  {tasks.map((task, taskIndex) => (
+                                    <DraggableTask
+                                      key={task.id}
+                                      task={task}
+                                      index={taskIndex}
+                                    />
+                                  ))}
+
+                                  {issues.map((issue, issueIndex) => (
+                                    <DraggableIssue
+                                      key={issue.id}
+                                      issue={issue}
+                                      index={issueIndex}
+                                    />
+                                  ))}
+
+                                  {tasks.length === 0 &&
+                                    issues.length === 0 &&
+                                    !isOver && (
+                                      <div className="col-span-2 text-center py-6 text-gray-300 text-xs">
+                                        Drop here
+                                      </div>
+                                    )}
+                                </div>
+                              </div>
+                            );
+                          };
+
+                          // Helper to get tasks for a custom lane
+
+                          const getTasksForLane = (statusValue: string) => {
+                            return allTasks.filter((task) => {
+                              if (task.storyId !== story.id) return false;
+
+                              // Check if task status directly matches the lane's statusValue
+
+                              if (task.status === statusValue) return true;
+
+                              // Also check mapped status
+
+                              const mappedColumn = mapTaskStatusToColumn(task.status);
+
+                              return mappedColumn === statusValue;
+                            });
+                          };
+
+                          // Helper to get issues for a custom lane
+
+                          const getIssuesForLane = (statusValue: string) => {
+                            return allIssues.filter((issue) => {
+                              if (issue.storyId !== story.id) return false;
+
+                              // Check if issue status directly matches the lane's statusValue
+
+                              if (issue.status === statusValue) return true;
+
+                              // Also check mapped status
+
+                              const mappedColumn = mapTaskStatusToColumn(
+                                issue.status,
                               );
-                            })}
 
-                            {/* Done Column */}
+                              return mappedColumn === statusValue;
+                            });
+                          };
 
-                            <TaskDropZone
-                              status="done"
-                              tasks={doneTasks}
-                              issues={doneIssues}
-                              bgClass="bg-emerald-50/10"
-                              style={{ minWidth: "260px" }}
-                            />
+                          return (
+                            <div
+                              key={story.id}
+                              className="grid gap-0 border-b border-gray-200 bg-white"
+                              style={{
+                                // Match header layout with fixed-width columns for consistent scrolling
+                                gridTemplateColumns: `300px repeat(${3 + lanesAfterInProgress.length + lanesAfterQA.length}, 260px) 260px`,
+                              }}
+                            >
+                              {/* Story Column */}
 
-                            {/* Actions Column - Commented out */}
-                            {/* 
+                              <div
+                                className="p-4 border-r border-gray-200 bg-green-50/20"
+                                style={{ minHeight: "280px" }}
+                              >
+                                <DraggableStory story={story} index={storyIndex} />
+                              </div>
+
+                              {/* To Do Column */}
+
+                              <TaskDropZone
+                                status="todo"
+                                tasks={todoTasks}
+                                issues={todoIssues}
+                                bgClass="bg-blue-50/10"
+                                style={{ minWidth: "260px" }}
+                              />
+
+                              {/* In Progress Column */}
+
+                              <TaskDropZone
+                                status="inprogress"
+                                tasks={inProgressTasks}
+                                issues={inProgressIssues}
+                                bgClass="bg-orange-50/10"
+                                style={{ minWidth: "260px" }}
+                              />
+
+                              {/* Render custom lanes after In Progress */}
+
+                              {lanesAfterInProgress.map((lane) => {
+                                const laneTasks = getTasksForLane(lane.statusValue);
+
+                                const laneIssues = getIssuesForLane(lane.statusValue);
+
+                                const laneColor = lane.color || "#3B82F6";
+
+                                const hexToRgb = (hex: string) => {
+                                  const result =
+                                    /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(
+                                      hex,
+                                    );
+
+                                  return result
+                                    ? {
+                                      r: parseInt(result[1], 16),
+
+                                      g: parseInt(result[2], 16),
+
+                                      b: parseInt(result[3], 16),
+                                    }
+                                    : { r: 59, g: 130, b: 246 };
+                                };
+
+                                const rgb = hexToRgb(laneColor);
+
+                                const bgColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.05)`;
+
+                                return (
+                                  <TaskDropZone
+                                    key={lane.id}
+                                    status={lane.statusValue}
+                                    tasks={laneTasks}
+                                    issues={laneIssues}
+                                    bgClass=""
+                                    style={{
+                                      backgroundColor: bgColor,
+                                      minWidth: "260px",
+                                    }}
+                                  />
+                                );
+                              })}
+
+                              {/* QA Column - Show for all boards (default and custom) to match default board styling */}
+
+                              <TaskDropZone
+                                status="qa"
+                                tasks={qaTasks}
+                                issues={qaIssues}
+                                bgClass="bg-purple-50/10"
+                                style={{ minWidth: "260px" }}
+                              />
+
+                              {/* Render custom lanes after QA - Show for all boards to match default board styling */}
+
+                              {lanesAfterQA.map((lane) => {
+                                const laneTasks = getTasksForLane(lane.statusValue);
+
+                                const laneIssues = getIssuesForLane(lane.statusValue);
+
+                                const laneColor = lane.color || "#3B82F6";
+
+                                const hexToRgb = (hex: string) => {
+                                  const result =
+                                    /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(
+                                      hex,
+                                    );
+
+                                  return result
+                                    ? {
+                                      r: parseInt(result[1], 16),
+
+                                      g: parseInt(result[2], 16),
+
+                                      b: parseInt(result[3], 16),
+                                    }
+                                    : { r: 59, g: 130, b: 246 };
+                                };
+
+                                const rgb = hexToRgb(laneColor);
+
+                                const bgColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.05)`;
+
+                                return (
+                                  <TaskDropZone
+                                    key={lane.id}
+                                    status={lane.statusValue}
+                                    tasks={laneTasks}
+                                    issues={laneIssues}
+                                    bgClass=""
+                                    style={{
+                                      backgroundColor: bgColor,
+                                      minWidth: "260px",
+                                    }}
+                                  />
+                                );
+                              })}
+
+                              {/* Done Column */}
+
+                              <TaskDropZone
+                                status="done"
+                                tasks={doneTasks}
+                                issues={doneIssues}
+                                bgClass="bg-emerald-50/10"
+                                style={{ minWidth: "260px" }}
+                              />
+
+                              {/* Actions Column - Commented out */}
+                              {/* 
                         <div className="p-3 bg-gray-50/30 border-r-0">
                           <div className="sticky top-16 space-y-2">
                             <Button
@@ -10354,14 +10598,15 @@ const ScrumPage: React.FC = () => {
                           </div>
                         </div>
                         */}
-                          </div>
-                        );
-                      })
-                    )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            </>
           )}
         </TabsContent>
 
@@ -10636,152 +10881,154 @@ const ScrumPage: React.FC = () => {
         </TabsContent>
 
         {/* Pull Stories from Backlog Dialog - Only for Managers */}
-        {canManageSprintsAndStories && (
-          <Dialog
-            open={isPullStoriesDialogOpen}
-            onOpenChange={handlePullStoriesDialogChange}
-          >
-            <DialogContent
-              className="!w-[80vw] !h-[75vh] !max-w-[80vw] !max-h-[75vh] overflow-y-auto !translate-y-[-50%] !min-w-[80vw]"
-              style={{ width: '80vw', maxWidth: '80vw', minWidth: '80vw' }}
+        {
+          canManageSprintsAndStories && (
+            <Dialog
+              open={isPullStoriesDialogOpen}
+              onOpenChange={handlePullStoriesDialogChange}
             >
-              <DialogHeader>
-                <DialogTitle>Pull Stories from Backlog</DialogTitle>
-                <DialogDescription>
-                  Select stories from the project backlog to pull into the current sprint.
-                  Selected stories will be moved to the current sprint with all their tasks.
-                </DialogDescription>
-              </DialogHeader>
+              <DialogContent
+                className="!w-[80vw] !h-[75vh] !max-w-[80vw] !max-h-[75vh] overflow-y-auto !translate-y-[-50%] !min-w-[80vw]"
+                style={{ width: '80vw', maxWidth: '80vw', minWidth: '80vw' }}
+              >
+                <DialogHeader>
+                  <DialogTitle>Pull Stories from Backlog</DialogTitle>
+                  <DialogDescription>
+                    Select stories from the project backlog to pull into the current sprint.
+                    Selected stories will be moved to the current sprint with all their tasks.
+                  </DialogDescription>
+                </DialogHeader>
 
-              <div className="space-y-4">
-                <div className="flex items-center justify-between text-sm text-muted-foreground">
-                  <span>
-                    {projectBacklogStories.length} stor
-                    {projectBacklogStories.length === 1 ? "y" : "ies"} available in backlog
-                  </span>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>
+                      {projectBacklogStories.length} stor
+                      {projectBacklogStories.length === 1 ? "y" : "ies"} available in backlog
+                    </span>
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2"
+                      onClick={() => {
+                        if (
+                          pendingBacklogStoryIds.length ===
+                          projectBacklogStories.length
+                        ) {
+                          setPendingBacklogStoryIds([]);
+                        } else {
+                          setPendingBacklogStoryIds(
+                            projectBacklogStories.map((story) => story.id),
+                          );
+                        }
+                      }}
+                      disabled={projectBacklogStories.length === 0}
+                    >
+                      {pendingBacklogStoryIds.length ===
+                        projectBacklogStories.length &&
+                        projectBacklogStories.length > 0
+                        ? "Clear all"
+                        : "Select all"}
+                    </Button>
+                  </div>
+
+                  <div className="max-h-80 overflow-y-auto rounded-md border">
+                    {projectBacklogStories.length === 0 ? (
+                      <div className="py-10 px-4 text-center text-sm text-muted-foreground">
+                        No stories available in the backlog for this project.
+                      </div>
+                    ) : (
+                      <div className="divide-y">
+                        {projectBacklogStories.map((story) => {
+                          const checked = pendingBacklogStoryIds.includes(story.id);
+
+                          return (
+                            <label
+                              key={story.id}
+                              className="flex items-start gap-3 px-4 py-3 hover:bg-muted/60 cursor-pointer"
+                            >
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={() =>
+                                  handleTogglePendingBacklogStory(story.id)
+                                }
+                                className="mt-1"
+                              />
+
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-medium text-sm text-foreground line-clamp-1">
+                                    {story.title || story.name}
+                                  </span>
+
+                                  {typeof story.storyPoints === "number" && (
+                                    <Badge
+                                      variant="secondary"
+                                      className="ml-2 text-xs flex-shrink-0"
+                                    >
+                                      {story.storyPoints} pts
+                                    </Badge>
+                                  )}
+                                </div>
+
+                                <div className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                                  {story.description
+                                    ? story.description
+                                    : "No description provided."}
+                                </div>
+
+                                <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                                  <span className="uppercase tracking-wide">
+                                    Status: {story.status || "BACKLOG"}
+                                  </span>
+
+                                  {story.priority && (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px]"
+                                    >
+                                      {story.priority}
+                                    </Badge>
+                                  )}
+
+                                  {story.assigneeName && (
+                                    <span>Assigned To: {story.assigneeName}</span>
+                                  )}
+
+                                  {story.epicName && (
+                                    <span>Epic: {story.epicName}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <DialogFooter className="mt-6">
+                  <Button
+                    variant="outline"
+                    onClick={() => handlePullStoriesDialogChange(false)}
+                  >
+                    Cancel
+                  </Button>
 
                   <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2"
-                    onClick={() => {
-                      if (
-                        pendingBacklogStoryIds.length ===
-                        projectBacklogStories.length
-                      ) {
-                        setPendingBacklogStoryIds([]);
-                      } else {
-                        setPendingBacklogStoryIds(
-                          projectBacklogStories.map((story) => story.id),
-                        );
-                      }
-                    }}
-                    disabled={projectBacklogStories.length === 0}
+                    onClick={handleConfirmPullSelectedStories}
+                    disabled={projectBacklogStories.length === 0 || pendingBacklogStoryIds.length === 0}
                   >
-                    {pendingBacklogStoryIds.length ===
-                      projectBacklogStories.length &&
-                      projectBacklogStories.length > 0
-                      ? "Clear all"
-                      : "Select all"}
+                    {pendingBacklogStoryIds.length > 0
+                      ? `Pull ${pendingBacklogStoryIds.length} stor${pendingBacklogStoryIds.length === 1 ? "y" : "ies"}`
+                      : "Select stories"}
                   </Button>
-                </div>
-
-                <div className="max-h-80 overflow-y-auto rounded-md border">
-                  {projectBacklogStories.length === 0 ? (
-                    <div className="py-10 px-4 text-center text-sm text-muted-foreground">
-                      No stories available in the backlog for this project.
-                    </div>
-                  ) : (
-                    <div className="divide-y">
-                      {projectBacklogStories.map((story) => {
-                        const checked = pendingBacklogStoryIds.includes(story.id);
-
-                        return (
-                          <label
-                            key={story.id}
-                            className="flex items-start gap-3 px-4 py-3 hover:bg-muted/60 cursor-pointer"
-                          >
-                            <Checkbox
-                              checked={checked}
-                              onCheckedChange={() =>
-                                handleTogglePendingBacklogStory(story.id)
-                              }
-                              className="mt-1"
-                            />
-
-                            <div className="flex-1">
-                              <div className="flex items-center justify-between">
-                                <span className="font-medium text-sm text-foreground line-clamp-1">
-                                  {story.title || story.name}
-                                </span>
-
-                                {typeof story.storyPoints === "number" && (
-                                  <Badge
-                                    variant="secondary"
-                                    className="ml-2 text-xs flex-shrink-0"
-                                  >
-                                    {story.storyPoints} pts
-                                  </Badge>
-                                )}
-                              </div>
-
-                              <div className="mt-1 text-xs text-muted-foreground line-clamp-2">
-                                {story.description
-                                  ? story.description
-                                  : "No description provided."}
-                              </div>
-
-                              <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                                <span className="uppercase tracking-wide">
-                                  Status: {story.status || "BACKLOG"}
-                                </span>
-
-                                {story.priority && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-[10px]"
-                                  >
-                                    {story.priority}
-                                  </Badge>
-                                )}
-
-                                {story.assigneeName && (
-                                  <span>Assigned To: {story.assigneeName}</span>
-                                )}
-
-                                {story.epicName && (
-                                  <span>Epic: {story.epicName}</span>
-                                )}
-                              </div>
-                            </div>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <DialogFooter className="mt-6">
-                <Button
-                  variant="outline"
-                  onClick={() => handlePullStoriesDialogChange(false)}
-                >
-                  Cancel
-                </Button>
-
-                <Button
-                  onClick={handleConfirmPullSelectedStories}
-                  disabled={projectBacklogStories.length === 0 || pendingBacklogStoryIds.length === 0}
-                >
-                  {pendingBacklogStoryIds.length > 0
-                    ? `Pull ${pendingBacklogStoryIds.length} stor${pendingBacklogStoryIds.length === 1 ? "y" : "ies"}`
-                    : "Select stories"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        )}
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )
+        }
 
         {/* Create Sprint Dialog */}
 
@@ -11206,34 +11453,47 @@ const ScrumPage: React.FC = () => {
                               </div>
                             </div>
 
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                if (attachment.fileUrl) {
-                                  // Handle base64 data URLs
-
-                                  if (attachment.fileUrl.startsWith("data:")) {
-                                    const link = document.createElement("a");
-
-                                    link.href = attachment.fileUrl;
-
-                                    link.download = attachment.fileName;
-
-                                    document.body.appendChild(link);
-
-                                    link.click();
-
-                                    document.body.removeChild(link);
-                                  } else {
-                                    window.open(attachment.fileUrl, "_blank");
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setViewingAttachment(attachment);
+                                  setIsAttachmentViewerOpen(true);
+                                }}
+                              >
+                                <Eye className="w-4 h-4 mr-2" />
+                                View
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  if (attachment.fileUrl) {
+                                    // Handle base64 data URLs
+                                    if (attachment.fileUrl.startsWith("data:")) {
+                                      const link = document.createElement("a");
+                                      link.href = attachment.fileUrl;
+                                      link.download = attachment.fileName;
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      document.body.removeChild(link);
+                                    } else {
+                                      const link = document.createElement("a");
+                                      link.href = attachment.fileUrl;
+                                      link.download = attachment.fileName;
+                                      link.target = "_blank";
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      document.body.removeChild(link);
+                                    }
                                   }
-                                }
-                              }}
-                            >
-                              <Download className="w-4 h-4 mr-2" />
-                              Download
-                            </Button>
+                                }}
+                              >
+                                <Download className="w-4 h-4 mr-2" />
+                                Download
+                              </Button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -12042,15 +12302,37 @@ const ScrumPage: React.FC = () => {
                 {/* Task Content */}
 
                 <div className="space-y-4">
-                  {selectedTaskForDetails.description && (
-                    <div>
-                      <h4 className="font-medium mb-2">Description</h4>
-
-                      <p className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-lg">
-                        {selectedTaskForDetails.description}
-                      </p>
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium">Description</h4>
+                      {canManageSprintsAndStories && !isEditingTaskDescription && (
+                        <Button variant="ghost" size="sm" onClick={() => {
+                          setTempDescription(selectedTaskForDetails.description || "");
+                          setIsEditingTaskDescription(true);
+                        }} className="h-6 px-2">
+                          <Edit3 className="w-3 h-3 mr-1" /> Edit
+                        </Button>
+                      )}
                     </div>
-                  )}
+
+                    {isEditingTaskDescription ? (
+                      <div className="space-y-2">
+                        <Textarea
+                          value={tempDescription}
+                          onChange={(e) => setTempDescription(e.target.value)}
+                          className="min-h-[100px]"
+                        />
+                        <div className="flex justify-end space-x-2">
+                          <Button variant="outline" size="sm" onClick={() => setIsEditingTaskDescription(false)}>Cancel</Button>
+                          <Button size="sm" onClick={handleSaveTaskDescription}>Save</Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-lg whitespace-pre-wrap">
+                        {selectedTaskForDetails.description || "No description provided."}
+                      </p>
+                    )}
+                  </div>
 
                   {/* Task Metadata Grid */}
 
@@ -13276,8 +13558,7 @@ const ScrumPage: React.FC = () => {
                           variant="secondary"
                           className="bg-blue-100 text-blue-800 font-semibold"
                         >
-                          TSK-
-                          {selectedTaskForDetails.id.slice(-4).toUpperCase()}
+                          T){selectedTaskForDetails.id.toUpperCase()}
                         </Badge>
 
                         <Button
@@ -13313,7 +13594,7 @@ const ScrumPage: React.FC = () => {
                         disabled={!canLogEffortOnTasks}
                       >
                         <Clock className="w-4 h-4 mr-1 text-blue-600" />
-                        Log
+                        Add Log
                       </Button>
                     </div>
                   </div>
@@ -13501,18 +13782,36 @@ const ScrumPage: React.FC = () => {
                         {/* Description */}
 
                         <div>
-                          <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                            Description
-                          </h3>
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-sm font-semibold text-gray-900">
+                              Description
+                            </h3>
+                            {canManageSprintsAndStories && !isEditingTaskDescription && (
+                              <Button variant="ghost" size="sm" onClick={() => {
+                                setTempDescription(selectedTaskForDetails.description || "");
+                                setIsEditingTaskDescription(true);
+                              }} className="h-6 px-2">
+                                <Edit3 className="w-3 h-3 mr-1" /> Edit
+                              </Button>
+                            )}
+                          </div>
 
                           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                            {selectedTaskForDetails.description ? (
-                              <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                                {selectedTaskForDetails.description}
-                              </p>
+                            {isEditingTaskDescription ? (
+                              <div className="space-y-2">
+                                <Textarea
+                                  value={tempDescription}
+                                  onChange={(e) => setTempDescription(e.target.value)}
+                                  className="min-h-[100px] bg-white"
+                                />
+                                <div className="flex justify-end space-x-2">
+                                  <Button variant="outline" size="sm" onClick={() => setIsEditingTaskDescription(false)}>Cancel</Button>
+                                  <Button size="sm" onClick={handleSaveTaskDescription}>Save</Button>
+                                </div>
+                              </div>
                             ) : (
-                              <p className="text-sm text-gray-400 italic">
-                                Add a description...
+                              <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                                {selectedTaskForDetails.description || "No description provided."}
                               </p>
                             )}
                           </div>
@@ -13643,6 +13942,18 @@ const ScrumPage: React.FC = () => {
                                   </div>
 
                                   <div className="flex items-center space-x-2 flex-shrink-0">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setViewingAttachment(attachment);
+                                        setIsAttachmentViewerOpen(true);
+                                      }}
+                                    >
+                                      <Eye className="w-3 h-3 mr-1" />
+                                      View
+                                    </Button>
                                     <Button
                                       variant="ghost"
                                       size="sm"
@@ -13951,7 +14262,7 @@ const ScrumPage: React.FC = () => {
                                       }}
                                     >
                                       <Clock className="w-3 h-3 mr-1 text-green-600" />
-                                      Log
+                                      Add Log
                                     </Button>
                                   </div>
                                 </div>
@@ -14393,15 +14704,71 @@ const ScrumPage: React.FC = () => {
                             Due Date
                           </label>
 
-                          <div className="flex items-center space-x-2 text-sm text-gray-700">
-                            <span>
-                              {selectedTaskForDetails.dueDate
-                                ? new Date(
-                                  selectedTaskForDetails.dueDate,
-                                ).toLocaleDateString()
-                                : "No due date"}
-                            </span>
-                          </div>
+                          {canManageSprintsAndStories ? (
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  className={`w-full justify-start text-left font-normal h-8 text-xs ${!selectedTaskForDetails.dueDate ? "text-muted-foreground" : ""
+                                    }`}
+                                >
+                                  <CalendarIcon className="mr-2 h-3 w-3" />
+                                  {selectedTaskForDetails.dueDate
+                                    ? new Date(selectedTaskForDetails.dueDate).toLocaleDateString()
+                                    : "Pick a date"}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0 z-[50]" align="start">
+                                <Calendar
+                                  mode="single"
+                                  selected={selectedTaskForDetails.dueDate ? new Date(selectedTaskForDetails.dueDate) : undefined}
+                                  onSelect={async (date) => {
+                                    if (date) {
+                                      // Use local date string YYYY-MM-DD instead of toISOString() to avoid timezone offsets
+                                      const year = date.getFullYear();
+                                      const month = String(date.getMonth() + 1).padStart(2, '0');
+                                      const day = String(date.getDate()).padStart(2, '0');
+                                      const formattedDate = `${year}-${month}-${day}`;
+
+                                      try {
+                                        // Convert status to uppercase for backend enum compatibility
+                                        const taskUpdate = {
+                                          ...selectedTaskForDetails,
+                                          status: selectedTaskForDetails.status?.toUpperCase() as any,
+                                          dueDate: formattedDate
+                                        };
+                                        await taskApiService.updateTask(selectedTaskForDetails.id, taskUpdate);
+                                        setSelectedTaskForDetails((prev) =>
+                                          prev ? { ...prev, dueDate: formattedDate } : prev
+                                        );
+                                        setAllTasks((prev) =>
+                                          prev.map((t) =>
+                                            t.id === selectedTaskForDetails.id
+                                              ? { ...t, dueDate: formattedDate }
+                                              : t
+                                          )
+                                        );
+                                        toast.success("Due date updated");
+                                      } catch (error) {
+                                        console.error("Failed to update due date:", error);
+                                        toast.error("Failed to update due date");
+                                      }
+                                    }
+                                  }}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          ) : (
+                            <div className="flex items-center space-x-2 text-sm text-gray-700">
+                              <CalendarIcon className="w-4 h-4 text-gray-400" />
+                              <span>
+                                {selectedTaskForDetails.dueDate
+                                  ? new Date(selectedTaskForDetails.dueDate).toLocaleDateString()
+                                  : "No due date"}
+                              </span>
+                            </div>
+                          )}
                         </div>
 
                         {/* Labels */}
@@ -14481,15 +14848,16 @@ const ScrumPage: React.FC = () => {
             )}
           </DialogContent>
         </Dialog>
-      </Tabs>
+      </Tabs >
 
       {/* JIRA-Style Issue Details Modal */}
 
-      <Dialog open={isIssueDetailsOpen} onOpenChange={setIsIssueDetailsOpen}>
+      < Dialog open={isIssueDetailsOpen} onOpenChange={setIsIssueDetailsOpen} >
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden p-0 flex flex-col">
           <DialogTitle className="sr-only">
             Issue Details: {selectedIssueForDetails?.title || "Issue"}
           </DialogTitle>
+          <DialogDescription className="sr-only">View and edit issue details</DialogDescription>
 
           {selectedIssueForDetails && (
             <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -14505,7 +14873,7 @@ const ScrumPage: React.FC = () => {
                         variant="secondary"
                         className="bg-red-100 text-red-800 font-semibold"
                       >
-                        ISS-{selectedIssueForDetails.id.slice(-4).toUpperCase()}
+                        I){selectedIssueForDetails.id.toUpperCase()}
                       </Badge>
 
                       <Button variant="outline" size="sm" className="h-7 px-3">
@@ -14536,7 +14904,7 @@ const ScrumPage: React.FC = () => {
                       title="Log work on this issue"
                     >
                       <Clock className="w-4 h-4 mr-1 text-red-600" />
-                      Log
+                      Add Log
                     </Button>
                   </div>
                 </div>
@@ -14683,18 +15051,37 @@ const ScrumPage: React.FC = () => {
                       {/* Description */}
 
                       <div>
-                        <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                          Description
-                        </h3>
+                        {/* Accessibility fix: Header with Edit button */}
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-sm font-semibold text-gray-900">
+                            Description
+                          </h3>
+                          {canManageSprintsAndStories && !isEditingIssueDescription && (
+                            <Button variant="ghost" size="sm" onClick={() => {
+                              setTempDescription(selectedIssueForDetails.description || "");
+                              setIsEditingIssueDescription(true);
+                            }} className="h-6 px-2">
+                              <Edit3 className="w-3 h-3 mr-1" /> Edit
+                            </Button>
+                          )}
+                        </div>
 
                         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                          {selectedIssueForDetails.description ? (
-                            <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                              {selectedIssueForDetails.description}
-                            </p>
+                          {isEditingIssueDescription ? (
+                            <div className="space-y-2">
+                              <Textarea
+                                value={tempDescription}
+                                onChange={(e) => setTempDescription(e.target.value)}
+                                className="min-h-[100px] bg-white"
+                              />
+                              <div className="flex justify-end space-x-2">
+                                <Button variant="outline" size="sm" onClick={() => setIsEditingIssueDescription(false)}>Cancel</Button>
+                                <Button size="sm" onClick={handleSaveIssueDescription}>Save</Button>
+                              </div>
+                            </div>
                           ) : (
-                            <p className="text-sm text-gray-400 italic">
-                              Add a description...
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                              {selectedIssueForDetails.description || "No description provided."}
                             </p>
                           )}
                         </div>
@@ -14839,6 +15226,18 @@ const ScrumPage: React.FC = () => {
 
                                 <div className="flex items-center space-x-2 flex-shrink-0">
                                   <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setViewingAttachment(attachment);
+                                      setIsAttachmentViewerOpen(true);
+                                    }}
+                                  >
+                                    <Eye className="w-3 h-3 mr-1" />
+                                    View
+                                  </Button>
+                                  <Button
                                     variant="ghost"
                                     size="sm"
                                     className="h-8 px-3 text-xs"
@@ -14939,6 +15338,18 @@ const ScrumPage: React.FC = () => {
                                 </div>
 
                                 <div className="flex items-center space-x-2 flex-shrink-0">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setViewingAttachment(attachment);
+                                      setIsAttachmentViewerOpen(true);
+                                    }}
+                                  >
+                                    <Eye className="w-3 h-3 mr-1" />
+                                    View
+                                  </Button>
                                   <Button
                                     variant="ghost"
                                     size="sm"
@@ -15174,7 +15585,7 @@ const ScrumPage: React.FC = () => {
                                       }}
                                     >
                                       <Clock className="w-3 h-3 mr-1" />
-                                      Log
+                                      Add Log
                                     </Button>
 
                                     {/* Edit Button */}
@@ -15633,7 +16044,7 @@ const ScrumPage: React.FC = () => {
                           Due Date
                         </label>
 
-                        {(user?.role === 'qa_developer' || user?.role === 'qa_manager') ? (
+                        {(user?.role === 'manager' || user?.role === 'qa_manager') ? (
                           <Popover open={isIssueDueDatePopoverOpen} onOpenChange={setIsIssueDueDatePopoverOpen} modal={true}>
                             <PopoverTrigger asChild>
                               <Button
@@ -15655,7 +16066,12 @@ const ScrumPage: React.FC = () => {
                                 selected={selectedIssueForDetails.dueDate ? new Date(selectedIssueForDetails.dueDate) : undefined}
                                 onSelect={async (date) => {
                                   if (date) {
-                                    const formattedDate = date.toISOString().split('T')[0];
+                                    // Use local date string YYYY-MM-DD instead of toISOString() to avoid timezone offsets
+                                    const year = date.getFullYear();
+                                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                                    const day = String(date.getDate()).padStart(2, '0');
+                                    const formattedDate = `${year}-${month}-${day}`;
+
                                     try {
                                       await issueApiService.updateIssueDueDate(selectedIssueForDetails.id, formattedDate);
                                       setSelectedIssueForDetails((prev: any) =>
@@ -15771,11 +16187,11 @@ const ScrumPage: React.FC = () => {
             </div>
           )}
         </DialogContent>
-      </Dialog>
+      </Dialog >
 
       {/* Add Issue Dialog */}
 
-      <AddIssueDialog
+      < AddIssueDialog
         isOpen={isAddIssueDialogOpen}
         onClose={() => {
           setIsAddIssueDialogOpen(false);
@@ -15786,37 +16202,39 @@ const ScrumPage: React.FC = () => {
         sprintStartDate={selectedSprint ? sprints?.find((s: any) => s.id === selectedSprint)?.startDate : undefined}
         sprintEndDate={selectedSprint ? sprints?.find((s: any) => s.id === selectedSprint)?.endDate : undefined}
         onSubmit={handleAddIssue}
-        stories={sprintStories.map((story) => ({
-          id: story.id,
+        stories={
+          sprintStories.map((story) => ({
+            id: story.id,
 
-          title: story.title,
+            title: story.title,
 
-          priority: (story.priority?.toLowerCase() || "medium") as
-            | "high"
-            | "medium"
-            | "low",
+            priority: (story.priority?.toLowerCase() || "medium") as
+              | "high"
+              | "medium"
+              | "low",
 
-          points: story.storyPoints || 0,
+            points: story.storyPoints || 0,
 
-          status: story.status?.toLowerCase()?.includes("backlog")
-            ? "stories"
-            : story.status?.toLowerCase()?.includes("todo")
-              ? "todo"
-              : story.status?.toLowerCase()?.includes("progress")
-                ? "inprogress"
-                : story.status?.toLowerCase()?.includes("review")
-                  ? "qa"
-                  : story.status?.toLowerCase()?.includes("done")
-                    ? "done"
-                    : ("stories" as
-                      | "stories"
-                      | "todo"
-                      | "inprogress"
-                      | "qa"
-                      | "done"),
+            status: story.status?.toLowerCase()?.includes("backlog")
+              ? "stories"
+              : story.status?.toLowerCase()?.includes("todo")
+                ? "todo"
+                : story.status?.toLowerCase()?.includes("progress")
+                  ? "inprogress"
+                  : story.status?.toLowerCase()?.includes("review")
+                    ? "qa"
+                    : story.status?.toLowerCase()?.includes("done")
+                      ? "done"
+                      : ("stories" as
+                        | "stories"
+                        | "todo"
+                        | "inprogress"
+                        | "qa"
+                        | "done"),
 
-          assignee: undefined,
-        }))}
+            assignee: undefined,
+          }))
+        }
         defaultStatus="todo"
         defaultStoryId={selectedStoryForIssue || undefined}
         requiredStoryId={selectedStoryForIssue || undefined}
@@ -15826,7 +16244,7 @@ const ScrumPage: React.FC = () => {
 
       {/* Add Task Dialog */}
 
-      <AddTaskDialog
+      < AddTaskDialog
         isOpen={isAddTaskDialogOpen}
         onClose={() => {
           setIsAddTaskDialogOpen(false);
@@ -15849,38 +16267,40 @@ const ScrumPage: React.FC = () => {
           setCustomLaneNameForDialog(undefined);
         }}
         onSubmit={handleAddTask}
-        stories={sprintStories.map((story) => ({
-          id: story.id,
+        stories={
+          sprintStories.map((story) => ({
+            id: story.id,
 
-          title: story.title,
+            title: story.title,
 
-          priority: (story.priority?.toLowerCase() || "medium") as
-            | "high"
-            | "medium"
-            | "low",
+            priority: (story.priority?.toLowerCase() || "medium") as
+              | "high"
+              | "medium"
+              | "low",
 
-          points: story.storyPoints || 0,
+            points: story.storyPoints || 0,
 
-          status: story.status?.toLowerCase()?.includes("backlog")
-            ? "stories"
-            : story.status?.toLowerCase()?.includes("todo")
-              ? "todo"
-              : story.status?.toLowerCase()?.includes("progress")
-                ? "inprogress"
-                : story.status?.toLowerCase()?.includes("review")
-                  ? "qa"
-                  : story.status?.toLowerCase()?.includes("done")
-                    ? "done"
-                    : ("stories" as
-                      | "stories"
-                      | "todo"
-                      | "inprogress"
-                      | "qa"
-                      | "done"),
+            status: story.status?.toLowerCase()?.includes("backlog")
+              ? "stories"
+              : story.status?.toLowerCase()?.includes("todo")
+                ? "todo"
+                : story.status?.toLowerCase()?.includes("progress")
+                  ? "inprogress"
+                  : story.status?.toLowerCase()?.includes("review")
+                    ? "qa"
+                    : story.status?.toLowerCase()?.includes("done")
+                      ? "done"
+                      : ("stories" as
+                        | "stories"
+                        | "todo"
+                        | "inprogress"
+                        | "qa"
+                        | "done"),
 
-          assignee: undefined,
-          dueDate: story.dueDate || undefined,
-        }))}
+            assignee: undefined,
+            dueDate: story.dueDate || undefined,
+          }))
+        }
         defaultStatus={newTask.storyId ? "todo" : "todo"}
         defaultStoryId={newTask.storyId || undefined}
         users={users}
@@ -15889,7 +16309,7 @@ const ScrumPage: React.FC = () => {
 
       {/* Lane Configuration Modal */}
 
-      <LaneConfigurationModal
+      < LaneConfigurationModal
         open={isLaneConfigModalOpen}
         onClose={() => {
           setIsLaneConfigModalOpen(false);
@@ -15906,7 +16326,7 @@ const ScrumPage: React.FC = () => {
 
       {/* Create Board Dialog */}
 
-      <Dialog
+      < Dialog
         open={isCreateBoardDialogOpen}
         onOpenChange={setIsCreateBoardDialogOpen}
       >
@@ -15970,10 +16390,10 @@ const ScrumPage: React.FC = () => {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog >
 
       {/* Edit Story Dialog */}
-      <Dialog
+      < Dialog
         open={isEditStoryDialogOpen}
         onOpenChange={(open) => {
           setIsEditStoryDialogOpen(open);
@@ -16033,10 +16453,11 @@ const ScrumPage: React.FC = () => {
                     <SelectValue placeholder="Select priority" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="LOW">Low</SelectItem>
-                    <SelectItem value="MEDIUM">Medium</SelectItem>
-                    <SelectItem value="HIGH">High</SelectItem>
+                    <SelectItem value="BLOCKER">Blocker</SelectItem>
                     <SelectItem value="CRITICAL">Critical</SelectItem>
+                    <SelectItem value="HIGH">High</SelectItem>
+                    <SelectItem value="MEDIUM">Medium</SelectItem>
+                    <SelectItem value="LOW">Low</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -16123,11 +16544,11 @@ const ScrumPage: React.FC = () => {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog >
 
       {/* Epic Template Dialog */}
 
-      <Dialog
+      < Dialog
         open={isEpicTemplateDialogOpen}
         onOpenChange={setIsEpicTemplateDialogOpen}
       >
@@ -16241,11 +16662,11 @@ const ScrumPage: React.FC = () => {
             ))}
           </div>
         </DialogContent>
-      </Dialog>
+      </Dialog >
 
       {/* Add Epic Dialog */}
 
-      <Dialog
+      < Dialog
         open={isAddEpicDialogOpen}
         onOpenChange={setIsAddEpicDialogOpen}
       >
@@ -16301,15 +16722,11 @@ const ScrumPage: React.FC = () => {
                   </SelectTrigger>
 
                   <SelectContent>
-                    <SelectItem value="LOW">Low</SelectItem>
-
-                    <SelectItem value="MEDIUM">Medium</SelectItem>
-
+                    <SelectItem value="BLOCKER">Blocker</SelectItem>
+                    <SelectItem value="CRITICAL">Critical</SelectItem>
                     <SelectItem value="HIGH">High</SelectItem>
-
-                    <SelectItem value="CRITICAL">
-                      Critical
-                    </SelectItem>
+                    <SelectItem value="MEDIUM">Medium</SelectItem>
+                    <SelectItem value="LOW">Low</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -16428,7 +16845,7 @@ const ScrumPage: React.FC = () => {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog >
 
       {/* Create Sprint Dialog */}
       {/* <CreateSprintDialog
@@ -16649,7 +17066,17 @@ const ScrumPage: React.FC = () => {
         users={users}
         customLaneName={customLaneNameForDialog}
       />
-    </DndProvider>
+
+      {/* Attachment Viewer Modal */}
+      <AttachmentViewer
+        isOpen={isAttachmentViewerOpen}
+        onClose={() => {
+          setIsAttachmentViewerOpen(false);
+          setViewingAttachment(null);
+        }}
+        attachment={viewingAttachment}
+      />
+    </DndProvider >
   );
 };
 

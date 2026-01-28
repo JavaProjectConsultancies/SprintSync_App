@@ -316,6 +316,39 @@ public class TaskController {
     }
 
     /**
+     * Update task due date (for manager controls)
+     */
+    @PatchMapping("/{id}/due-date")
+    @CacheEvict(value = { "projects", "projects-summary" }, allEntries = true)
+    public ResponseEntity<Task> updateTaskDueDate(@PathVariable String id,
+            @RequestBody Map<String, String> update) {
+        try {
+            String dueDateStr = update.get("dueDate");
+            if (dueDateStr == null || dueDateStr.isEmpty()) {
+                return ResponseEntity.badRequest().build();
+            }
+
+            // Parse the date string (expected format: YYYY-MM-DD)
+            java.time.LocalDate dueDate = java.time.LocalDate.parse(dueDateStr);
+
+            Task existingTask = taskService.getTaskById(id);
+            if (existingTask == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            existingTask.setDueDate(dueDate);
+            Task updatedTask = taskService.updateTask(existingTask);
+            if (updatedTask != null) {
+                return ResponseEntity.ok(updatedTask);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
+
+    /**
      * Get task statistics
      */
     @GetMapping("/statistics")

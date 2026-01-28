@@ -13,12 +13,12 @@ import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Plus, X, Target, User, Flag, BookOpen, CheckCircle2, FileText, Star, Bug, Code, Search, Paperclip, Link, Upload, Trash2, Eye, CalendarIcon, Clock } from 'lucide-react';
 import { storyTemplates, StoryTemplate, getStoriesByType } from '../data/storyTemplates';
-import { Epic } from '../types';
+import { Epic, Priority } from '../types/api';
 
 interface Story {
   id: string;
   title: string;
-  priority: 'high' | 'medium' | 'low';
+  priority: Priority;
   points: number;
   status: 'stories' | 'todo' | 'inprogress' | 'qa' | 'done';
   assignee?: string;
@@ -41,7 +41,7 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    priority: 'medium' as 'high' | 'medium' | 'low',
+    priority: 'MEDIUM' as Priority,
     points: 1,
     assignee: '',
     acceptanceCriteria: [''],
@@ -148,7 +148,7 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
     setFormData({
       title: '',
       description: '',
-      priority: 'medium',
+      priority: 'MEDIUM' as Priority,
       points: 1,
       assignee: '',
       acceptanceCriteria: [''],
@@ -242,10 +242,12 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
   };
 
   const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high': return 'bg-red-100 text-red-800 border-red-200';
-      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'low': return 'bg-green-100 text-green-800 border-green-200';
+    switch (priority.toUpperCase()) {
+      case 'BLOCKER': return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'CRITICAL': return 'bg-red-100 text-red-800 border-red-200';
+      case 'HIGH': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'MEDIUM': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'LOW': return 'bg-green-100 text-green-800 border-green-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -274,7 +276,7 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
         templateId: template.id,
         title: template.title,
         description: template.description,
-        priority: template.priority,
+        priority: template.priority.toUpperCase() as Priority,
         points: template.points,
         acceptanceCriteria: template.acceptanceCriteria,
         labels: template.labels
@@ -439,7 +441,7 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
                       <Label htmlFor="priority">Priority</Label>
                       <Select
                         value={formData.priority}
-                        onValueChange={(value: 'high' | 'medium' | 'low') =>
+                        onValueChange={(value: Priority) =>
                           setFormData(prev => ({ ...prev, priority: value }))
                         }
                       >
@@ -447,19 +449,25 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="high">
+                          <SelectItem value="BLOCKER">
+                            <div className="flex items-center space-x-2">
+                              <Flag className="w-4 h-4 text-purple-600" />
+                              <span>Blocker Priority</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="HIGH">
                             <div className="flex items-center space-x-2">
                               <Flag className="w-4 h-4 text-red-600" />
                               <span>High Priority</span>
                             </div>
                           </SelectItem>
-                          <SelectItem value="medium">
+                          <SelectItem value="MEDIUM">
                             <div className="flex items-center space-x-2">
                               <Flag className="w-4 h-4 text-yellow-600" />
                               <span>Medium Priority</span>
                             </div>
                           </SelectItem>
-                          <SelectItem value="low">
+                          <SelectItem value="LOW">
                             <div className="flex items-center space-x-2">
                               <Flag className="w-4 h-4 text-green-600" />
                               <span>Low Priority</span>

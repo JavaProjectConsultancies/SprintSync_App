@@ -132,8 +132,17 @@ const ScrumBoardEnhanced: React.FC<ScrumBoardEnhancedProps> = ({
     return [...items].sort((a, b) => {
       switch (sortBy) {
         case 'priority':
-          const priorityOrder = { high: 3, medium: 2, low: 1 };
-          return priorityOrder[b.priority] - priorityOrder[a.priority];
+          const priorityOrder = { blocker: 6, blocker_upper: 6, critical: 5, critical_upper: 5, high: 4, high_upper: 4, medium: 3, medium_upper: 3, low: 2, low_upper: 2, all: 1 };
+          const getOrder = (p: string) => {
+            const up = p.toUpperCase();
+            if (up === 'BLOCKER') return 6;
+            if (up === 'CRITICAL') return 5;
+            if (up === 'HIGH') return 4;
+            if (up === 'MEDIUM') return 3;
+            if (up === 'LOW') return 2;
+            return 1;
+          };
+          return getOrder(b.priority) - getOrder(a.priority);
         case 'title':
           return a.title.localeCompare(b.title);
         case 'assignee':
@@ -165,10 +174,12 @@ const ScrumBoardEnhanced: React.FC<ScrumBoardEnhancedProps> = ({
   };
 
   const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high': return 'bg-red-100 text-red-800 border-red-200';
-      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'low': return 'bg-green-100 text-green-800 border-green-200';
+    switch (priority.toUpperCase()) {
+      case 'BLOCKER': return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'CRITICAL': return 'bg-red-100 text-red-800 border-red-200';
+      case 'HIGH': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'MEDIUM': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'LOW': return 'bg-green-100 text-green-800 border-green-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -316,9 +327,11 @@ const ScrumBoardEnhanced: React.FC<ScrumBoardEnhancedProps> = ({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Priorities</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="BLOCKER">Blocker</SelectItem>
+                    <SelectItem value="CRITICAL">Critical</SelectItem>
+                    <SelectItem value="HIGH">High</SelectItem>
+                    <SelectItem value="MEDIUM">Medium</SelectItem>
+                    <SelectItem value="LOW">Low</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -502,19 +515,11 @@ const ScrumBoardEnhanced: React.FC<ScrumBoardEnhancedProps> = ({
                   return (
                     <div
                       key={task.id}
-                      className={`p-2 rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer ${selectedItems.includes(task.id)
+                      className={`p-3 bg-white border rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer ${selectedItems.includes(task.id)
                         ? 'ring-2 ring-blue-500'
-                        : ''
+                        : isIssue ? 'border-red-200 shadow-red-50' : ''
                         }`}
                       onClick={() => handleItemSelect(task.id)}
-                      style={{
-                        backgroundColor: isIssue ? '#ff0000' : '#00ff00',
-                        borderColor: isIssue ? '#cc0000' : '#00cc00',
-                        borderWidth: '4px',
-                        borderStyle: 'solid',
-                        backgroundImage: 'none !important',
-                        background: isIssue ? '#ff0000 !important' : '#00ff00 !important'
-                      }}
                     >
                       <div className="flex items-start justify-between mb-1">
                         <div className="flex items-center space-x-1">

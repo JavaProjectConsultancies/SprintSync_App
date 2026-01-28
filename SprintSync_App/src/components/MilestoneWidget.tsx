@@ -7,14 +7,14 @@ import { Progress } from './ui/progress';
 import { useUsers } from '../hooks/api/useUsers';
 import { ScrollArea } from './ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { 
-  Calendar, 
-  Plus, 
-  Settings, 
-  Flag, 
-  CheckCircle2, 
-  AlertTriangle, 
-  Clock, 
+import {
+  Calendar,
+  Plus,
+  Settings,
+  Flag,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
   ArrowRight,
   Target,
   Zap,
@@ -120,10 +120,10 @@ const MilestoneWidget = ({
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('en-IN', { 
-      day: 'numeric', 
-      month: 'short', 
-      year: 'numeric' 
+    return date.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
     });
   };
 
@@ -151,7 +151,7 @@ const MilestoneWidget = ({
     .sort((a, b) => {
       switch (sortBy) {
         case 'priority':
-          const priorityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+          const priorityOrder = { blocker: 5, critical: 4, high: 3, medium: 2, low: 1 };
           return priorityOrder[b.priority] - priorityOrder[a.priority];
         case 'status':
           return a.status.localeCompare(b.status);
@@ -190,7 +190,7 @@ const MilestoneWidget = ({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {/* Open filters dialog */}}
+              onClick={() => {/* Open filters dialog */ }}
               className="hidden sm:flex"
             >
               <Filter className="w-4 h-4 sm:mr-1" />
@@ -254,7 +254,7 @@ const MilestoneWidget = ({
                 const MilestoneIcon = getMilestoneIcon(milestone.type);
                 const owner = getUserById(milestone.owner);
                 const daysUntilDue = getDaysUntilDue(milestone.dueDate);
-                
+
                 return (
                   <TooltipProvider key={milestone.id}>
                     <div
@@ -266,7 +266,7 @@ const MilestoneWidget = ({
                           <div className="flex-shrink-0 mt-0.5">
                             <MilestoneIcon className={`w-4 h-4 ${getPriorityColor(milestone.priority)}`} />
                           </div>
-                          
+
                           <div className="flex-1 min-w-0 space-y-2">
                             <div className="flex items-center justify-between">
                               <h4 className="text-sm font-medium truncate">
@@ -276,22 +276,22 @@ const MilestoneWidget = ({
                                 {getStatusIcon(milestone.status)}
                               </div>
                             </div>
-                            
+
                             {milestone.description && (
                               <p className="text-xs text-muted-foreground line-clamp-1">
                                 {milestone.description}
                               </p>
                             )}
-                            
+
                             <div className="flex items-center justify-between">
                               <div className="flex items-center space-x-2">
-                                <Badge 
-                                  variant="outline" 
+                                <Badge
+                                  variant="outline"
                                   className={`${getStatusColor(milestone.status)} text-xs`}
                                 >
                                   {milestone.status.replace('-', ' ')}
                                 </Badge>
-                                
+
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <div className="flex items-center space-x-1 text-xs text-muted-foreground">
@@ -301,17 +301,17 @@ const MilestoneWidget = ({
                                   </TooltipTrigger>
                                   <TooltipContent>
                                     <p>
-                                      {daysUntilDue > 0 
+                                      {daysUntilDue > 0
                                         ? `${daysUntilDue} days remaining`
-                                        : daysUntilDue === 0 
-                                        ? 'Due today'
-                                        : `${Math.abs(daysUntilDue)} days overdue`
+                                        : daysUntilDue === 0
+                                          ? 'Due today'
+                                          : `${Math.abs(daysUntilDue)} days overdue`
                                       }
                                     </p>
                                   </TooltipContent>
                                 </Tooltip>
                               </div>
-                              
+
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <div>
@@ -328,7 +328,7 @@ const MilestoneWidget = ({
                                 </TooltipContent>
                               </Tooltip>
                             </div>
-                            
+
                             {milestone.progress > 0 && milestone.status !== 'completed' && (
                               <div className="space-y-1">
                                 <div className="flex justify-between text-xs">
@@ -340,7 +340,7 @@ const MilestoneWidget = ({
                             )}
                           </div>
                         </div>
-                        
+
                         <Button
                           variant="ghost"
                           size="sm"
@@ -367,7 +367,7 @@ const MilestoneWidget = ({
             variant="outline"
             size="sm"
             className="w-full"
-            onClick={() => {/* Open timeline view */}}
+            onClick={() => {/* Open timeline view */ }}
           >
             <Calendar className="w-4 h-4 mr-2" />
             View Timeline

@@ -7,7 +7,7 @@ export interface TaskTemplate {
   title: string;
   description: string;
   estimatedHours: number;
-  priority: 'high' | 'medium' | 'low';
+  priority: 'HIGH' | 'MEDIUM' | 'LOW' | 'BLOCKER';
   subtasks: string[];
   acceptanceCriteria: string[];
   labels: string[];
@@ -24,7 +24,7 @@ export const taskTemplates: TaskTemplate[] = [
     title: 'Design database schema for [feature]',
     description: 'Create comprehensive database schema including tables, relationships, indexes, and constraints for the specified feature.',
     estimatedHours: 8,
-    priority: 'high',
+    priority: 'HIGH',
     subtasks: [
       'Analyze requirements and data flow',
       'Design entity relationship diagram (ERD)',
@@ -52,7 +52,7 @@ export const taskTemplates: TaskTemplate[] = [
     title: 'Create migration for [change description]',
     description: 'Implement database migration to modify existing schema or data structure.',
     estimatedHours: 4,
-    priority: 'medium',
+    priority: 'MEDIUM',
     subtasks: [
       'Analyze current database state',
       'Write migration script',
@@ -80,7 +80,7 @@ export const taskTemplates: TaskTemplate[] = [
     title: 'Optimize database performance for [query/table]',
     description: 'Analyze and optimize database performance for specific queries or tables.',
     estimatedHours: 6,
-    priority: 'medium',
+    priority: 'MEDIUM',
     subtasks: [
       'Analyze current performance metrics',
       'Identify bottlenecks and slow queries',
@@ -110,7 +110,7 @@ export const taskTemplates: TaskTemplate[] = [
     title: 'Implement [endpoint] API endpoint',
     description: 'Create RESTful API endpoint with proper request/response handling, validation, and error management.',
     estimatedHours: 6,
-    priority: 'high',
+    priority: 'HIGH',
     subtasks: [
       'Design API endpoint specification',
       'Implement request validation',
@@ -138,7 +138,7 @@ export const taskTemplates: TaskTemplate[] = [
     title: 'Integrate with [service] API',
     description: 'Implement integration with external third-party service API including authentication, data mapping, and error handling.',
     estimatedHours: 8,
-    priority: 'medium',
+    priority: 'MEDIUM',
     subtasks: [
       'Research third-party API documentation',
       'Set up authentication and credentials',
@@ -166,7 +166,7 @@ export const taskTemplates: TaskTemplate[] = [
     title: 'Implement security measures for [endpoint/service]',
     description: 'Add comprehensive security measures including authentication, authorization, rate limiting, and input sanitization.',
     estimatedHours: 10,
-    priority: 'high',
+    priority: 'HIGH',
     subtasks: [
       'Implement authentication mechanism',
       'Add authorization and role-based access',
@@ -196,7 +196,7 @@ export const taskTemplates: TaskTemplate[] = [
     title: 'Create [component name] React component',
     description: 'Develop reusable React component with proper props, state management, and styling.',
     estimatedHours: 6,
-    priority: 'medium',
+    priority: 'MEDIUM',
     subtasks: [
       'Design component interface and props',
       'Implement component logic and state',
@@ -224,7 +224,7 @@ export const taskTemplates: TaskTemplate[] = [
     title: 'Implement [page name] page/view',
     description: 'Create complete page or view with routing, data fetching, and user interactions.',
     estimatedHours: 8,
-    priority: 'high',
+    priority: 'HIGH',
     subtasks: [
       'Design page layout and wireframes',
       'Implement routing and navigation',
@@ -252,7 +252,7 @@ export const taskTemplates: TaskTemplate[] = [
     title: 'Make [component/page] responsive',
     description: 'Implement responsive design to ensure proper display across all device sizes.',
     estimatedHours: 4,
-    priority: 'medium',
+    priority: 'MEDIUM',
     subtasks: [
       'Analyze current design and breakpoints',
       'Implement mobile-first responsive layout',
@@ -282,7 +282,7 @@ export const taskTemplates: TaskTemplate[] = [
     title: 'Create test plan for [feature]',
     description: 'Develop comprehensive test plan including test cases, scenarios, and acceptance criteria.',
     estimatedHours: 6,
-    priority: 'high',
+    priority: 'HIGH',
     subtasks: [
       'Analyze requirements and user stories',
       'Identify test scenarios and edge cases',
@@ -310,7 +310,7 @@ export const taskTemplates: TaskTemplate[] = [
     title: 'Execute manual testing for [feature]',
     description: 'Perform comprehensive manual testing including functional, integration, and user acceptance testing.',
     estimatedHours: 8,
-    priority: 'medium',
+    priority: 'MEDIUM',
     subtasks: [
       'Set up test environment and data',
       'Execute functional test cases',
@@ -338,7 +338,7 @@ export const taskTemplates: TaskTemplate[] = [
     title: 'Implement automated tests for [feature]',
     description: 'Create automated test scripts for regression testing and continuous integration.',
     estimatedHours: 10,
-    priority: 'medium',
+    priority: 'MEDIUM',
     subtasks: [
       'Analyze test cases for automation',
       'Set up test automation framework',
@@ -366,7 +366,7 @@ export const taskTemplates: TaskTemplate[] = [
     title: 'Conduct performance testing for [feature]',
     description: 'Execute performance testing to ensure system meets performance requirements under various load conditions.',
     estimatedHours: 8,
-    priority: 'medium',
+    priority: 'MEDIUM',
     subtasks: [
       'Define performance requirements',
       'Set up performance testing environment',
@@ -396,7 +396,7 @@ export const taskTemplates: TaskTemplate[] = [
     title: 'Set up deployment pipeline for [service]',
     description: 'Create automated deployment pipeline with proper staging, testing, and production environments.',
     estimatedHours: 12,
-    priority: 'high',
+    priority: 'HIGH',
     subtasks: [
       'Set up CI/CD pipeline configuration',
       'Configure staging and production environments',
@@ -424,7 +424,7 @@ export const taskTemplates: TaskTemplate[] = [
     title: 'Set up monitoring for [service]',
     description: 'Implement comprehensive monitoring including metrics, logs, and alerting for production systems.',
     estimatedHours: 8,
-    priority: 'medium',
+    priority: 'MEDIUM',
     subtasks: [
       'Configure application metrics collection',
       'Set up log aggregation and analysis',
@@ -454,7 +454,7 @@ export const taskTemplates: TaskTemplate[] = [
     title: 'Research [technology/tool] for [purpose]',
     description: 'Conduct thorough research on new technology or tool to evaluate its suitability for the project.',
     estimatedHours: 16,
-    priority: 'low',
+    priority: 'LOW',
     subtasks: [
       'Define research objectives and criteria',
       'Gather information from multiple sources',

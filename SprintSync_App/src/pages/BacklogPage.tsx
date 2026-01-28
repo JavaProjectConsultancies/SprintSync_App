@@ -693,7 +693,7 @@ const BacklogPage: React.FC = () => {
 
         case 'priority':
 
-          const priorityOrder = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
+          const priorityOrder = { BLOCKER: 5, CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
 
           aValue = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
 
@@ -902,6 +902,8 @@ const BacklogPage: React.FC = () => {
     const p = priority?.toUpperCase();
 
     switch (p) {
+
+      case 'BLOCKER': return 'bg-purple-100 text-purple-800';
 
       case 'CRITICAL': return 'bg-red-100 text-red-800';
 
@@ -1384,6 +1386,8 @@ const BacklogPage: React.FC = () => {
                 <SelectContent>
 
                   <SelectItem value="all">All Priority</SelectItem>
+
+                  <SelectItem value="blocker">Blocker</SelectItem>
 
                   <SelectItem value="critical">Critical</SelectItem>
 

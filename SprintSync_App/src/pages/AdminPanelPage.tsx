@@ -43,7 +43,8 @@ import {
   User as UserIcon,
   Briefcase,
   Image,
-  RefreshCw
+  RefreshCw,
+  X
 } from 'lucide-react';
 import { useUsers, useUserStatistics, useUpdateUserStatus, useUpdateUser, useCreateUser } from '../hooks/api/useUsers';
 import { useProjects } from '../hooks/api/useProjects';
@@ -72,6 +73,8 @@ const AdminPanelPage: React.FC = () => {
   // User Details Modal State
   const [userDetailsModalOpen, setUserDetailsModalOpen] = useState(false);
   const [viewingUser, setViewingUser] = useState<User | null>(null);
+
+  // User Search State
   const [userSearchTerm, setUserSearchTerm] = useState('');
 
   // Fetch users and projects from API - fetch ALL users without any filters
@@ -92,14 +95,6 @@ const AdminPanelPage: React.FC = () => {
   const activeProjects = projectsData?.length || 0;
   const activeUsers = users.filter(u => u.isActive).length;
   const inactiveUsers = users.filter(u => !u.isActive).length;
-  const filteredUsers = users.filter((u) => {
-    if (!userSearchTerm.trim()) return true;
-    const search = userSearchTerm.toLowerCase();
-    return (
-      u.name.toLowerCase().includes(search) ||
-      u.email.toLowerCase().includes(search)
-    );
-  });
 
   // Resolve department name from id
   const getDepartmentName = (deptId?: string) => {
@@ -107,6 +102,18 @@ const AdminPanelPage: React.FC = () => {
     const dep = departments.find(d => d.id === deptId);
     return dep?.name;
   };
+
+  // Filter users based on search term
+  const filteredUsers = useMemo(() => {
+    if (!userSearchTerm.trim()) return users;
+    const search = userSearchTerm.toLowerCase().trim();
+    return users.filter(user =>
+      user.name?.toLowerCase().includes(search) ||
+      user.email?.toLowerCase().includes(search) ||
+      user.role?.toLowerCase().includes(search) ||
+      getDepartmentName(user.departmentId)?.toLowerCase().includes(search)
+    );
+  }, [users, userSearchTerm, departments]);
 
   // Debug: Log project data state
   console.log('Admin Panel - Projects State:', {
@@ -371,6 +378,31 @@ const AdminPanelPage: React.FC = () => {
         })}
       </div>
 
+      {/* User Search Section */}
+      <div className="bg-white border rounded-lg p-4 shadow-sm">
+        <h3 className="text-lg font-semibold mb-3">Search Users</h3>
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Input
+            type="text"
+            placeholder="Search users by name, email, role, or department..."
+            value={userSearchTerm}
+            onChange={(e) => setUserSearchTerm(e.target.value)}
+            className="pl-9 pr-9 h-10"
+          />
+          {userSearchTerm && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0 hover:bg-gray-200"
+              onClick={() => setUserSearchTerm('')}
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
+      </div>
+
       {/* Admin Tabs */}
       <Tabs defaultValue="users" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
@@ -428,9 +460,18 @@ const AdminPanelPage: React.FC = () => {
                   <span>Failed to load users: {usersError.message}</span>
                 </div>
               ) : filteredUsers.length === 0 ? (
-                <div className="flex items-center justify-center py-12 text-muted-foreground">
-                  <Users className="w-6 h-6 mr-2" />
-                  <span>No users found{userSearchTerm ? ` for "${userSearchTerm}"` : ''}</span>
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <Users className="w-6 h-6 mb-2" />
+                  <span>{userSearchTerm ? `No users found matching "${userSearchTerm}"` : 'No users found'}</span>
+                  {userSearchTerm && (
+                    <Button
+                      variant="link"
+                      className="mt-2 text-sm"
+                      onClick={() => setUserSearchTerm('')}
+                    >
+                      Clear search
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-4">

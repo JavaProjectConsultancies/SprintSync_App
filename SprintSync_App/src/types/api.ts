@@ -84,11 +84,12 @@ export interface Epic extends BaseEntity {
   endDate?: string;
   storyPoints?: number;
   progress?: number;
+  linkedStories?: any[];
   isActive: boolean;
 }
 
 export type EpicStatus = 'PLANNING' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
-export type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'BLOCKER';
 
 // Release entity
 export interface Release extends BaseEntity {

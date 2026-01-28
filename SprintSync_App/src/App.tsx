@@ -58,7 +58,10 @@ const ProtectedRoute: React.FC<{
     // Admin and master_admin always use their actual role; others use the active view role
     const baseRole = (user.role || '').toLowerCase();
     const effectiveRole =
-      baseRole === 'admin' || baseRole === 'master_admin'
+      baseRole === 'admin' ||
+        baseRole === 'master_admin' ||
+        baseRole === 'qa_manager' ||
+        baseRole === 'qa_developer'
         ? baseRole
         : (activeRole || baseRole).toLowerCase();
 
@@ -131,12 +134,12 @@ const AppContent: React.FC = () => {
   // Helper function to check route access based on role
   const hasRouteAccess = (path: string, role: string): boolean => {
     const roleAccess: { [key: string]: string[] } = {
-      admin: ['/', '/projects', '/team-allocation', '/profile', '/admin-panel', '/calendar'],
-      manager: ['/', '/projects', '/scrum', '/time-tracking', '/team-allocation', '/profile', '/todo-list', '/calendar'],
+      admin: ['/', '/projects', '/team-allocation', '/reports', '/profile', '/admin-panel', '/calendar'],
+      manager: ['/', '/projects', '/scrum', '/time-tracking', '/team-allocation', '/reports', '/profile', '/todo-list', '/calendar'],
       developer: ['/', '/projects', '/scrum', '/time-tracking', '/profile', '/todo-list', '/calendar'],
-      qa_manager: ['/', '/projects', '/scrum', '/time-tracking', '/team-allocation', '/profile', '/todo-list', '/calendar'],
-      qa_developer: ['/', '/projects', '/scrum', '/time-tracking', '/profile', '/todo-list', '/calendar'],
-      master_admin: ['/', '/projects', '/scrum', '/time-tracking', '/team-allocation', '/profile', '/admin-panel', '/todo-list', '/calendar', '/backlog'],
+      qa_manager: ['/', '/projects', '/scrum', '/time-tracking', '/team-allocation', '/reports', '/profile', '/todo-list', '/calendar'],
+      qa_developer: ['/', '/projects', '/scrum', '/time-tracking', '/reports', '/profile', '/todo-list', '/calendar'],
+      master_admin: ['/', '/projects', '/scrum', '/time-tracking', '/team-allocation', '/reports', '/profile', '/admin-panel', '/todo-list', '/calendar', '/backlog'],
     };
 
     return roleAccess[role]?.includes(path) || false;
@@ -745,14 +748,14 @@ const AppContent: React.FC = () => {
                 {/* Dashboard - accessible by all roles */}
                 <Route path="/" element={<Dashboard />} />
 
-                {/* Projects - accessible by admin, manager, master_admin */}
+                {/* Projects - accessible by admin, manager, qa_manager, master_admin */}
                 <Route path="/projects" element={
-                  <ProtectedRoute allowedRoles={['admin', 'manager', 'master_admin']}>
+                  <ProtectedRoute allowedRoles={['admin', 'manager', 'qa_manager', 'master_admin']}>
                     <ProjectsPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/projects/:id" element={
-                  <ProtectedRoute allowedRoles={['admin', 'manager', 'master_admin']}>
+                  <ProtectedRoute allowedRoles={['admin', 'manager', 'qa_manager', 'master_admin']}>
                     <ProjectDetailsPage />
                   </ProtectedRoute>
                 } />
@@ -787,9 +790,9 @@ const AppContent: React.FC = () => {
                   </ProtectedRoute>
                 } />
 
-                {/* Reports - accessible by all roles except developers and qa_developers */}
+                {/* Reports - accessible by all roles except developers */}
                 <Route path="/reports" element={
-                  <ProtectedRoute allowedRoles={['admin', 'manager', 'qa_manager', 'master_admin']}>
+                  <ProtectedRoute allowedRoles={['admin', 'manager', 'qa_manager', 'qa_developer', 'master_admin']}>
                     <ReportsPage />
                   </ProtectedRoute>
                 } />

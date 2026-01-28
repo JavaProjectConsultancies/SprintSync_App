@@ -21,6 +21,8 @@ import {
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { Calendar as CalendarComponent } from "./ui/calendar";
 import {
     Clock,
     Flag,
@@ -34,11 +36,12 @@ import {
     Settings,
     Shield,
     Loader2,
-    Calendar,
+    Calendar as CalendarIcon,
     MoreHorizontal,
     Plus,
     Bug,
-    AlertCircle
+    AlertCircle,
+    Eye
 } from "lucide-react";
 import {
     Issue,
@@ -52,6 +55,7 @@ import { attachmentApiService } from "../services/api/entities/attachmentApi";
 import { subtaskApiService } from "../services/api/entities/subtaskApi";
 import { useRecentActivityByEntity } from "../hooks/api/useActivityLogs";
 import { toast } from "sonner";
+import AttachmentViewer from './AttachmentViewer';
 
 import { useAuth } from "../contexts/AuthContextEnhanced";
 import { userApiService } from "../services/api/entities/userApi";
@@ -113,7 +117,31 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
         endTime: "",
     });
 
+    // Attachment viewer state
+    const [viewingAttachment, setViewingAttachment] = useState<any | null>(null);
+    const [isAttachmentViewerOpen, setIsAttachmentViewerOpen] = useState(false);
+
     const [currentIssue, setCurrentIssue] = useState<Issue | null>(issue);
+
+    // Description editing state
+    const [isEditingDescription, setIsEditingDescription] = useState(false);
+    const [tempDescription, setTempDescription] = useState("");
+    const [isDueDatePopoverOpen, setIsDueDatePopoverOpen] = useState(false);
+    const [isUpdatingDueDate, setIsUpdatingDueDate] = useState(false);
+
+    const handleSaveDescription = async () => {
+        if (!currentIssue) return;
+        try {
+            await issueApiService.updateIssue(currentIssue.id, { description: tempDescription });
+            setCurrentIssue(prev => prev ? { ...prev, description: tempDescription } : prev);
+            setIsEditingDescription(false);
+            toast.success("Description updated successfully");
+            if (onIssueUpdated) onIssueUpdated();
+        } catch (error) {
+            console.error("Error updating description:", error);
+            toast.error("Failed to update description");
+        }
+    };
 
     // Check if sprint has ended - block time logging after sprint end
     const isSprintEnded = sprintEndDate ? new Date() > new Date(sprintEndDate) : false;
@@ -418,7 +446,7 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                                         title={isSprintEnded ? 'Cannot log time after sprint has ended' : 'Log time for this issue'}
                                     >
                                         <Clock className="w-4 h-4 mr-1 text-red-600" />
-                                        Log
+                                        Add Log
                                     </Button>
                                 </div>
                             </div>
@@ -507,11 +535,36 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
 
                                         {/* Description */}
                                         <div>
-                                            <h3 className="text-sm font-semibold text-gray-900 mb-2">Description</h3>
+                                            <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center justify-between">
+                                                <span>Description</span>
+                                                {canManage && (user?.role === 'manager' || user?.role === 'qa_manager') && !isEditingDescription && (
+                                                    <Button variant="ghost" size="sm" onClick={() => {
+                                                        setTempDescription(currentIssue.description || "");
+                                                        setIsEditingDescription(true);
+                                                    }} className="h-6 px-2">
+                                                        <Edit3 className="w-3 h-3 mr-1" /> Edit
+                                                    </Button>
+                                                )}
+                                            </h3>
                                             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                                                <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                                                    {currentIssue.description || "No description provided."}
-                                                </p>
+                                                {isEditingDescription ? (
+                                                    <div className="space-y-2">
+                                                        <Textarea
+                                                            value={tempDescription}
+                                                            onChange={(e) => setTempDescription(e.target.value)}
+                                                            className="min-h-[120px] bg-white"
+                                                            placeholder="Enter issue description..."
+                                                        />
+                                                        <div className="flex justify-end space-x-2">
+                                                            <Button variant="outline" size="sm" onClick={() => setIsEditingDescription(false)}>Cancel</Button>
+                                                            <Button size="sm" onClick={handleSaveDescription}>Save</Button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                                                        {currentIssue.description || "No description provided."}
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
 
@@ -530,7 +583,35 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                                                                 <Paperclip className="w-4 h-4 text-gray-400" />
                                                                 <span className="text-sm font-medium">{attachment.fileName}</span>
                                                             </div>
-                                                            <Button variant="ghost" size="sm">Download</Button>
+                                                            <div className="flex items-center gap-2">
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        setViewingAttachment(attachment);
+                                                                        setIsAttachmentViewerOpen(true);
+                                                                    }}
+                                                                >
+                                                                    <Eye className="w-4 h-4 mr-1" />
+                                                                    View
+                                                                </Button>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        if (attachment.fileUrl) {
+                                                                            const link = document.createElement('a');
+                                                                            link.href = attachment.fileUrl;
+                                                                            link.download = attachment.fileName;
+                                                                            document.body.appendChild(link);
+                                                                            link.click();
+                                                                            document.body.removeChild(link);
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    Download
+                                                                </Button>
+                                                            </div>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -590,7 +671,7 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                                                                     }}
                                                                 >
                                                                     <Clock className="w-3 h-3 mr-1" />
-                                                                    Log
+                                                                    Add Log
                                                                 </Button>
                                                             </div>
                                                         </div>
@@ -691,7 +772,61 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                                         </div>
                                         <div>
                                             <label className="text-xs font-medium text-gray-600 block mb-1">Due Date</label>
-                                            <span className="text-sm text-gray-700">{currentIssue.dueDate ? new Date(currentIssue.dueDate).toLocaleDateString() : "No due date"}</span>
+                                            {canManage && (user?.role?.toLowerCase() === 'manager' || user?.role?.toLowerCase() === 'qa_manager') ? (
+                                                <Popover open={isDueDatePopoverOpen} onOpenChange={setIsDueDatePopoverOpen} modal={true}>
+                                                    <PopoverTrigger asChild>
+                                                        <Button
+                                                            variant="outline"
+                                                            className={`w-full justify-start text-left font-normal h-8 text-xs ${!currentIssue.dueDate ? "text-muted-foreground" : ""
+                                                                }`}
+                                                            disabled={isUpdatingDueDate}
+                                                        >
+                                                            <CalendarIcon className="mr-2 h-3 w-3" />
+                                                            {currentIssue.dueDate ? (
+                                                                new Date(currentIssue.dueDate).toLocaleDateString()
+                                                            ) : (
+                                                                <span>Pick a date</span>
+                                                            )}
+                                                            {isUpdatingDueDate && <Loader2 className="ml-2 h-3 w-3 animate-spin" />}
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-auto p-0 z-[50]" align="start">
+                                                        <CalendarComponent
+                                                            mode="single"
+                                                            selected={currentIssue.dueDate ? new Date(currentIssue.dueDate) : undefined}
+                                                            onSelect={async (date) => {
+                                                                if (date) {
+                                                                    // Use local date string YYYY-MM-DD instead of toISOString() to avoid timezone offsets
+                                                                    const year = date.getFullYear();
+                                                                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                                                                    const day = String(date.getDate()).padStart(2, '0');
+                                                                    const formattedDate = `${year}-${month}-${day}`;
+
+                                                                    setIsUpdatingDueDate(true);
+                                                                    try {
+                                                                        await issueApiService.updateIssueDueDate(currentIssue.id, formattedDate);
+                                                                        setCurrentIssue(prev => prev ? { ...prev, dueDate: formattedDate } : null);
+                                                                        setIsDueDatePopoverOpen(false);
+                                                                        toast.success("Due date updated");
+                                                                        if (onIssueUpdated) onIssueUpdated();
+                                                                    } catch (error) {
+                                                                        console.error("Failed to update due date:", error);
+                                                                        toast.error("Failed to update due date");
+                                                                    } finally {
+                                                                        setIsUpdatingDueDate(false);
+                                                                    }
+                                                                }
+                                                            }}
+                                                            initialFocus
+                                                        />
+                                                    </PopoverContent>
+                                                </Popover>
+                                            ) : (
+                                                <div className="flex items-center space-x-2 text-sm text-gray-700 h-8">
+                                                    <CalendarIcon className="w-4 h-4 text-gray-400" />
+                                                    <span>{currentIssue.dueDate ? new Date(currentIssue.dueDate).toLocaleDateString() : "No due date"}</span>
+                                                </div>
+                                            )}
                                         </div>
                                         {currentIssue.storyId && (
                                             <div>
@@ -936,6 +1071,16 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Attachment Viewer Modal */}
+            <AttachmentViewer
+                isOpen={isAttachmentViewerOpen}
+                onClose={() => {
+                    setIsAttachmentViewerOpen(false);
+                    setViewingAttachment(null);
+                }}
+                attachment={viewingAttachment}
+            />
         </>
     );
 };

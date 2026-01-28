@@ -22,6 +22,7 @@ import { useAllStories } from '../hooks/api/useStories';
 import EpicManager from '../components/EpicManager';
 import TeamManager from '../components/TeamManager';
 import MilestoneDialog from '../components/MilestoneDialog';
+import AttachmentViewer from '../components/AttachmentViewer';
 import { useAuth } from '../contexts/AuthContextEnhanced';
 import { attachmentApiService } from '../services/api';
 import { epicApiService } from '../services/api/entities/epicApi';
@@ -203,6 +204,10 @@ const ProjectDetailsPage = () => {
   const [attachmentUrl, setAttachmentUrl] = useState<string>('');
   const [attachmentUrlName, setAttachmentUrlName] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
+
+  // Attachment viewer state
+  const [viewingAttachment, setViewingAttachment] = useState<any | null>(null);
+  const [isAttachmentViewerOpen, setIsAttachmentViewerOpen] = useState(false);
 
   // Requirement form state
   const [requirementForm, setRequirementForm] = useState({
@@ -1587,7 +1592,14 @@ const ProjectDetailsPage = () => {
                             variant="ghost"
                             size="sm"
                             className="h-7 w-7 p-0"
-                            onClick={() => window.open(attachment.fileUrl, '_blank')}
+                            onClick={() => {
+                              if (isUrl) {
+                                window.open(attachment.fileUrl, '_blank');
+                              } else {
+                                setViewingAttachment(attachment);
+                                setIsAttachmentViewerOpen(true);
+                              }
+                            }}
                             title={isUrl ? "Open link" : "View file"}
                           >
                             {isUrl ? (
@@ -1596,6 +1608,26 @@ const ProjectDetailsPage = () => {
                               <Eye className="w-4 h-4" />
                             )}
                           </Button>
+                          {!isUrl && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              onClick={() => {
+                                if (attachment.fileUrl) {
+                                  const link = document.createElement('a');
+                                  link.href = attachment.fileUrl;
+                                  link.download = attachment.fileName;
+                                  document.body.appendChild(link);
+                                  link.click();
+                                  document.body.removeChild(link);
+                                }
+                              }}
+                              title="Download file"
+                            >
+                              <Download className="w-4 h-4" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -2400,6 +2432,16 @@ const ProjectDetailsPage = () => {
         projectId={id || ''}
         onSave={handleSaveMilestone}
         availableEpics={epicsWithProgress}
+      />
+
+      {/* Attachment Viewer Modal */}
+      <AttachmentViewer
+        isOpen={isAttachmentViewerOpen}
+        onClose={() => {
+          setIsAttachmentViewerOpen(false);
+          setViewingAttachment(null);
+        }}
+        attachment={viewingAttachment}
       />
     </div>
   );

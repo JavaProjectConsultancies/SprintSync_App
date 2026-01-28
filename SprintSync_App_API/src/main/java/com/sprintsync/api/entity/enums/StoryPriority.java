@@ -13,7 +13,8 @@ public enum StoryPriority {
     LOW("low"),
     MEDIUM("medium"),
     HIGH("high"),
-    CRITICAL("critical");
+    CRITICAL("critical"),
+    BLOCKER("blocker");
 
     private final String value;
 

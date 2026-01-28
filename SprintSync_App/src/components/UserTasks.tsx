@@ -37,6 +37,7 @@ import { useProjects } from '../hooks/api/useProjects';
 import { useAllStories } from '../hooks/api/useStories';
 import { useAllSprints } from '../hooks/api/useSprints';
 import { useUsers } from '../hooks/api/useUsers';
+import { useRoleSwitcher } from '../contexts/RoleSwitcherContext';
 import { Task, Issue } from '../types/api';
 
 interface UserTasksProps {
@@ -48,6 +49,7 @@ interface UserTasksProps {
 const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => {
   const navigate = useNavigate();
   const { navigateTo } = useNavigation();
+  const { projectRoles } = useRoleSwitcher();
 
   // State for filter dropdown
   const [selectedFilter, setSelectedFilter] = useState<'in-progress' | 'pending' | 'overdue'>('in-progress');
@@ -95,47 +97,36 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
     if (userRole !== 'manager') return new Set<string>();
 
     const projects = normalizeApiData(apiProjects);
-    if (!projects || projects.length === 0) {
-      console.log('[UserTasks] No projects loaded yet for manager', userId);
-      return new Set<string>();
+
+    // Add projects where user is identified as manager via projectRoles (from API)
+    const managedProjectIds = new Set<string>();
+
+    if (projectRoles && projectRoles.length > 0) {
+      projectRoles.forEach(pr => {
+        if (pr.role?.toLowerCase() === 'manager' && pr.projectId) {
+          managedProjectIds.add(String(pr.projectId));
+        }
+      });
     }
 
-    const filteredProjects = projects.filter(project => {
-      // Try multiple possible field names for managerId
-      const managerId = (project as any).managerId || (project as any).manager?.id || (project as any).manager_id;
-      // Compare as strings to handle any type mismatches
-      const managerIdStr = managerId ? String(managerId) : null;
-      const userIdStr = userId ? String(userId) : null;
-      const matches = managerIdStr === userIdStr;
+    // Also include projects where managerId matches userId directly (fallback/legacy)
+    if (projects && projects.length > 0) {
+      projects.forEach(project => {
+        const managerId = (project as any).managerId || (project as any).manager?.id || (project as any).manager_id;
+        if (String(managerId) === String(userId)) {
+          managedProjectIds.add(String(project.id));
+        }
+      });
+    }
 
-      if (!matches && userRole === 'manager') {
-        // Debug logging for manager project filtering
-        console.log('[UserTasks] Project manager mismatch:', {
-          projectId: project.id,
-          projectName: (project as any).name,
-          managerId: managerId,
-          managerIdStr,
-          userIdStr,
-          userId
-        });
-      }
-
-      return matches;
-    });
-
-    const projectIds = new Set(filteredProjects.map(project => project.id));
-
-    console.log('[UserTasks] Manager project filtering:', {
+    console.log('[UserTasks] Manager project filtering (Unified):', {
       userId,
       userRole,
-      totalProjects: projects.length,
-      managerProjects: filteredProjects.length,
-      managerProjectIds: Array.from(projectIds),
-      projectNames: filteredProjects.map(p => (p as any).name)
+      managedProjectIds: Array.from(managedProjectIds)
     });
 
-    return projectIds;
-  }, [apiProjects, userId, userRole]);
+    return managedProjectIds;
+  }, [apiProjects, userId, userRole, projectRoles]);
 
   // Get story IDs from manager's projects (for managers only)
   const managerStoryIds = useMemo(() => {
@@ -710,7 +701,8 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
 
   // Get priority color
   const getPriorityColor = (priority: string) => {
-    switch (priority) {
+    switch (priority.toLowerCase()) {
+      case 'blocker':
       case 'critical':
         return 'bg-red-100 text-red-800 border-red-200';
       case 'high':
