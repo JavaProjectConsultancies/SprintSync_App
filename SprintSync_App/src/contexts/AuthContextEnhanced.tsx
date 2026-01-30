@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, UserRole } from '../types';
 import { authApiService, LoginResponse } from '../services/api/authApi';
 import { apiClient } from '../services/api/client';
+import { toast } from 'sonner';
 
 const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   admin: ['view_projects', 'manage_projects', 'view_team', 'manage_users', 'view_analytics', 'manage_system'],
@@ -49,15 +50,58 @@ const AuthContext = createContext<AuthContextType>(defaultAuthContext);
 // Token management
 const TOKEN_KEY = 'sprintsync_token';
 const USER_KEY = 'sprintsync_user';
+const SESSION_TIMESTAMP_KEY = 'sprintsync_session_timestamp';
+// Session duration: 1 minute (for testing; increase to 30 * 60 * 1000 for 30 minutes)
+const SESSION_DURATION_MS = 30 * 60 * 1000;
 
 const saveAuthData = (token: string, user: User) => {
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
+  // Store login timestamp for session expiration
+  localStorage.setItem(SESSION_TIMESTAMP_KEY, Date.now().toString());
 };
 
 const clearAuthData = () => {
+  // Get user ID before removing user data (needed for clearing user-specific cache)
+  let userId: string | null = null;
+  try {
+    const userStr = localStorage.getItem(USER_KEY);
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      userId = user?.id || null;
+    }
+  } catch (error) {
+    // Ignore parse errors
+  }
+  
+  // Remove auth data
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(SESSION_TIMESTAMP_KEY);
+  
+  // Clear all other cache-related localStorage items
+  try {
+    // Clear projects cache
+    localStorage.removeItem('sprintsync_projects_cache');
+    
+    // Clear dashboard filters
+    if (userId) {
+      localStorage.removeItem(`dashboard-filters-${userId}`);
+    }
+    localStorage.removeItem('dashboard-filters');
+    
+    // Clear any other sprint sync related cache
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('sprintsync_')) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+  } catch (error) {
+    console.error('Error clearing cache:', error);
+  }
 };
 
 const getStoredAuthData = (): { token: string | null; user: User | null } => {
@@ -67,16 +111,61 @@ const getStoredAuthData = (): { token: string | null; user: User | null } => {
   return { token, user };
 };
 
+// Check if session has expired
+const isSessionExpired = (): boolean => {
+  const timestampStr = localStorage.getItem(SESSION_TIMESTAMP_KEY);
+  if (!timestampStr) {
+    return true; // No timestamp means expired
+  }
+  
+  const loginTimestamp = parseInt(timestampStr, 10);
+  if (isNaN(loginTimestamp)) {
+    return true; // Invalid timestamp means expired
+  }
+  
+  const now = Date.now();
+  const elapsed = now - loginTimestamp;
+  return elapsed >= SESSION_DURATION_MS;
+};
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loginError, setLoginError] = useState<string | null>(null);
 
+  const logout = useCallback(() => {
+    // Invalidate projects cache on logout
+    import('../hooks/api/useProjects').then(({ invalidateProjectsCache }) => {
+      invalidateProjectsCache();
+    });
+
+    setUser(null);
+    setToken(null);
+    clearAuthData();
+    apiClient.removeAuthToken();
+    setLoginError(null);
+    console.log('User logged out');
+  }, []);
+
   // Initialize auth state from localStorage
   useEffect(() => {
     const initializeAuth = async () => {
       const { token: storedToken, user: storedUser } = getStoredAuthData();
+
+      // Check if session has expired
+      if (isSessionExpired()) {
+        console.log('Session expired, clearing auth data');
+        try {
+          // Set a flag so login page can show a toast
+          sessionStorage.setItem('sprintsync_session_expired', '1');
+        } catch {
+          // Ignore storage errors
+        }
+        clearAuthData();
+        setIsLoading(false);
+        return;
+      }
 
       if (storedToken && storedUser) {
         setToken(storedToken);
@@ -97,6 +186,47 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     initializeAuth();
   }, []);
+
+  // Set up periodic session expiration check (every minute)
+  useEffect(() => {
+    if (!user || !token) {
+      return;
+    }
+
+    const checkSessionExpiry = () => {
+      if (isSessionExpired()) {
+        console.log('Session expired, logging out user');
+        try {
+          // Set a flag so login page can show a toast after redirect
+          sessionStorage.setItem('sprintsync_session_expired', '1');
+        } catch {
+          // Ignore storage errors
+        }
+        logout();
+        // Show toast notification immediately as well
+        toast.error('Your session has expired. Please log in again.');
+      }
+    };
+
+    // Check immediately
+    checkSessionExpiry();
+
+    // Set up interval to check every minute
+    const intervalId = setInterval(checkSessionExpiry, 60 * 1000); // Check every minute
+
+    // Also check on visibility change (when user returns to tab)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkSessionExpiry();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user, token, logout]);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
@@ -172,20 +302,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const logout = () => {
-    // Invalidate projects cache on logout
-    import('../hooks/api/useProjects').then(({ invalidateProjectsCache }) => {
-      invalidateProjectsCache();
-    });
-
-    setUser(null);
-    setToken(null);
-    clearAuthData();
-    apiClient.removeAuthToken();
-    setLoginError(null);
-    console.log('User logged out');
   };
 
   const refreshUser = async (): Promise<void> => {
@@ -301,7 +417,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     setToken(authToken);
     setUser(localUser);
-    saveAuthData(authToken, localUser);
+    saveAuthData(authToken, localUser); // This also saves the session timestamp
     apiClient.setAuthToken(authToken);
 
     // Prefetch projects immediately after setting auth state

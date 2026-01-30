@@ -79,6 +79,11 @@ public class Issue extends BaseEntity {
     @Column(name = "labels", columnDefinition = "jsonb")
     private List<String> labels;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "linked_task_ids", columnDefinition = "jsonb")
+    @JsonProperty("linkedTaskIds")
+    private List<String> linkedTaskIds;
+
     // Constructors
     public Issue() {}
 
@@ -236,6 +241,14 @@ public class Issue extends BaseEntity {
 
     public void setLabels(List<String> labels) {
         this.labels = labels;
+    }
+
+    public List<String> getLinkedTaskIds() {
+        return linkedTaskIds;
+    }
+
+    public void setLinkedTaskIds(List<String> linkedTaskIds) {
+        this.linkedTaskIds = linkedTaskIds;
     }
 }
 

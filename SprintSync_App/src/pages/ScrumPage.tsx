@@ -5109,14 +5109,60 @@ const ScrumPage: React.FC = () => {
         dueDate: dueDate,
 
         labels: [],
+
+        // Linked tasks from the Add Issue dialog (optional)
+        linkedTaskIds: (issueDataFromDialog as any).linkedTaskIds || [],
       };
 
-      // Create issue via API
+      // Create issue via API (without linkedTaskIds first to avoid validation issues)
+      const issueDataForCreate = { ...issueData };
+      delete (issueDataForCreate as any).linkedTaskIds;
 
-      const response = await createIssueMutate(issueData);
+      const response = await createIssueMutate(issueDataForCreate);
 
       if (response && response.data) {
         const createdIssueId = response.data.id;
+        const linkedTaskIds = (issueDataFromDialog as any).linkedTaskIds || [];
+
+        // Update linked tasks bidirectionally: add this issue ID to each task's linked_issue_ids
+        if (linkedTaskIds.length > 0) {
+          try {
+            // First, update the issue with linkedTaskIds
+            await issueApiService.updateIssue(createdIssueId, {
+              linkedTaskIds: linkedTaskIds,
+            } as any);
+
+            // Then, update each linked task to include this issue in their linked_issue_ids
+            const taskUpdatePromises = linkedTaskIds.map(async (taskId: string) => {
+              try {
+                // Fetch the current task to get its existing linkedIssueIds
+                const taskRes = await taskApiService.getTaskById(taskId);
+                const currentTask = taskRes.data as any;
+                const existingLinkedIssueIds: string[] = 
+                  currentTask?.linkedIssueIds || 
+                  currentTask?.linked_issue_ids || 
+                  [];
+
+                // Add this issue ID if not already present
+                if (!existingLinkedIssueIds.includes(createdIssueId)) {
+                  const updatedLinkedIssueIds = [...existingLinkedIssueIds, createdIssueId];
+                  await taskApiService.updateTask(taskId, {
+                    linkedIssueIds: updatedLinkedIssueIds,
+                  } as any);
+                  console.log(`[ScrumPage] Updated task ${taskId} with linked issue ${createdIssueId}`);
+                }
+              } catch (taskError) {
+                console.error(`[ScrumPage] Error updating task ${taskId} with linked issue:`, taskError);
+              }
+            });
+
+            await Promise.all(taskUpdatePromises);
+            console.log(`[ScrumPage] Successfully synced ${linkedTaskIds.length} linked tasks with issue ${createdIssueId}`);
+          } catch (syncError) {
+            console.error('[ScrumPage] Error syncing linked tasks:', syncError);
+            toast.error('Issue created but failed to sync linked tasks');
+          }
+        }
 
         // Create subtasks if any
 
@@ -14961,7 +15007,7 @@ const ScrumPage: React.FC = () => {
                       <TabsTrigger value="due-dates">Due Dates</TabsTrigger>
 
                       <TabsTrigger value="linked-issues">
-                        Linked Issues
+                        Linked Tasks
                       </TabsTrigger>
                     </TabsList>
 
@@ -15740,17 +15786,17 @@ const ScrumPage: React.FC = () => {
                     >
                       <div>
                         <h3 className="text-sm font-semibold text-gray-900 mb-4">
-                          Linked Issues
+                          Linked Tasks
                         </h3>
 
                         <div className="text-center py-8 text-gray-500">
                           <Link className="w-8 h-8 mx-auto mb-2 text-gray-400" />
 
-                          <p className="text-sm">No linked issues</p>
+                          <p className="text-sm">No linked tasks</p>
 
-                          <p className="text-xs text-gray-400 mt-1">
-                            Links to related tasks and stories will appear here
-                          </p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              Links to related tasks will appear here
+                            </p>
                         </div>
                       </div>
                     </TabsContent>

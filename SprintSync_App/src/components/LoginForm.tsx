@@ -19,6 +19,7 @@ import LoadingSpinner from './LoadingSpinner';
 import { useDepartments } from '../hooks/api/useDepartments';
 import { useDomains } from '../hooks/api/useDomains';
 import ssLogo from '../assets/ss_logo.gif';
+import { toast } from 'sonner';
 
 interface LoginFormProps {
   onLoginSuccess: (token: string, user: any) => void;
@@ -71,6 +72,19 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
   const { data: domainsData } = useDomains();
   const departments = Array.isArray(departmentsData) ? departmentsData : [];
   const domains = Array.isArray(domainsData) ? domainsData : [];
+
+  // Show session-expired message if we were redirected here due to timeout
+  useEffect(() => {
+    try {
+      const expiredFlag = sessionStorage.getItem('sprintsync_session_expired');
+      if (expiredFlag) {
+        toast.error('Your session has expired. Please log in again.');
+        sessionStorage.removeItem('sprintsync_session_expired');
+      }
+    } catch {
+      // Ignore storage errors
+    }
+  }, []);
 
   const validateForm = (): boolean => {
     const newErrors: Partial<LoginRequest> = {};

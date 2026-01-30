@@ -821,7 +821,6 @@ const AppContent: React.FC = () => {
           </div>
         </main>
       </SidebarInset>
-      <Toaster />
     </SidebarProvider>
   );
 };
@@ -836,6 +835,8 @@ const App: React.FC = () => {
           </NavigationProvider>
         </RoleSwitcherProvider>
       </AuthProvider>
+      {/* Global toast renderer - visible on login and all pages */}
+      <Toaster position="top-right" richColors />
     </Router>
   );
 };

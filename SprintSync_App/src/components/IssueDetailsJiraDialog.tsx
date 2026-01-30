@@ -48,11 +48,13 @@ import {
     Subtask,
     TimeEntry,
     Priority,
+    Task,
 } from "../types/api";
 import { issueApiService } from "../services/api/entities/issueApi";
 import { timeEntryApiService } from "../services/api/entities/timeEntryApi";
 import { attachmentApiService } from "../services/api/entities/attachmentApi";
 import { subtaskApiService } from "../services/api/entities/subtaskApi";
+import { taskApiService } from "../services/api/entities/taskApi";
 import { useRecentActivityByEntity } from "../hooks/api/useActivityLogs";
 import { toast } from "sonner";
 import AttachmentViewer from './AttachmentViewer';
@@ -92,6 +94,10 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
     const [usersLoading, setUsersLoading] = useState(false);
     const [parentStoryName, setParentStoryName] = useState<string>("");
     const [loadingStoryName, setLoadingStoryName] = useState(false);
+
+    // Linked tasks state
+    const [linkedTasks, setLinkedTasks] = useState<Task[]>([]);
+    const [loadingLinkedTasks, setLoadingLinkedTasks] = useState(false);
 
     // Effort logging state
     const [isLogEffortOpen, setIsLogEffortOpen] = useState(false);
@@ -149,10 +155,20 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
     useEffect(() => {
         setCurrentIssue(issue);
         if (issue) {
+            const issueAny = issue as any;
+            console.log('[IssueDetailsJiraDialog] Issue loaded:', {
+                id: issue.id,
+                storyId: issue.storyId,
+                linkedTaskIds: issueAny.linkedTaskIds || issueAny.linked_task_ids,
+                allKeys: Object.keys(issueAny)
+            });
             fetchIssueData(issue.id, issue.storyId);
             if (users.length === 0) {
                 fetchUsers();
             }
+        } else {
+            // Reset linked tasks when issue is closed
+            setLinkedTasks([]);
         }
     }, [issue]);
 
@@ -176,8 +192,22 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
         try {
             // Fetch the issue itself to get the latest data
             const issueRes = await issueApiService.getIssueById(issueId);
+            console.log('[IssueDetailsJiraDialog] Raw API response:', issueRes);
             if (issueRes.data) {
                 const issueData = issueRes.data;
+                const issueDataAny = issueData as any;
+                console.log('[IssueDetailsJiraDialog] Fetched issue data:', {
+                    id: issueData.id,
+                    linkedTaskIds: issueDataAny.linkedTaskIds || issueDataAny.linked_task_ids,
+                    linkedTaskIds_type: typeof issueDataAny.linkedTaskIds,
+                    linkedTaskIds_isArray: Array.isArray(issueDataAny.linkedTaskIds),
+                    linked_task_ids: issueDataAny.linked_task_ids,
+                    linked_task_ids_type: typeof issueDataAny.linked_task_ids,
+                    linked_task_ids_isArray: Array.isArray(issueDataAny.linked_task_ids),
+                    storyId: issueData.storyId,
+                    allKeys: Object.keys(issueDataAny),
+                    fullIssueData: JSON.stringify(issueDataAny, null, 2)
+                });
                 setCurrentIssue(issueData);
                 // Use the storyId from the fetched issue if not provided
                 if (!storyId && issueData.storyId) {
@@ -213,6 +243,118 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
             // Fetch Subtasks
             const subRes = await subtaskApiService.getSubtasksByIssue(issueId);
             setSubtasks(subRes.data || []);
+
+            // Fetch tasks for this story and derive linked tasks from issue.linkedTaskIds
+            // Use storyId from the fetched issue if available
+            const finalStoryId = storyId || (issueRes.data?.storyId);
+            if (finalStoryId && issueRes.data) {
+                try {
+                    setLoadingLinkedTasks(true);
+                    console.log('[IssueDetailsJiraDialog] Fetching tasks for story:', finalStoryId);
+                    
+                    // Get linkedTaskIds from the issue - handle both camelCase and snake_case
+                    const issueDataForLinks = issueRes.data as any;
+                    let linkedTaskIds: string[] = [];
+                    
+                    // Try camelCase first, then snake_case, handle null/undefined/empty arrays
+                    if (issueDataForLinks.linkedTaskIds !== undefined && issueDataForLinks.linkedTaskIds !== null) {
+                        if (Array.isArray(issueDataForLinks.linkedTaskIds)) {
+                            linkedTaskIds = issueDataForLinks.linkedTaskIds.filter((id: any) => id != null && id !== '');
+                        } else if (typeof issueDataForLinks.linkedTaskIds === 'string') {
+                            // Handle case where it might be a JSON string
+                            try {
+                                const parsed = JSON.parse(issueDataForLinks.linkedTaskIds);
+                                if (Array.isArray(parsed)) {
+                                    linkedTaskIds = parsed.filter((id: any) => id != null && id !== '');
+                                }
+                            } catch (e) {
+                                console.warn('[IssueDetailsJiraDialog] Failed to parse linkedTaskIds as JSON string');
+                            }
+                        }
+                    } else if (issueDataForLinks.linked_task_ids !== undefined && issueDataForLinks.linked_task_ids !== null) {
+                        if (Array.isArray(issueDataForLinks.linked_task_ids)) {
+                            linkedTaskIds = issueDataForLinks.linked_task_ids.filter((id: any) => id != null && id !== '');
+                        } else if (typeof issueDataForLinks.linked_task_ids === 'string') {
+                            try {
+                                const parsed = JSON.parse(issueDataForLinks.linked_task_ids);
+                                if (Array.isArray(parsed)) {
+                                    linkedTaskIds = parsed.filter((id: any) => id != null && id !== '');
+                                }
+                            } catch (e) {
+                                console.warn('[IssueDetailsJiraDialog] Failed to parse linked_task_ids as JSON string');
+                            }
+                        }
+                    }
+                    
+                    console.log('[IssueDetailsJiraDialog] Issue linkedTaskIds from API:', linkedTaskIds, 'Raw value:', {
+                        linkedTaskIds: issueDataForLinks.linkedTaskIds,
+                        linked_task_ids: issueDataForLinks.linked_task_ids,
+                        type_linkedTaskIds: typeof issueDataForLinks.linkedTaskIds,
+                        type_linked_task_ids: typeof issueDataForLinks.linked_task_ids,
+                        isArray_linkedTaskIds: Array.isArray(issueDataForLinks.linkedTaskIds),
+                        isArray_linked_task_ids: Array.isArray(issueDataForLinks.linked_task_ids),
+                        allKeys: Object.keys(issueDataForLinks)
+                    });
+                    
+                    // Always fetch tasks from story, then filter by linkedTaskIds
+                    const tasksRes = await taskApiService.getTasksByStory(finalStoryId);
+                    const raw = tasksRes.data as any;
+                    let tasks: Task[] = [];
+                    if (Array.isArray(raw)) {
+                        tasks = raw;
+                    } else if (raw && Array.isArray(raw.data)) {
+                        tasks = raw.data;
+                    } else if (raw && Array.isArray(raw.content)) {
+                        tasks = raw.content;
+                    }
+                    
+                    console.log('[IssueDetailsJiraDialog] Fetched tasks from story:', tasks.length, 'Task IDs:', tasks.map(t => t.id));
+                    
+                    // If linkedTaskIds is still empty, try to get it from currentIssue state
+                    if ((!linkedTaskIds || linkedTaskIds.length === 0) && currentIssue) {
+                        const currentIssueAny = currentIssue as any;
+                        if (Array.isArray(currentIssueAny.linkedTaskIds)) {
+                            linkedTaskIds = currentIssueAny.linkedTaskIds.filter((id: any) => id != null && id !== '');
+                        } else if (Array.isArray(currentIssueAny.linked_task_ids)) {
+                            linkedTaskIds = currentIssueAny.linked_task_ids.filter((id: any) => id != null && id !== '');
+                        }
+                        console.log('[IssueDetailsJiraDialog] Retried getting linkedTaskIds from currentIssue:', linkedTaskIds);
+                    }
+                    
+                    // Filter tasks to only show those that are linked
+                    if (linkedTaskIds && linkedTaskIds.length > 0) {
+                        // Normalize task IDs and linked task IDs for comparison (handle case sensitivity)
+                        const normalizedLinkedTaskIds = linkedTaskIds.map(id => id?.toLowerCase()?.trim()).filter(id => id);
+                        const filtered = tasks.filter(t => {
+                            const taskId = t.id?.toLowerCase()?.trim();
+                            return taskId && normalizedLinkedTaskIds.includes(taskId);
+                        });
+                        setLinkedTasks(filtered);
+                        console.log('[IssueDetailsJiraDialog] ✅ Found linked tasks:', filtered.length, 'out of', tasks.length, 'total tasks. Linked Task IDs:', filtered.map(t => t.id));
+                        console.log('[IssueDetailsJiraDialog] Looking for task IDs:', linkedTaskIds);
+                        console.log('[IssueDetailsJiraDialog] Available task IDs:', tasks.map(t => t.id));
+                        console.log('[IssueDetailsJiraDialog] Normalized linked IDs:', normalizedLinkedTaskIds);
+                        console.log('[IssueDetailsJiraDialog] Normalized task IDs:', tasks.map(t => t.id?.toLowerCase()?.trim()));
+                    } else {
+                        setLinkedTasks([]);
+                        console.log('[IssueDetailsJiraDialog] ⚠️ No linkedTaskIds found or empty array. Issue data:', {
+                            linkedTaskIds: issueDataForLinks.linkedTaskIds,
+                            linked_task_ids: issueDataForLinks.linked_task_ids,
+                            currentIssue_linkedTaskIds: (currentIssue as any)?.linkedTaskIds,
+                            currentIssue_linked_task_ids: (currentIssue as any)?.linked_task_ids,
+                            allKeys: Object.keys(issueDataForLinks)
+                        });
+                    }
+                } catch (err) {
+                    console.error("❌ Error fetching linked tasks:", err);
+                    setLinkedTasks([]);
+                } finally {
+                    setLoadingLinkedTasks(false);
+                }
+            } else {
+                console.log('[IssueDetailsJiraDialog] ⚠️ No storyId available, cannot fetch linked tasks. storyId:', storyId, 'issueRes.data?.storyId:', issueRes.data?.storyId);
+                setLinkedTasks([]);
+            }
 
         } catch (error) {
             console.error("Error fetching issue details data:", error);
@@ -480,7 +622,7 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                                         <TabsTrigger value="activities">Activities</TabsTrigger>
                                         <TabsTrigger value="subtasks">Subtasks</TabsTrigger>
                                         <TabsTrigger value="due-dates">Due Dates</TabsTrigger>
-                                        <TabsTrigger value="linked-issues">Linked Issues</TabsTrigger>
+                                        <TabsTrigger value="linked-tasks">Linked Tasks</TabsTrigger>
                                     </TabsList>
 
                                     <TabsContent value="details" className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0 scrollbar-thin">
@@ -702,11 +844,49 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                                         </div>
                                     </TabsContent>
 
-                                    <TabsContent value="linked-issues" className="flex-1 overflow-auto p-6">
-                                        <div className="text-center py-12 text-gray-500">
-                                            <Paperclip className="w-8 h-8 mx-auto mb-3 text-gray-300" />
-                                            <p className="text-sm">No linked issues for this issue</p>
+                                    <TabsContent value="linked-tasks" className="flex-1 overflow-auto p-6 space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="text-sm font-semibold text-gray-900">Linked Tasks</h3>
+                                            <p className="text-xs text-gray-500">
+                                                Tasks from the same story linked to this issue
+                                            </p>
                                         </div>
+
+                                        {loadingLinkedTasks ? (
+                                            <div className="flex items-center justify-center py-8 text-gray-500">
+                                                <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                                                <span className="text-sm">Loading linked tasks...</span>
+                                            </div>
+                                        ) : linkedTasks.length === 0 ? (
+                                            <div className="text-center py-12 text-gray-500">
+                                                <Paperclip className="w-8 h-8 mx-auto mb-3 text-gray-300" />
+                                                <p className="text-sm">No linked tasks for this issue</p>
+                                                <p className="text-xs text-gray-400 mt-1">
+                                                    Link tasks when creating or editing this issue.
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {linkedTasks.map(task => (
+                                                    <div
+                                                        key={task.id}
+                                                        className="flex items-center justify-between px-3 py-2 rounded-md border border-gray-200 bg-white hover:bg-gray-50 transition-colors"
+                                                    >
+                                                        <div className="flex flex-col">
+                                                            <span className="text-sm font-medium text-gray-900 truncate">
+                                                                {task.title}
+                                                            </span>
+                                                            <span className="text-xs text-gray-500">
+                                                                {task.status} · {task.priority}
+                                                            </span>
+                                                        </div>
+                                                        <Badge variant="outline" className="text-[10px]">
+                                                            Linked Task
+                                                        </Badge>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </TabsContent>
                                 </Tabs>
                             </div>

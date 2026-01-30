@@ -162,6 +162,8 @@ export interface Task extends BaseEntity {
   dueDate?: string;
   labels?: string[];
   isPulledFromBacklog?: boolean;
+  // IDs of issues linked to this task (derived from issues' linkedTaskIds)
+  linkedIssueIds?: string[];
 }
 
 export type TaskStatus = 'TO_DO' | 'IN_PROGRESS' | 'QA_REVIEW' | 'DONE' | 'BLOCKED' | 'CANCELLED';
@@ -181,6 +183,8 @@ export interface Issue extends BaseEntity {
   issueNumber?: number;
   dueDate?: string;
   labels?: string[];
+   // IDs of tasks linked to this issue
+  linkedTaskIds?: string[];
 }
 
 // Subtask entity

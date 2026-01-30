@@ -78,6 +78,11 @@ public class Task extends BaseEntity {
     @Column(name = "labels", columnDefinition = "jsonb")
     private List<String> labels;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "linked_issue_ids", columnDefinition = "jsonb")
+    @JsonProperty("linkedIssueIds")
+    private List<String> linkedIssueIds;
+
     @Column(name = "is_pulled_from_backlog", nullable = true)
     private Boolean isPulledFromBacklog = false;
 
@@ -246,5 +251,13 @@ public class Task extends BaseEntity {
 
     public void setIsPulledFromBacklog(Boolean isPulledFromBacklog) {
         this.isPulledFromBacklog = isPulledFromBacklog;
+    }
+
+    public List<String> getLinkedIssueIds() {
+        return linkedIssueIds;
+    }
+
+    public void setLinkedIssueIds(List<String> linkedIssueIds) {
+        this.linkedIssueIds = linkedIssueIds;
     }
 }

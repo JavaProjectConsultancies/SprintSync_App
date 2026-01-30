@@ -13,7 +13,8 @@ import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { CalendarIcon, CheckSquare, User, Flag, Target, Clock, Plus, X, Paperclip, Trash2, Loader2, AlertCircle, Link, Eye, FileText } from 'lucide-react';
 import { formatDateDDMMYYYY, formatDateWithMonth } from '../utils/dateUtils';
-import { Priority } from '../types/api';
+import { Priority, Task } from '../types/api';
+import { taskApiService } from '../services/api/entities/taskApi';
 
 // Simple date formatter - uses dd-mm-yyyy format
 const format = (date: Date, formatStr: string) => {
@@ -50,6 +51,7 @@ interface Issue {
   description?: string;
   estimatedHours?: number;
   subtasks?: string[];
+  linkedTaskIds?: string[];
 }
 
 interface User {
@@ -117,6 +119,11 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
   // State for project team members
   const [projectTeamMembers, setProjectTeamMembers] = useState<any[]>([]);
   const [loadingTeamMembers, setLoadingTeamMembers] = useState(false);
+
+  // State for linked tasks (only tasks from the selected story)
+  const [availableTasks, setAvailableTasks] = useState<Task[]>([]);
+  const [linkedTaskIds, setLinkedTaskIds] = useState<string[]>([]);
+  const [loadingTasks, setLoadingTasks] = useState(false);
 
   // Calculate effectiveProjectId - derive from selected story if not provided directly
   const effectiveProjectId = useMemo(() => {
@@ -272,6 +279,46 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
+  // Load tasks for the currently selected story (for Linked Tasks section)
+  useEffect(() => {
+    const fetchTasksForStory = async () => {
+      const storyId = formData.storyId && formData.storyId !== 'none' ? formData.storyId : requiredStoryId || defaultStoryId;
+
+      if (!storyId) {
+        setAvailableTasks([]);
+        setLinkedTaskIds([]);
+        return;
+      }
+
+      setLoadingTasks(true);
+      try {
+        const response = await taskApiService.getTasksByStory(storyId);
+        const data = response.data as any;
+
+        let tasks: Task[] = [];
+        if (Array.isArray(data)) {
+          tasks = data;
+        } else if (data && Array.isArray(data.data)) {
+          tasks = data.data;
+        } else if (data && Array.isArray(data.content)) {
+          tasks = data.content;
+        }
+
+        setAvailableTasks(tasks);
+        // Keep only selections that still exist in this story
+        setLinkedTaskIds(prev => prev.filter(id => tasks.some(t => t.id === id)));
+      } catch (error) {
+        console.error('[AddIssueDialog] Error fetching tasks for story:', error);
+        setAvailableTasks([]);
+        setLinkedTaskIds([]);
+      } finally {
+        setLoadingTasks(false);
+      }
+    };
+
+    fetchTasksForStory();
+  }, [formData.storyId, requiredStoryId, defaultStoryId]);
+
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
@@ -298,6 +345,8 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
         estimatedHours: formData.estimatedHours,
         subtasks: validSubtasks,
         progress: 0,
+        // Linked tasks from the same story (optional, can select multiple)
+        linkedTaskIds: linkedTaskIds.length > 0 ? linkedTaskIds : undefined,
         attachments: attachments.length > 0 ? attachments : undefined,
         attachmentUrls: attachmentUrls.length > 0 ? attachmentUrls : undefined
       };
@@ -634,6 +683,77 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                     </CardContent>
                   </Card>
                 )}
+
+                {/* Linked Tasks (from same story) */}
+                <Card>
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Link className="w-4 h-4 text-emerald-600" />
+                        <h3 className="font-medium">Linked Tasks (Optional)</h3>
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        Only tasks from the selected story are shown
+                      </span>
+                    </div>
+
+                    {(!formData.storyId || formData.storyId === 'none') && (
+                      <p className="text-xs text-gray-500">
+                        Select a story above to see its tasks.
+                      </p>
+                    )}
+
+                    {formData.storyId && formData.storyId !== 'none' && (
+                      <div className="space-y-2 max-h-52 overflow-y-auto border border-dashed border-gray-200 rounded-lg p-2 bg-gray-50">
+                        {loadingTasks ? (
+                          <div className="flex items-center justify-center py-4 text-gray-500 text-sm">
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                            Loading tasks for this story...
+                          </div>
+                        ) : availableTasks.length === 0 ? (
+                          <p className="text-xs text-gray-500 text-center py-2">
+                            No tasks available for this story.
+                          </p>
+                        ) : (
+                          availableTasks.map(task => {
+                            const isSelected = linkedTaskIds.includes(task.id);
+                            return (
+                              <button
+                                key={task.id}
+                                type="button"
+                                onClick={() => {
+                                  setLinkedTaskIds(prev =>
+                                    prev.includes(task.id)
+                                      ? prev.filter(id => id !== task.id)
+                                      : [...prev, task.id]
+                                  );
+                                }}
+                                className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-left text-xs border transition-colors ${isSelected
+                                  ? 'bg-emerald-50 border-emerald-300'
+                                  : 'bg-white border-gray-200 hover:bg-gray-50'
+                                  }`}
+                              >
+                                <div className="flex flex-col">
+                                  <span className="font-medium text-gray-800 truncate">
+                                    {task.title}
+                                  </span>
+                                  <span className="text-[10px] text-gray-500">
+                                    {task.status} · {task.priority}
+                                  </span>
+                                </div>
+                                {isSelected && (
+                                  <Badge variant="outline" className="text-[10px] border-emerald-400 text-emerald-700">
+                                    Linked
+                                  </Badge>
+                                )}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
 
                 {/* Issue Configuration */}
                 <Card>
