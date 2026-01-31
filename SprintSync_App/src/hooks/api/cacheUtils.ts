@@ -1,5 +1,9 @@
 // Shared caching utilities for API hooks
 // Provides generic caching infrastructure to avoid code duplication
+import { secureStorage } from '../../services/api/encryptionUtils';
+import { API_CONFIG } from '../../services/api/config';
+
+const TOKEN_KEY = 'sprintsync_token';
 
 export interface EntityCache<T> {
     data: T[] | null;
@@ -62,10 +66,12 @@ export function getPersistentCache<T>(
     ttl: number
 ): T[] | null {
     try {
-        const cached = localStorage.getItem(cacheKey);
-        if (!cached) return null;
+        const token = secureStorage.getItem(TOKEN_KEY, API_CONFIG.SIGNING_KEY);
+        if (!token) return null;
 
-        const parsed = JSON.parse(cached);
+        const parsed = secureStorage.getItem(cacheKey, token);
+        if (!parsed) return null;
+
         const now = Date.now();
 
         // Check if cache is valid and for the same user
@@ -79,7 +85,7 @@ export function getPersistentCache<T>(
         }
 
         // Clean up stale cache
-        localStorage.removeItem(cacheKey);
+        secureStorage.removeItem(cacheKey);
         return null;
     } catch {
         return null;
@@ -95,13 +101,17 @@ export function setPersistentCache<T>(
     userId: string | null
 ): void {
     try {
-        localStorage.setItem(
+        const token = secureStorage.getItem(TOKEN_KEY, API_CONFIG.SIGNING_KEY);
+        if (!token) return;
+
+        secureStorage.setItem(
             cacheKey,
-            JSON.stringify({
+            {
                 data,
                 userId,
                 timestamp: Date.now(),
-            })
+            },
+            token
         );
     } catch {
         // Ignore localStorage errors (quota exceeded, etc.)

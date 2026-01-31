@@ -209,6 +209,7 @@ import {
   SprintStatus,
   StoryStatus,
   TaskStatus,
+  Notification,
 } from "../types/api";
 
 import AddTaskDialog from "../components/AddTaskDialog";
@@ -220,6 +221,8 @@ import LaneConfigurationModal from "../components/LaneConfigurationModal";
 import EffortManager from "../components/EffortManager";
 
 import TaskDetailsFullDialog from "../components/TaskDetailsFullDialog";
+import ChatSection from "../components/ChatSection";
+import { notificationApiService } from "../services/api/entities/notificationApi";
 
 import LoadingSpinner from "../components/LoadingSpinner";
 import AttachmentViewer from "../components/AttachmentViewer";
@@ -588,6 +591,31 @@ const ScrumPage: React.FC = () => {
     acceptanceCriteria: "",
     labels: "",
   });
+
+  const [unreadMentions, setUnreadMentions] = useState<Notification[]>([]);
+
+  useEffect(() => {
+    if (user?.id) {
+      const fetchMentions = async () => {
+        try {
+          const res = await notificationApiService.getUnreadNotificationsByUserId(user.id);
+          const allUnread = Array.isArray(res.data)
+            ? res.data
+            : ((res.data as any)?.data || (res.data as any)?.content || []);
+          setUnreadMentions(allUnread.filter((n: any) => {
+            const type = (n.type || '').toUpperCase();
+            return type === 'MENTION' || type === 'TEAM_MENTION';
+          }));
+        } catch (err) {
+          console.error("Failed to fetch unread mentions", err);
+        }
+      };
+
+      fetchMentions();
+      const interval = setInterval(fetchMentions, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [user?.id]);
 
   // Description editing state (added for inline editing in details dialogs)
   const [isEditingTaskDescription, setIsEditingTaskDescription] = useState(false);
@@ -5127,10 +5155,8 @@ const ScrumPage: React.FC = () => {
         // Update linked tasks bidirectionally: add this issue ID to each task's linked_issue_ids
         if (linkedTaskIds.length > 0) {
           try {
-            // First, update the issue with linkedTaskIds
-            await issueApiService.updateIssue(createdIssueId, {
-              linkedTaskIds: linkedTaskIds,
-            } as any);
+            // First, update the issue with linkedTaskIds using the dedicated endpoint
+            await issueApiService.updateIssueLinkedTaskIds(createdIssueId, linkedTaskIds);
 
             // Then, update each linked task to include this issue in their linked_issue_ids
             const taskUpdatePromises = linkedTaskIds.map(async (taskId: string) => {
@@ -5138,17 +5164,15 @@ const ScrumPage: React.FC = () => {
                 // Fetch the current task to get its existing linkedIssueIds
                 const taskRes = await taskApiService.getTaskById(taskId);
                 const currentTask = taskRes.data as any;
-                const existingLinkedIssueIds: string[] = 
-                  currentTask?.linkedIssueIds || 
-                  currentTask?.linked_issue_ids || 
+                const existingLinkedIssueIds: string[] =
+                  currentTask?.linkedIssueIds ||
+                  currentTask?.linked_issue_ids ||
                   [];
 
                 // Add this issue ID if not already present
                 if (!existingLinkedIssueIds.includes(createdIssueId)) {
                   const updatedLinkedIssueIds = [...existingLinkedIssueIds, createdIssueId];
-                  await taskApiService.updateTask(taskId, {
-                    linkedIssueIds: updatedLinkedIssueIds,
-                  } as any);
+                  await taskApiService.updateTaskLinkedIssueIds(taskId, updatedLinkedIssueIds);
                   console.log(`[ScrumPage] Updated task ${taskId} with linked issue ${createdIssueId}`);
                 }
               } catch (taskError) {
@@ -7567,7 +7591,7 @@ const ScrumPage: React.FC = () => {
 
     const handleViewIssueDetails = () => {
       setSelectedIssueForDetails(issue);
-
+      setIssueDetailsTab('details');
       setIsIssueDetailsOpen(true);
     };
 
@@ -7584,6 +7608,15 @@ const ScrumPage: React.FC = () => {
     // Calculate estimated and actual hours for issues
     const estimatedHours = issue.estimatedHours || 0;
     const actualHours = issue.actualHours || 0;
+
+    const hasUnreadMention = unreadMentions.some(
+      (n: any) => {
+        const relId = String(n.relatedEntityId || '').toUpperCase();
+        const relType = (n.relatedEntityType || '').toUpperCase();
+        return (relId === String(issue.id).toUpperCase() || relId === String(issue.issueNumber).toUpperCase()) &&
+          relType === 'ISSUE';
+      }
+    );
 
     return (
       <div
@@ -7604,6 +7637,11 @@ const ScrumPage: React.FC = () => {
             {/* Top Row: Issue ID, Priority Badge, and Due Date */}
             <div className="flex items-center justify-between mb-2 flex-shrink-0">
               <div className="flex items-center space-x-1">
+                {hasUnreadMention && (
+                  <Badge variant="destructive" className="h-4 w-4 p-0 flex items-center justify-center rounded-full animate-pulse mr-1" title="Unread mention">
+                    @
+                  </Badge>
+                )}
                 <span
                   className="text-xs font-semibold text-red-600 cursor-help"
                   title={`Issue UUID: ${issue.id}`}
@@ -7744,6 +7782,7 @@ const ScrumPage: React.FC = () => {
 
     const handleViewTaskDetails = () => {
       setSelectedTaskForDetails(task);
+      setTaskDetailsTab('details');
       setIsTaskDetailsOpen(true);
     };
 
@@ -7783,6 +7822,15 @@ const ScrumPage: React.FC = () => {
 
     const assigneeName = task.assigneeId ? getUserName(task.assigneeId) : null;
 
+    const hasUnreadMention = unreadMentions.some(
+      (n: any) => {
+        const relId = String(n.relatedEntityId || '').toUpperCase();
+        const relType = (n.relatedEntityType || '').toUpperCase();
+        return (relId === String(task.id).toUpperCase() || relId === String(task.taskNumber).toUpperCase()) &&
+          relType === 'TASK';
+      }
+    );
+
     // Get initials helper function
     const getInitials = (name: string) => {
       return name
@@ -7815,6 +7863,11 @@ const ScrumPage: React.FC = () => {
             {/* Top Row: Task ID, Priority Badge, and Due Date */}
             <div className="flex items-center justify-between mb-2 flex-shrink-0">
               <div className="flex items-center space-x-1">
+                {hasUnreadMention && (
+                  <Badge variant="destructive" className="h-4 w-4 p-0 flex items-center justify-center rounded-full animate-pulse mr-1" title="Unread mention">
+                    @
+                  </Badge>
+                )}
                 <span
                   className="text-xs font-semibold text-blue-600 cursor-help"
                   title={`Task UUID: ${task.id}`}
@@ -13699,6 +13752,21 @@ const ScrumPage: React.FC = () => {
                         <TabsTrigger value="linked-issues">
                           Linked Issues
                         </TabsTrigger>
+
+                        <TabsTrigger value="chats" className="relative">
+                          Chats
+                          {unreadMentions.some((n: any) => {
+                            const relId = String(n.relatedEntityId || '').toUpperCase();
+                            const relType = (n.relatedEntityType || '').toUpperCase();
+                            return (relId === String(selectedTaskForDetails.id).toUpperCase() || relId === String(selectedTaskForDetails.taskNumber).toUpperCase()) &&
+                              relType === 'TASK';
+                          }) && (
+                              <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                              </span>
+                            )}
+                        </TabsTrigger>
                       </TabsList>
 
                       <TabsContent
@@ -14458,6 +14526,10 @@ const ScrumPage: React.FC = () => {
                           </div>
                         </div>
                       </TabsContent>
+
+                      <TabsContent value="chats" className="flex-1 overflow-hidden p-6 min-h-0">
+                        <ChatSection entityId={selectedTaskForDetails.id} entityType="task" projectId={selectedProject || undefined} />
+                      </TabsContent>
                     </Tabs>
                   </div>
                 </div>
@@ -15008,6 +15080,21 @@ const ScrumPage: React.FC = () => {
 
                       <TabsTrigger value="linked-issues">
                         Linked Tasks
+                      </TabsTrigger>
+
+                      <TabsTrigger value="chats" className="relative">
+                        Chats
+                        {unreadMentions.some((n: any) => {
+                          const relId = String(n.relatedEntityId || '').toUpperCase();
+                          const relType = (n.relatedEntityType || '').toUpperCase();
+                          return (relId === String(selectedIssueForDetails.id).toUpperCase() || relId === String(selectedIssueForDetails.issueNumber).toUpperCase()) &&
+                            relType === 'ISSUE';
+                        }) && (
+                            <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                            </span>
+                          )}
                       </TabsTrigger>
                     </TabsList>
 
@@ -15794,11 +15881,15 @@ const ScrumPage: React.FC = () => {
 
                           <p className="text-sm">No linked tasks</p>
 
-                            <p className="text-xs text-gray-400 mt-1">
-                              Links to related tasks will appear here
-                            </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            Links to related tasks will appear here
+                          </p>
                         </div>
                       </div>
+                    </TabsContent>
+
+                    <TabsContent value="chats" className="flex-1 overflow-hidden p-6 min-h-0">
+                      <ChatSection entityId={selectedIssueForDetails.id} entityType="issue" projectId={selectedProject || undefined} />
                     </TabsContent>
                   </Tabs>
                 </div>

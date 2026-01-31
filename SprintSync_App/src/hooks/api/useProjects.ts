@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { apiClient, projectApiService } from '../../services/api';
 import { Project } from '../../types/api';
+import { secureStorage } from '../../services/api/encryptionUtils';
+import { API_CONFIG } from '../../services/api/config';
+
+const TOKEN_KEY = 'sprintsync_token';
 
 interface UseProjectsReturn {
   data: Project[] | null;
@@ -51,12 +55,14 @@ const normalizeProjectsData = (responseData: any): Project[] => {
 // Persistent cache using localStorage (faster than IndexedDB for small data)
 const getPersistentCache = (userId: string | null): Project[] | null => {
   try {
-    const cached = localStorage.getItem(PERSISTENT_CACHE_KEY);
-    if (!cached) return null;
-    
-    const parsed = JSON.parse(cached);
+    const token = secureStorage.getItem(TOKEN_KEY, API_CONFIG.SIGNING_KEY);
+    if (!token) return null;
+
+    const parsed = secureStorage.getItem(PERSISTENT_CACHE_KEY, token);
+    if (!parsed) return null;
+
     const now = Date.now();
-    
+
     // Check if cache is valid and for the same user
     if (
       parsed.userId === userId &&
@@ -66,9 +72,9 @@ const getPersistentCache = (userId: string | null): Project[] | null => {
     ) {
       return parsed.data;
     }
-    
+
     // Clean up stale cache
-    localStorage.removeItem(PERSISTENT_CACHE_KEY);
+    secureStorage.removeItem(PERSISTENT_CACHE_KEY);
     return null;
   } catch {
     return null;
@@ -77,13 +83,17 @@ const getPersistentCache = (userId: string | null): Project[] | null => {
 
 const setPersistentCache = (data: Project[], userId: string | null) => {
   try {
-    localStorage.setItem(
+    const token = secureStorage.getItem(TOKEN_KEY, API_CONFIG.SIGNING_KEY);
+    if (!token) return;
+
+    secureStorage.setItem(
       PERSISTENT_CACHE_KEY,
-      JSON.stringify({
+      {
         data,
         userId,
         timestamp: Date.now(),
-      })
+      },
+      token
     );
   } catch {
     // Ignore localStorage errors (quota exceeded, etc.)
@@ -92,7 +102,7 @@ const setPersistentCache = (data: Project[], userId: string | null) => {
 
 const clearPersistentCache = () => {
   try {
-    localStorage.removeItem(PERSISTENT_CACHE_KEY);
+    secureStorage.removeItem(PERSISTENT_CACHE_KEY);
   } catch {
     // Ignore errors
   }
@@ -104,7 +114,7 @@ export const invalidateProjectsCache = (userId?: string) => {
   if (projectsCache.abortController) {
     projectsCache.abortController.abort();
   }
-  
+
   if (!userId || projectsCache.userId === userId) {
     projectsCache = {
       data: null,
@@ -120,7 +130,7 @@ export const invalidateProjectsCache = (userId?: string) => {
 // Prefetch projects function - can be called immediately after login
 export const prefetchProjects = async (userId?: string): Promise<Project[]> => {
   const now = Date.now();
-  
+
   // Check persistent cache first (fastest)
   const persistentData = getPersistentCache(userId || null);
   if (persistentData) {
@@ -133,7 +143,7 @@ export const prefetchProjects = async (userId?: string): Promise<Project[]> => {
     };
     return persistentData;
   }
-  
+
   // Check if we have fresh cache for this user
   if (projectsCache.data && projectsCache.userId === userId && (now - projectsCache.timestamp) < STALE_TIME) {
     return projectsCache.data;
@@ -156,7 +166,7 @@ export const prefetchProjects = async (userId?: string): Promise<Project[]> => {
 
   // Create abort controller for request cancellation
   const abortController = new AbortController();
-  
+
   // Create prefetch promise
   const prefetchPromise = (async () => {
     try {
@@ -183,7 +193,7 @@ export const prefetchProjects = async (userId?: string): Promise<Project[]> => {
 
       // Use Promise.race to get the first successful response
       const responses = await Promise.allSettled(fetchPromises);
-      
+
       let response: any = null;
       // Prefer accessible projects if available, otherwise use all projects
       for (const result of responses) {
@@ -224,7 +234,7 @@ export const prefetchProjects = async (userId?: string): Promise<Project[]> => {
   projectsCache.promise = prefetchPromise;
   projectsCache.abortController = abortController;
   projectsCache.userId = userId || null;
-  
+
   try {
     return await prefetchPromise;
   } catch (err) {
@@ -238,7 +248,7 @@ export const useProjects = (): UseProjectsReturn => {
   // Initialize from persistent cache immediately (synchronous, instant)
   const persistentData = getPersistentCache(projectsCache.userId);
   const initialData = persistentData || projectsCache.data;
-  
+
   const [data, setData] = useState<Project[] | null>(initialData);
   const [loading, setLoading] = useState(!initialData);
   const [error, setError] = useState<Error | null>(null);
@@ -260,7 +270,7 @@ export const useProjects = (): UseProjectsReturn => {
 
   const fetchProjects = useCallback(async (preferPrefetched: boolean = true, skipCache: boolean = false) => {
     const now = Date.now();
-    
+
     // Check persistent cache first (fastest - synchronous)
     if (!skipCache) {
       const persistent = getPersistentCache(projectsCache.userId);
@@ -271,7 +281,7 @@ export const useProjects = (): UseProjectsReturn => {
           setData(persistent);
           setLoading(false);
         }
-        
+
         // Background refresh if data is stale but still valid
         if ((now - (projectsCache.timestamp || 0)) > STALE_TIME && !backgroundRefreshTimeoutRef.current) {
           backgroundRefreshTimeoutRef.current = setTimeout(() => {
@@ -281,18 +291,18 @@ export const useProjects = (): UseProjectsReturn => {
             backgroundRefreshTimeoutRef.current = null;
           }, 100);
         }
-        
+
         return persistent;
       }
     }
-    
+
     // Check memory cache (unless skipCache is true)
     if (!skipCache && projectsCache.data && (now - projectsCache.timestamp) < CACHE_TTL) {
       if (isMountedRef.current) {
         setData(projectsCache.data);
         setLoading(false);
       }
-      
+
       // Background refresh if data is stale but still valid
       if ((now - projectsCache.timestamp) > STALE_TIME && !backgroundRefreshTimeoutRef.current) {
         backgroundRefreshTimeoutRef.current = setTimeout(() => {
@@ -302,7 +312,7 @@ export const useProjects = (): UseProjectsReturn => {
           backgroundRefreshTimeoutRef.current = null;
         }, 100);
       }
-      
+
       return projectsCache.data;
     }
 
@@ -336,7 +346,7 @@ export const useProjects = (): UseProjectsReturn => {
           setLoading(true);
           setError(null);
         }
-        
+
         // Try prefetched data first (non-blocking check)
         if (preferPrefetched) {
           try {
@@ -382,10 +392,10 @@ export const useProjects = (): UseProjectsReturn => {
         if (!response) {
           throw new Error('Failed to fetch projects from all endpoints');
         }
-        
+
         // Fast normalization
         const projectsData = normalizeProjectsData(response.data);
-        
+
         // Update cache
         const cacheData = {
           data: projectsData,
@@ -396,12 +406,12 @@ export const useProjects = (): UseProjectsReturn => {
         };
         projectsCache = cacheData;
         setPersistentCache(projectsData, projectsCache.userId);
-        
+
         if (isMountedRef.current) {
           setData(projectsData);
           setLoading(false);
         }
-        
+
         return projectsData;
       } catch (err: any) {
         if (err.name === 'AbortError') {
@@ -420,7 +430,7 @@ export const useProjects = (): UseProjectsReturn => {
 
     projectsCache.promise = fetchPromise;
     projectsCache.abortController = abortController;
-    
+
     try {
       return await fetchPromise;
     } catch (err) {

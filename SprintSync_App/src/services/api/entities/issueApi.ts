@@ -47,11 +47,12 @@ export const issueApiService = {
   updateIssueEstimatedHours: (id: string, estimatedHours: number) =>
     apiClient.patch<Issue>(`${BASE_URL}/${id}/estimated-hours`, { estimatedHours }),
 
-  updateIssueActualHours: (id: string, actualHours: number) =>
-    apiClient.patch<Issue>(`${BASE_URL}/${id}/actual-hours`, { actualHours }),
-
   updateIssueDueDate: (id: string, dueDate: string) =>
     apiClient.patch<Issue>(`${BASE_URL}/${id}/due-date`, { dueDate }),
+
+  // Linked tasks
+  updateIssueLinkedTaskIds: (id: string, linkedTaskIds: string[]) =>
+    apiClient.patch<Issue>(`${BASE_URL}/${id}/linked-tasks`, { linkedTaskIds }),
 
   getIssuesByAssignee: (assigneeId: string, params?: any) =>
     apiClient.get<Issue[]>(`${BASE_URL}/assignee/${assigneeId}`, { params }),

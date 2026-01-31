@@ -87,6 +87,10 @@ export const taskApiService = {
   updateTaskDueDate: (id: string, dueDate: string) =>
     apiClient.patch<Task>(`${BASE_URL}/${id}/due-date`, { dueDate }),
 
+  // Linked issues
+  updateTaskLinkedIssueIds: (id: string, linkedIssueIds: string[]) =>
+    apiClient.patch<Task>(`${BASE_URL}/${id}/linked-issues`, { linkedIssueIds }),
+
   // Statistics
   getTaskStatistics: (id: string) =>
     apiClient.get<any>(`${BASE_URL}/${id}/statistics`),

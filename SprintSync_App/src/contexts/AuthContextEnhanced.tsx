@@ -4,6 +4,8 @@ import { User, UserRole } from '../types';
 import { authApiService, LoginResponse } from '../services/api/authApi';
 import { apiClient } from '../services/api/client';
 import { toast } from 'sonner';
+import { secureStorage } from '../services/api/encryptionUtils';
+import { API_CONFIG } from '../services/api/config';
 
 const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   admin: ['view_projects', 'manage_projects', 'view_team', 'manage_users', 'view_analytics', 'manage_system'],
@@ -55,8 +57,8 @@ const SESSION_TIMESTAMP_KEY = 'sprintsync_session_timestamp';
 const SESSION_DURATION_MS = 30 * 60 * 1000;
 
 const saveAuthData = (token: string, user: User) => {
-  localStorage.setItem(TOKEN_KEY, token);
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  secureStorage.setItem(TOKEN_KEY, token, API_CONFIG.SIGNING_KEY);
+  secureStorage.setItem(USER_KEY, user, token);
   // Store login timestamp for session expiration
   localStorage.setItem(SESSION_TIMESTAMP_KEY, Date.now().toString());
 };
@@ -65,36 +67,36 @@ const clearAuthData = () => {
   // Get user ID before removing user data (needed for clearing user-specific cache)
   let userId: string | null = null;
   try {
-    const userStr = localStorage.getItem(USER_KEY);
-    if (userStr) {
-      const user = JSON.parse(userStr);
+    const token = secureStorage.getItem(TOKEN_KEY, API_CONFIG.SIGNING_KEY);
+    if (token) {
+      const user = secureStorage.getItem(USER_KEY, token);
       userId = user?.id || null;
     }
   } catch (error) {
     // Ignore parse errors
   }
-  
+
   // Remove auth data
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
+  secureStorage.removeItem(TOKEN_KEY);
+  secureStorage.removeItem(USER_KEY);
   localStorage.removeItem(SESSION_TIMESTAMP_KEY);
-  
+
   // Clear all other cache-related localStorage items
   try {
     // Clear projects cache
     localStorage.removeItem('sprintsync_projects_cache');
-    
+
     // Clear dashboard filters
     if (userId) {
       localStorage.removeItem(`dashboard-filters-${userId}`);
     }
     localStorage.removeItem('dashboard-filters');
-    
+
     // Clear any other sprint sync related cache
     const keysToRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && key.startsWith('sprintsync_')) {
+      if (key && (key.startsWith('sprintsync_') || key.startsWith('sprintSync-'))) {
         keysToRemove.push(key);
       }
     }
@@ -105,9 +107,9 @@ const clearAuthData = () => {
 };
 
 const getStoredAuthData = (): { token: string | null; user: User | null } => {
-  const token = localStorage.getItem(TOKEN_KEY);
-  const userStr = localStorage.getItem(USER_KEY);
-  const user = userStr ? JSON.parse(userStr) : null;
+  const token = secureStorage.getItem(TOKEN_KEY, API_CONFIG.SIGNING_KEY);
+  if (!token) return { token: null, user: null };
+  const user = secureStorage.getItem(USER_KEY, token);
   return { token, user };
 };
 
@@ -117,12 +119,12 @@ const isSessionExpired = (): boolean => {
   if (!timestampStr) {
     return true; // No timestamp means expired
   }
-  
+
   const loginTimestamp = parseInt(timestampStr, 10);
   if (isNaN(loginTimestamp)) {
     return true; // Invalid timestamp means expired
   }
-  
+
   const now = Date.now();
   const elapsed = now - loginTimestamp;
   return elapsed >= SESSION_DURATION_MS;

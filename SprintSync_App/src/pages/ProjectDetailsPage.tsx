@@ -812,11 +812,7 @@ const ProjectDetailsPage = () => {
   // Helper function to get initials from name
   const getInitials = (name: string) => {
     if (!name) return '??';
-    const parts = name.trim().split(' ');
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    }
-    return name.substring(0, 2).toUpperCase();
+    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
 
   // Helper function to get user name from user ID with multiple fallbacks

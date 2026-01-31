@@ -1,6 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { useAuth } from './AuthContextEnhanced';
 import { projectRolesApiService, UserProjectRoles, ProjectRoleInfo } from '../services/api/entities/projectRolesApi';
+import { secureStorage } from '../services/api/encryptionUtils';
+import { API_CONFIG } from '../services/api/config';
+
+const TOKEN_KEY = 'sprintsync_token';
 
 /**
  * Available role types for role switching
@@ -152,7 +156,10 @@ export const RoleSwitcherProvider: React.FC<{ children: ReactNode }> = ({ childr
         setSelectedProjectId(projectId);
 
         if (projectId) {
-            localStorage.setItem(SELECTED_PROJECT_KEY, projectId);
+            const token = secureStorage.getItem(TOKEN_KEY, API_CONFIG.SIGNING_KEY);
+            if (token) {
+                secureStorage.setItem(SELECTED_PROJECT_KEY, projectId, token);
+            }
 
             // Check if current active role is valid for this project
             const projectRole = getRoleForProject(projectId);
@@ -161,11 +168,13 @@ export const RoleSwitcherProvider: React.FC<{ children: ReactNode }> = ({ childr
                 // If user is developer in this project and active role is manager, switch to developer
                 if (projectRole === 'developer' && activeRole === 'manager') {
                     setActiveRole('developer');
-                    localStorage.setItem(ACTIVE_ROLE_KEY, 'developer');
+                    if (token) {
+                        secureStorage.setItem(ACTIVE_ROLE_KEY, 'developer', token);
+                    }
                 }
             }
         } else {
-            localStorage.removeItem(SELECTED_PROJECT_KEY);
+            secureStorage.removeItem(SELECTED_PROJECT_KEY);
         }
     }, [getRoleForProject, activeRole]);
 
@@ -198,20 +207,25 @@ export const RoleSwitcherProvider: React.FC<{ children: ReactNode }> = ({ childr
             setProjectRoles(rolesData.projectRoles);
 
             // Restore saved project
-            const savedProject = localStorage.getItem(SELECTED_PROJECT_KEY);
-            if (savedProject && rolesData.projectRoles.some(pr => pr.projectId === savedProject)) {
-                setSelectedProjectId(savedProject);
-            }
+            const token = secureStorage.getItem(TOKEN_KEY, API_CONFIG.SIGNING_KEY);
+            if (token) {
+                const savedProject = secureStorage.getItem(SELECTED_PROJECT_KEY, token);
+                if (savedProject && rolesData.projectRoles.some(pr => pr.projectId === savedProject)) {
+                    setSelectedProjectId(savedProject);
+                }
 
-            // Restore saved role or set default
-            const savedRole = localStorage.getItem(ACTIVE_ROLE_KEY) as SwitchableRole | null;
-            if (savedRole && switchableRoles.includes(savedRole)) {
-                setActiveRole(savedRole);
-            } else {
-                // Default to the highest available role (manager > developer)
-                const defaultRole = switchableRoles.includes('manager') ? 'manager' : 'developer';
-                setActiveRole(defaultRole);
-                localStorage.setItem(ACTIVE_ROLE_KEY, defaultRole);
+                // Restore saved role or set default
+                const savedRole = secureStorage.getItem(ACTIVE_ROLE_KEY, token) as SwitchableRole | null;
+                if (savedRole && switchableRoles.includes(savedRole)) {
+                    setActiveRole(savedRole);
+                } else {
+                    // Default to the highest available role (manager > developer)
+                    const defaultRole = switchableRoles.includes('manager') ? 'manager' : 'developer';
+                    setActiveRole(defaultRole);
+                    if (token) {
+                        secureStorage.setItem(ACTIVE_ROLE_KEY, defaultRole, token);
+                    }
+                }
             }
         } catch (err) {
             console.error('Failed to fetch user roles:', err);
@@ -240,7 +254,10 @@ export const RoleSwitcherProvider: React.FC<{ children: ReactNode }> = ({ childr
         }
 
         setActiveRole(role);
-        localStorage.setItem(ACTIVE_ROLE_KEY, role);
+        const token = secureStorage.getItem(TOKEN_KEY, API_CONFIG.SIGNING_KEY);
+        if (token) {
+            secureStorage.setItem(ACTIVE_ROLE_KEY, role, token);
+        }
     }, [availableRoles, selectedProjectId, canUseRoleInProject]);
 
     /**
@@ -274,7 +291,10 @@ export const RoleSwitcherProvider: React.FC<{ children: ReactNode }> = ({ childr
      */
     const resetToOriginalRole = useCallback(() => {
         setActiveRole(originalRole);
-        localStorage.setItem(ACTIVE_ROLE_KEY, originalRole);
+        const token = secureStorage.getItem(TOKEN_KEY, API_CONFIG.SIGNING_KEY);
+        if (token) {
+            secureStorage.setItem(ACTIVE_ROLE_KEY, originalRole, token);
+        }
     }, [originalRole]);
 
     // Fetch roles when user changes or authenticates
@@ -288,8 +308,8 @@ export const RoleSwitcherProvider: React.FC<{ children: ReactNode }> = ({ childr
             setProjectRoles([]);
             setSelectedProjectId(null);
             setIsLoading(false);
-            localStorage.removeItem(ACTIVE_ROLE_KEY);
-            localStorage.removeItem(SELECTED_PROJECT_KEY);
+            secureStorage.removeItem(ACTIVE_ROLE_KEY);
+            secureStorage.removeItem(SELECTED_PROJECT_KEY);
         }
     }, [isAuthenticated, user?.id, fetchUserRoles]);
 

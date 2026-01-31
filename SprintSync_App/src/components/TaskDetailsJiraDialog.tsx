@@ -59,6 +59,7 @@ import AttachmentViewer from './AttachmentViewer';
 
 import { useAuth } from "../contexts/AuthContextEnhanced";
 import { userApiService } from "../services/api/entities/userApi";
+import ChatSection from './ChatSection';
 
 interface TaskDetailsJiraDialogProps {
     open: boolean;
@@ -68,6 +69,8 @@ interface TaskDetailsJiraDialogProps {
     allSubtasks?: Subtask[]; // Optional, will fetch if not provided
     canManage?: boolean;
     sprintEndDate?: string; // Used to block time logging after sprint ends
+    projectId?: string;
+    unreadMentions?: any[];
 }
 
 const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
@@ -78,6 +81,8 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
     allSubtasks: initialSubtasks = [],
     canManage = true,
     sprintEndDate,
+    projectId,
+    unreadMentions = [],
 }) => {
     const { user } = useAuth();
     console.log('[TaskDetailsJiraDialog] User:', user);
@@ -100,6 +105,13 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
     // Effort logging state
     const [isLogEffortOpen, setIsLogEffortOpen] = useState(false);
     const [isLoggingEffort, setIsLoggingEffort] = useState(false);
+
+    useEffect(() => {
+        if (open) {
+            setActiveTab('details');
+        }
+    }, [open]);
+
     const [effortLog, setEffortLog] = useState({
         hours: 0,
         description: "",
@@ -438,6 +450,19 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                                         <TabsTrigger value="subtasks">Subtasks</TabsTrigger>
                                         <TabsTrigger value="due-dates">Due Dates</TabsTrigger>
                                         <TabsTrigger value="linked-issues">Linked Issues</TabsTrigger>
+                                        <TabsTrigger value="chats" className="relative">
+                                            Chats
+                                            {currentTask && unreadMentions.some(n =>
+                                                (n.relatedEntityId === currentTask.id || n.relatedEntityId === currentTask.taskNumber) &&
+                                                (n.relatedEntityType || '').toLowerCase() === 'task' &&
+                                                (n.type || '').toLowerCase() === 'mention'
+                                            ) && (
+                                                    <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                                                    </span>
+                                                )}
+                                        </TabsTrigger>
                                     </TabsList>
 
                                     <TabsContent value="details" className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0 scrollbar-thin">
@@ -681,6 +706,10 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                                             </div>
                                         )}
                                     </TabsContent>
+
+                                    <TabsContent value="chats" className="flex-1 overflow-hidden p-6 min-h-0">
+                                        <ChatSection entityId={currentTask.id} entityType="task" projectId={projectId} />
+                                    </TabsContent>
                                 </Tabs>
                             </div>
                         </div>
@@ -734,7 +763,7 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                                             <label className="text-xs font-medium text-gray-600 block mb-1">Assigned To</label>
                                             <div className="flex items-center space-x-2">
                                                 <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-[10px] text-blue-800 font-bold">
-                                                    {getUserName(currentTask.assigneeId || "").substring(0, 2).toUpperCase()}
+                                                    {getUserName(currentTask.assigneeId || "").split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
                                                 </div>
                                                 <span className="text-sm text-gray-700">{getUserName(currentTask.assigneeId || "")}</span>
                                             </div>

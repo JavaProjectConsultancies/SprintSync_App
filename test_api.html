@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+</head>
+<body>
+    <h1>Testing Issue API</h1>
+    <button onclick="testAPI()">Test API</button>
+    <pre id="output"></pre>
+    
+    <script>
+        async function testAPI() {
+            const output = document.getElementById('output');
+            try {
+                const response = await fetch('http://localhost:8080/api/issues/ISSUb824fe1a9ea44dd3a832ca03a77c4d76');
+                const data = await response.json();
+                
+                output.textContent = JSON.stringify(data, null, 2);
+                
+                console.log('Full response:', data);
+                console.log('linkedTaskIds:', data.linkedTaskIds);
+                console.log('Type:', typeof data.linkedTaskIds);
+                console.log('Is Array:', Array.isArray(data.linkedTaskIds));
+                
+                if (data.linkedTaskIds && data.linkedTaskIds.length > 0) {
+                    alert('SUCCESS! linkedTaskIds found: ' + data.linkedTaskIds.join(', '));
+                } else {
+                    alert('FAIL! linkedTaskIds is empty or undefined');
+                }
+            } catch (error) {
+                output.textContent = 'Error: ' + error.message;
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

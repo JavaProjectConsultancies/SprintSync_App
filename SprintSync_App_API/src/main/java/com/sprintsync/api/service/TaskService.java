@@ -623,6 +623,20 @@ public class TaskService {
     }
 
     /**
+     * Update task linked issue IDs
+     */
+    public Task updateTaskLinkedIssueIds(String id, java.util.List<String> linkedIssueIds) {
+        Optional<Task> taskOpt = taskRepository.findById(id);
+        if (taskOpt.isPresent()) {
+            Task task = taskOpt.get();
+            task.setLinkedIssueIds(linkedIssueIds);
+            task.setUpdatedAt(LocalDateTime.now());
+            return taskRepository.save(task);
+        }
+        return null;
+    }
+
+    /**
      * Synchronize task actual hours with the sum of its time entries.
      */
     public void syncActualHours(String taskId) {

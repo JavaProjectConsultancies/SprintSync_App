@@ -1,4 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { secureStorage } from '../services/api/encryptionUtils';
+import { API_CONFIG } from '../services/api/config';
+
+const TOKEN_KEY = 'sprintsync_token';
+const USER_KEY = 'sprintsync_user';
 
 export interface DashboardComponentVisibility {
   showApiStatusIndicators: boolean;
@@ -105,7 +110,7 @@ export const FilterProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Check if filters are active
   useEffect(() => {
-    const active = 
+    const active =
       filters.projectIds.length > 0 ||
       filters.projectStatus.length > 0 ||
       filters.projectPriority.length > 0 ||
@@ -124,7 +129,7 @@ export const FilterProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       filters.showOnlyMyTasks ||
       filters.showOnlyActiveItems ||
       filters.showOverdueItems;
-    
+
     setHasActiveFilters(active);
   }, [filters]);
 
@@ -142,36 +147,37 @@ export const FilterProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     const loadUserPreferences = () => {
       try {
-        // Get user ID from localStorage
-        const userStr = localStorage.getItem('sprintsync_user');
-        const userId = userStr ? JSON.parse(userStr)?.id : null;
-        
+        const token = secureStorage.getItem(TOKEN_KEY, API_CONFIG.SIGNING_KEY);
+        if (!token) return;
+
+        // Get user ID from secure storage
+        const user = secureStorage.getItem(USER_KEY, token);
+        const userId = user ? user.id : null;
+
         if (userId) {
-          const saved = localStorage.getItem(`dashboard-filters-${userId}`);
+          const saved = secureStorage.getItem(`dashboard-filters-${userId}`, token);
           if (saved) {
-            const parsed = JSON.parse(saved);
-            setFilters({ 
-              ...defaultFilters, 
-              ...parsed,
+            setFilters({
+              ...defaultFilters,
+              ...saved,
               componentVisibility: {
                 ...defaultComponentVisibility,
-                ...(parsed.componentVisibility || {})
+                ...(saved.componentVisibility || {})
               }
             });
             return;
           }
         }
-        
+
         // Fallback to generic storage for backward compatibility
-        const saved = localStorage.getItem('dashboard-filters');
+        const saved = secureStorage.getItem('dashboard-filters', token);
         if (saved) {
-          const parsed = JSON.parse(saved);
-          setFilters({ 
-            ...defaultFilters, 
-            ...parsed,
+          setFilters({
+            ...defaultFilters,
+            ...saved,
             componentVisibility: {
               ...defaultComponentVisibility,
-              ...(parsed.componentVisibility || {})
+              ...(saved.componentVisibility || {})
             }
           });
         }
@@ -179,18 +185,21 @@ export const FilterProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         console.error('Error loading saved filters:', error);
       }
     };
-    
+
     loadUserPreferences();
   }, []);
 
   const resetFilters = useCallback(() => {
     setFilters(defaultFilters);
-    const userStr = localStorage.getItem('sprintsync_user');
-    const userId = userStr ? JSON.parse(userStr)?.id : null;
+    const token = secureStorage.getItem(TOKEN_KEY, API_CONFIG.SIGNING_KEY);
+    if (!token) return;
+
+    const user = secureStorage.getItem(USER_KEY, token);
+    const userId = user ? user.id : null;
     if (userId) {
-      localStorage.removeItem(`dashboard-filters-${userId}`);
+      secureStorage.removeItem(`dashboard-filters-${userId}`);
     }
-    localStorage.removeItem('dashboard-filters');
+    secureStorage.removeItem('dashboard-filters');
   }, []);
 
   const resetComponentVisibility = useCallback(() => {
@@ -201,32 +210,37 @@ export const FilterProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   const saveFilters = useCallback(() => {
-    const userStr = localStorage.getItem('sprintsync_user');
-    const userId = userStr ? JSON.parse(userStr)?.id : null;
-    
+    const token = secureStorage.getItem(TOKEN_KEY, API_CONFIG.SIGNING_KEY);
+    if (!token) return;
+
+    const user = secureStorage.getItem(USER_KEY, token);
+    const userId = user ? user.id : null;
+
     if (userId) {
-      localStorage.setItem(`dashboard-filters-${userId}`, JSON.stringify(filters));
+      secureStorage.setItem(`dashboard-filters-${userId}`, filters, token);
     } else {
       // Fallback to generic storage
-      localStorage.setItem('dashboard-filters', JSON.stringify(filters));
+      secureStorage.setItem('dashboard-filters', filters, token);
     }
   }, [filters]);
 
   const loadFilters = useCallback(() => {
-    const userStr = localStorage.getItem('sprintsync_user');
-    const userId = userStr ? JSON.parse(userStr)?.id : null;
-    
+    const token = secureStorage.getItem(TOKEN_KEY, API_CONFIG.SIGNING_KEY);
+    if (!token) return;
+
+    const user = secureStorage.getItem(USER_KEY, token);
+    const userId = user ? user.id : null;
+
     if (userId) {
-      const saved = localStorage.getItem(`dashboard-filters-${userId}`);
+      const saved = secureStorage.getItem(`dashboard-filters-${userId}`, token);
       if (saved) {
         try {
-          const parsed = JSON.parse(saved);
-          setFilters({ 
-            ...defaultFilters, 
-            ...parsed,
+          setFilters({
+            ...defaultFilters,
+            ...saved,
             componentVisibility: {
               ...defaultComponentVisibility,
-              ...(parsed.componentVisibility || {})
+              ...(saved.componentVisibility || {})
             }
           });
         } catch (error) {
@@ -245,16 +259,19 @@ export const FilterProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           [component]: visible
         }
       };
-      
+
       // Auto-save when visibility changes
-      const userStr = localStorage.getItem('sprintsync_user');
-      const userId = userStr ? JSON.parse(userStr)?.id : null;
-      if (userId) {
-        localStorage.setItem(`dashboard-filters-${userId}`, JSON.stringify(newFilters));
-      } else {
-        localStorage.setItem('dashboard-filters', JSON.stringify(newFilters));
+      const token = secureStorage.getItem(TOKEN_KEY, API_CONFIG.SIGNING_KEY);
+      if (token) {
+        const user = secureStorage.getItem(USER_KEY, token);
+        const userId = user ? user.id : null;
+        if (userId) {
+          secureStorage.setItem(`dashboard-filters-${userId}`, newFilters, token);
+        } else {
+          secureStorage.setItem('dashboard-filters', newFilters, token);
+        }
       }
-      
+
       return newFilters;
     });
   }, []);
@@ -305,7 +322,7 @@ export const FilterProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (filters.timeRange !== 'all') {
         const now = new Date();
         const itemDate = new Date(item.createdAt || item.startDate || item.dueDate);
-        
+
         switch (filters.timeRange) {
           case 'today':
             if (itemDate.toDateString() !== now.toDateString()) return false;

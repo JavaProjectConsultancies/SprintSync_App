@@ -21,6 +21,8 @@ export const API_CONFIG = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
+  // Key for encrypting the authentication token in localStorage
+  SIGNING_KEY: 'SprintSync_Secure_Auth_Key_2026_@!!',
 };
 
 // Log API configuration on startup (for debugging)

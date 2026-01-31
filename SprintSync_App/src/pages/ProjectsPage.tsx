@@ -1887,7 +1887,7 @@ const ProjectsPage: React.FC = () => {
                     selectedProject.teamMembers.map((member: any, idx: number) => (
                       <div key={idx} className="flex items-center gap-2 p-2 border rounded">
                         <Avatar className="h-8 w-8">
-                          <AvatarFallback>{member.name?.substring(0, 2).toUpperCase()}</AvatarFallback>
+                          <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
                         </Avatar>
                         <div>
                           <p className="text-sm font-medium">{member.name}</p>
@@ -2341,10 +2341,10 @@ const ProjectsPage: React.FC = () => {
                         <span className="text-muted-foreground">
                           {project.endDate
                             ? new Date(project.endDate).toLocaleDateString('en-IN', {
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric',
-                              })
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })
                             : 'No date'}
                         </span>
                       </div>
@@ -2432,10 +2432,10 @@ const ProjectsPage: React.FC = () => {
                           <span>
                             {project.endDate
                               ? new Date(project.endDate).toLocaleDateString('en-IN', {
-                                  day: '2-digit',
-                                  month: 'short',
-                                  year: 'numeric',
-                                })
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                              })
                               : 'No date'}
                           </span>
                         </span>

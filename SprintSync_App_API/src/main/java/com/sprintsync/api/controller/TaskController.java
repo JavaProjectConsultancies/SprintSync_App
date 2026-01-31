@@ -467,4 +467,26 @@ public class TaskController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
+
+    /**
+     * Update task linked issue IDs
+     */
+    @SuppressWarnings("unchecked")
+    @PatchMapping("/{id}/linked-issues")
+    @CacheEvict(value = { "projects", "projects-summary" }, allEntries = true)
+    public ResponseEntity<Task> updateTaskLinkedIssueIds(@PathVariable String id,
+            @RequestBody Map<String, Object> update) {
+        try {
+            List<String> linkedIssueIds = (List<String>) update.get("linkedIssueIds");
+            Task updatedTask = taskService.updateTaskLinkedIssueIds(id,
+                    linkedIssueIds != null ? linkedIssueIds : new java.util.ArrayList<>());
+            if (updatedTask != null) {
+                return ResponseEntity.ok(updatedTask);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
 }

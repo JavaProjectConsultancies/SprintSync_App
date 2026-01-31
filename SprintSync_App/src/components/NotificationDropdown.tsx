@@ -24,9 +24,12 @@ interface Notification {
   message: string;
   type: string;
   isRead: boolean;
+  read?: boolean;
   createdAt: string;
   relatedEntityType?: string;
   relatedEntityId?: string;
+  priority?: string;
+  actionUrl?: string;
 }
 
 const NotificationDropdown: React.FC = () => {
@@ -41,9 +44,11 @@ const NotificationDropdown: React.FC = () => {
       'task': 'task-assignment',
       'project': 'project-risk',
       'story': 'task-assignment',
-      'system': 'deadline-warning'
+      'system': 'deadline-warning',
+      'mention': 'team-mention',
+      'team_mention': 'team-mention'
     };
-    return typeMap[type] || 'task-assignment';
+    return typeMap[type.toLowerCase()] || 'task-assignment';
   };
 
   const getActionUrl = (type: string, entityId: string): string => {
@@ -57,21 +62,22 @@ const NotificationDropdown: React.FC = () => {
 
   const fetchNotifications = async () => {
     if (!user?.id) return;
-    
+
     try {
       setLoading(true);
       const response = await notificationApiService.getNotificationsByUserId(user.id);
-      
+
       console.log('Notification API Response:', response);
       console.log('User ID:', user.id);
-      
+
       // Handle response - data might be directly an array or wrapped
-      const notificationsData = Array.isArray(response.data) 
-        ? response.data 
-        : (response.data?.data || response.data?.content || []);
-      
+      const resData = response.data as any;
+      const notificationsData = Array.isArray(resData)
+        ? resData
+        : (resData?.data || resData?.content || []);
+
       console.log('Notifications Data:', notificationsData);
-      
+
       // Transform backend notifications to match frontend format
       const transformedNotifications = notificationsData.map((n: any) => ({
         id: n.id,
@@ -85,9 +91,9 @@ const NotificationDropdown: React.FC = () => {
         relatedEntityType: n.relatedEntityType,
         relatedEntityId: n.relatedEntityId,
         priority: 'medium',
-        actionUrl: n.relatedEntityId ? getActionUrl(n.type || 'task', n.relatedEntityId) : undefined
+        actionUrl: n.relatedEntityId ? getActionUrl(n.type === 'mention' ? n.relatedEntityType : n.type, n.relatedEntityId) : undefined
       }));
-      
+
       console.log('Transformed Notifications:', transformedNotifications);
       setNotifications(transformedNotifications);
     } catch (error: any) {
@@ -106,12 +112,12 @@ const NotificationDropdown: React.FC = () => {
   useEffect(() => {
     if (user?.id) {
       fetchNotifications();
-      
+
       // Set up periodic refresh every 30 seconds
       const interval = setInterval(() => {
         fetchNotifications();
       }, 30000);
-      
+
       return () => clearInterval(interval);
     }
   }, [user?.id]);
@@ -126,7 +132,7 @@ const NotificationDropdown: React.FC = () => {
   };
 
   const currentUserId = normalizeUserId(user.id);
-  
+
   // Filter notifications for current user (handle different ID formats)
   const userNotifications = notifications.filter(n => {
     const notificationUserId = normalizeUserId(n.userId);
@@ -146,16 +152,16 @@ const NotificationDropdown: React.FC = () => {
   const markAsRead = async (notificationId: string) => {
     try {
       await notificationApiService.markAsRead(notificationId);
-      setNotifications(prev => 
-        prev.map(n => 
+      setNotifications(prev =>
+        prev.map(n =>
           n.id === notificationId ? { ...n, read: true, isRead: true } : n
         )
       );
     } catch (error) {
       console.error('Failed to mark notification as read:', error);
       // Update UI optimistically even if API call fails
-      setNotifications(prev => 
-        prev.map(n => 
+      setNotifications(prev =>
+        prev.map(n =>
           n.id === notificationId ? { ...n, read: true, isRead: true } : n
         )
       );
@@ -164,19 +170,19 @@ const NotificationDropdown: React.FC = () => {
 
   const markAllAsRead = async () => {
     if (!user?.id) return;
-    
+
     try {
       await notificationApiService.markAllAsRead(user.id);
-      setNotifications(prev => 
-        prev.map(n => 
+      setNotifications(prev =>
+        prev.map(n =>
           n.userId === user.id ? { ...n, read: true, isRead: true } : n
         )
       );
     } catch (error) {
       console.error('Failed to mark all notifications as read:', error);
       // Update UI optimistically even if API call fails
-      setNotifications(prev => 
-        prev.map(n => 
+      setNotifications(prev =>
+        prev.map(n =>
           n.userId === user.id ? { ...n, read: true, isRead: true } : n
         )
       );
@@ -186,13 +192,13 @@ const NotificationDropdown: React.FC = () => {
   const handleNotificationClick = (notification: any) => {
     // Mark notification as read
     markAsRead(notification.id);
-    
+
     // Navigate based on notification type and action URL
     if (notification.actionUrl) {
       try {
         // Parse the action URL to determine navigation
         const url = notification.actionUrl;
-        
+
         if (url.startsWith('/')) {
           // Internal navigation
           navigate(url);
@@ -230,8 +236,8 @@ const NotificationDropdown: React.FC = () => {
         toast.success('Navigating to Team Allocation');
         break;
       case 'team-mention':
-        navigateTo('dashboard');
-        toast.success('Navigating to Dashboard');
+        navigateTo('scrum', 'board');
+        toast.success('Opening Board');
         break;
       default:
         navigateTo('dashboard');
@@ -274,13 +280,13 @@ const NotificationDropdown: React.FC = () => {
     const date = new Date(dateString);
     const now = new Date();
     const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
+
     if (diffInHours < 1) return 'Just now';
     if (diffInHours < 24) return `${diffInHours}h ago`;
-    
+
     const diffInDays = Math.floor(diffInHours / 24);
     if (diffInDays < 7) return `${diffInDays}d ago`;
-    
+
     return date.toLocaleDateString();
   };
 
@@ -300,8 +306,8 @@ const NotificationDropdown: React.FC = () => {
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-4 w-4" />
           {unreadCount > 0 && (
-            <Badge 
-              variant="destructive" 
+            <Badge
+              variant="destructive"
               className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
             >
               {unreadCount > 9 ? '9+' : unreadCount}
@@ -325,7 +331,7 @@ const NotificationDropdown: React.FC = () => {
           )}
         </div>
         <DropdownMenuSeparator />
-        
+
         {userNotifications.length === 0 ? (
           <div className="px-4 py-8 text-center text-muted-foreground">
             <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -338,9 +344,8 @@ const NotificationDropdown: React.FC = () => {
               {userNotifications.map((notification) => (
                 <DropdownMenuItem
                   key={notification.id}
-                  className={`flex flex-col items-start p-4 cursor-pointer hover:bg-gray-50 transition-colors ${
-                    (!notification.read && !notification.isRead) ? 'bg-blue-50' : ''
-                  }`}
+                  className={`flex flex-col items-start p-4 cursor-pointer hover:bg-gray-50 transition-colors ${(!notification.read && !notification.isRead) ? 'bg-blue-50' : ''
+                    }`}
                   onClick={() => handleNotificationClick(notification)}
                 >
                   <div className="flex items-start space-x-3 w-full">
@@ -365,8 +370,8 @@ const NotificationDropdown: React.FC = () => {
                         {notification.message}
                       </p>
                       <div className="flex items-center justify-between">
-                        <Badge 
-                          variant="outline" 
+                        <Badge
+                          variant="outline"
                           className={`text-xs ${getPriorityColor(notification.priority || 'medium')}`}
                         >
                           {notification.priority || 'medium'}
@@ -382,7 +387,7 @@ const NotificationDropdown: React.FC = () => {
             </div>
           </ScrollArea>
         )}
-        
+
         {userNotifications.length > 0 && (
           <>
             <DropdownMenuSeparator />

@@ -367,6 +367,17 @@ export interface Attachment {
   createdAt: string;
 }
 
+// Chat Message entity
+export interface ChatMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  entityId: string;
+  entityType: 'task' | 'issue';
+  message: string;
+  createdAt: string;
+}
+
 // Pagination response
 export interface Page<T> {
   content: T[];

@@ -43,8 +43,9 @@ public class Issue extends BaseEntity {
     @Convert(converter = TaskStatusConverter.class)
     @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(50)")
     private TaskStatus status;
-    
-    // Transient field to hold raw status value from database (for custom lane statuses)
+
+    // Transient field to hold raw status value from database (for custom lane
+    // statuses)
     @Transient
     @JsonIgnore
     private String rawStatus;
@@ -85,7 +86,8 @@ public class Issue extends BaseEntity {
     private List<String> linkedTaskIds;
 
     // Constructors
-    public Issue() {}
+    public Issue() {
+    }
 
     public Issue(String storyId, String title, String description, TaskStatus status, Priority priority) {
         this.storyId = storyId;
@@ -123,9 +125,10 @@ public class Issue extends BaseEntity {
     public TaskStatus getStatus() {
         return status;
     }
-    
+
     /**
-     * Custom JSON getter for status that returns raw status if it's a custom lane status
+     * Custom JSON getter for status that returns raw status if it's a custom lane
+     * status
      */
     @JsonGetter("status")
     @JsonProperty("status")
@@ -151,7 +154,7 @@ public class Issue extends BaseEntity {
     public void setStatus(TaskStatus status) {
         this.status = status;
     }
-    
+
     /**
      * Set raw status value from database (for custom lane statuses)
      */
@@ -162,7 +165,7 @@ public class Issue extends BaseEntity {
             this.status = TaskStatus.IN_PROGRESS;
         }
     }
-    
+
     /**
      * Get raw status value from database
      */
@@ -243,6 +246,7 @@ public class Issue extends BaseEntity {
         this.labels = labels;
     }
 
+    @JsonProperty("linkedTaskIds")
     public List<String> getLinkedTaskIds() {
         return linkedTaskIds;
     }
@@ -251,4 +255,3 @@ public class Issue extends BaseEntity {
         this.linkedTaskIds = linkedTaskIds;
     }
 }
-

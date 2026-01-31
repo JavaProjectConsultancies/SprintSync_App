@@ -16,6 +16,10 @@ import { useAllStories } from '../hooks/api/useStories';
 import { taskApiService, issueApiService } from '../services/api';
 import { Task, Issue } from '../types/api';
 import LoadingSpinner from './LoadingSpinner';
+import { secureStorage } from '../services/api/encryptionUtils';
+import { API_CONFIG } from '../services/api/config';
+
+const TOKEN_KEY = 'sprintsync_token';
 
 const TodoList: React.FC = () => {
   const { user } = useAuth();
@@ -182,11 +186,14 @@ const TodoList: React.FC = () => {
 
   useEffect(() => {
     if (!user?.id) return;
+    const token = secureStorage.getItem(TOKEN_KEY, API_CONFIG.SIGNING_KEY);
+    if (!token) return;
+
     const storageKey = `sprintSync-todos-${user.id}`;
-    const savedTodos = localStorage.getItem(storageKey);
-    if (savedTodos) {
+    const saved = secureStorage.getItem(storageKey, token);
+    if (saved) {
       try {
-        const parsedTodos = JSON.parse(savedTodos).map((todo: any) => ({
+        const parsedTodos = saved.map((todo: any) => ({
           ...todo,
           createdAt: new Date(todo.createdAt),
           updatedAt: new Date(todo.updatedAt),
@@ -202,8 +209,11 @@ const TodoList: React.FC = () => {
 
   useEffect(() => {
     if (!user?.id) return;
+    const token = secureStorage.getItem(TOKEN_KEY, API_CONFIG.SIGNING_KEY);
+    if (!token) return;
+
     const storageKey = `sprintSync-todos-${user.id}`;
-    localStorage.setItem(storageKey, JSON.stringify(localTodos));
+    secureStorage.setItem(storageKey, localTodos, token);
   }, [localTodos, user?.id]);
 
   const addTodo = () => {

@@ -62,6 +62,7 @@ import AttachmentViewer from './AttachmentViewer';
 import { useAuth } from "../contexts/AuthContextEnhanced";
 import { userApiService } from "../services/api/entities/userApi";
 import { storyApiService } from "../services/api/entities/storyApi";
+import ChatSection from './ChatSection';
 
 interface IssueDetailsJiraDialogProps {
     open: boolean;
@@ -71,6 +72,8 @@ interface IssueDetailsJiraDialogProps {
     allSubtasks?: Subtask[];
     canManage?: boolean;
     sprintEndDate?: string; // Used to block time logging after sprint ends
+    projectId?: string;
+    unreadMentions?: any[];
 }
 
 const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
@@ -81,6 +84,8 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
     allSubtasks: initialSubtasks = [],
     canManage = true,
     sprintEndDate,
+    projectId,
+    unreadMentions = [],
 }) => {
     const { user } = useAuth();
     const [activeTab, setActiveTab] = useState<string>("details");
@@ -102,6 +107,13 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
     // Effort logging state
     const [isLogEffortOpen, setIsLogEffortOpen] = useState(false);
     const [isLoggingEffort, setIsLoggingEffort] = useState(false);
+
+    useEffect(() => {
+        if (open) {
+            setActiveTab('details');
+        }
+    }, [open]);
+
     const [effortLog, setEffortLog] = useState({
         hours: 0,
         description: "",
@@ -244,18 +256,21 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
             const subRes = await subtaskApiService.getSubtasksByIssue(issueId);
             setSubtasks(subRes.data || []);
 
-            // Fetch tasks for this story and derive linked tasks from issue.linkedTaskIds
-            // Use storyId from the fetched issue if available
-            const finalStoryId = storyId || (issueRes.data?.storyId);
-            if (finalStoryId && issueRes.data) {
+            // Fetch linked tasks directly by their IDs
+            // VERSION 2 - Updated to fetch tasks directly by ID
+            console.log('[IssueDetailsJiraDialog] VERSION 2 - Fetching linked tasks');
+            if (issueRes.data) {
                 try {
                     setLoadingLinkedTasks(true);
-                    console.log('[IssueDetailsJiraDialog] Fetching tasks for story:', finalStoryId);
-                    
+
                     // Get linkedTaskIds from the issue - handle both camelCase and snake_case
                     const issueDataForLinks = issueRes.data as any;
                     let linkedTaskIds: string[] = [];
-                    
+
+                    // Debug: Log the entire issue data to see all keys
+                    console.log('[IssueDetailsJiraDialog] VERSION 2 - Full issue data keys:', Object.keys(issueDataForLinks));
+                    console.log('[IssueDetailsJiraDialog] VERSION 2 - Raw linkedTaskIds value:', issueDataForLinks.linkedTaskIds);
+
                     // Try camelCase first, then snake_case, handle null/undefined/empty arrays
                     if (issueDataForLinks.linkedTaskIds !== undefined && issueDataForLinks.linkedTaskIds !== null) {
                         if (Array.isArray(issueDataForLinks.linkedTaskIds)) {
@@ -285,7 +300,7 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                             }
                         }
                     }
-                    
+
                     console.log('[IssueDetailsJiraDialog] Issue linkedTaskIds from API:', linkedTaskIds, 'Raw value:', {
                         linkedTaskIds: issueDataForLinks.linkedTaskIds,
                         linked_task_ids: issueDataForLinks.linked_task_ids,
@@ -295,53 +310,32 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                         isArray_linked_task_ids: Array.isArray(issueDataForLinks.linked_task_ids),
                         allKeys: Object.keys(issueDataForLinks)
                     });
-                    
-                    // Always fetch tasks from story, then filter by linkedTaskIds
-                    const tasksRes = await taskApiService.getTasksByStory(finalStoryId);
-                    const raw = tasksRes.data as any;
-                    let tasks: Task[] = [];
-                    if (Array.isArray(raw)) {
-                        tasks = raw;
-                    } else if (raw && Array.isArray(raw.data)) {
-                        tasks = raw.data;
-                    } else if (raw && Array.isArray(raw.content)) {
-                        tasks = raw.content;
-                    }
-                    
-                    console.log('[IssueDetailsJiraDialog] Fetched tasks from story:', tasks.length, 'Task IDs:', tasks.map(t => t.id));
-                    
-                    // If linkedTaskIds is still empty, try to get it from currentIssue state
-                    if ((!linkedTaskIds || linkedTaskIds.length === 0) && currentIssue) {
-                        const currentIssueAny = currentIssue as any;
-                        if (Array.isArray(currentIssueAny.linkedTaskIds)) {
-                            linkedTaskIds = currentIssueAny.linkedTaskIds.filter((id: any) => id != null && id !== '');
-                        } else if (Array.isArray(currentIssueAny.linked_task_ids)) {
-                            linkedTaskIds = currentIssueAny.linked_task_ids.filter((id: any) => id != null && id !== '');
-                        }
-                        console.log('[IssueDetailsJiraDialog] Retried getting linkedTaskIds from currentIssue:', linkedTaskIds);
-                    }
-                    
-                    // Filter tasks to only show those that are linked
+
+                    // VISIBLE DEBUG: Alert to confirm code is running
+                    alert(`VERSION 2: Found ${linkedTaskIds.length} linked task IDs: ${linkedTaskIds.join(', ')}`);
+
+                    // Directly fetch each linked task by ID (more reliable than filtering from story)
                     if (linkedTaskIds && linkedTaskIds.length > 0) {
-                        // Normalize task IDs and linked task IDs for comparison (handle case sensitivity)
-                        const normalizedLinkedTaskIds = linkedTaskIds.map(id => id?.toLowerCase()?.trim()).filter(id => id);
-                        const filtered = tasks.filter(t => {
-                            const taskId = t.id?.toLowerCase()?.trim();
-                            return taskId && normalizedLinkedTaskIds.includes(taskId);
+                        console.log('[IssueDetailsJiraDialog] Fetching linked tasks directly by IDs:', linkedTaskIds);
+                        const taskPromises = linkedTaskIds.map(async (taskId: string) => {
+                            try {
+                                const taskRes = await taskApiService.getTaskById(taskId);
+                                return taskRes.data;
+                            } catch (err) {
+                                console.warn(`[IssueDetailsJiraDialog] Failed to fetch task ${taskId}:`, err);
+                                return null;
+                            }
                         });
-                        setLinkedTasks(filtered);
-                        console.log('[IssueDetailsJiraDialog] ✅ Found linked tasks:', filtered.length, 'out of', tasks.length, 'total tasks. Linked Task IDs:', filtered.map(t => t.id));
-                        console.log('[IssueDetailsJiraDialog] Looking for task IDs:', linkedTaskIds);
-                        console.log('[IssueDetailsJiraDialog] Available task IDs:', tasks.map(t => t.id));
-                        console.log('[IssueDetailsJiraDialog] Normalized linked IDs:', normalizedLinkedTaskIds);
-                        console.log('[IssueDetailsJiraDialog] Normalized task IDs:', tasks.map(t => t.id?.toLowerCase()?.trim()));
+
+                        const fetchedTasks = await Promise.all(taskPromises);
+                        const validTasks = fetchedTasks.filter((t): t is Task => t !== null && t !== undefined);
+                        setLinkedTasks(validTasks);
+                        console.log('[IssueDetailsJiraDialog] ✅ Found linked tasks:', validTasks.length, 'Linked Task IDs:', validTasks.map(t => t.id));
                     } else {
                         setLinkedTasks([]);
                         console.log('[IssueDetailsJiraDialog] ⚠️ No linkedTaskIds found or empty array. Issue data:', {
                             linkedTaskIds: issueDataForLinks.linkedTaskIds,
                             linked_task_ids: issueDataForLinks.linked_task_ids,
-                            currentIssue_linkedTaskIds: (currentIssue as any)?.linkedTaskIds,
-                            currentIssue_linked_task_ids: (currentIssue as any)?.linked_task_ids,
                             allKeys: Object.keys(issueDataForLinks)
                         });
                     }
@@ -352,7 +346,7 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                     setLoadingLinkedTasks(false);
                 }
             } else {
-                console.log('[IssueDetailsJiraDialog] ⚠️ No storyId available, cannot fetch linked tasks. storyId:', storyId, 'issueRes.data?.storyId:', issueRes.data?.storyId);
+                console.log('[IssueDetailsJiraDialog] ⚠️ No issue data available, cannot fetch linked tasks.');
                 setLinkedTasks([]);
             }
 
@@ -623,6 +617,19 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                                         <TabsTrigger value="subtasks">Subtasks</TabsTrigger>
                                         <TabsTrigger value="due-dates">Due Dates</TabsTrigger>
                                         <TabsTrigger value="linked-tasks">Linked Tasks</TabsTrigger>
+                                        <TabsTrigger value="chats" className="relative">
+                                            Chats
+                                            {currentIssue && unreadMentions.some(n =>
+                                                (n.relatedEntityId === currentIssue.id || n.relatedEntityId === (currentIssue as any).issueNumber) &&
+                                                (n.relatedEntityType || '').toLowerCase() === 'issue' &&
+                                                (n.type || '').toLowerCase() === 'mention'
+                                            ) && (
+                                                    <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                                                    </span>
+                                                )}
+                                        </TabsTrigger>
                                     </TabsList>
 
                                     <TabsContent value="details" className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0 scrollbar-thin">
@@ -888,6 +895,10 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                                             </div>
                                         )}
                                     </TabsContent>
+
+                                    <TabsContent value="chats" className="flex-1 overflow-hidden p-6 min-h-0">
+                                        <ChatSection entityId={currentIssue.id} entityType="issue" projectId={projectId} />
+                                    </TabsContent>
                                 </Tabs>
                             </div>
                         </div>
@@ -941,7 +952,7 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                                             <label className="text-xs font-medium text-gray-600 block mb-1">Assigned To</label>
                                             <div className="flex items-center space-x-2">
                                                 <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center text-[10px] text-red-800 font-bold">
-                                                    {getUserName(currentIssue.assigneeId || "").substring(0, 2).toUpperCase()}
+                                                    {getUserName(currentIssue.assigneeId || "").split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
                                                 </div>
                                                 <span className="text-sm text-gray-700">{getUserName(currentIssue.assigneeId || "")}</span>
                                             </div>

@@ -306,4 +306,25 @@ public class IssueController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
     }
+
+    /**
+     * Update issue linked task IDs
+     */
+    @SuppressWarnings("unchecked")
+    @PatchMapping("/{id}/linked-tasks")
+    public ResponseEntity<Issue> updateIssueLinkedTaskIds(@PathVariable String id,
+            @RequestBody Map<String, Object> update) {
+        try {
+            List<String> linkedTaskIds = (List<String>) update.get("linkedTaskIds");
+            Issue updatedIssue = issueService.updateIssueLinkedTaskIds(id,
+                    linkedTaskIds != null ? linkedTaskIds : new java.util.ArrayList<>());
+            if (updatedIssue != null) {
+                return ResponseEntity.ok(updatedIssue);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
 }
