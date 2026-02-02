@@ -433,6 +433,12 @@ const ScrumPage: React.FC = () => {
 
   const [loadingAttachments, setLoadingAttachments] = useState(false);
 
+  const [storyTaskAttachments, setStoryTaskAttachments] = useState<any[]>([]);
+  const [storyIssueAttachments, setStoryIssueAttachments] = useState<any[]>([]);
+
+  const [loadingStoryTaskAttachments, setLoadingStoryTaskAttachments] = useState(false);
+  const [loadingStoryIssueAttachments, setLoadingStoryIssueAttachments] = useState(false);
+
   const [isSprintDetailsOpen, setIsSprintDetailsOpen] = useState(false);
 
   const [selectedSprintForDetails, setSelectedSprintForDetails] =
@@ -462,6 +468,10 @@ const ScrumPage: React.FC = () => {
   const [issueAttachments, setIssueAttachments] = useState<any[]>([]);
 
   const [loadingIssueAttachments, setLoadingIssueAttachments] = useState(false);
+
+  const [taskAttachments, setTaskAttachments] = useState<any[]>([]);
+
+  const [loadingTaskAttachments, setLoadingTaskAttachments] = useState(false);
 
   // Board state
 
@@ -773,6 +783,166 @@ const ScrumPage: React.FC = () => {
     fetchStoryAttachments();
   }, [selectedStoryForDetails?.id, isStoryDetailsOpen]);
 
+  // Fetch task attachments for all tasks in the story when story details dialog opens
+  useEffect(() => {
+    const fetchStoryTaskAttachments = async () => {
+      if (selectedStoryForDetails?.id && isStoryDetailsOpen) {
+        setLoadingStoryTaskAttachments(true);
+
+        try {
+          console.log(`[ScrumPage] Fetching task attachments for story: ${selectedStoryForDetails.id}`);
+          
+          // First, get all tasks for this story
+          const tasksResponse = await taskApiService.getTasksByStory(selectedStoryForDetails.id);
+          console.log(`[ScrumPage] Tasks response:`, tasksResponse);
+          
+          // Handle different response structures
+          let tasks: any[] = [];
+          if (Array.isArray(tasksResponse.data)) {
+            tasks = tasksResponse.data;
+          } else if (Array.isArray(tasksResponse)) {
+            tasks = tasksResponse;
+          } else if (tasksResponse.data && Array.isArray((tasksResponse.data as any).data)) {
+            tasks = (tasksResponse.data as any).data;
+          } else if (tasksResponse.data && Array.isArray((tasksResponse.data as any).content)) {
+            tasks = (tasksResponse.data as any).content;
+          }
+          
+          console.log(`[ScrumPage] Found ${tasks.length} tasks for story ${selectedStoryForDetails.id}`);
+
+          // Then, fetch attachments for each task
+          const allTaskAttachments: any[] = [];
+          
+          for (const task of tasks) {
+            if (!task || !task.id) {
+              console.warn(`[ScrumPage] Skipping invalid task:`, task);
+              continue;
+            }
+            
+            try {
+              console.log(`[ScrumPage] Fetching attachments for task ${task.id} (${task.title})`);
+              const attachmentsResponse = await attachmentApiService.getAttachmentsByEntity(
+                "task",
+                task.id,
+              );
+              
+              console.log(`[ScrumPage] Attachments response for task ${task.id}:`, attachmentsResponse);
+              
+              const taskAttachments = Array.isArray(attachmentsResponse.data) 
+                ? attachmentsResponse.data 
+                : (Array.isArray(attachmentsResponse) ? attachmentsResponse : []);
+              
+              console.log(`[ScrumPage] Found ${taskAttachments.length} attachments for task ${task.id}`);
+              
+              // Add task title to each attachment for display purposes
+              const attachmentsWithTaskInfo = taskAttachments.map((att: any) => ({
+                ...att,
+                taskTitle: task.title,
+                taskId: task.id,
+              }));
+              
+              allTaskAttachments.push(...attachmentsWithTaskInfo);
+            } catch (error) {
+              console.error(`[ScrumPage] Error fetching attachments for task ${task.id}:`, error);
+            }
+          }
+
+          console.log(`[ScrumPage] Total task attachments found: ${allTaskAttachments.length}`);
+          setStoryTaskAttachments(allTaskAttachments);
+        } catch (error) {
+          console.error("[ScrumPage] Error fetching story task attachments:", error);
+          setStoryTaskAttachments([]);
+        } finally {
+          setLoadingStoryTaskAttachments(false);
+        }
+      } else {
+        setStoryTaskAttachments([]);
+      }
+    };
+
+    fetchStoryTaskAttachments();
+  }, [selectedStoryForDetails?.id, isStoryDetailsOpen]);
+
+  // Fetch issue attachments for all issues in the story when story details dialog opens
+  useEffect(() => {
+    const fetchStoryIssueAttachments = async () => {
+      if (selectedStoryForDetails?.id && isStoryDetailsOpen) {
+        setLoadingStoryIssueAttachments(true);
+
+        try {
+          console.log(`[ScrumPage] Fetching issue attachments for story: ${selectedStoryForDetails.id}`);
+          
+          // First, get all issues for this story
+          const issuesResponse = await issueApiService.getIssuesByStory(selectedStoryForDetails.id);
+          console.log(`[ScrumPage] Issues response:`, issuesResponse);
+          
+          // Handle different response structures
+          let issues: any[] = [];
+          if (Array.isArray(issuesResponse.data)) {
+            issues = issuesResponse.data;
+          } else if (Array.isArray(issuesResponse)) {
+            issues = issuesResponse;
+          } else if (issuesResponse.data && Array.isArray((issuesResponse.data as any).data)) {
+            issues = (issuesResponse.data as any).data;
+          } else if (issuesResponse.data && Array.isArray((issuesResponse.data as any).content)) {
+            issues = (issuesResponse.data as any).content;
+          }
+          
+          console.log(`[ScrumPage] Found ${issues.length} issues for story ${selectedStoryForDetails.id}`);
+
+          // Then, fetch attachments for each issue
+          const allIssueAttachments: any[] = [];
+          
+          for (const issue of issues) {
+            if (!issue || !issue.id) {
+              console.warn(`[ScrumPage] Skipping invalid issue:`, issue);
+              continue;
+            }
+            
+            try {
+              console.log(`[ScrumPage] Fetching attachments for issue ${issue.id} (${issue.title})`);
+              const attachmentsResponse = await attachmentApiService.getAttachmentsByEntity(
+                "issue",
+                issue.id,
+              );
+              
+              console.log(`[ScrumPage] Attachments response for issue ${issue.id}:`, attachmentsResponse);
+              
+              const issueAttachments = Array.isArray(attachmentsResponse.data) 
+                ? attachmentsResponse.data 
+                : (Array.isArray(attachmentsResponse) ? attachmentsResponse : []);
+              
+              console.log(`[ScrumPage] Found ${issueAttachments.length} attachments for issue ${issue.id}`);
+              
+              // Add issue title to each attachment for display purposes
+              const attachmentsWithIssueInfo = issueAttachments.map((att: any) => ({
+                ...att,
+                issueTitle: issue.title,
+                issueId: issue.id,
+              }));
+              
+              allIssueAttachments.push(...attachmentsWithIssueInfo);
+            } catch (error) {
+              console.error(`[ScrumPage] Error fetching attachments for issue ${issue.id}:`, error);
+            }
+          }
+
+          console.log(`[ScrumPage] Total issue attachments found: ${allIssueAttachments.length}`);
+          setStoryIssueAttachments(allIssueAttachments);
+        } catch (error) {
+          console.error("[ScrumPage] Error fetching story issue attachments:", error);
+          setStoryIssueAttachments([]);
+        } finally {
+          setLoadingStoryIssueAttachments(false);
+        }
+      } else {
+        setStoryIssueAttachments([]);
+      }
+    };
+
+    fetchStoryIssueAttachments();
+  }, [selectedStoryForDetails?.id, isStoryDetailsOpen]);
+
   // Fetch task logs when task details dialog opens
   useEffect(() => {
     const fetchTaskLogs = async () => {
@@ -878,6 +1048,34 @@ const ScrumPage: React.FC = () => {
     selectedIssueForDetails?.storyId,
     isIssueDetailsOpen,
   ]);
+
+  // Fetch task-specific attachments when viewing task details
+  useEffect(() => {
+    const fetchTaskAttachments = async () => {
+      if (selectedTaskForDetails?.id && isTaskDetailsOpen) {
+        setLoadingTaskAttachments(true);
+
+        try {
+          const response = await attachmentApiService.getAttachmentsByEntity(
+            "task",
+            selectedTaskForDetails.id,
+          );
+
+          setTaskAttachments(response.data || []);
+        } catch (error) {
+          console.error("Error fetching task attachments:", error);
+
+          setTaskAttachments([]);
+        } finally {
+          setLoadingTaskAttachments(false);
+        }
+      } else {
+        setTaskAttachments([]);
+      }
+    };
+
+    fetchTaskAttachments();
+  }, [selectedTaskForDetails?.id, isTaskDetailsOpen]);
 
   // Fetch issue-specific attachments when viewing issue details
 
@@ -3586,7 +3784,6 @@ const ScrumPage: React.FC = () => {
   };
 
   // Helper function to create attachment with file
-
   const uploadFileAndCreateAttachment = async (
     file: File,
     entityType: string,
@@ -3594,37 +3791,40 @@ const ScrumPage: React.FC = () => {
   ): Promise<void> => {
     try {
       // Convert file to base64 data URL
-
       const fileDataUrl = await fileToBase64(file);
-
       const fileType = file.type || "application/octet-stream";
 
       // Create attachment record directly with base64 data URL
-
-      await attachmentApiService.createAttachment({
-        uploadedBy: user?.id,
-
-        entityType,
-
-        entityId,
-
+      console.log(`[uploadFileAndCreateAttachment] Creating attachment for ${entityType} ${entityId}:`, {
         fileName: file.name,
-
         fileSize: file.size,
-
         fileType,
+        entityType,
+        entityId,
+        uploadedBy: user?.id
+      });
 
+      const response = await attachmentApiService.createAttachment({
+        uploadedBy: user?.id,
+        entityType,
+        entityId,
+        fileName: file.name,
+        fileSize: file.size,
+        fileType,
         fileUrl: fileDataUrl, // Store as base64 data URL
-
         thumbnailUrl: undefined,
-
         attachmentType: 'file' as const,
-
         isPublic: true,
       });
+
+      if (!response.success) {
+        console.error("[uploadFileAndCreateAttachment] Attachment creation failed:", response);
+        throw new Error(response.message || "Failed to create attachment");
+      }
+
+      console.log(`[uploadFileAndCreateAttachment] Attachment created successfully:`, response.data);
     } catch (error) {
       console.error("Error creating attachment:", error);
-
       throw error;
     }
   };
@@ -3637,7 +3837,15 @@ const ScrumPage: React.FC = () => {
     entityId: string,
   ): Promise<void> => {
     try {
-      await attachmentApiService.createAttachment({
+      console.log(`[createUrlAttachment] Creating URL attachment for ${entityType} ${entityId}:`, {
+        fileName: name,
+        fileUrl: url,
+        entityType,
+        entityId,
+        uploadedBy: user?.id
+      });
+
+      const response = await attachmentApiService.createAttachment({
         uploadedBy: user?.id,
         entityType,
         entityId,
@@ -3648,6 +3856,13 @@ const ScrumPage: React.FC = () => {
         attachmentType: 'url' as const,
         isPublic: true,
       });
+
+      if (!response.success) {
+        console.error("[createUrlAttachment] URL attachment creation failed:", response);
+        throw new Error(response.message || "Failed to create URL attachment");
+      }
+
+      console.log(`[createUrlAttachment] URL attachment created successfully:`, response.data);
     } catch (error) {
       console.error("Error creating URL attachment:", error);
       throw error;
@@ -11512,13 +11727,44 @@ const ScrumPage: React.FC = () => {
                   {/* Attachments Section */}
 
                   <div>
-                    <h4 className="font-medium mb-2 flex items-center space-x-2">
-                      <Paperclip className="w-4 h-4" />
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium flex items-center space-x-2">
+                        <Paperclip className="w-4 h-4" />
 
-                      <span>Attachments</span>
-                    </h4>
+                        <span>Attachments</span>
+                      </h4>
 
-                    {loadingAttachments ? (
+                      {(storyAttachmentsList.length > 0 || storyTaskAttachments.length > 0 || storyIssueAttachments.length > 0) && (
+                        <div className="flex items-center space-x-2">
+                          {storyAttachmentsList.length > 0 && (
+                            <Badge
+                              variant="outline"
+                              className="text-xs bg-blue-50 text-blue-700 border-blue-200"
+                            >
+                              Story ({storyAttachmentsList.length})
+                            </Badge>
+                          )}
+                          {storyTaskAttachments.length > 0 && (
+                            <Badge
+                              variant="outline"
+                              className="text-xs bg-green-50 text-green-700 border-green-200"
+                            >
+                              Tasks ({storyTaskAttachments.length})
+                            </Badge>
+                          )}
+                          {storyIssueAttachments.length > 0 && (
+                            <Badge
+                              variant="outline"
+                              className="text-xs bg-red-50 text-red-700 border-red-200"
+                            >
+                              Issues ({storyIssueAttachments.length})
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {(loadingAttachments || loadingStoryTaskAttachments || loadingStoryIssueAttachments) ? (
                       <div className="flex items-center justify-center py-4">
                         <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
 
@@ -11526,20 +11772,29 @@ const ScrumPage: React.FC = () => {
                           Loading attachments...
                         </span>
                       </div>
-                    ) : storyAttachmentsList.length > 0 ? (
+                    ) : (storyAttachmentsList.length > 0 || storyTaskAttachments.length > 0 || storyIssueAttachments.length > 0) ? (
                       <div className="space-y-2">
+                        {/* Story-specific attachments */}
                         {storyAttachmentsList.map((attachment) => (
                           <div
                             key={attachment.id}
-                            className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border"
+                            className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-blue-200"
                           >
                             <div className="flex items-center space-x-3 flex-1 min-w-0">
-                              <FileText className="w-5 h-5 text-gray-500 flex-shrink-0" />
+                              <FileText className="w-5 h-5 text-blue-500 flex-shrink-0" />
 
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">
-                                  {attachment.fileName}
-                                </p>
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <p className="text-sm font-medium truncate">
+                                    {attachment.fileName}
+                                  </p>
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs bg-blue-100 text-blue-700 border-blue-300 flex-shrink-0"
+                                  >
+                                    Story
+                                  </Badge>
+                                </div>
 
                                 <p className="text-xs text-gray-500">
                                   {attachment.fileSize
@@ -11573,15 +11828,184 @@ const ScrumPage: React.FC = () => {
                                     if (attachment.fileUrl.startsWith("data:")) {
                                       const link = document.createElement("a");
                                       link.href = attachment.fileUrl;
-                                      link.download = attachment.fileName;
+                                      link.download = attachment.fileName || "download";
                                       document.body.appendChild(link);
                                       link.click();
                                       document.body.removeChild(link);
                                     } else {
                                       const link = document.createElement("a");
                                       link.href = attachment.fileUrl;
-                                      link.download = attachment.fileName;
+                                      link.download = attachment.fileName || "download";
                                       link.target = "_blank";
+                                      link.rel = "noopener noreferrer";
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      document.body.removeChild(link);
+                                    }
+                                  }
+                                }}
+                              >
+                                <Download className="w-4 h-4 mr-2" />
+                                Download
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* Task attachments */}
+                        {storyTaskAttachments.map((attachment) => (
+                          <div
+                            key={`task-${attachment.taskId}-${attachment.id}`}
+                            className="flex items-center justify-between bg-green-50/30 p-3 rounded-lg border border-green-200"
+                          >
+                            <div className="flex items-center space-x-3 flex-1 min-w-0">
+                              <FileText className="w-5 h-5 text-green-500 flex-shrink-0" />
+
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <p className="text-sm font-medium truncate">
+                                    {attachment.fileName}
+                                  </p>
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs bg-green-100 text-green-700 border-green-300 flex-shrink-0"
+                                  >
+                                    Task
+                                  </Badge>
+                                </div>
+
+                                <p className="text-xs text-gray-500">
+                                  {attachment.fileSize
+                                    ? `${(attachment.fileSize / 1024).toFixed(1)} KB`
+                                    : ""}
+
+                                  {attachment.fileType &&
+                                    ` • ${attachment.fileType}`}
+
+                                  {attachment.taskTitle && (
+                                    <span className="text-gray-400">
+                                      {" "}• From: {attachment.taskTitle}
+                                    </span>
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setViewingAttachment(attachment);
+                                  setIsAttachmentViewerOpen(true);
+                                }}
+                              >
+                                <Eye className="w-4 h-4 mr-2" />
+                                View
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  if (attachment.fileUrl) {
+                                    // Handle base64 data URLs
+                                    if (attachment.fileUrl.startsWith("data:")) {
+                                      const link = document.createElement("a");
+                                      link.href = attachment.fileUrl;
+                                      link.download = attachment.fileName || "download";
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      document.body.removeChild(link);
+                                    } else {
+                                      const link = document.createElement("a");
+                                      link.href = attachment.fileUrl;
+                                      link.download = attachment.fileName || "download";
+                                      link.target = "_blank";
+                                      link.rel = "noopener noreferrer";
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      document.body.removeChild(link);
+                                    }
+                                  }
+                                }}
+                              >
+                                <Download className="w-4 h-4 mr-2" />
+                                Download
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* Issue attachments */}
+                        {storyIssueAttachments.map((attachment) => (
+                          <div
+                            key={`issue-${attachment.issueId}-${attachment.id}`}
+                            className="flex items-center justify-between bg-red-50/30 p-3 rounded-lg border border-red-200"
+                          >
+                            <div className="flex items-center space-x-3 flex-1 min-w-0">
+                              <FileText className="w-5 h-5 text-red-500 flex-shrink-0" />
+
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <p className="text-sm font-medium truncate">
+                                    {attachment.fileName}
+                                  </p>
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs bg-red-100 text-red-700 border-red-300 flex-shrink-0"
+                                  >
+                                    Issue
+                                  </Badge>
+                                </div>
+
+                                <p className="text-xs text-gray-500">
+                                  {attachment.fileSize
+                                    ? `${(attachment.fileSize / 1024).toFixed(1)} KB`
+                                    : ""}
+
+                                  {attachment.fileType &&
+                                    ` • ${attachment.fileType}`}
+
+                                  {attachment.issueTitle && (
+                                    <span className="text-gray-400">
+                                      {" "}• From: {attachment.issueTitle}
+                                    </span>
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setViewingAttachment(attachment);
+                                  setIsAttachmentViewerOpen(true);
+                                }}
+                              >
+                                <Eye className="w-4 h-4 mr-2" />
+                                View
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  if (attachment.fileUrl) {
+                                    // Handle base64 data URLs
+                                    if (attachment.fileUrl.startsWith("data:")) {
+                                      const link = document.createElement("a");
+                                      link.href = attachment.fileUrl;
+                                      link.download = attachment.fileName || "download";
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      document.body.removeChild(link);
+                                    } else {
+                                      const link = document.createElement("a");
+                                      link.href = attachment.fileUrl;
+                                      link.download = attachment.fileName || "download";
+                                      link.target = "_blank";
+                                      link.rel = "noopener noreferrer";
                                       document.body.appendChild(link);
                                       link.click();
                                       document.body.removeChild(link);
@@ -11613,6 +12037,8 @@ const ScrumPage: React.FC = () => {
                   setIsStoryDetailsOpen(false);
 
                   setStoryAttachmentsList([]);
+                  setStoryTaskAttachments([]);
+                  setStoryIssueAttachments([]);
                 }}
               >
                 Close
@@ -13960,7 +14386,7 @@ const ScrumPage: React.FC = () => {
                             </div>
                           )}
 
-                        {/* Attachments from Parent Story */}
+                        {/* Attachments from Task and Parent Story */}
 
                         <div>
                           <div className="flex items-center justify-between mb-2">
@@ -13968,18 +14394,30 @@ const ScrumPage: React.FC = () => {
                               Attachments
                             </h3>
 
-                            {parentStoryAttachments.length > 0 && (
-                              <Badge
-                                variant="outline"
-                                className="text-xs bg-blue-50 text-blue-700 border-blue-200"
-                              >
-                                <BookOpen className="w-3 h-3 mr-1" />
-                                From Story
-                              </Badge>
+                            {(taskAttachments.length > 0 || parentStoryAttachments.length > 0) && (
+                              <div className="flex items-center space-x-2">
+                                {taskAttachments.length > 0 && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs bg-green-50 text-green-700 border-green-200"
+                                  >
+                                    Task ({taskAttachments.length})
+                                  </Badge>
+                                )}
+                                {parentStoryAttachments.length > 0 && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs bg-blue-50 text-blue-700 border-blue-200"
+                                  >
+                                    <BookOpen className="w-3 h-3 mr-1" />
+                                    Story ({parentStoryAttachments.length})
+                                  </Badge>
+                                )}
+                              </div>
                             )}
                           </div>
 
-                          {loadingParentStoryAttachments ? (
+                          {(loadingTaskAttachments || loadingParentStoryAttachments) ? (
                             <div className="flex items-center justify-center py-8">
                               <Loader2 className="w-6 h-6 animate-spin text-primary" />
 
@@ -13987,8 +14425,126 @@ const ScrumPage: React.FC = () => {
                                 Loading attachments...
                               </span>
                             </div>
-                          ) : parentStoryAttachments.length > 0 ? (
+                          ) : taskAttachments.length > 0 || parentStoryAttachments.length > 0 ? (
                             <div className="space-y-2">
+                              {/* Task-specific attachments */}
+                              {taskAttachments.map((attachment) => (
+                                <div
+                                  key={attachment.id}
+                                  className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors bg-green-50/30"
+                                >
+                                  <div className="flex items-center space-x-3 flex-1 min-w-0">
+                                    <div className="w-8 h-8 bg-green-100 rounded flex items-center justify-center flex-shrink-0">
+                                      <Paperclip className="w-4 h-4 text-green-600" />
+                                    </div>
+
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center space-x-2 mb-1">
+                                        <p className="text-sm font-medium text-gray-900 truncate">
+                                          {attachment.fileName}
+                                        </p>
+
+                                        <Badge
+                                          variant="outline"
+                                          className="text-xs bg-green-100 text-green-700 border-green-300 flex-shrink-0"
+                                        >
+                                          Task
+                                        </Badge>
+                                      </div>
+
+                                      <div className="flex items-center space-x-2 text-xs text-gray-500">
+                                        {attachment.fileSize && (
+                                          <>
+                                            <span>
+                                              {(
+                                                attachment.fileSize / 1024
+                                              ).toFixed(2)}{" "}
+                                              KB
+                                            </span>
+
+                                            <span>•</span>
+                                          </>
+                                        )}
+
+                                        {attachment.uploadedBy && (
+                                          <>
+                                            <span>
+                                              by{" "}
+                                              {getUserName(
+                                                attachment.uploadedBy,
+                                              )}
+                                            </span>
+
+                                            <span>•</span>
+                                          </>
+                                        )}
+
+                                        <span>
+                                          {new Date(
+                                            attachment.createdAt,
+                                          ).toLocaleDateString("en-GB", {
+                                            day: "numeric",
+
+                                            month: "short",
+
+                                            year: "numeric",
+                                          })}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center space-x-2 flex-shrink-0">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setViewingAttachment(attachment);
+                                        setIsAttachmentViewerOpen(true);
+                                      }}
+                                    >
+                                      <Eye className="w-3 h-3 mr-1" />
+                                      View
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 px-3 text-xs"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+
+                                        if (attachment.fileUrl) {
+                                          const link =
+                                            document.createElement("a");
+
+                                          link.href = attachment.fileUrl;
+
+                                          link.download = attachment.fileName || "download";
+
+                                          link.target = "_blank";
+                                          link.rel = "noopener noreferrer";
+
+                                          document.body.appendChild(link);
+
+                                          link.click();
+
+                                          document.body.removeChild(link);
+
+                                          toast.success("File downloaded");
+                                        } else {
+                                          toast.error("File URL not available");
+                                        }
+                                      }}
+                                    >
+                                      <Download className="w-3 h-3 mr-1" />
+                                      Download
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+
+                              {/* Parent story attachments */}
                               {parentStoryAttachments.map((attachment) => (
                                 <div
                                   key={attachment.id}
@@ -16324,11 +16880,11 @@ const ScrumPage: React.FC = () => {
             </div>
           )}
         </DialogContent>
-      </Dialog >
+      </Dialog>
 
       {/* Add Issue Dialog */}
 
-      < AddIssueDialog
+      <AddIssueDialog
         isOpen={isAddIssueDialogOpen}
         onClose={() => {
           setIsAddIssueDialogOpen(false);
@@ -16370,6 +16926,8 @@ const ScrumPage: React.FC = () => {
                         | "done"),
 
             assignee: undefined,
+            projectId: story.projectId,
+            dueDate: story.dueDate,
           }))
         }
         defaultStatus="todo"
@@ -16381,7 +16939,7 @@ const ScrumPage: React.FC = () => {
 
       {/* Add Task Dialog */}
 
-      < AddTaskDialog
+      <AddTaskDialog
         isOpen={isAddTaskDialogOpen}
         onClose={() => {
           setIsAddTaskDialogOpen(false);

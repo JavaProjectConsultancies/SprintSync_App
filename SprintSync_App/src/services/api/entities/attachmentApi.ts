@@ -1,5 +1,6 @@
 import apiClient, { ApiResponse } from '../client';
 import { Attachment } from '../../../types/api';
+import { API_CONFIG } from '../config';
 
 const BASE_URL = '/attachments';
 
@@ -29,5 +30,11 @@ export const attachmentApiService = {
   // Count operations
   countAttachmentsByEntity: async (entityType: string, entityId: string): Promise<ApiResponse<{ count: number }>> => 
     apiClient.get<{ count: number }>(`${BASE_URL}/count/entity/${entityType}/${entityId}`),
+
+  // View attachment in browser (returns file URL for iframe/preview)
+  // This endpoint serves files with Content-Disposition: inline for preview (not download)
+  getAttachmentViewUrl: (id: string): string => {
+    return `${API_CONFIG.BASE_URL}${BASE_URL}/view/${id}`;
+  },
 };
 

@@ -125,6 +125,9 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
   const [linkedTaskIds, setLinkedTaskIds] = useState<string[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
 
+  // Track previous project ID to detect project changes
+  const prevProjectIdRef = React.useRef<string | undefined>(undefined);
+
   // Calculate effectiveProjectId - derive from selected story if not provided directly
   const effectiveProjectId = useMemo(() => {
     // First, try the projectId prop
@@ -139,6 +142,16 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
     }
     return undefined;
   }, [projectId, formData.storyId, defaultStoryId, stories]);
+
+  // Reset assignee immediately when project changes
+  useEffect(() => {
+    if (prevProjectIdRef.current !== undefined && prevProjectIdRef.current !== effectiveProjectId && formData.assignee) {
+      // Project has changed, reset assignee
+      console.log(`[AddIssueDialog] Project changed from ${prevProjectIdRef.current} to ${effectiveProjectId}, resetting assignee`);
+      setFormData(prev => ({ ...prev, assignee: '' }));
+    }
+    prevProjectIdRef.current = effectiveProjectId;
+  }, [effectiveProjectId, formData.assignee]);
 
   // Fetch team members by project when projectId is provided
   useEffect(() => {
@@ -231,6 +244,25 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
     ];
   }, [effectiveProjectId, projectTeamMembers, users, loadingTeamMembers]);
 
+  // Reset assignee when project changes (when effectiveProjectId changes or team members change)
+  useEffect(() => {
+    if (formData.assignee && effectiveProjectId) {
+      // If team members are loaded, check if current assignee is still valid
+      if (!loadingTeamMembers && teamMembers.length > 0) {
+        const isAssigneeValid = teamMembers.some(member => member.id === formData.assignee);
+        if (!isAssigneeValid) {
+          // Reset assignee if it's not in the current project's team members
+          console.log(`[AddIssueDialog] Resetting assignee because current assignee is not in project ${effectiveProjectId} team members`);
+          setFormData(prev => ({ ...prev, assignee: '' }));
+        }
+      } else if (!loadingTeamMembers && teamMembers.length === 0 && formData.assignee) {
+        // If no team members found for the project, reset assignee
+        console.log(`[AddIssueDialog] Resetting assignee because no team members found for project ${effectiveProjectId}`);
+        setFormData(prev => ({ ...prev, assignee: '' }));
+      }
+    }
+  }, [effectiveProjectId, teamMembers, formData.assignee, loadingTeamMembers]);
+
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
@@ -247,7 +279,9 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
     }
 
     // Validate storyId is required
-    if (!formData.storyId || formData.storyId === 'none') {
+    // Check if requiredStoryId or defaultStoryId is provided first, then check formData
+    const effectiveStoryId = requiredStoryId || defaultStoryId || (formData.storyId && formData.storyId !== 'none' ? formData.storyId : null);
+    if (!effectiveStoryId) {
       newErrors.storyId = 'Issue must be linked to a story. Please select a story.';
     }
 
@@ -257,9 +291,9 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
 
     if (!formData.dueDate) {
       newErrors.dueDate = 'Due date is required';
-    } else if (formData.storyId && formData.storyId !== 'none') {
+    } else if (effectiveStoryId) {
       // Validate that issue due date is within story's due date
-      const selectedStory = stories.find(s => s.id === formData.storyId);
+      const selectedStory = stories.find(s => s.id === effectiveStoryId);
       if (selectedStory && selectedStory.dueDate) {
         const storyDueDate = new Date(selectedStory.dueDate);
         storyDueDate.setHours(23, 59, 59, 999);
@@ -334,10 +368,22 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
         return `${year}-${month}-${day}`;
       };
 
+      // Determine the storyId to use - prioritize requiredStoryId/defaultStoryId if provided
+      let finalStoryId: string | undefined;
+      if (requiredStoryId) {
+        finalStoryId = requiredStoryId;
+      } else if (defaultStoryId) {
+        finalStoryId = defaultStoryId;
+      } else if (formData.storyId && formData.storyId !== 'none') {
+        finalStoryId = formData.storyId;
+      } else {
+        finalStoryId = undefined;
+      }
+
       const newIssue: Omit<Issue, 'id'> & { attachments?: File[]; attachmentUrls?: Array<{ url: string; name: string }> } = {
         title: formData.title.trim(),
         description: formData.description.trim(),
-        storyId: formData.storyId === 'none' ? undefined : formData.storyId || undefined,
+        storyId: finalStoryId,
         priority: formData.priority,
         assignee: formData.assignee,
         status: formData.status,
@@ -502,11 +548,17 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
 
   // Update formData when requiredStoryId or defaultStoryId changes
   useEffect(() => {
+    if (!isOpen) return;
+    
     const storyIdToUse = requiredStoryId || defaultStoryId;
-    if (storyIdToUse && (formData.storyId === 'none' || !formData.storyId)) {
-      setFormData(prev => ({ ...prev, storyId: storyIdToUse }));
+    if (storyIdToUse) {
+      // Always use requiredStoryId if provided, otherwise use defaultStoryId
+      // Only update if current value is different
+      if (formData.storyId !== storyIdToUse && (formData.storyId === 'none' || !formData.storyId || requiredStoryId)) {
+        setFormData(prev => ({ ...prev, storyId: storyIdToUse }));
+      }
     }
-  }, [requiredStoryId, defaultStoryId, isOpen]);
+  }, [requiredStoryId, defaultStoryId, isOpen, formData.storyId]);
 
   return (
     <>

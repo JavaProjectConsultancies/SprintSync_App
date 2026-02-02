@@ -92,6 +92,7 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
     const [taskLogs, setTaskLogs] = useState<TimeEntry[]>([]);
     const [loadingTaskLogs, setLoadingTaskLogs] = useState(false);
     const [parentStoryAttachments, setParentStoryAttachments] = useState<any[]>([]);
+    const [taskAttachments, setTaskAttachments] = useState<any[]>([]);
     const [loadingAttachments, setLoadingAttachments] = useState(false);
     const [subtasks, setSubtasks] = useState<Subtask[]>(initialSubtasks);
     const [loadingSubtasks, setLoadingSubtasks] = useState(false);
@@ -264,6 +265,11 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                 setParentStoryAttachments(attachRes.data || []);
             }
 
+            // Fetch Task Attachments
+            const taskAttachRes = await attachmentApiService.getAttachmentsByEntity("task", taskId);
+            setTaskAttachments(taskAttachRes.data || []);
+            console.log('[TaskDetailsJiraDialog] Fetched task attachments:', taskAttachRes.data?.length || 0);
+
             // Fetch Subtasks
             const subRes = await subtaskApiService.getSubtasksByTask(taskId);
             setSubtasks(subRes.data || []);
@@ -294,7 +300,16 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
         try {
             const fileDataUrl = await fileToBase64(file);
             const fileType = file.type || "application/octet-stream";
-            await attachmentApiService.createAttachment({
+            console.log(`[TaskDetailsJiraDialog] Creating attachment for ${entityType} ${entityId}:`, {
+                fileName: file.name,
+                fileSize: file.size,
+                fileType,
+                entityType,
+                entityId,
+                uploadedBy: user?.id
+            });
+
+            const response = await attachmentApiService.createAttachment({
                 uploadedBy: user?.id,
                 entityType,
                 entityId,
@@ -305,6 +320,19 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                 attachmentType: 'file' as const,
                 isPublic: true,
             });
+
+            if (!response.success) {
+                console.error("[TaskDetailsJiraDialog] Attachment creation failed:", response);
+                throw new Error(response.message || "Failed to create attachment");
+            }
+
+            console.log(`[TaskDetailsJiraDialog] Attachment created successfully:`, response.data);
+            
+            // Refresh attachments if this is for the current task
+            if (entityType === "task" && entityId === currentTask?.id) {
+                const refreshRes = await attachmentApiService.getAttachmentsByEntity("task", entityId);
+                setTaskAttachments(refreshRes.data || []);
+            }
         } catch (error) {
             console.error("Error creating attachment:", error);
             throw error;
@@ -552,18 +580,46 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
 
                                         {/* Attachments */}
                                         <div>
-                                            <h3 className="text-sm font-semibold text-gray-900 mb-2">Attachments</h3>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h3 className="text-sm font-semibold text-gray-900">Attachments</h3>
+                                                {(parentStoryAttachments.length > 0 || taskAttachments.length > 0) && (
+                                                    <div className="flex items-center space-x-2">
+                                                        {taskAttachments.length > 0 && (
+                                                            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                                                Task ({taskAttachments.length})
+                                                            </Badge>
+                                                        )}
+                                                        {parentStoryAttachments.length > 0 && (
+                                                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                                                                Story ({parentStoryAttachments.length})
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
                                             {loadingAttachments ? (
                                                 <div className="flex items-center justify-center py-8">
                                                     <Loader2 className="w-6 h-6 animate-spin text-primary" />
                                                 </div>
-                                            ) : parentStoryAttachments.length > 0 ? (
+                                            ) : (parentStoryAttachments.length > 0 || taskAttachments.length > 0) ? (
                                                 <div className="space-y-2">
-                                                    {parentStoryAttachments.map((attachment) => (
-                                                        <div key={attachment.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-white">
-                                                            <div className="flex items-center space-x-3">
-                                                                <Paperclip className="w-4 h-4 text-gray-400" />
-                                                                <span className="text-sm font-medium">{attachment.fileName}</span>
+                                                    {/* Task Attachments */}
+                                                    {taskAttachments.map((attachment) => (
+                                                        <div key={attachment.id} className="flex items-center justify-between p-3 border border-blue-200 rounded-lg bg-blue-50/30">
+                                                            <div className="flex items-center space-x-3 flex-1 min-w-0">
+                                                                <Paperclip className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex items-center space-x-2 mb-1">
+                                                                        <span className="text-sm font-medium truncate">{attachment.fileName}</span>
+                                                                        <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 border-blue-300 flex-shrink-0">
+                                                                            Task
+                                                                        </Badge>
+                                                                    </div>
+                                                                    <p className="text-xs text-gray-500">
+                                                                        {attachment.fileSize ? `${(attachment.fileSize / 1024).toFixed(1)} KB` : ''}
+                                                                        {attachment.fileType && ` • ${attachment.fileType}`}
+                                                                    </p>
+                                                                </div>
                                                             </div>
                                                             <div className="flex items-center gap-2">
                                                                 <Button
@@ -584,7 +640,60 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                                                                         if (attachment.fileUrl) {
                                                                             const link = document.createElement('a');
                                                                             link.href = attachment.fileUrl;
-                                                                            link.download = attachment.fileName;
+                                                                            link.download = attachment.fileName || "download";
+                                                                            link.target = "_blank";
+                                                                            link.rel = "noopener noreferrer";
+                                                                            document.body.appendChild(link);
+                                                                            link.click();
+                                                                            document.body.removeChild(link);
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    Download
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                    {/* Story Attachments */}
+                                                    {parentStoryAttachments.map((attachment) => (
+                                                        <div key={attachment.id} className="flex items-center justify-between p-3 border border-green-200 rounded-lg bg-green-50/30">
+                                                            <div className="flex items-center space-x-3 flex-1 min-w-0">
+                                                                <Paperclip className="w-4 h-4 text-green-500 flex-shrink-0" />
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex items-center space-x-2 mb-1">
+                                                                        <span className="text-sm font-medium truncate">{attachment.fileName}</span>
+                                                                        <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-300 flex-shrink-0">
+                                                                            Story
+                                                                        </Badge>
+                                                                    </div>
+                                                                    <p className="text-xs text-gray-500">
+                                                                        {attachment.fileSize ? `${(attachment.fileSize / 1024).toFixed(1)} KB` : ''}
+                                                                        {attachment.fileType && ` • ${attachment.fileType}`}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        setViewingAttachment(attachment);
+                                                                        setIsAttachmentViewerOpen(true);
+                                                                    }}
+                                                                >
+                                                                    <Eye className="w-4 h-4 mr-1" />
+                                                                    View
+                                                                </Button>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        if (attachment.fileUrl) {
+                                                                            const link = document.createElement('a');
+                                                                            link.href = attachment.fileUrl;
+                                                                            link.download = attachment.fileName || "download";
+                                                                            link.target = "_blank";
+                                                                            link.rel = "noopener noreferrer";
                                                                             document.body.appendChild(link);
                                                                             link.click();
                                                                             document.body.removeChild(link);
@@ -600,7 +709,7 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                                             ) : (
                                                 <div className="text-center py-6 text-gray-500 border border-gray-200 rounded-lg bg-gray-50">
                                                     <Paperclip className="w-6 h-6 mx-auto mb-2 text-gray-300" />
-                                                    <p className="text-xs">No attachments from parent story</p>
+                                                    <p className="text-xs">No attachments</p>
                                                 </div>
                                             )}
                                         </div>

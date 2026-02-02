@@ -46,7 +46,27 @@ public class AttachmentService {
         if (attachment.getId() == null || attachment.getId().isEmpty()) {
             attachment.setId(idGenerationService.generateAttachmentId());
         }
-        return attachmentRepository.save(attachment);
+        
+        // Log before saving
+        System.out.println("[AttachmentService] Saving attachment to database: " +
+            "ID=" + attachment.getId() +
+            ", entityType=" + attachment.getEntityType() +
+            ", entityId=" + attachment.getEntityId() +
+            ", fileName=" + attachment.getFileName() +
+            ", fileSize=" + attachment.getFileSize() +
+            ", uploadedBy=" + attachment.getUploadedBy());
+        
+        Attachment saved = attachmentRepository.save(attachment);
+        
+        // Verify it was saved
+        Attachment verified = attachmentRepository.findById(saved.getId()).orElse(null);
+        if (verified != null) {
+            System.out.println("[AttachmentService] Attachment successfully saved and verified in database: " + verified.getId());
+        } else {
+            System.err.println("[AttachmentService] WARNING: Attachment was not found in database after save!");
+        }
+        
+        return saved;
     }
 
     /**

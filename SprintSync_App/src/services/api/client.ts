@@ -323,7 +323,13 @@ class ApiClient {
       }
 
       if (!response.ok) {
-        let errorMessage = data.message || `HTTP ${response.status}: ${response.statusText}`;
+        // Extract error message from response body (handle different formats)
+        let errorMessage = data.message || data.error || `HTTP ${response.status}: ${response.statusText}`;
+        
+        // If data is an object with error field, use it
+        if (data && typeof data === 'object' && data.error) {
+          errorMessage = data.error;
+        }
 
         // Provide more specific error messages for common HTTP status codes
         switch (response.status) {
@@ -335,6 +341,12 @@ class ApiClient {
             break;
           case 404:
             errorMessage = 'Resource not found.';
+            break;
+          case 400:
+            // Keep the specific error message from backend for 400 errors
+            if (!data.message && !data.error) {
+              errorMessage = 'Bad request. Please check your input.';
+            }
             break;
           case 500:
             errorMessage = 'Internal server error. Please try again later.';
