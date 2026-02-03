@@ -37,7 +37,8 @@ import {
     Calendar as CalendarIcon,
     MoreHorizontal,
     Plus,
-    Eye
+    Eye,
+    Trash2
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Calendar } from "./ui/calendar";
@@ -98,7 +99,7 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
     const [loadingSubtasks, setLoadingSubtasks] = useState(false);
     const [users, setUsers] = useState<any[]>([]);
     const [usersLoading, setUsersLoading] = useState(false);
-    
+
     // Linked issues state
     const [linkedIssues, setLinkedIssues] = useState<Issue[]>([]);
     const [loadingLinkedIssues, setLoadingLinkedIssues] = useState(false);
@@ -133,6 +134,11 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
     const [tempDescription, setTempDescription] = useState("");
     const [isDueDatePopoverOpen, setIsDueDatePopoverOpen] = useState(false);
     const [isUpdatingDueDate, setIsUpdatingDueDate] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const [isEditingAttachments, setIsEditingAttachments] = useState(false);
+    const userRole = user?.role?.toUpperCase() || '';
+    const canEditAttachments = ['MANAGER', 'QA_MANAGER', 'QA_DEVELOPER'].includes(userRole);
 
     const handleSaveDescription = async () => {
         if (!currentTask) return;
@@ -198,11 +204,11 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                 if (!storyId && taskData.storyId) {
                     storyId = taskData.storyId;
                 }
-                
+
                 // Fetch linked issues if linkedIssueIds exist
                 const taskDataAny = taskData as any;
                 let linkedIssueIds: string[] = [];
-                
+
                 // Try camelCase first, then snake_case, handle null/undefined
                 if (taskDataAny.linkedIssueIds) {
                     if (Array.isArray(taskDataAny.linkedIssueIds)) {
@@ -213,9 +219,9 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                         linkedIssueIds = taskDataAny.linked_issue_ids;
                     }
                 }
-                
+
                 console.log('[TaskDetailsJiraDialog] Task linkedIssueIds from API:', linkedIssueIds);
-                
+
                 if (linkedIssueIds && linkedIssueIds.length > 0 && storyId) {
                     try {
                         setLoadingLinkedIssues(true);
@@ -231,9 +237,9 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                         } else if (raw && Array.isArray(raw.content)) {
                             issues = raw.content;
                         }
-                        
+
                         console.log('[TaskDetailsJiraDialog] Fetched issues from story:', issues.length, 'Issue IDs:', issues.map(i => i.id));
-                        
+
                         // Filter issues to only show those that are linked
                         const filtered = issues.filter(i => linkedIssueIds.includes(i.id));
                         setLinkedIssues(filtered);
@@ -327,7 +333,7 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
             }
 
             console.log(`[TaskDetailsJiraDialog] Attachment created successfully:`, response.data);
-            
+
             // Refresh attachments if this is for the current task
             if (entityType === "task" && entityId === currentTask?.id) {
                 const refreshRes = await attachmentApiService.getAttachmentsByEntity("task", entityId);
@@ -336,6 +342,38 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
         } catch (error) {
             console.error("Error creating attachment:", error);
             throw error;
+        }
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0 || !currentTask) return;
+
+        setIsUploading(true);
+        try {
+            for (let i = 0; i < files.length; i++) {
+                await uploadFileAndCreateAttachment(files[i], 'task', currentTask.id);
+            }
+            toast.success("Attachment(s) uploaded successfully");
+        } catch (error) {
+            console.error("Error uploading attachments:", error);
+            toast.error("Failed to upload attachment(s)");
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const handleRemoveAttachment = async (attachmentId: string) => {
+        if (!confirm("Are you sure you want to remove this attachment?")) return;
+
+        try {
+            await attachmentApiService.deleteAttachment(attachmentId);
+            setTaskAttachments(prev => prev.filter(a => a.id !== attachmentId));
+            toast.success("Attachment removed successfully");
+        } catch (error) {
+            console.error("Error removing attachment:", error);
+            toast.error("Failed to remove attachment");
         }
     };
 
@@ -581,21 +619,62 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                                         {/* Attachments */}
                                         <div>
                                             <div className="flex items-center justify-between mb-2">
-                                                <h3 className="text-sm font-semibold text-gray-900">Attachments</h3>
-                                                {(parentStoryAttachments.length > 0 || taskAttachments.length > 0) && (
-                                                    <div className="flex items-center space-x-2">
-                                                        {taskAttachments.length > 0 && (
-                                                            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                                                                Task ({taskAttachments.length})
-                                                            </Badge>
-                                                        )}
-                                                        {parentStoryAttachments.length > 0 && (
-                                                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                                                                Story ({parentStoryAttachments.length})
-                                                            </Badge>
-                                                        )}
-                                                    </div>
-                                                )}
+                                                <div className="flex items-center space-x-2">
+                                                    <h3 className="text-sm font-semibold text-gray-900">Attachments</h3>
+                                                    {canEditAttachments && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => setIsEditingAttachments(!isEditingAttachments)}
+                                                            className={`h-7 px-2 ${isEditingAttachments ? 'bg-blue-100 text-blue-700' : ''}`}
+                                                        >
+                                                            <Edit3 className="w-3 h-3 mr-1" />
+                                                            {isEditingAttachments ? "Done" : "Edit"}
+                                                        </Button>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex items-center space-x-2">
+                                                    {canEditAttachments && isEditingAttachments && (
+                                                        <>
+                                                            <input
+                                                                type="file"
+                                                                className="hidden"
+                                                                ref={fileInputRef}
+                                                                onChange={handleFileUpload}
+                                                                multiple
+                                                            />
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="h-7 px-3 text-xs bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                                                                onClick={() => fileInputRef.current?.click()}
+                                                                disabled={isUploading}
+                                                            >
+                                                                {isUploading ? (
+                                                                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                                                ) : (
+                                                                    <Plus className="w-3 h-3 mr-1" />
+                                                                )}
+                                                                Add
+                                                            </Button>
+                                                        </>
+                                                    )}
+                                                    {(parentStoryAttachments.length > 0 || taskAttachments.length > 0) && (
+                                                        <div className="flex items-center space-x-2">
+                                                            {taskAttachments.length > 0 && (
+                                                                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                                                    Task ({taskAttachments.length})
+                                                                </Badge>
+                                                            )}
+                                                            {parentStoryAttachments.length > 0 && (
+                                                                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                                                                    Story ({parentStoryAttachments.length})
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                             {loadingAttachments ? (
                                                 <div className="flex items-center justify-center py-8">
@@ -651,6 +730,16 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                                                                 >
                                                                     Download
                                                                 </Button>
+                                                                {canEditAttachments && isEditingAttachments && (
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                                        onClick={() => handleRemoveAttachment(attachment.id)}
+                                                                    >
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </Button>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     ))}

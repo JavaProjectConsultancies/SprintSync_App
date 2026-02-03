@@ -41,7 +41,8 @@ import {
     Plus,
     Bug,
     AlertCircle,
-    Eye
+    Eye,
+    Trash2
 } from "lucide-react";
 import {
     Issue,
@@ -147,6 +148,11 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
     const [tempDescription, setTempDescription] = useState("");
     const [isDueDatePopoverOpen, setIsDueDatePopoverOpen] = useState(false);
     const [isUpdatingDueDate, setIsUpdatingDueDate] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const [isEditingAttachments, setIsEditingAttachments] = useState(false);
+    const userRole = user?.role?.toUpperCase() || '';
+    const canEditAttachments = ['MANAGER', 'QA_MANAGER', 'QA_DEVELOPER'].includes(userRole);
 
     const handleSaveDescription = async () => {
         if (!currentIssue) return;
@@ -396,9 +402,47 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                 attachmentType: 'file' as const,
                 isPublic: true,
             });
+
+            // Refresh attachments if this is for the current issue
+            if (entityType === "issue" && entityId === currentIssue?.id) {
+                const refreshRes = await attachmentApiService.getAttachmentsByEntity("issue", entityId);
+                setIssueAttachments(refreshRes.data || []);
+            }
         } catch (error) {
             console.error("Error creating attachment:", error);
             throw error;
+        }
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0 || !currentIssue) return;
+
+        setIsUploading(true);
+        try {
+            for (let i = 0; i < files.length; i++) {
+                await uploadFileAndCreateAttachment(files[i], 'issue', currentIssue.id);
+            }
+            toast.success("Attachment(s) uploaded successfully");
+        } catch (error) {
+            console.error("Error uploading attachments:", error);
+            toast.error("Failed to upload attachment(s)");
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const handleRemoveAttachment = async (attachmentId: string) => {
+        if (!confirm("Are you sure you want to remove this attachment?")) return;
+
+        try {
+            await attachmentApiService.deleteAttachment(attachmentId);
+            setIssueAttachments(prev => prev.filter(a => a.id !== attachmentId));
+            toast.success("Attachment removed successfully");
+        } catch (error) {
+            console.error("Error removing attachment:", error);
+            toast.error("Failed to remove attachment");
         }
     };
 
@@ -728,8 +772,47 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
 
                                         {/* Attachments */}
                                         <div>
-                                            <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center space-x-2">
                                                 <h3 className="text-sm font-semibold text-gray-900">Attachments</h3>
+                                                {canEditAttachments && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => setIsEditingAttachments(!isEditingAttachments)}
+                                                        className={`h-7 px-2 ${isEditingAttachments ? 'bg-red-100 text-red-700' : ''}`}
+                                                    >
+                                                        <Edit3 className="w-3 h-3 mr-1" />
+                                                        {isEditingAttachments ? "Done" : "Edit"}
+                                                    </Button>
+                                                )}
+                                            </div>
+
+                                            <div className="flex items-center space-x-2">
+                                                {canEditAttachments && isEditingAttachments && (
+                                                    <>
+                                                        <input
+                                                            type="file"
+                                                            className="hidden"
+                                                            ref={fileInputRef}
+                                                            onChange={handleFileUpload}
+                                                            multiple
+                                                        />
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-7 px-3 text-xs bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
+                                                            onClick={() => fileInputRef.current?.click()}
+                                                            disabled={isUploading}
+                                                        >
+                                                            {isUploading ? (
+                                                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                                            ) : (
+                                                                <Plus className="w-3 h-3 mr-1" />
+                                                            )}
+                                                            Add
+                                                        </Button>
+                                                    </>
+                                                )}
                                                 {(parentStoryAttachments.length > 0 || issueAttachments.length > 0) && (
                                                     <div className="flex items-center space-x-2">
                                                         {issueAttachments.length > 0 && (
@@ -799,6 +882,16 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                                                                 >
                                                                     Download
                                                                 </Button>
+                                                                {canEditAttachments && isEditingAttachments && (
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                                        onClick={() => handleRemoveAttachment(attachment.id)}
+                                                                    >
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </Button>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     ))}

@@ -184,6 +184,7 @@ import { timeEntryApiService } from "../services/api/entities/timeEntryApi";
 import { activityLogApiService } from "../services/api/entities/activityLogApi";
 
 import { attachmentApiService } from "../services/api/entities/attachmentApi";
+import { uploadFileAndCreateAttachment } from "../utils/attachmentUtils";
 
 import { emitProjectBudgetUpdated } from "../utils/projectBudgetEvents";
 
@@ -473,6 +474,9 @@ const ScrumPage: React.FC = () => {
 
   const [loadingTaskAttachments, setLoadingTaskAttachments] = useState(false);
 
+  const [isEditingTaskAttachments, setIsEditingTaskAttachments] = useState(false);
+  const [isEditingIssueAttachments, setIsEditingIssueAttachments] = useState(false);
+
   // Board state
 
   const [selectedBoard, setSelectedBoard] = useState<string | null>(null); // null = default board
@@ -649,6 +653,8 @@ const ScrumPage: React.FC = () => {
   const isOriginalQAManager = user?.role?.toUpperCase() === "QA_MANAGER";
   const isOriginalQADeveloper = user?.role?.toUpperCase() === "QA_DEVELOPER";
 
+  const canEditAttachments = !isViewOnly && (isManager || isQAManager || isQADeveloper || isOriginalQAManager || isOriginalQADeveloper);
+
   // QA Developers should be treated like developers but with extra permissions (view all, drag to Done)
   const isDeveloper = isRegularDeveloper || isQADeveloper;
 
@@ -791,11 +797,11 @@ const ScrumPage: React.FC = () => {
 
         try {
           console.log(`[ScrumPage] Fetching task attachments for story: ${selectedStoryForDetails.id}`);
-          
+
           // First, get all tasks for this story
           const tasksResponse = await taskApiService.getTasksByStory(selectedStoryForDetails.id);
           console.log(`[ScrumPage] Tasks response:`, tasksResponse);
-          
+
           // Handle different response structures
           let tasks: any[] = [];
           if (Array.isArray(tasksResponse.data)) {
@@ -807,40 +813,40 @@ const ScrumPage: React.FC = () => {
           } else if (tasksResponse.data && Array.isArray((tasksResponse.data as any).content)) {
             tasks = (tasksResponse.data as any).content;
           }
-          
+
           console.log(`[ScrumPage] Found ${tasks.length} tasks for story ${selectedStoryForDetails.id}`);
 
           // Then, fetch attachments for each task
           const allTaskAttachments: any[] = [];
-          
+
           for (const task of tasks) {
             if (!task || !task.id) {
               console.warn(`[ScrumPage] Skipping invalid task:`, task);
               continue;
             }
-            
+
             try {
               console.log(`[ScrumPage] Fetching attachments for task ${task.id} (${task.title})`);
               const attachmentsResponse = await attachmentApiService.getAttachmentsByEntity(
                 "task",
                 task.id,
               );
-              
+
               console.log(`[ScrumPage] Attachments response for task ${task.id}:`, attachmentsResponse);
-              
-              const taskAttachments = Array.isArray(attachmentsResponse.data) 
-                ? attachmentsResponse.data 
+
+              const taskAttachments = Array.isArray(attachmentsResponse.data)
+                ? attachmentsResponse.data
                 : (Array.isArray(attachmentsResponse) ? attachmentsResponse : []);
-              
+
               console.log(`[ScrumPage] Found ${taskAttachments.length} attachments for task ${task.id}`);
-              
+
               // Add task title to each attachment for display purposes
               const attachmentsWithTaskInfo = taskAttachments.map((att: any) => ({
                 ...att,
                 taskTitle: task.title,
                 taskId: task.id,
               }));
-              
+
               allTaskAttachments.push(...attachmentsWithTaskInfo);
             } catch (error) {
               console.error(`[ScrumPage] Error fetching attachments for task ${task.id}:`, error);
@@ -871,11 +877,11 @@ const ScrumPage: React.FC = () => {
 
         try {
           console.log(`[ScrumPage] Fetching issue attachments for story: ${selectedStoryForDetails.id}`);
-          
+
           // First, get all issues for this story
           const issuesResponse = await issueApiService.getIssuesByStory(selectedStoryForDetails.id);
           console.log(`[ScrumPage] Issues response:`, issuesResponse);
-          
+
           // Handle different response structures
           let issues: any[] = [];
           if (Array.isArray(issuesResponse.data)) {
@@ -887,40 +893,40 @@ const ScrumPage: React.FC = () => {
           } else if (issuesResponse.data && Array.isArray((issuesResponse.data as any).content)) {
             issues = (issuesResponse.data as any).content;
           }
-          
+
           console.log(`[ScrumPage] Found ${issues.length} issues for story ${selectedStoryForDetails.id}`);
 
           // Then, fetch attachments for each issue
           const allIssueAttachments: any[] = [];
-          
+
           for (const issue of issues) {
             if (!issue || !issue.id) {
               console.warn(`[ScrumPage] Skipping invalid issue:`, issue);
               continue;
             }
-            
+
             try {
               console.log(`[ScrumPage] Fetching attachments for issue ${issue.id} (${issue.title})`);
               const attachmentsResponse = await attachmentApiService.getAttachmentsByEntity(
                 "issue",
                 issue.id,
               );
-              
+
               console.log(`[ScrumPage] Attachments response for issue ${issue.id}:`, attachmentsResponse);
-              
-              const issueAttachments = Array.isArray(attachmentsResponse.data) 
-                ? attachmentsResponse.data 
+
+              const issueAttachments = Array.isArray(attachmentsResponse.data)
+                ? attachmentsResponse.data
                 : (Array.isArray(attachmentsResponse) ? attachmentsResponse : []);
-              
+
               console.log(`[ScrumPage] Found ${issueAttachments.length} attachments for issue ${issue.id}`);
-              
+
               // Add issue title to each attachment for display purposes
               const attachmentsWithIssueInfo = issueAttachments.map((att: any) => ({
                 ...att,
                 issueTitle: issue.title,
                 issueId: issue.id,
               }));
-              
+
               allIssueAttachments.push(...attachmentsWithIssueInfo);
             } catch (error) {
               console.error(`[ScrumPage] Error fetching attachments for issue ${issue.id}:`, error);
@@ -1682,6 +1688,82 @@ const ScrumPage: React.FC = () => {
     } catch (error) {
       console.error("Error updating description:", error);
       toast.error("Failed to update description");
+    }
+  };
+
+  const handleTaskFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0 || !selectedTaskForDetails) return;
+
+    try {
+      const file = files[0];
+      await uploadFileAndCreateAttachment(file, selectedTaskForDetails.id, "task");
+      toast.success("Attachment uploaded successfully");
+
+      // Refresh attachments
+      setLoadingTaskAttachments(true);
+      const response = await attachmentApiService.getAttachmentsByEntity(selectedTaskForDetails.id, "task");
+      setTaskAttachments(response.data || []);
+    } catch (error) {
+      console.error("Error uploading attachment:", error);
+      toast.error("Failed to upload attachment");
+    } finally {
+      setLoadingTaskAttachments(false);
+      // Reset input
+      event.target.value = '';
+    }
+  };
+
+  const handleIssueFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0 || !selectedIssueForDetails) return;
+
+    try {
+      const file = files[0];
+      await uploadFileAndCreateAttachment(file, selectedIssueForDetails.id, "issue");
+      toast.success("Attachment uploaded successfully");
+
+      // Refresh attachments
+      setLoadingIssueAttachments(true);
+      const response = await attachmentApiService.getAttachmentsByEntity(selectedIssueForDetails.id, "issue");
+      setIssueAttachments(response.data || []);
+    } catch (error) {
+      console.error("Error uploading attachment:", error);
+      toast.error("Failed to upload attachment");
+    } finally {
+      setLoadingIssueAttachments(false);
+      // Reset input
+      event.target.value = '';
+    }
+  };
+
+  const handleRemoveTaskAttachment = async (attachmentId: string) => {
+    if (!window.confirm("Are you sure you want to remove this attachment?")) return;
+
+    try {
+      await attachmentApiService.deleteAttachment(attachmentId);
+      toast.success("Attachment removed");
+
+      // Update local state
+      setTaskAttachments(prev => prev.filter(a => a.id !== attachmentId));
+    } catch (error) {
+      console.error("Error removing attachment:", error);
+      toast.error("Failed to remove attachment");
+    }
+  };
+
+  const handleRemoveIssueAttachment = async (attachmentId: string) => {
+    if (!window.confirm("Are you sure you want to remove this attachment?")) return;
+
+    try {
+      await attachmentApiService.deleteAttachment(attachmentId);
+      toast.success("Attachment removed");
+
+      // Update local state
+      setIssueAttachments(prev => prev.filter(a => a.id !== attachmentId));
+    } catch (error) {
+      console.error("Error removing attachment:", error);
+      toast.error("Failed to remove attachment");
     }
   };
 
@@ -14390,31 +14472,65 @@ const ScrumPage: React.FC = () => {
 
                         <div>
                           <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-sm font-semibold text-gray-900">
-                              Attachments
-                            </h3>
+                            <div className="flex items-center space-x-2">
+                              <h3 className="text-sm font-semibold text-gray-900">
+                                Attachments
+                              </h3>
+                              {canEditAttachments && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setIsEditingTaskAttachments(!isEditingTaskAttachments)}
+                                  className={`h-7 px-2 ${isEditingTaskAttachments ? 'bg-blue-100 text-blue-700' : ''}`}
+                                >
+                                  <Edit3 className="w-3 h-3 mr-1" />
+                                  {isEditingTaskAttachments ? "Done" : "Edit"}
+                                </Button>
+                              )}
+                            </div>
 
-                            {(taskAttachments.length > 0 || parentStoryAttachments.length > 0) && (
-                              <div className="flex items-center space-x-2">
-                                {taskAttachments.length > 0 && (
-                                  <Badge
+                            <div className="flex items-center space-x-2">
+                              {isEditingTaskAttachments && canEditAttachments && (
+                                <div className="flex items-center space-x-2 mr-2">
+                                  <input
+                                    type="file"
+                                    id="task-attachment-upload"
+                                    className="hidden"
+                                    onChange={handleTaskFileUpload}
+                                  />
+                                  <Button
                                     variant="outline"
-                                    className="text-xs bg-green-50 text-green-700 border-green-200"
+                                    size="sm"
+                                    className="h-7 px-3 text-xs bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                                    onClick={() => document.getElementById('task-attachment-upload')?.click()}
                                   >
-                                    Task ({taskAttachments.length})
-                                  </Badge>
-                                )}
-                                {parentStoryAttachments.length > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-xs bg-blue-50 text-blue-700 border-blue-200"
-                                  >
-                                    <BookOpen className="w-3 h-3 mr-1" />
-                                    Story ({parentStoryAttachments.length})
-                                  </Badge>
-                                )}
-                              </div>
-                            )}
+                                    <Plus className="w-3 h-3 mr-1" />
+                                    Add
+                                  </Button>
+                                </div>
+                              )}
+                              {(taskAttachments.length > 0 || parentStoryAttachments.length > 0) && (
+                                <div className="flex items-center space-x-2">
+                                  {taskAttachments.length > 0 && (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs bg-green-50 text-green-700 border-green-200"
+                                    >
+                                      Task ({taskAttachments.length})
+                                    </Badge>
+                                  )}
+                                  {parentStoryAttachments.length > 0 && (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs bg-blue-50 text-blue-700 border-blue-200"
+                                    >
+                                      <BookOpen className="w-3 h-3 mr-1" />
+                                      Story ({parentStoryAttachments.length})
+                                    </Badge>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
 
                           {(loadingTaskAttachments || loadingParentStoryAttachments) ? (
@@ -14495,6 +14611,20 @@ const ScrumPage: React.FC = () => {
                                   </div>
 
                                   <div className="flex items-center space-x-2 flex-shrink-0">
+                                    {isEditingTaskAttachments && canEditAttachments && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 px-2 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleRemoveTaskAttachment(attachment.id);
+                                        }}
+                                        title="Remove attachment"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    )}
                                     <Button
                                       variant="outline"
                                       size="sm"
@@ -15805,34 +15935,68 @@ const ScrumPage: React.FC = () => {
 
                       <div>
                         <div className="flex items-center justify-between mb-2">
-                          <h3 className="text-sm font-semibold text-gray-900">
-                            Attachments
-                          </h3>
+                          <div className="flex items-center space-x-2">
+                            <h3 className="text-sm font-semibold text-gray-900">
+                              Attachments
+                            </h3>
+                            {canEditAttachments && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setIsEditingIssueAttachments(!isEditingIssueAttachments)}
+                                className={`h-7 px-2 ${isEditingIssueAttachments ? 'bg-red-100 text-red-700' : ''}`}
+                              >
+                                <Edit3 className="w-3 h-3 mr-1" />
+                                {isEditingIssueAttachments ? "Done" : "Edit"}
+                              </Button>
+                            )}
+                          </div>
 
-                          {(issueAttachments.length > 0 ||
-                            parentStoryAttachments.length > 0) && (
-                              <div className="flex items-center space-x-2">
-                                {issueAttachments.length > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-xs bg-red-50 text-red-700 border-red-200"
-                                  >
-                                    <AlertCircle className="w-3 h-3 mr-1" />
-                                    Issue ({issueAttachments.length})
-                                  </Badge>
-                                )}
-
-                                {parentStoryAttachments.length > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-xs bg-blue-50 text-blue-700 border-blue-200"
-                                  >
-                                    <BookOpen className="w-3 h-3 mr-1" />
-                                    Story ({parentStoryAttachments.length})
-                                  </Badge>
-                                )}
+                          <div className="flex items-center space-x-2">
+                            {isEditingIssueAttachments && canEditAttachments && (
+                              <div className="flex items-center space-x-2 mr-2">
+                                <input
+                                  type="file"
+                                  id="issue-attachment-upload"
+                                  className="hidden"
+                                  onChange={handleIssueFileUpload}
+                                />
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-3 text-xs bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
+                                  onClick={() => document.getElementById('issue-attachment-upload')?.click()}
+                                >
+                                  <Plus className="w-3 h-3 mr-1" />
+                                  Add
+                                </Button>
                               </div>
                             )}
+                            {(issueAttachments.length > 0 ||
+                              parentStoryAttachments.length > 0) && (
+                                <div className="flex items-center space-x-2">
+                                  {issueAttachments.length > 0 && (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs bg-red-50 text-red-700 border-red-200"
+                                    >
+                                      <AlertCircle className="w-3 h-3 mr-1" />
+                                      Issue ({issueAttachments.length})
+                                    </Badge>
+                                  )}
+
+                                  {parentStoryAttachments.length > 0 && (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs bg-blue-50 text-blue-700 border-blue-200"
+                                    >
+                                      <BookOpen className="w-3 h-3 mr-1" />
+                                      Story ({parentStoryAttachments.length})
+                                    </Badge>
+                                  )}
+                                </div>
+                              )}
+                          </div>
                         </div>
 
                         {loadingIssueAttachments ||
@@ -15914,6 +16078,20 @@ const ScrumPage: React.FC = () => {
                                 </div>
 
                                 <div className="flex items-center space-x-2 flex-shrink-0">
+                                  {isEditingIssueAttachments && canEditAttachments && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 px-2 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRemoveIssueAttachment(attachment.id);
+                                      }}
+                                      title="Remove attachment"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  )}
                                   <Button
                                     variant="outline"
                                     size="sm"
