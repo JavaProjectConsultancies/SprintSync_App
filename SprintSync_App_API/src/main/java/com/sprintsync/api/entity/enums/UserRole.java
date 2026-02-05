@@ -12,7 +12,8 @@ public enum UserRole {
     developer("developer"),
     qa_manager("qa_manager"),
     qa_developer("qa_developer"),
-    master_admin("master_admin");
+    master_admin("master_admin"),
+    support_and_implementation("support_and_implementation");
 
     private final String value;
 

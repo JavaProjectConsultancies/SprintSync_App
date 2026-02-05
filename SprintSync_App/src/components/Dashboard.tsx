@@ -69,8 +69,8 @@ const Dashboard: React.FC = () => {
   const { activeRole, projectRoles } = useRoleSwitcher();
 
   // Use activeRole for filtering data when role is switched
-  // Admin and master_admin always stay as their roles (they see everything), others use the activeRole from context
-  const effectiveRole: string = user?.role === 'admin' ? 'admin' : (user?.role === 'master_admin' ? 'master_admin' : activeRole);
+  // Admin, master_admin and support_and_implementation always stay as their roles (they see everything relevant to their level), others use the activeRole from context
+  const effectiveRole: string = (user?.role === 'admin' || user?.role === 'master_admin' || user?.role === 'qa_manager' || user?.role === 'support_and_implementation' || user?.role === 'qa_developer') ? user.role : activeRole;
 
   // API authentication is now handled by AuthContext
   // No need for demo auth setup
@@ -114,6 +114,22 @@ const Dashboard: React.FC = () => {
     (sprintsLoading && !apiSprints) ||
     (storiesLoading && !apiStories) ||
     (tasksLoading && !apiTasks);
+
+  // Safety timeout to prevent infinite loading
+  const [forceShowDashboard, setForceShowDashboard] = useState(false);
+
+  useEffect(() => {
+    // Force show dashboard after 5 seconds even if APIs are still "loading"
+    // This handles cases where API calls hang or fail silently
+    const timer = setTimeout(() => {
+      if (isLoadingAny) {
+        console.warn('[Dashboard] Loading timed out, forcing dashboard display');
+        setForceShowDashboard(true);
+      }
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [isLoadingAny]);
 
   // Calculate loading progress with better logic
   const loadingProgress = useMemo(() => {
@@ -190,7 +206,7 @@ const Dashboard: React.FC = () => {
     // Get project IDs where user is a manager (from projectRoles API)
     const managerProjectIds = new Set(
       projectRoles
-        .filter(pr => pr.role?.toLowerCase() === 'manager')
+        .filter(pr => pr.role?.toLowerCase() === 'manager' || pr.role?.toLowerCase() === 'qa_manager' || pr.role?.toLowerCase() === 'support_and_implementation')
         .map(pr => pr.projectId)
     );
 
@@ -201,8 +217,8 @@ const Dashboard: React.FC = () => {
       allProjectRoles: projectRoles
     });
 
-    // Managers can access projects where they are manager (from projectRoles OR managerId)
-    if (effectiveRole === 'manager') {
+    // Managers and Support & Implementation can access projects where they have those roles
+    if (effectiveRole === 'manager' || effectiveRole === 'qa_manager' || effectiveRole === 'support_and_implementation') {
       return projectData.filter(project => {
         // Check 1: User is project owner (managerId)
         const managerId = (project as any).managerId || (project as any).manager?.id || (project as any).manager_id;
@@ -241,12 +257,12 @@ const Dashboard: React.FC = () => {
     // Get project IDs where user is a manager (from projectRoles API)
     const managerProjectIds = new Set(
       projectRoles
-        .filter(pr => pr.role?.toLowerCase() === 'manager')
+        .filter(pr => pr.role?.toLowerCase() === 'manager' || pr.role?.toLowerCase() === 'qa_manager' || pr.role?.toLowerCase() === 'support_and_implementation')
         .map(pr => pr.projectId)
     );
 
-    // Managers see projects where they are manager
-    if (effectiveRole === 'manager') {
+    // Managers and Support & Implementation see projects where they have those roles
+    if (effectiveRole === 'manager' || effectiveRole === 'qa_manager' || effectiveRole === 'support_and_implementation') {
       return projectData.filter(project => {
         // Check 1: User is project owner (managerId)
         const managerId = (project as any).managerId || (project as any).manager?.id || (project as any).manager_id;
@@ -289,12 +305,12 @@ const Dashboard: React.FC = () => {
     }
 
     // Check if current view is manager/admin/master_admin based on effectiveRole
-    const isManagerOrAdmin = effectiveRole === 'admin' || effectiveRole === 'master_admin' || effectiveRole === 'manager';
+    const isManagerOrAdmin = effectiveRole === 'admin' || effectiveRole === 'master_admin' || effectiveRole === 'manager' || effectiveRole === 'support_and_implementation' || effectiveRole === 'qa_manager';
 
     // Get project IDs where user is a manager (from projectRoles API - reliable source)
     const projectsWhereUserIsManager = new Set<string>(
       projectRoles
-        .filter(pr => pr.role?.toLowerCase() === 'manager')
+        .filter(pr => pr.role?.toLowerCase() === 'manager' || pr.role?.toLowerCase() === 'qa_manager' || pr.role?.toLowerCase() === 'support_and_implementation')
         .map(pr => pr.projectId)
     );
     const isProjectLevelManager = projectsWhereUserIsManager.size > 0;
@@ -311,7 +327,7 @@ const Dashboard: React.FC = () => {
     // Using projectRoles from API for reliable project assignment data
     const userProjectIdsForFiltering = (effectiveRole === 'admin' || effectiveRole === 'master_admin')
       ? new Set(projects.map(p => p.id))  // Admins and master_admins see all projects
-      : effectiveRole === 'manager'
+      : (effectiveRole === 'manager' || effectiveRole === 'qa_manager' || effectiveRole === 'support_and_implementation')
         ? new Set(
           projects
             .filter(project => {
@@ -334,7 +350,7 @@ const Dashboard: React.FC = () => {
         );
 
     // Debug logging for manager project filtering
-    if (effectiveRole === 'manager') {
+    if (effectiveRole === 'manager' || effectiveRole === 'support_and_implementation' || effectiveRole === 'qa_manager') {
       console.log('[Dashboard] Manager project filtering:', {
         userId: user.id,
         effectiveRole: effectiveRole,
@@ -344,9 +360,10 @@ const Dashboard: React.FC = () => {
       });
     }
 
-    // EARLY RETURN: If manager or developer has no assigned projects, show empty dashboard
-    if ((effectiveRole === 'manager' || effectiveRole === 'developer' || effectiveRole === 'qa_manager' || effectiveRole === 'qa_developer') && userProjectIdsForFiltering.size === 0) {
-      console.log('[Dashboard] User has no assigned projects, returning empty metrics');
+    // EARLY RETURN: If manager or developer has no assigned projects, show ZERO metrics but don't return null
+    // This allows the dashboard to render with an "Empty State" message instead of crashing
+    if ((effectiveRole === 'manager' || effectiveRole === 'support_and_implementation' || effectiveRole === 'developer' || effectiveRole === 'qa_manager' || effectiveRole === 'qa_developer') && userProjectIdsForFiltering.size === 0) {
+      console.log('[Dashboard] User has no assigned projects, returning zero metrics');
       return {
         projectCount: 0,
         teamMembers: 0,
@@ -362,7 +379,7 @@ const Dashboard: React.FC = () => {
     // For admins: show all sprints
     // For developers: only show sprints from projects they're assigned to
     let userSprints = allSprints;
-    if (effectiveRole === 'manager') {
+    if (effectiveRole === 'manager' || effectiveRole === 'support_and_implementation' || effectiveRole === 'qa_manager') {
       // For managers, only show sprints from projects they manage
       userSprints = allSprints.filter(sprint => {
         const sprintProjectId = (sprint as any).projectId || (sprint as any).project?.id;
@@ -400,14 +417,14 @@ const Dashboard: React.FC = () => {
     // This is more reliable than filtering through sprints/stories
     let sprintTasks: any[] = [];
 
-    if (effectiveRole === 'admin' || effectiveRole === 'master_admin' || effectiveRole === 'manager') {
-      // Admins, master_admins, and Managers: Show all tasks
+    if (effectiveRole === 'admin' || effectiveRole === 'master_admin' || effectiveRole === 'manager' || effectiveRole === 'support_and_implementation' || effectiveRole === 'qa_manager') {
+      // Admins, master_admins, Managers, and QA Managers: Show all tasks
       // Managers should see all tasks/issues regardless of team lead constraint
       sprintTasks = allTasks.filter(task => {
         return task && task.id && typeof task.id === 'string';
       });
 
-      if (effectiveRole === 'manager') {
+      if (effectiveRole === 'manager' || effectiveRole === 'support_and_implementation' || effectiveRole === 'qa_manager') {
         console.log('[Dashboard] Manager full visibility enabled - showing all tasks:', {
           userId: user.id,
           effectiveRole: effectiveRole,
@@ -1203,8 +1220,8 @@ const Dashboard: React.FC = () => {
 
   const firstName = user.name.split(' ')[0];
 
-  // Show loading animation until all APIs are fetched
-  if (isLoadingAny) {
+  // Show loading animation until all APIs are fetched, unless forced
+  if (isLoadingAny && !forceShowDashboard) {
     return <LoadingSpinner message="Loading Dashboard..." fullScreen />;
   }
 
@@ -1242,6 +1259,27 @@ const Dashboard: React.FC = () => {
         <RoleSwitcherDropdown />
 
       </div>
+
+      {/* Empty State for Users with No Projects */}
+      {!isLoadingAny && metrics?.projectCount === 0 && (effectiveRole === 'developer' || effectiveRole === 'manager' || effectiveRole === 'qa_developer' || effectiveRole === 'qa_manager') && (
+        <div className="mb-8 p-8 text-center bg-white rounded-xl shadow-sm border border-slate-200">
+          <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Filter className="w-8 h-8 text-green-500" />
+          </div>
+          <h2 className="text-xl font-semibold text-slate-800 mb-2">Welcome to SprintSync!</h2>
+          <p className="text-slate-600 max-w-md mx-auto mb-6">
+            You don't have any projects assigned yet.
+            {effectiveRole === 'manager'
+              ? ' Create your first project to get started.'
+              : ' Please ask a manager to assign you to a project.'}
+          </p>
+          {effectiveRole === 'manager' && (
+            <Button onClick={() => navigate('/projects')} className="bg-green-600 hover:bg-green-700">
+              Create Project
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Metrics Cards - Key Metrics First */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

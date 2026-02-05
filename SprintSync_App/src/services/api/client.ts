@@ -11,6 +11,11 @@ class ApiClient {
   private projectPrefetchError: ApiError | null = null;
   private prefetchedProjects: any[] | null = null;
 
+  // Performance Optimization: Cache and Inflight Tracking
+  private cache = new Map<string, { data: any; expiry: number }>();
+  private inflightRequests = new Map<string, Promise<any>>();
+  private readonly DEFAULT_TTL = 10000; // 10 seconds
+
   constructor() {
     this.baseURL = API_CONFIG.BASE_URL;
     this.timeout = API_CONFIG.TIMEOUT;
@@ -22,8 +27,16 @@ class ApiClient {
     console.log('Setting auth token in apiClient:', token);
     this.defaultHeaders['Authorization'] = `Bearer ${token}`;
     console.log('Updated headers:', this.defaultHeaders);
+    this.clearCache();
     this.resetProjectPrefetchState();
     this.startProjectPrefetch();
+  }
+
+  // Clear the in-memory cache
+  clearCache() {
+    this.cache.clear();
+    this.inflightRequests.clear();
+    console.log('[apiClient] Cache cleared');
   }
 
   // Remove authentication token
@@ -31,6 +44,7 @@ class ApiClient {
     delete this.defaultHeaders['Authorization'];
     delete this.defaultHeaders['X-Demo-Mode'];
     delete this.defaultHeaders['X-Test-Mode'];
+    this.clearCache();
     this.resetProjectPrefetchState();
   }
 
@@ -265,154 +279,207 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {},
     params?: Record<string, any>,
-    bypassPrefetchGate = false
+    bypassPrefetchGate = false,
+    useCache = true
   ): Promise<ApiResponse<T>> {
     const method = (options.method?.toString().toUpperCase() || 'GET');
+    const isGet = method === 'GET';
+
+    // Build URL first for cache key
+    const normalizedParams = this.normalizeParams(params);
+    const url = normalizedParams
+      ? `${this.baseURL}${endpoint}${this.buildQueryString(normalizedParams)}`
+      : `${this.baseURL}${endpoint}`;
+
+    const cacheKey = `${method}:${url}`;
+
+    // 1. Check for cached data (only for GET requests)
+    if (isGet && useCache) {
+      const cached = this.cache.get(cacheKey);
+      if (cached && cached.expiry > Date.now()) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[apiClient] Cache HIT:', cacheKey);
+        }
+        return {
+          data: cached.data,
+          status: 200,
+          success: true,
+          message: 'Loaded from cache',
+        };
+      }
+    }
+
+    // 2. Clear cache for non-GET requests (mutations) that might affect data
+    if (!isGet) {
+      this.clearCache();
+    }
+
+    // 3. Check for inflight requests to avoid duplicate calls
+    if (this.inflightRequests.has(cacheKey)) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[apiClient] Dedup HIT:', cacheKey);
+      }
+      return this.inflightRequests.get(cacheKey);
+    }
+
     const requestOptions: RequestInit = { ...options, method };
 
-    try {
-      if (!bypassPrefetchGate) {
-        await this.waitForProjectPrefetch(endpoint, method);
-      }
-
-      // Build full URL with query params
-      const normalizedParams = this.normalizeParams(params);
-      const url = normalizedParams
-        ? `${this.baseURL}${endpoint}${this.buildQueryString(normalizedParams)}`
-        : `${this.baseURL}${endpoint}`;
-
-      // Merge headers
-      const headers = {
-        ...this.defaultHeaders,
-        ...requestOptions.headers,
-      };
-
-      // Debug logging for API calls (only in development)
-      if (process.env.NODE_ENV === 'development') {
-        console.log('API Request:', {
-          url,
-          method,
-          authorizationHeader: headers['Authorization'] || headers['authorization'],
-        });
-      }
-
-      // Create request with timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-
-      const response = await fetch(url, {
-        ...requestOptions,
-        headers,
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      // Parse response
-      const contentType = response.headers.get('content-type');
-      let data: any;
-
-      if (contentType && contentType.includes('application/json')) {
-        data = await response.json();
-      } else if (contentType && (contentType.includes('application/octet-stream') || 
-                                  contentType.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') ||
-                                  contentType.includes('application/vnd.ms-excel'))) {
-        data = await response.blob();
-      } else {
-        data = await response.text();
-      }
-
-      if (!response.ok) {
-        // Extract error message from response body (handle different formats)
-        let errorMessage = data.message || data.error || `HTTP ${response.status}: ${response.statusText}`;
-        
-        // If data is an object with error field, use it
-        if (data && typeof data === 'object' && data.error) {
-          errorMessage = data.error;
+    const executeRequest = async (): Promise<ApiResponse<T>> => {
+      try {
+        if (!bypassPrefetchGate) {
+          await this.waitForProjectPrefetch(endpoint, method);
         }
 
-        // Provide more specific error messages for common HTTP status codes
-        switch (response.status) {
-          case 401:
-            errorMessage = 'Authentication required. Please log in to access this resource.';
-            break;
-          case 403:
-            errorMessage = 'Access denied. You do not have permission to access this resource.';
-            break;
-          case 404:
-            errorMessage = 'Resource not found.';
-            break;
-          case 400:
-            // Keep the specific error message from backend for 400 errors
-            if (!data.message && !data.error) {
-              errorMessage = 'Bad request. Please check your input.';
-            }
-            break;
-          case 500:
-            errorMessage = 'Internal server error. Please try again later.';
-            break;
-        }
-
-        const error: ApiError = {
-          message: errorMessage,
-          status: response.status,
-          code: data.code || `HTTP_${response.status}`,
-          details: data,
+        // Merge headers
+        const headers = {
+          ...this.defaultHeaders,
+          ...requestOptions.headers,
         };
-        // Show global error toast for non-401/404 errors (or all if desired)
-        // User requested "all pages wherever api failed".
-        // Often 401 is handled by redirect, but showing a toast is safe.
-        toast.error(errorMessage);
-        throw error;
-      }
 
-      return {
-        data,
-        status: response.status,
-        success: true,
-        message: data.message,
-      };
-    } catch (error) {
-      if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          throw {
-            message: 'Request timeout - The server took too long to respond',
-            status: 408,
-            code: 'TIMEOUT',
-          } as ApiError;
+        // Debug logging for API calls (only in development)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('API Request:', {
+            url,
+            method,
+            authorizationHeader: headers['Authorization'] || headers['authorization'],
+          });
         }
 
-        // Provide more helpful error messages for network errors
-        let errorMessage = error.message;
-        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-          errorMessage = `Cannot connect to backend API at ${this.baseURL}. Please ensure:
+        // Create request with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+        const response = await fetch(url, {
+          ...requestOptions,
+          headers,
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        // Parse response
+        const contentType = response.headers.get('content-type');
+        let data: any;
+
+        if (contentType && contentType.includes('application/json')) {
+          data = await response.json();
+        } else if (contentType && (contentType.includes('application/octet-stream') ||
+          contentType.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') ||
+          contentType.includes('application/vnd.ms-excel'))) {
+          data = await response.blob();
+        } else {
+          data = await response.text();
+        }
+
+        if (!response.ok) {
+          // Extract error message from response body (handle different formats)
+          let errorMessage = data.message || data.error || `HTTP ${response.status}: ${response.statusText}`;
+
+          // If data is an object with error field, use it
+          if (data && typeof data === 'object' && data.error) {
+            errorMessage = data.error;
+          }
+
+          // Provide more specific error messages for common HTTP status codes
+          switch (response.status) {
+            case 401:
+              errorMessage = 'Authentication required. Please log in to access this resource.';
+              // Clear auth on 401
+              this.removeAuthToken();
+              break;
+            case 403:
+              errorMessage = 'Access denied. You do not have permission to access this resource.';
+              break;
+            case 404:
+              errorMessage = 'Resource not found.';
+              break;
+            case 400:
+              // Keep the specific error message from backend for 400 errors
+              if (!data.message && !data.error) {
+                errorMessage = 'Bad request. Please check your input.';
+              }
+              break;
+            case 500:
+              errorMessage = 'Internal server error. Please try again later.';
+              break;
+          }
+
+          const error: ApiError = {
+            message: errorMessage,
+            status: response.status,
+            code: data.code || `HTTP_${response.status}`,
+            details: data,
+          };
+          toast.error(errorMessage);
+          throw error;
+        }
+
+        const result = {
+          data,
+          status: response.status,
+          success: true,
+          message: data.message,
+        };
+
+        // 4. Cache successful GET responses
+        if (isGet && useCache) {
+          this.cache.set(cacheKey, {
+            data,
+            expiry: Date.now() + this.DEFAULT_TTL,
+          });
+        }
+
+        return result;
+      } catch (error) {
+        this.inflightRequests.delete(cacheKey);
+
+        if (error instanceof Error) {
+          if (error.name === 'AbortError') {
+            throw {
+              message: 'Request timeout - The server took too long to respond',
+              status: 408,
+              code: 'TIMEOUT',
+            } as ApiError;
+          }
+
+          // Provide more helpful error messages for network errors
+          let errorMessage = error.message;
+          if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+            errorMessage = `Cannot connect to backend API at ${this.baseURL}. Please ensure:
 1. The backend server is running on port 8080
 2. The server URL is correct
 3. CORS is properly configured
 4. There are no firewall or network restrictions`;
+          }
+
+          throw {
+            message: errorMessage,
+            status: 0,
+            code: 'NETWORK_ERROR',
+            details: {
+              baseURL: this.baseURL,
+              endpoint,
+              originalError: error.message,
+            },
+          } as ApiError;
         }
 
-        throw {
-          message: errorMessage,
-          status: 0,
-          code: 'NETWORK_ERROR',
-          details: {
-            baseURL: this.baseURL,
-            endpoint,
-            originalError: error.message,
-          },
-        } as ApiError;
-      }
+        // Show toast for network errors
+        if (error instanceof Error) {
+          toast.error(error.message || 'An unexpected error occurred');
+        } else {
+          toast.error('An unexpected error occurred');
+        }
 
-      // Show toast for network errors
-      if (error instanceof Error) {
-        toast.error(error.message || 'An unexpected error occurred');
-      } else {
-        toast.error('An unexpected error occurred');
+        throw error;
+      } finally {
+        this.inflightRequests.delete(cacheKey);
       }
+    };
 
-      throw error;
-    }
+    const requestPromise = executeRequest();
+    this.inflightRequests.set(cacheKey, requestPromise);
+    return requestPromise;
   }
 
   // HTTP Methods
@@ -488,7 +555,7 @@ class ApiClient {
         // Try to parse error message
         const contentType = response.headers.get('content-type');
         let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        
+
         if (contentType && contentType.includes('application/json')) {
           try {
             const errorData = await response.json();

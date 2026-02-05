@@ -9,7 +9,7 @@ const TOKEN_KEY = 'sprintsync_token';
 /**
  * Available role types for role switching
  */
-export type SwitchableRole = 'developer' | 'manager';
+export type SwitchableRole = 'developer' | 'manager' | 'support_and_implementation';
 
 /**
  * Role Switcher Context Type
@@ -94,7 +94,7 @@ export const RoleSwitcherProvider: React.FC<{ children: ReactNode }> = ({ childr
         if (!projectRole) return null;
 
         const role = projectRole.role.toLowerCase();
-        if (role === 'manager' || role === 'admin' || role === 'qa_manager') {
+        if (role === 'manager' || role === 'admin' || role === 'qa_manager' || role === 'support_and_implementation') {
             return 'manager';
         }
         return 'developer';
@@ -138,7 +138,8 @@ export const RoleSwitcherProvider: React.FC<{ children: ReactNode }> = ({ childr
         const projectRole = getRoleForProject(selectedProjectId);
 
         if (!projectRole) {
-            // User not in project - show no roles or fallback to developer
+            // User not in project - if no project is selected, show available roles
+            // If project is selected but user has no role, fallback to developer
             return ['developer'];
         }
 
@@ -198,8 +199,14 @@ export const RoleSwitcherProvider: React.FC<{ children: ReactNode }> = ({ childr
                 (role): role is SwitchableRole => role === 'developer' || role === 'manager'
             );
 
-            // Ensure at least 'developer' is available
+            // Ensure at least 'developer' is available if list is empty
             if (switchableRoles.length === 0) {
+                switchableRoles.push('developer');
+            }
+
+            // Always allow developer role if the user has NO projects assigned
+            // This ensures they can still access the dashboard/profile
+            if (rolesData.projectRoles.length === 0 && !switchableRoles.includes('developer')) {
                 switchableRoles.push('developer');
             }
 
@@ -231,7 +238,7 @@ export const RoleSwitcherProvider: React.FC<{ children: ReactNode }> = ({ childr
             console.error('Failed to fetch user roles:', err);
             setError('Failed to load roles');
             // Fall back to user's global role
-            const fallbackRole = user.role === 'manager' || user.role === 'admin' ? 'manager' : 'developer';
+            const fallbackRole = (user.role === 'manager' || user.role === 'admin' || user.role === 'qa_manager' || user.role === 'support_and_implementation') ? 'manager' : 'developer';
             setAvailableRoles([fallbackRole as SwitchableRole]);
             setActiveRole(fallbackRole as SwitchableRole);
         } finally {
@@ -280,7 +287,7 @@ export const RoleSwitcherProvider: React.FC<{ children: ReactNode }> = ({ childr
     const originalRole: SwitchableRole = useMemo(() => {
         if (!user?.role) return 'developer';
         const role = user.role.toLowerCase();
-        if (role === 'manager' || role === 'admin' || role === 'qa_manager') {
+        if (role === 'manager' || role === 'admin' || role === 'qa_manager' || role === 'support_and_implementation') {
             return 'manager';
         }
         return 'developer';

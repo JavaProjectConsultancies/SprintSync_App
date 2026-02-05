@@ -290,6 +290,7 @@ const AdminPanelPage: React.FC = () => {
     switch (roleLower) {
       case 'admin': return 'bg-red-100 text-red-800 border-red-200';
       case 'manager':
+      case 'support_and_implementation':
       case 'project_manager': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'developer': return 'bg-green-100 text-green-800 border-green-200';
       case 'qa_manager': return 'bg-orange-100 text-orange-800 border-orange-200';

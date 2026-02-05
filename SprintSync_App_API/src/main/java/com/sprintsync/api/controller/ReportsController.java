@@ -451,9 +451,9 @@ public class ReportsController {
         try {
             byte[] pdfData = reportsService.exportReportToPdf(reportType, projectId, startDate, endDate);
             return ResponseEntity.ok()
-                .header("Content-Type", "application/pdf")
-                .header("Content-Disposition", "attachment; filename=report.pdf")
-                .body(pdfData);
+                    .header("Content-Type", "application/pdf")
+                    .header("Content-Disposition", "attachment; filename=report.pdf")
+                    .body(pdfData);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
@@ -463,7 +463,8 @@ public class ReportsController {
      * Schedule report generation
      */
     @PostMapping("/schedule")
-    public ResponseEntity<Map<String, Object>> scheduleReportGeneration(@RequestBody Map<String, Object> scheduleRequest) {
+    public ResponseEntity<Map<String, Object>> scheduleReportGeneration(
+            @RequestBody Map<String, Object> scheduleRequest) {
         try {
             Map<String, Object> result = reportsService.scheduleReportGeneration(scheduleRequest);
             return ResponseEntity.ok(result);
@@ -500,26 +501,31 @@ public class ReportsController {
 
     /**
      * Export bug report to Excel
-     * @param projectId Optional project ID to filter by. If not provided, exports all bug reports
+     * 
+     * @param projectId Optional project ID to filter by. If not provided, exports
+     *                  all bug reports
+     * @param sprintId  Optional sprint ID to filter by. If not provided, ignores
+     *                  sprint filter
      * @return Excel file as byte array
      */
     @GetMapping(value = "/export/bug-report/excel", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
     public ResponseEntity<byte[]> exportBugReportToExcel(
-            @RequestParam(required = false) String projectId) {
+            @RequestParam(required = false) String projectId,
+            @RequestParam(required = false) String sprintId) {
         try {
-            byte[] excelData = reportsService.exportBugReportToExcel(projectId);
-            
+            byte[] excelData = reportsService.exportBugReportToExcel(projectId, sprintId);
+
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
-            String filename = projectId != null && !projectId.isEmpty() 
-                ? String.format("bug-report-project-%s.xlsx", projectId)
-                : "bug-report.xlsx";
+            String filename = projectId != null && !projectId.isEmpty()
+                    ? String.format("bug-report-project-%s.xlsx", projectId)
+                    : "bug-report.xlsx";
             headers.setContentDispositionFormData("attachment", filename);
             headers.setContentLength(excelData.length);
-            
+
             return ResponseEntity.ok()
-                .headers(headers)
-                .body(excelData);
+                    .headers(headers)
+                    .body(excelData);
         } catch (IOException e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -531,7 +537,8 @@ public class ReportsController {
 
     /**
      * Generate bug report
-     * Fetches bug/defect data from issues table with joined data from related tables
+     * Fetches bug/defect data from issues table with joined data from related
+     * tables
      */
     @GetMapping("/bug-report")
     public ResponseEntity<java.util.List<com.sprintsync.api.dto.BugReportDto>> generateBugReport() {
@@ -559,6 +566,3 @@ public class ReportsController {
         }
     }
 }
-
-
-

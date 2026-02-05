@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Badge } from '../components/ui/badge';
-import { Bug, AlertCircle, AlertTriangle, CheckCircle2, XCircle, Clock, Loader2, X, Download } from 'lucide-react';
+import { Bug, AlertCircle, AlertTriangle, CheckCircle2, XCircle, Clock, Loader2, X, Download, ChevronDown } from 'lucide-react';
 import { reportsApiService } from '../services/api/utilities/reportsApi';
 import { toast } from 'sonner';
 
@@ -33,8 +33,8 @@ const ReportsPage: React.FC = () => {
   const [bugReports, setBugReports] = useState<BugReportRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedProject, setSelectedProject] = useState<string>('all');
-  const [selectedSprint, setSelectedSprint] = useState<string>('all');
+  const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
+  const [selectedSprints, setSelectedSprints] = useState<string[]>([]);
   const [exporting, setExporting] = useState(false);
 
   // Fetch bug report data from API
@@ -43,9 +43,9 @@ const ReportsPage: React.FC = () => {
       try {
         setLoading(true);
         setError(null);
-        
+
         const response = await reportsApiService.getBugReport();
-        
+
         setBugReports(response.data);
       } catch (err: any) {
         console.error('Error fetching bug reports:', err);
@@ -66,14 +66,14 @@ const ReportsPage: React.FC = () => {
 
   // Filter rows based on selected filters
   const rows = bugReports.filter(row => {
-    const projectMatch = selectedProject === 'all' || row.board === selectedProject;
-    const sprintMatch = selectedSprint === 'all' || row.sprint === selectedSprint;
+    const projectMatch = selectedProjects.length === 0 || selectedProjects.includes(row.board || '');
+    const sprintMatch = selectedSprints.length === 0 || selectedSprints.includes(row.sprint || '');
     return projectMatch && sprintMatch;
   });
 
   const getPriorityBadge = (priority?: string) => {
     if (!priority) return <Badge variant="outline">—</Badge>;
-    
+
     const priorityLower = priority.toLowerCase();
     if (priorityLower === 'high' || priorityLower === 'critical') {
       return (
@@ -101,7 +101,7 @@ const ReportsPage: React.FC = () => {
 
   const getSeverityBadge = (severity?: string) => {
     if (!severity) return <Badge variant="outline">—</Badge>;
-    
+
     const severityLower = severity.toLowerCase();
     if (severityLower === 'critical') {
       return <Badge className="bg-red-100 text-red-800 border-red-200 font-semibold">{severity}</Badge>;
@@ -117,7 +117,7 @@ const ReportsPage: React.FC = () => {
 
   const getResolutionBadge = (resolution?: string) => {
     if (!resolution) return <Badge variant="outline">—</Badge>;
-    
+
     const resolutionLower = resolution.toLowerCase();
     if (resolutionLower === 'resolved' || resolutionLower === 'closed') {
       return (
@@ -148,7 +148,7 @@ const ReportsPage: React.FC = () => {
 
   const getCategoryBadge = (category?: string) => {
     if (!category) return <Badge variant="outline">—</Badge>;
-    
+
     const categoryLower = category.toLowerCase();
     if (categoryLower === 'ui' || categoryLower === 'frontend') {
       return <Badge className="bg-purple-100 text-purple-800 border-purple-200">{category}</Badge>;
@@ -162,40 +162,161 @@ const ReportsPage: React.FC = () => {
     return <Badge variant="outline">{category}</Badge>;
   };
 
+  // Multi-Select Dropdown Component
+  const MultiSelect: React.FC<{
+    label: string;
+    icon: string;
+    options: string[];
+    selected: string[];
+    onChange: (selected: string[]) => void;
+  }> = ({ label, icon, options, selected, onChange }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+        if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+          setIsOpen(false);
+        }
+      };
+
+      if (isOpen) {
+        document.addEventListener('mousedown', handleClickOutside);
+      }
+
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }, [isOpen]);
+
+    const toggleOption = (option: string) => {
+      if (selected.includes(option)) {
+        onChange(selected.filter(item => item !== option));
+      } else {
+        onChange([...selected, option]);
+      }
+    };
+
+    const selectAll = () => {
+      onChange([...options]);
+    };
+
+    const clearAll = () => {
+      onChange([]);
+    };
+
+    const getDisplayText = () => {
+      if (selected.length === 0) {
+        return `${icon} All ${label}`;
+      } else if (selected.length === 1) {
+        return `${icon} ${selected[0]}`;
+      } else {
+        return `${icon} ${selected.length} ${label} Selected`;
+      }
+    };
+
+    return (
+      <div className="flex flex-col relative" ref={dropdownRef}>
+        <label className="text-xs font-semibold text-slate-600 uppercase mb-2 tracking-wider">{label}</label>
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="px-4 py-3 border-2 border-slate-300 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-red-400 bg-white hover:border-slate-400 transition-colors min-w-[200px] cursor-pointer shadow-sm h-11 flex items-center justify-between"
+        >
+          <span className="truncate">{getDisplayText()}</span>
+          <ChevronDown className={`h-4 w-4 ml-2 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </button>
+
+        {isOpen && (
+          <div className="absolute top-full left-0 mt-1 w-full bg-white border-2 border-slate-300 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-slate-200 p-2 flex gap-2">
+              <button
+                type="button"
+                onClick={selectAll}
+                className="flex-1 px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded transition-colors"
+              >
+                Select All
+              </button>
+              <button
+                type="button"
+                onClick={clearAll}
+                className="flex-1 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded transition-colors"
+              >
+                Clear All
+              </button>
+            </div>
+            <div className="p-1">
+              {options.map(option => (
+                <label
+                  key={option}
+                  className="flex items-center px-3 py-2 hover:bg-slate-50 rounded cursor-pointer transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(option)}
+                    onChange={() => toggleOption(option)}
+                    className="w-4 h-4 text-red-600 border-slate-300 rounded focus:ring-red-500 focus:ring-2 cursor-pointer"
+                  />
+                  <span className="ml-3 text-sm text-slate-700">{option}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Export bug report to Excel
   const handleExportToExcel = async () => {
     try {
       setExporting(true);
       console.log('🟢 Starting Excel export...');
-      const projectId = selectedProject !== 'all' ? selectedProject : undefined;
-      console.log('🟢 Project ID:', projectId);
-      
-      const blob = await reportsApiService.exportBugReportToExcel(projectId);
+
+      // For now, we'll still use the backend API but with combined filter logic
+      // If multiple projects/sprints selected, we'll export all and let backend handle it
+      // In future, we can update backend to accept arrays
+      const projectId = selectedProjects.length === 1 ? selectedProjects[0] : undefined;
+      const sprintId = selectedSprints.length === 1 ? selectedSprints[0] : undefined;
+
+      console.log('🟢 Selected Projects:', selectedProjects);
+      console.log('🟢 Selected Sprints:', selectedSprints);
+      console.log('🟢 Exporting with filters - Project:', projectId, 'Sprint:', sprintId);
+
+      const blob = await reportsApiService.exportBugReportToExcel(projectId, sprintId);
       console.log('🟢 Blob received:', blob.size, 'bytes, type:', blob.type);
-      
+
       if (!blob || blob.size === 0) {
         throw new Error('Received empty file from server');
       }
-      
+
       // Create download link
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      const filename = projectId 
-        ? `bug-report-project-${projectId}-${new Date().toISOString().split('T')[0]}.xlsx`
-        : `bug-report-${new Date().toISOString().split('T')[0]}.xlsx`;
+
+      let filename = 'bug-report';
+      if (selectedProjects.length > 0) {
+        filename += `-${selectedProjects.length}-projects`;
+      }
+      if (selectedSprints.length > 0) {
+        filename += `-${selectedSprints.length}-sprints`;
+      }
+      filename += `-${new Date().toISOString().split('T')[0]}.xlsx`;
+
       link.download = filename;
       link.style.display = 'none';
       document.body.appendChild(link);
       console.log('🟢 Triggering download for:', filename);
       link.click();
-      
+
       // Clean up after a short delay
       setTimeout(() => {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
       }, 100);
-      
+
       toast.success('Bug report exported to Excel successfully!');
     } catch (err: any) {
       console.error('🔴 Error exporting bug report:', err);
@@ -252,48 +373,41 @@ const ReportsPage: React.FC = () => {
 
         {/* Filters and Export */}
         <div className="flex items-end gap-6">
-          <div className="flex items-end gap-4">
-            <div className="flex flex-col">
-              <label className="text-xs font-semibold text-slate-600 uppercase mb-2 tracking-wider">Project</label>
-              <select
-                value={selectedProject}
-                onChange={(e) => setSelectedProject(e.target.value)}
-                className="px-4 py-3 border-2 border-slate-300 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-red-400 bg-white hover:border-slate-400 transition-colors min-w-[200px] cursor-pointer shadow-sm h-11"
-              >
-                <option value="all">📁 All Projects</option>
-                {projects.map(project => (
-                  <option key={project} value={project}>📁 {project}</option>
-                ))}
-              </select>
-            </div>
+          <MultiSelect
+            label="Projects"
+            icon="📁"
+            options={projects}
+            selected={selectedProjects}
+            onChange={setSelectedProjects}
+          />
 
-            <div className="flex flex-col">
-              <label className="text-xs font-semibold text-slate-600 uppercase mb-2 tracking-wider">Sprint</label>
-              <select
-                value={selectedSprint}
-                onChange={(e) => setSelectedSprint(e.target.value)}
-                className="px-4 py-3 border-2 border-slate-300 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-red-400 bg-white hover:border-slate-400 transition-colors min-w-[200px] cursor-pointer shadow-sm h-11"
-              >
-                <option value="all">🚀 All Sprints</option>
-                {sprints.map(sprint => (
-                  <option key={sprint} value={sprint}>🚀 {sprint}</option>
-                ))}
-              </select>
-            </div>
+          <MultiSelect
+            label="Sprints"
+            icon="🚀"
+            options={sprints}
+            selected={selectedSprints}
+            onChange={setSelectedSprints}
+          />
 
-            {(selectedProject !== 'all' || selectedSprint !== 'all') && (
-              <button
-                onClick={() => {
-                  setSelectedProject('all');
-                  setSelectedSprint('all');
-                }}
-                className="px-5 py-3 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all hover:shadow-md border-2 border-red-200 hover:border-red-300 h-11"
-              >
-                <X className="h-4 w-4" />
-                Clear
-              </button>
-            )}
-          </div>
+          {/* Clear Button - Always visible for now */}
+          <button
+            onClick={() => {
+              console.log('Clear clicked - Projects:', selectedProjects, 'Sprints:', selectedSprints);
+              setSelectedProjects([]);
+              setSelectedSprints([]);
+            }}
+            disabled={selectedProjects.length === 0 && selectedSprints.length === 0}
+            className="flex-shrink-0 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold flex items-center gap-2 transition-all hover:shadow-md h-11 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+              backgroundColor: selectedProjects.length === 0 && selectedSprints.length === 0 ? '#9ca3af' : '#dc2626',
+              color: '#ffffff',
+              minWidth: '120px',
+              display: 'flex'
+            }}
+          >
+            <X className="h-4 w-4" />
+            Clear {selectedProjects.length > 0 || selectedSprints.length > 0 ? `(${selectedProjects.length + selectedSprints.length})` : ''}
+          </button>
 
           <button
             onClick={handleExportToExcel}
@@ -330,7 +444,7 @@ const ReportsPage: React.FC = () => {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="border-l-4 border-l-orange-500 shadow-md hover:shadow-lg transition-shadow">
           <CardContent className="p-6">
             <div className="flex items-center justify-between gap-4">
@@ -429,8 +543,8 @@ const ReportsPage: React.FC = () => {
                   </TableRow>
                 ) : (
                   rows.map((row, index) => (
-                    <TableRow 
-                      key={row.defectCode} 
+                    <TableRow
+                      key={row.defectCode}
                       className={`hover:bg-blue-50 transition-colors border-b border-slate-200 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
                     >
                       <TableCell className="font-mono text-xs font-semibold text-blue-600 border-r border-gray-300">
@@ -492,7 +606,7 @@ const ReportsPage: React.FC = () => {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </div >
   );
 };
 

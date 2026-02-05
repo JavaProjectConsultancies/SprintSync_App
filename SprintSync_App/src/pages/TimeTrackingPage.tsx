@@ -36,7 +36,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { Calendar } from '../components/ui/calendar';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { BarChart, Bar, LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Legend, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 import { DateRange } from 'react-day-picker';
 import { format, startOfDay, endOfDay } from 'date-fns';
 
@@ -347,19 +347,40 @@ const buildTimeEntryKey = (entry: ApiTimeEntry, index: number): string => {
   ].join('|');
 };
 
+type ChartType = 'bar' | 'line' | 'area' | 'pie' | 'radar';
+
+const ChartTypeSelector: React.FC<{
+  value: ChartType;
+  onChange: (value: ChartType) => void;
+}> = ({ value, onChange }) => (
+  <Select value={value} onValueChange={(val) => onChange(val as ChartType)}>
+    <SelectTrigger className="w-[130px] h-8 text-xs">
+      <SelectValue placeholder="Chart Type" />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="bar">Bar Chart</SelectItem>
+      <SelectItem value="line">Line Chart</SelectItem>
+      <SelectItem value="area">Area Chart</SelectItem>
+      <SelectItem value="pie">Pie Chart</SelectItem>
+      <SelectItem value="radar">Radar Chart</SelectItem>
+    </SelectContent>
+  </Select>
+);
+
 const TimeTrackingPage: React.FC = () => {
   const { user: currentUser } = useAuth();
   const { activeRole } = useRoleSwitcher();
 
   // Use activeRole for permission checks - admin and master_admin stay as their roles, others use activeRole
-  const effectiveRole = currentUser?.role === 'admin' ? 'admin' : (currentUser?.role === 'master_admin' ? 'master_admin' : activeRole);
+  const effectiveRole = (currentUser?.role === 'admin' || currentUser?.role === 'master_admin' || currentUser?.role === 'qa_manager' || currentUser?.role === 'support_and_implementation') ? currentUser.role : activeRole;
 
   // Centralized role check for manager/admin/master_admin permissions using effectiveRole
   const isManagerOrAdmin = currentUser && (
     effectiveRole?.toLowerCase() === 'admin' ||
     effectiveRole?.toLowerCase() === 'master_admin' ||
     effectiveRole?.toLowerCase() === 'manager' ||
-    effectiveRole?.toLowerCase() === 'qa_manager'
+    effectiveRole?.toLowerCase() === 'qa_manager' ||
+    effectiveRole?.toLowerCase() === 'support_and_implementation'
   );
 
   const [timeFilter, setTimeFilter] = useState('all-time');
@@ -417,6 +438,12 @@ const TimeTrackingPage: React.FC = () => {
   }, [projectFilter]);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+
+  // Chart type states for the main page charts
+  const [dailyTrendChartType, setDailyTrendChartType] = useState<ChartType>('line');
+  const [sprintBreakdownChartType, setSprintBreakdownChartType] = useState<ChartType>('bar');
+  const [workTypeChartType, setWorkTypeChartType] = useState<ChartType>('pie');
+  const [teamBreakdownChartType, setTeamBreakdownChartType] = useState<ChartType>('bar');
   const [expandedUsers, setExpandedUsers] = useState<Record<string, boolean>>({});
   const fetchedTaskIdsRef = useRef<Set<string>>(new Set());
   const fetchedStoryIdsRef = useRef<Set<string>>(new Set());
@@ -483,7 +510,8 @@ const TimeTrackingPage: React.FC = () => {
             userRole === 'master_admin' ||
             userRole === 'manager' ||
             userRole === 'qa_manager' ||
-            userRole === 'support'
+            userRole === 'support' ||
+            userRole === 'support_and_implementation'
           );
 
           if (!isManagerOrAdmin) {
@@ -600,7 +628,8 @@ const TimeTrackingPage: React.FC = () => {
       userRole === 'admin' ||
       userRole === 'master_admin' ||
       userRole === 'manager' ||
-      userRole === 'qa_manager'
+      userRole === 'qa_manager' ||
+      userRole === 'support_and_implementation'
     );
 
     // If current user is manager/admin, show all users; otherwise show only current user
@@ -628,93 +657,44 @@ const TimeTrackingPage: React.FC = () => {
         const { issueApiService } = await import('../services/api/entities/issueApi');
         const { subtaskApiService } = await import('../services/api/entities/subtaskApi');
 
-        // Fetch all stories
-        const storiesResponse = await storyApiService.getAllStories();
+        const [storiesResponse, tasksResult, issuesResult, subtasksResult] = await Promise.all([
+          storyApiService.getAllStories(),
+          taskApiService.getAllTasks().catch(async (err: any) => {
+            if (err?.status === 404 || err?.code === 'HTTP_404') {
+              return taskApiService.getTasks({ page: 0, size: 1000 });
+            }
+            throw err;
+          }),
+          issueApiService.getAllIssues().catch(async (err: any) => {
+            if (err?.status === 404 || err?.code === 'HTTP_404') {
+              return issueApiService.getIssues({ page: 0, size: 1000 });
+            }
+            throw err;
+          }),
+          subtaskApiService.getAllSubtasks().catch(async (err: any) => {
+            if (err?.status === 404 || err?.code === 'HTTP_404') {
+              return subtaskApiService.getSubtasks({ page: 0, size: 1000 });
+            }
+            throw err;
+          })
+        ]);
+
         const storiesData = Array.isArray(storiesResponse.data) ? storiesResponse.data : [];
         setAllStories(prev => mergeById(prev, storiesData));
 
-        // Fetch all tasks - try /all endpoint first, fallback to regular endpoint
-        let tasksData: Task[] = [];
-        try {
-          const tasksResponse = await taskApiService.getAllTasks();
-          tasksData = Array.isArray(tasksResponse.data) ? tasksResponse.data : [];
-        } catch (err: any) {
-          // If /all fails (404), try regular endpoint with large page size
-          if (err?.status === 404 || err?.code === 'HTTP_404') {
-            console.log('Tasks /all endpoint not available, using regular endpoint');
-            try {
-              const tasksResponse = await taskApiService.getTasks({ page: 0, size: 1000 });
-              const data = tasksResponse.data as any;
-              if (Array.isArray(data)) {
-                tasksData = data;
-              } else if (data?.content && Array.isArray(data.content)) {
-                tasksData = data.content;
-              } else if (data?.data && Array.isArray(data.data)) {
-                tasksData = data.data;
-              }
-            } catch (err2) {
-              console.error('Error fetching tasks from regular endpoint:', err2);
-            }
-          } else {
-            throw err;
-          }
-        }
-
+        const tasksPayload = tasksResult.data as any;
+        const tasksData = Array.isArray(tasksPayload) ? tasksPayload :
+          (tasksPayload?.content || tasksPayload?.data || []);
         setAllTasks(prev => mergeById(prev, tasksData));
 
-        // Fetch all issues - try /all endpoint first, fallback to regular endpoint
-        let issuesData: any[] = [];
-        try {
-          const issuesResponse = await issueApiService.getAllIssues();
-          issuesData = Array.isArray(issuesResponse.data) ? issuesResponse.data : [];
-        } catch (err: any) {
-          // If /all fails (404), try regular endpoint with large page size
-          if (err?.status === 404 || err?.code === 'HTTP_404') {
-            console.log('Issues /all endpoint not available, using regular endpoint');
-            try {
-              const issuesResponse = await issueApiService.getIssues({ page: 0, size: 1000 });
-              const data = issuesResponse.data as any;
-              if (Array.isArray(data)) {
-                issuesData = data;
-              } else if (data?.content && Array.isArray(data.content)) {
-                issuesData = data.content;
-              } else if (data?.data && Array.isArray(data.data)) {
-                issuesData = data.data;
-              }
-            } catch (err2) {
-              console.error('Error fetching issues from regular endpoint:', err2);
-            }
-          } else {
-            throw err;
-          }
-        }
-
+        const issuesPayload = issuesResult.data as any;
+        const issuesData = Array.isArray(issuesPayload) ? issuesPayload :
+          (issuesPayload?.content || issuesPayload?.data || []);
         setAllIssues(prev => mergeById(prev, issuesData));
 
-        // Fetch all subtasks to create subtaskId -> taskId mapping
-        let subtasksData: any[] = [];
-        try {
-          const subtasksResponse = await subtaskApiService.getAllSubtasks();
-          subtasksData = Array.isArray(subtasksResponse.data) ? subtasksResponse.data : [];
-        } catch (err: any) {
-          // If /all fails, try regular endpoint
-          if (err?.status === 404 || err?.code === 'HTTP_404') {
-            try {
-              const subtasksResponse = await subtaskApiService.getSubtasks({ page: 0, size: 1000 });
-              const data = subtasksResponse.data as any;
-              if (Array.isArray(data)) {
-                subtasksData = data;
-              } else if (data?.content && Array.isArray(data.content)) {
-                subtasksData = data.content;
-              } else if (data?.data && Array.isArray(data.data)) {
-                subtasksData = data.data;
-              }
-            } catch (err2) {
-              console.error('Error fetching subtasks from regular endpoint:', err2);
-            }
-          }
-        }
-
+        const subtasksPayload = subtasksResult.data as any;
+        const subtasksData = Array.isArray(subtasksPayload) ? subtasksPayload :
+          (subtasksPayload?.content || subtasksPayload?.data || []);
         setAllSubtasks(prev => mergeById(prev, subtasksData));
 
         console.log('Fetched all stories:', storiesData.length);
@@ -766,7 +746,8 @@ const TimeTrackingPage: React.FC = () => {
       userRole === 'admin' ||
       userRole === 'master_admin' ||
       userRole === 'manager' ||
-      userRole === 'qa_manager'
+      userRole === 'qa_manager' ||
+      userRole === 'support_and_implementation'
     );
 
     if (isManagerOrAdmin && usersData.length === 0) {
@@ -1241,15 +1222,7 @@ const TimeTrackingPage: React.FC = () => {
     }
 
     const isManagerOrAdmin = currentUser && (
-      (currentUser.role as string) === 'admin' ||
-      (currentUser.role as string) === 'master_admin' ||
-      (currentUser.role as string) === 'manager' ||
-      (currentUser.role as string) === 'MANAGER' ||
-      (currentUser.role as string) === 'ADMIN' ||
-      (currentUser.role as string) === 'MASTER_ADMIN' ||
-      (currentUser.role as string)?.toLowerCase() === 'manager' ||
-      (currentUser.role as string)?.toLowerCase() === 'admin' ||
-      (currentUser.role as string)?.toLowerCase() === 'master_admin'
+      ['admin', 'master_admin', 'manager', 'qa_manager', 'support_and_implementation'].includes((currentUser.role as string)?.toLowerCase())
     );
 
     const fetchKey = isManagerOrAdmin ? `${userId}-all` : userId;
@@ -1697,7 +1670,8 @@ const TimeTrackingPage: React.FC = () => {
       userRole === 'admin' ||
       userRole === 'master_admin' ||
       userRole === 'manager' ||
-      userRole === 'qa_manager'
+      userRole === 'qa_manager' ||
+      userRole === 'support_and_implementation'
     );
 
     let entriesToMap = rawTimeEntries;
@@ -1902,7 +1876,7 @@ const TimeTrackingPage: React.FC = () => {
       // 1. Task/Issue reporterId
       // 2. Story reporterId
       // 3. Time entry userId (person who logged the time)
-      const reporterId = 
+      const reporterId =
         (task?.reporterId ? normalizeId(task.reporterId) : undefined) ||
         (issue?.reporterId ? normalizeId(issue.reporterId) : undefined) ||
         (story?.reporterId ? normalizeId(story.reporterId) : undefined) ||
@@ -1955,7 +1929,7 @@ const TimeTrackingPage: React.FC = () => {
     // Group entries by taskId/issueId and aggregate hours
     const entryGroupMap = new Map<string, TimeEntry[]>();
     const rawEntriesByTask = new Map<string, any[]>(); // Store raw entries for expansion
-    
+
     validEntries.forEach(entry => {
       const groupId = entry.taskId || entry.issueId!;
       if (!entryGroupMap.has(groupId)) {
@@ -1975,7 +1949,7 @@ const TimeTrackingPage: React.FC = () => {
       const entryTaskId = resolvedTaskId;
       const entryIssueId = normalizeId((entry as any).issueId);
       const groupId = entryTaskId || entryIssueId;
-      
+
       if (groupId && rawEntriesByTask.has(groupId)) {
         rawEntriesByTask.get(groupId)!.push(entry);
       }
@@ -2017,7 +1991,7 @@ const TimeTrackingPage: React.FC = () => {
 
     // Store raw entries in ref for expansion
     rawTimeEntriesRef.current = rawEntriesByTask;
-    
+
     setTimeEntries(aggregatedEntries);
   }, [rawTimeEntries, usersMap, projectsMap, storiesMap, tasksMap, sprintsMap, projectToSprintMap, subtaskToTaskMap, currentUser?.id, currentUser?.role]);
 
@@ -2167,7 +2141,8 @@ const TimeTrackingPage: React.FC = () => {
       userRole === 'admin' ||
       userRole === 'master_admin' ||
       userRole === 'manager' ||
-      userRole === 'qa_manager'
+      userRole === 'qa_manager' ||
+      userRole === 'support_and_implementation'
     );
 
     // Calculate allotted time
@@ -2320,26 +2295,26 @@ const TimeTrackingPage: React.FC = () => {
 
   const dailyTrendData = useMemo(() => {
     const map = new Map<string, number>();
-    
+
     // If no filtered entries, return empty data
     if (filteredTimeEntries.length === 0) {
       return [];
     }
-    
+
     // Get task and issue IDs from filtered entries to match raw entries
     const filteredTaskIds = new Set(filteredTimeEntries.map(e => e.taskId).filter(Boolean));
     const filteredIssueIds = new Set(filteredTimeEntries.map(e => e.issueId).filter(Boolean));
-    
+
     // Helper to check if raw entry is within date range
     const isRawEntryInRange = (entry: ApiTimeEntry): boolean => {
       const date = entry.workDate || entry.createdAt;
       if (!date) return false;
-      
+
       const parsedDate = new Date(date);
       if (Number.isNaN(parsedDate.getTime())) return false;
-      
+
       const now = new Date();
-      
+
       if (timeFilter === 'this-week') {
         const start = startOfDay(now);
         start.setDate(now.getDate() - now.getDay());
@@ -2362,47 +2337,47 @@ const TimeTrackingPage: React.FC = () => {
         return parsedDate.getTime() >= start.getTime() && parsedDate.getTime() <= end.getTime();
       } else if (timeFilter === 'custom') {
         if (customDateRange?.from && customDateRange?.to) {
-          return parsedDate.getTime() >= startOfDay(customDateRange.from).getTime() && 
-                 parsedDate.getTime() <= endOfDay(customDateRange.to).getTime();
+          return parsedDate.getTime() >= startOfDay(customDateRange.from).getTime() &&
+            parsedDate.getTime() <= endOfDay(customDateRange.to).getTime();
         }
         return false;
       }
       // 'all-time' or default
       return true;
     };
-    
+
     // Filter raw entries to match the filtered aggregated entries
     const relevantRawEntries = rawTimeEntries.filter(entry => {
       // Match by taskId or issueId from filtered entries
       const taskId = normalizeId((entry as any).taskId);
       const issueId = normalizeId((entry as any).issueId);
       const userId = normalizeId(entry.userId);
-      
+
       const matchesTask = taskId && filteredTaskIds.has(taskId);
       const matchesIssue = issueId && filteredIssueIds.has(issueId);
-      
+
       // If doesn't match task/issue, skip
       if (!matchesTask && !matchesIssue) return false;
-      
+
       // Apply user filter
       if (userFilter !== 'all' && userId !== userFilter) return false;
-      
+
       // Apply date range filter
       if (!isRawEntryInRange(entry)) return false;
-      
+
       return true;
     });
-    
+
     // Group by date and sum hours
     relevantRawEntries.forEach(entry => {
       const date = entry.workDate || entry.createdAt;
       if (!date) return;
-      
+
       const parsedDate = new Date(date);
       if (Number.isNaN(parsedDate.getTime())) {
         return;
       }
-      
+
       const key = parsedDate.toISOString().split('T')[0];
       const hours = entry.hoursWorked || 0;
       map.set(key, (map.get(key) || 0) + hours);
@@ -3536,7 +3511,7 @@ const TimeTrackingPage: React.FC = () => {
                   const isExpanded = expandedRows.has(entry.id);
                   const taskOrIssueId = entry.taskId || entry.issueId;
                   const rawEntries = taskOrIssueId ? rawTimeEntriesRef.current.get(taskOrIssueId) || [] : [];
-                  
+
                   // Get date-wise logs
                   const dateMap = new Map<string, { date: string; hours: number; description: string; userName: string }>();
                   rawEntries.forEach(raw => {
@@ -3546,7 +3521,7 @@ const TimeTrackingPage: React.FC = () => {
                     const userId = normalizeId(raw.userId);
                     const user = userId ? usersMap.get(userId) : undefined;
                     const userName = user?.name || 'Unknown';
-                    
+
                     if (date) {
                       const dateKey = format(new Date(date), 'yyyy-MM-dd');
                       if (dateMap.has(dateKey)) {
@@ -3560,13 +3535,13 @@ const TimeTrackingPage: React.FC = () => {
                       }
                     }
                   });
-                  
+
                   const dateWiseLogs = Array.from(dateMap.values())
                     .sort((a, b) => b.date.localeCompare(a.date));
-                  
+
                   // Get due date from entry (already populated during processing)
                   const dueDateDisplay = entry.dueDate ? format(new Date(entry.dueDate), 'MMM dd, yyyy') : '—';
-                  
+
                   const sprintName = entry.sprintName
                     || (entry.sprintId ? sprintsMap.get(entry.sprintId)?.name : undefined)
                     || '—';
@@ -3632,55 +3607,55 @@ const TimeTrackingPage: React.FC = () => {
                         <TableCell>
                           <p className="text-sm font-medium text-foreground">{entry.reporterName || '—'}</p>
                         </TableCell>
-                      <TableCell className="max-w-[220px]">
-                        <div className="flex items-center gap-1.5">
-                          {entry.taskId ? (
-                            <span className="font-bold text-green-600 shrink-0" title="Task">[T]</span>
-                          ) : entry.issueId ? (
-                            <span className="font-bold text-red-600 shrink-0" title="Issue">[I]</span>
-                          ) : null}
-                          <p
-                            className="truncate font-medium text-foreground"
-                            title={entry.task}
-                            style={{ maxWidth: '180px' }}
+                        <TableCell className="max-w-[220px]">
+                          <div className="flex items-center gap-1.5">
+                            {entry.taskId ? (
+                              <span className="font-bold text-green-600 shrink-0" title="Task">[T]</span>
+                            ) : entry.issueId ? (
+                              <span className="font-bold text-red-600 shrink-0" title="Issue">[I]</span>
+                            ) : null}
+                            <p
+                              className="truncate font-medium text-foreground"
+                              title={entry.task}
+                              style={{ maxWidth: '180px' }}
+                            >
+                              {entry.task}
+                            </p>
+                          </div>
+                          <p className="truncate text-xs text-muted-foreground">{entry.story}</p>
+                        </TableCell>
+                        <TableCell className="max-w-[160px] truncate">{entry.project}</TableCell>
+                        <TableCell>{sprintName}</TableCell>
+                        <TableCell>{dueDateDisplay}</TableCell>
+                        <TableCell>{estimatedHours !== undefined ? estimatedHours.toFixed(1) : '—'}</TableCell>
+                        <TableCell>
+                          <span
+                            className={
+                              estimatedHours !== undefined &&
+                                actualHoursTotal !== undefined &&
+                                actualHoursTotal > estimatedHours
+                                ? 'font-bold text-red-600'
+                                : ''
+                            }
                           >
-                            {entry.task}
-                          </p>
-                        </div>
-                        <p className="truncate text-xs text-muted-foreground">{entry.story}</p>
-                      </TableCell>
-                      <TableCell className="max-w-[160px] truncate">{entry.project}</TableCell>
-                      <TableCell>{sprintName}</TableCell>
-                      <TableCell>{dueDateDisplay}</TableCell>
-                      <TableCell>{estimatedHours !== undefined ? estimatedHours.toFixed(1) : '—'}</TableCell>
-                      <TableCell>
-                        <span
-                          className={
-                            estimatedHours !== undefined &&
-                              actualHoursTotal !== undefined &&
-                              actualHoursTotal > estimatedHours
-                              ? 'font-bold text-red-600'
-                              : ''
-                          }
-                        >
-                          {actualHoursTotal !== undefined ? actualHoursTotal.toFixed(1) : '—'}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={`text-xs ${getCategoryColor(entry.category)}`}>
-                          {formatCategoryName(entry.category)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={`text-xs ${taskStatusStyle.className}`}>
-                          {taskStatusStyle.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={`text-xs ${billableBadgeClass}`}>
-                          {entry.billable ? 'Billable' : 'Non-billable'}
-                        </Badge>
-                      </TableCell>
+                            {actualHoursTotal !== undefined ? actualHoursTotal.toFixed(1) : '—'}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={`text-xs ${getCategoryColor(entry.category)}`}>
+                            {formatCategoryName(entry.category)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={`text-xs ${taskStatusStyle.className}`}>
+                            {taskStatusStyle.label}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={`text-xs ${billableBadgeClass}`}>
+                            {entry.billable ? 'Billable' : 'Non-billable'}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="max-w-[220px]">
                           {entry.notes ? (
                             <p
@@ -3797,6 +3772,7 @@ const TimeTrackingPage: React.FC = () => {
                 <h2 className="text-lg font-semibold text-foreground">Daily Time Trend</h2>
                 <p className="text-sm text-muted-foreground">Hours logged each day</p>
               </div>
+              <ChartTypeSelector value={dailyTrendChartType} onChange={setDailyTrendChartType} />
             </div>
             <div className="mt-6 h-72">
               {dailyTrendData.length > 0 ? (
@@ -3809,23 +3785,66 @@ const TimeTrackingPage: React.FC = () => {
                   }}
                 >
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={dailyTrendData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
-                      <XAxis
-                        dataKey="label"
-                        tickLine={false}
-                        axisLine={false}
-                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                      />
-                      <YAxis
-                        tickLine={false}
-                        axisLine={false}
-                        allowDecimals
-                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                      />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Line type="monotone" dataKey="hours" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} />
-                    </LineChart>
+                    {(() => {
+                      const data = dailyTrendData;
+                      switch (dailyTrendChartType) {
+                        case 'bar':
+                          return (
+                            <BarChart data={data}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                              <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <YAxis tickLine={false} axisLine={false} allowDecimals tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Bar dataKey="hours" fill="#6366f1" radius={6} />
+                            </BarChart>
+                          );
+                        case 'area':
+                          return (
+                            <AreaChart data={data}>
+                              <defs>
+                                <linearGradient id="colorHours" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8} />
+                                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                              <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <YAxis tickLine={false} axisLine={false} allowDecimals tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Area type="monotone" dataKey="hours" stroke="#6366f1" fillOpacity={1} fill="url(#colorHours)" />
+                            </AreaChart>
+                          );
+                        case 'pie':
+                          return (
+                            <PieChart>
+                              <Pie data={data} dataKey="hours" nameKey="label" cx="50%" cy="50%" outerRadius={80} fill="#6366f1" label />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Legend />
+                            </PieChart>
+                          );
+                        case 'radar':
+                          return (
+                            <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
+                              <PolarGrid />
+                              <PolarAngleAxis dataKey="label" />
+                              <PolarRadiusAxis />
+                              <Radar name="Hours" dataKey="hours" stroke="#6366f1" fill="#6366f1" fillOpacity={0.6} />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                            </RadarChart>
+                          );
+                        case 'line':
+                        default:
+                          return (
+                            <LineChart data={data}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                              <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <YAxis tickLine={false} axisLine={false} allowDecimals tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Line type="monotone" dataKey="hours" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} />
+                            </LineChart>
+                          );
+                      }
+                    })()}
                   </ResponsiveContainer>
                 </ChartContainer>
               ) : (
@@ -3844,6 +3863,7 @@ const TimeTrackingPage: React.FC = () => {
                 <h2 className="text-lg font-semibold text-foreground">Time by Sprint</h2>
                 <p className="text-sm text-muted-foreground">Compare logged hours across sprints</p>
               </div>
+              <ChartTypeSelector value={sprintBreakdownChartType} onChange={setSprintBreakdownChartType} />
             </div>
             <div className="mt-6 h-72">
               {sprintBreakdownData.length > 0 ? (
@@ -3860,22 +3880,66 @@ const TimeTrackingPage: React.FC = () => {
                   )}
                 >
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={sprintBreakdownData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
-                      <XAxis
-                        dataKey="sprintName"
-                        tickLine={false}
-                        axisLine={false}
-                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                      />
-                      <YAxis
-                        tickLine={false}
-                        axisLine={false}
-                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                      />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar dataKey="hours" radius={6} fill="#a855f7" />
-                    </BarChart>
+                    {(() => {
+                      const data = sprintBreakdownData;
+                      switch (sprintBreakdownChartType) {
+                        case 'line':
+                          return (
+                            <LineChart data={data}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                              <XAxis dataKey="sprintName" tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <YAxis tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Line type="monotone" dataKey="hours" stroke="#a855f7" strokeWidth={2} dot={{ r: 3 }} />
+                            </LineChart>
+                          );
+                        case 'area':
+                          return (
+                            <AreaChart data={data}>
+                              <defs>
+                                <linearGradient id="colorSprint" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#a855f7" stopOpacity={0.8} />
+                                  <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                              <XAxis dataKey="sprintName" tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <YAxis tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Area type="monotone" dataKey="hours" stroke="#a855f7" fillOpacity={1} fill="url(#colorSprint)" />
+                            </AreaChart>
+                          );
+                        case 'pie':
+                          return (
+                            <PieChart>
+                              <Pie data={data} dataKey="hours" nameKey="sprintName" cx="50%" cy="50%" outerRadius={80} fill="#a855f7" label />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Legend />
+                            </PieChart>
+                          );
+                        case 'radar':
+                          return (
+                            <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
+                              <PolarGrid />
+                              <PolarAngleAxis dataKey="sprintName" />
+                              <PolarRadiusAxis />
+                              <Radar name="Hours" dataKey="hours" stroke="#a855f7" fill="#a855f7" fillOpacity={0.6} />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                            </RadarChart>
+                          );
+                        case 'bar':
+                        default:
+                          return (
+                            <BarChart data={data}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                              <XAxis dataKey="sprintName" tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <YAxis tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Bar dataKey="hours" radius={6} fill="#a855f7" />
+                            </BarChart>
+                          );
+                      }
+                    })()}
                   </ResponsiveContainer>
                 </ChartContainer>
               ) : (
@@ -3896,6 +3960,7 @@ const TimeTrackingPage: React.FC = () => {
                 <h2 className="text-lg font-semibold text-foreground">Time by Work Type</h2>
                 <p className="text-sm text-muted-foreground">Distribution of logged hours</p>
               </div>
+              <ChartTypeSelector value={workTypeChartType} onChange={setWorkTypeChartType} />
             </div>
             <div className="mt-6 h-72">
               {workTypeBreakdownData.length > 0 ? (
@@ -3912,35 +3977,89 @@ const TimeTrackingPage: React.FC = () => {
                   )}
                 >
                   <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <ChartTooltip
-                        content={<ChartTooltipContent />}
-                        formatter={(value: any, name: any) => [
-                          `${value} hours`,
-                          formatDisplayName(name)
-                        ]}
-                      />
-                      <Pie
-                        data={workTypeBreakdownData}
-                        dataKey="hours"
-                        nameKey="category"
-                        innerRadius={60}
-                        outerRadius={90}
-                        paddingAngle={3}
-                        label={(entry: any) => `${formatDisplayName(entry.category)}: ${entry.hours}h`}
-                      >
-                        {workTypeBreakdownData.map((item, index) => (
-                          <Cell
-                            key={item.category}
-                            fill={workTypeColorPalette[index % workTypeColorPalette.length]}
-                          />
-                        ))}
-                      </Pie>
-                      <Legend
-                        formatter={(value: string) => formatDisplayName(value)}
-                        wrapperStyle={{ fontSize: '12px' }}
-                      />
-                    </PieChart>
+                    {(() => {
+                      const data = workTypeBreakdownData;
+                      const colors = workTypeColorPalette;
+                      switch (workTypeChartType) {
+                        case 'bar':
+                          return (
+                            <BarChart data={data}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                              <XAxis dataKey="category" tickFormatter={formatDisplayName} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <YAxis tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Bar dataKey="hours" radius={6}>
+                                {data.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          );
+                        case 'line':
+                          return (
+                            <LineChart data={data}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                              <XAxis dataKey="category" tickFormatter={formatDisplayName} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <YAxis tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Line type="monotone" dataKey="hours" stroke={colors[0]} strokeWidth={2} dot={{ r: 3 }} />
+                            </LineChart>
+                          );
+                        case 'area':
+                          return (
+                            <AreaChart data={data}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                              <XAxis dataKey="category" tickFormatter={formatDisplayName} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <YAxis tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Area type="monotone" dataKey="hours" stroke={colors[0]} fill={colors[0]} fillOpacity={0.4} />
+                            </AreaChart>
+                          );
+                        case 'radar':
+                          return (
+                            <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
+                              <PolarGrid />
+                              <PolarAngleAxis dataKey="category" tickFormatter={formatDisplayName} />
+                              <PolarRadiusAxis />
+                              <Radar name="Hours" dataKey="hours" stroke={colors[0]} fill={colors[0]} fillOpacity={0.6} />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                            </RadarChart>
+                          );
+                        case 'pie':
+                        default:
+                          return (
+                            <PieChart>
+                              <ChartTooltip
+                                content={<ChartTooltipContent />}
+                                formatter={(value: any, name: any) => [
+                                  `${value} hours`,
+                                  formatDisplayName(name)
+                                ]}
+                              />
+                              <Pie
+                                data={data}
+                                dataKey="hours"
+                                nameKey="category"
+                                innerRadius={60}
+                                outerRadius={90}
+                                paddingAngle={3}
+                                label={(entry: any) => `${formatDisplayName(entry.category)}: ${entry.hours}h`}
+                              >
+                                {data.map((item, index) => (
+                                  <Cell
+                                    key={item.category}
+                                    fill={colors[index % colors.length]}
+                                  />
+                                ))}
+                              </Pie>
+                              <Legend
+                                formatter={(value: string) => formatDisplayName(value)}
+                                wrapperStyle={{ fontSize: '12px' }}
+                              />
+                            </PieChart>
+                          );
+                      }
+                    })()}
                   </ResponsiveContainer>
                 </ChartContainer>
               ) : (
@@ -3959,6 +4078,7 @@ const TimeTrackingPage: React.FC = () => {
                 <h2 className="text-lg font-semibold text-foreground">Time by Team Member</h2>
                 <p className="text-sm text-muted-foreground">Billable vs non-billable split</p>
               </div>
+              <ChartTypeSelector value={teamBreakdownChartType} onChange={setTeamBreakdownChartType} />
             </div>
             <div className="mt-6 h-72">
               {teamBreakdownData.length > 0 ? (
@@ -3975,24 +4095,72 @@ const TimeTrackingPage: React.FC = () => {
                   }}
                 >
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={teamBreakdownData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
-                      <XAxis
-                        dataKey="userName"
-                        tickLine={false}
-                        axisLine={false}
-                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                      />
-                      <YAxis
-                        tickLine={false}
-                        axisLine={false}
-                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                      />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Legend />
-                      <Bar dataKey="billableHours" stackId="hours" radius={[6, 6, 0, 0]} fill={stackedBarColors.billable} />
-                      <Bar dataKey="nonBillableHours" stackId="hours" radius={0} fill={stackedBarColors.nonBillable} />
-                    </BarChart>
+                    {(() => {
+                      const data = teamBreakdownData;
+                      const colors = stackedBarColors;
+                      switch (teamBreakdownChartType) {
+                        case 'line':
+                          return (
+                            <LineChart data={data}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                              <XAxis dataKey="userName" tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <YAxis tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Legend />
+                              <Line type="monotone" dataKey="billableHours" stroke={colors.billable} strokeWidth={2} dot={{ r: 3 }} />
+                              <Line type="monotone" dataKey="nonBillableHours" stroke={colors.nonBillable} strokeWidth={2} dot={{ r: 3 }} />
+                            </LineChart>
+                          );
+                        case 'area':
+                          return (
+                            <AreaChart data={data}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                              <XAxis dataKey="userName" tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <YAxis tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Legend />
+                              <Area type="monotone" dataKey="billableHours" stackId="1" stroke={colors.billable} fill={colors.billable} fillOpacity={0.4} />
+                              <Area type="monotone" dataKey="nonBillableHours" stackId="1" stroke={colors.nonBillable} fill={colors.nonBillable} fillOpacity={0.4} />
+                            </AreaChart>
+                          );
+                        case 'pie':
+                          return (
+                            <PieChart>
+                              <Pie data={[{ name: 'Billable', value: data.reduce((a, b) => a + (b.billableHours || 0), 0) }, { name: 'Non-billable', value: data.reduce((a, b) => a + (b.nonBillableHours || 0), 0) }]} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                                <Cell fill={colors.billable} />
+                                <Cell fill={colors.nonBillable} />
+                              </Pie>
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Legend />
+                            </PieChart>
+                          );
+                        case 'radar':
+                          return (
+                            <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
+                              <PolarGrid />
+                              <PolarAngleAxis dataKey="userName" />
+                              <PolarRadiusAxis />
+                              <Radar name="Billable" dataKey="billableHours" stroke={colors.billable} fill={colors.billable} fillOpacity={0.6} />
+                              <Radar name="Non-billable" dataKey="nonBillableHours" stroke={colors.nonBillable} fill={colors.nonBillable} fillOpacity={0.6} />
+                              <Legend />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                            </RadarChart>
+                          );
+                        case 'bar':
+                        default:
+                          return (
+                            <BarChart data={data}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                              <XAxis dataKey="userName" tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <YAxis tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Legend />
+                              <Bar dataKey="billableHours" stackId="hours" radius={[6, 6, 0, 0]} fill={colors.billable} />
+                              <Bar dataKey="nonBillableHours" stackId="hours" radius={0} fill={colors.nonBillable} />
+                            </BarChart>
+                          );
+                      }
+                    })()}
                   </ResponsiveContainer>
                 </ChartContainer>
               ) : (
@@ -4059,6 +4227,12 @@ const UserAnalytics: React.FC<UserAnalyticsProps> = ({
 }) => {
   const user = usersMap.get(userId);
   const userEntries = timeEntries.filter(e => e.userId === userId);
+
+  // Chart type states for User Analytics charts
+  const [projectChartType, setProjectChartType] = useState<ChartType>('pie');
+  const [dailyChartType, setDailyChartType] = useState<ChartType>('bar');
+  const [categoryChartType, setCategoryChartType] = useState<ChartType>('pie');
+  const [accuracyChartType, setAccuracyChartType] = useState<ChartType>('line');
 
   // Calculate daily time spent
   const dailyData = useMemo(() => {
@@ -4269,49 +4443,101 @@ const UserAnalytics: React.FC<UserAnalyticsProps> = ({
           <div className="grid gap-4 md:grid-cols-2">
             <Card>
               <CardContent className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Time by Project</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">Time by Project</h3>
+                  <ChartTypeSelector value={projectChartType} onChange={setProjectChartType} />
+                </div>
                 {projectData.length > 0 ? (
                   <ChartContainer config={chartConfig}>
                     <ResponsiveContainer width="100%" height={280}>
-                      <PieChart>
-                        <defs>
-                          {projectData.map((_, index) => {
-                            const gradientId = `${PIE_GRADIENT_ID_PREFIX}-project-${index}`;
-                            const sliceColor = ANALYTICS_COLORS[index % ANALYTICS_COLORS.length];
-
+                      {(() => {
+                        const data = projectData;
+                        const colors = ANALYTICS_COLORS;
+                        switch (projectChartType) {
+                          case 'bar':
                             return (
-                              <linearGradient key={gradientId} id={gradientId} x1="0" y1="0" x2="1" y2="1">
-                                <stop offset="0%" stopColor={sliceColor} />
-                                <stop offset="100%" stopColor="#ffffff" />
-                              </linearGradient>
+                              <BarChart data={data}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="project" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+                                <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+                                <ChartTooltip content={<ChartTooltipContent />} />
+                                <Bar dataKey="hours" radius={[4, 4, 0, 0]}>
+                                  {data.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+                                  ))}
+                                </Bar>
+                              </BarChart>
                             );
-                          })}
-                        </defs>
-                        <Pie
-                          data={projectData}
-                          dataKey="hours"
-                          nameKey="project"
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={110}
-                          label
-                        >
-                          {projectData.map((_, index) => {
-                            const gradientId = `${PIE_GRADIENT_ID_PREFIX}-project-${index}`;
-
+                          case 'line':
                             return (
-                              <Cell
-                                key={`project-cell-${index}`}
-                                fill={`url(#${gradientId})`}
-                                stroke="#bbf7d0"
-                                strokeWidth={1}
-                              />
+                              <LineChart data={data}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="project" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+                                <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+                                <ChartTooltip content={<ChartTooltipContent />} />
+                                <Line type="monotone" dataKey="hours" stroke={colors[0]} strokeWidth={2} />
+                              </LineChart>
                             );
-                          })}
-                        </Pie>
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                        <Legend />
-                      </PieChart>
+                          case 'area':
+                            return (
+                              <AreaChart data={data}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="project" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+                                <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+                                <ChartTooltip content={<ChartTooltipContent />} />
+                                <Area type="monotone" dataKey="hours" stroke={colors[0]} fill={colors[0]} fillOpacity={0.4} />
+                              </AreaChart>
+                            );
+                          case 'radar':
+                            return (
+                              <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
+                                <PolarGrid />
+                                <PolarAngleAxis dataKey="project" />
+                                <PolarRadiusAxis />
+                                <Radar name="Hours" dataKey="hours" stroke={colors[0]} fill={colors[0]} fillOpacity={0.6} />
+                                <ChartTooltip content={<ChartTooltipContent />} />
+                              </RadarChart>
+                            );
+                          case 'pie':
+                          default:
+                            return (
+                              <PieChart>
+                                <defs>
+                                  {data.map((_, index) => {
+                                    const gradientId = `${PIE_GRADIENT_ID_PREFIX}-project-${index}`;
+                                    const sliceColor = colors[index % colors.length];
+                                    return (
+                                      <linearGradient key={gradientId} id={gradientId} x1="0" y1="0" x2="1" y2="1">
+                                        <stop offset="0%" stopColor={sliceColor} />
+                                        <stop offset="100%" stopColor="#ffffff" />
+                                      </linearGradient>
+                                    );
+                                  })}
+                                </defs>
+                                <Pie
+                                  data={data}
+                                  dataKey="hours"
+                                  nameKey="project"
+                                  cx="50%"
+                                  cy="50%"
+                                  outerRadius={110}
+                                  label
+                                >
+                                  {data.map((_, index) => (
+                                    <Cell
+                                      key={`project-cell-${index}`}
+                                      fill={`url(#${PIE_GRADIENT_ID_PREFIX}-project-${index})`}
+                                      stroke="#bbf7d0"
+                                      strokeWidth={1}
+                                    />
+                                  ))}
+                                </Pie>
+                                <ChartTooltip content={<ChartTooltipContent />} />
+                                <Legend />
+                              </PieChart>
+                            );
+                        }
+                      })()}
                     </ResponsiveContainer>
                   </ChartContainer>
                 ) : (
@@ -4356,23 +4582,73 @@ const UserAnalytics: React.FC<UserAnalyticsProps> = ({
 
           <Card>
             <CardContent className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Time Spent by Project</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Time Spent by Project</h3>
+                <ChartTypeSelector value={projectChartType} onChange={setProjectChartType} />
+              </div>
               {projectData.length > 0 ? (
                 <ChartContainer config={chartConfig}>
                   <ResponsiveContainer width="100%" height={320}>
-                    <BarChart data={projectData}>
-                      <defs>
-                        <linearGradient id={BAR_GRADIENT_ID} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#16a34a" />
-                          <stop offset="100%" stopColor="#ffffff" />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="project" />
-                      <YAxis />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar dataKey="hours" fill={`url(#${BAR_GRADIENT_ID})`} radius={[6, 6, 0, 0]} />
-                    </BarChart>
+                    {(() => {
+                      const data = projectData;
+                      const color = '#16a34a';
+                      switch (projectChartType) {
+                        case 'line':
+                          return (
+                            <LineChart data={data}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="project" />
+                              <YAxis />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Line type="monotone" dataKey="hours" stroke={color} strokeWidth={2} dot={{ r: 4 }} />
+                            </LineChart>
+                          );
+                        case 'area':
+                          return (
+                            <AreaChart data={data}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="project" />
+                              <YAxis />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Area type="monotone" dataKey="hours" stroke={color} fill={color} fillOpacity={0.4} />
+                            </AreaChart>
+                          );
+                        case 'pie':
+                          return (
+                            <PieChart>
+                              <Pie data={data} dataKey="hours" nameKey="project" cx="50%" cy="50%" outerRadius={100} fill={color} label />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                            </PieChart>
+                          );
+                        case 'radar':
+                          return (
+                            <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
+                              <PolarGrid />
+                              <PolarAngleAxis dataKey="project" />
+                              <PolarRadiusAxis />
+                              <Radar name="Hours" dataKey="hours" stroke={color} fill={color} fillOpacity={0.6} />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                            </RadarChart>
+                          );
+                        case 'bar':
+                        default:
+                          return (
+                            <BarChart data={data}>
+                              <defs>
+                                <linearGradient id={BAR_GRADIENT_ID} x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#16a34a" />
+                                  <stop offset="100%" stopColor="#ffffff" />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="project" />
+                              <YAxis />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Bar dataKey="hours" fill={`url(#${BAR_GRADIENT_ID})`} radius={[6, 6, 0, 0]} />
+                            </BarChart>
+                          );
+                      }
+                    })()}
                   </ResponsiveContainer>
                 </ChartContainer>
               ) : (
@@ -4385,17 +4661,67 @@ const UserAnalytics: React.FC<UserAnalyticsProps> = ({
         <TabsContent value="daily-trends">
           <Card>
             <CardContent className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Daily Time Spent (Last 14 Days)</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Daily Time Spent (Last 14 Days)</h3>
+                <ChartTypeSelector value={dailyChartType} onChange={setDailyChartType} />
+              </div>
               {dailyData.length > 0 ? (
                 <ChartContainer config={chartConfig}>
                   <ResponsiveContainer width="100%" height={320}>
-                    <BarChart data={dailyData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" />
-                      <YAxis />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar dataKey="hours" fill="#6366f1" radius={[6, 6, 0, 0]} />
-                    </BarChart>
+                    {(() => {
+                      const data = dailyData;
+                      const color = '#6366f1';
+                      switch (dailyChartType) {
+                        case 'line':
+                          return (
+                            <LineChart data={data}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="date" />
+                              <YAxis />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Line type="monotone" dataKey="hours" stroke={color} strokeWidth={2} dot={{ r: 4 }} />
+                            </LineChart>
+                          );
+                        case 'area':
+                          return (
+                            <AreaChart data={data}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="date" />
+                              <YAxis />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Area type="monotone" dataKey="hours" stroke={color} fill={color} fillOpacity={0.4} />
+                            </AreaChart>
+                          );
+                        case 'pie':
+                          return (
+                            <PieChart>
+                              <Pie data={data} dataKey="hours" nameKey="date" cx="50%" cy="50%" outerRadius={100} fill={color} label />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                            </PieChart>
+                          );
+                        case 'radar':
+                          return (
+                            <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
+                              <PolarGrid />
+                              <PolarAngleAxis dataKey="date" />
+                              <PolarRadiusAxis />
+                              <Radar name="Hours" dataKey="hours" stroke={color} fill={color} fillOpacity={0.6} />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                            </RadarChart>
+                          );
+                        case 'bar':
+                        default:
+                          return (
+                            <BarChart data={data}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="date" />
+                              <YAxis />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Bar dataKey="hours" fill={color} radius={[6, 6, 0, 0]} />
+                            </BarChart>
+                          );
+                      }
+                    })()}
                   </ResponsiveContainer>
                 </ChartContainer>
               ) : (
@@ -4409,49 +4735,102 @@ const UserAnalytics: React.FC<UserAnalyticsProps> = ({
           <div className="grid gap-4 md:grid-cols-2">
             <Card>
               <CardContent className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Time by Work Type</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">Time by Work Type</h3>
+                  <ChartTypeSelector value={categoryChartType} onChange={setCategoryChartType} />
+                </div>
                 {categoryData.length > 0 ? (
                   <ChartContainer config={chartConfig}>
                     <ResponsiveContainer width="100%" height={320}>
-                      <PieChart>
-                        <defs>
-                          {categoryData.map((_, index) => {
-                            const gradientId = `${CATEGORY_GRADIENT_ID_PREFIX}-${index}`;
-                            const sliceColor = ANALYTICS_COLORS[(index + projectData.length) % ANALYTICS_COLORS.length];
-
+                      {(() => {
+                        const data = categoryData;
+                        const colors = ANALYTICS_COLORS;
+                        const offset = projectData.length;
+                        switch (categoryChartType) {
+                          case 'bar':
                             return (
-                              <linearGradient key={gradientId} id={gradientId} x1="0" y1="0" x2="1" y2="1">
-                                <stop offset="0%" stopColor={sliceColor} />
-                                <stop offset="100%" stopColor="#ffffff" />
-                              </linearGradient>
+                              <BarChart data={data}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="category" />
+                                <YAxis />
+                                <ChartTooltip content={<ChartTooltipContent />} />
+                                <Bar dataKey="hours" radius={[6, 6, 0, 0]}>
+                                  {data.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={colors[(index + offset) % colors.length]} />
+                                  ))}
+                                </Bar>
+                              </BarChart>
                             );
-                          })}
-                        </defs>
-                        <Pie
-                          data={categoryData}
-                          dataKey="hours"
-                          nameKey="category"
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={110}
-                          label
-                        >
-                          {categoryData.map((_, index) => {
-                            const gradientId = `${CATEGORY_GRADIENT_ID_PREFIX}-${index}`;
-
+                          case 'line':
                             return (
-                              <Cell
-                                key={`category-cell-${index}`}
-                                fill={`url(#${gradientId})`}
-                                stroke="#bbf7d0"
-                                strokeWidth={1}
-                              />
+                              <LineChart data={data}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="category" />
+                                <YAxis />
+                                <ChartTooltip content={<ChartTooltipContent />} />
+                                <Line type="monotone" dataKey="hours" stroke={colors[offset % colors.length]} strokeWidth={2} />
+                              </LineChart>
                             );
-                          })}
-                        </Pie>
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                        <Legend />
-                      </PieChart>
+                          case 'area':
+                            return (
+                              <AreaChart data={data}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="category" />
+                                <YAxis />
+                                <ChartTooltip content={<ChartTooltipContent />} />
+                                <Area type="monotone" dataKey="hours" stroke={colors[offset % colors.length]} fill={colors[offset % colors.length]} fillOpacity={0.4} />
+                              </AreaChart>
+                            );
+                          case 'radar':
+                            return (
+                              <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
+                                <PolarGrid />
+                                <PolarAngleAxis dataKey="category" />
+                                <PolarRadiusAxis />
+                                <Radar name="Hours" dataKey="hours" stroke={colors[offset % colors.length]} fill={colors[offset % colors.length]} fillOpacity={0.6} />
+                                <ChartTooltip content={<ChartTooltipContent />} />
+                              </RadarChart>
+                            );
+                          case 'pie':
+                          default:
+                            return (
+                              <PieChart>
+                                <defs>
+                                  {data.map((_, index) => {
+                                    const gradientId = `${CATEGORY_GRADIENT_ID_PREFIX}-${index}`;
+                                    const sliceColor = colors[(index + offset) % colors.length];
+                                    return (
+                                      <linearGradient key={gradientId} id={gradientId} x1="0" y1="0" x2="1" y2="1">
+                                        <stop offset="0%" stopColor={sliceColor} />
+                                        <stop offset="100%" stopColor="#ffffff" />
+                                      </linearGradient>
+                                    );
+                                  })}
+                                </defs>
+                                <Pie
+                                  data={data}
+                                  dataKey="hours"
+                                  nameKey="category"
+                                  cx="50%"
+                                  cy="50%"
+                                  outerRadius={110}
+                                  label
+                                >
+                                  {data.map((_, index) => (
+                                    <Cell
+                                      key={`category-cell-${index}`}
+                                      fill={`url(#${CATEGORY_GRADIENT_ID_PREFIX}-${index})`}
+                                      stroke="#bbf7d0"
+                                      strokeWidth={1}
+                                    />
+                                  ))}
+                                </Pie>
+                                <ChartTooltip content={<ChartTooltipContent />} />
+                                <Legend />
+                              </PieChart>
+                            );
+                        }
+                      })()}
                     </ResponsiveContainer>
                   </ChartContainer>
                 ) : (
@@ -4484,36 +4863,81 @@ const UserAnalytics: React.FC<UserAnalyticsProps> = ({
         <TabsContent value="accuracy">
           <Card>
             <CardContent className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Estimation Accuracy Trend</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Estimation Accuracy Trend</h3>
+                <ChartTypeSelector value={accuracyChartType} onChange={setAccuracyChartType} />
+              </div>
               {accuracyData.length > 0 ? (
                 <ChartContainer config={chartConfig}>
                   <ResponsiveContainer width="100%" height={320}>
-                    <LineChart data={accuracyData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="label" />
-                      <YAxis yAxisId="left" domain={[0, 120]} tickFormatter={(value) => `${value}%`} />
-                      <YAxis yAxisId="right" orientation="right" tickFormatter={(value) => `${value}h`} />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Legend />
-                      <Line
-                        yAxisId="left"
-                        type="monotone"
-                        dataKey="accuracy"
-                        stroke="#6366f1"
-                        strokeWidth={2}
-                        dot={{ r: 4 }}
-                        activeDot={{ r: 6 }}
-                      />
-                      <Line
-                        yAxisId="right"
-                        type="monotone"
-                        dataKey="variance"
-                        stroke="#f97316"
-                        strokeWidth={2}
-                        dot={{ r: 4 }}
-                        activeDot={{ r: 6 }}
-                      />
-                    </LineChart>
+                    {(() => {
+                      const data = accuracyData;
+                      switch (accuracyChartType) {
+                        case 'bar':
+                          return (
+                            <BarChart data={data}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="label" />
+                              <YAxis yAxisId="left" domain={[0, 120]} tickFormatter={(value) => `${value}%`} />
+                              <YAxis yAxisId="right" orientation="right" tickFormatter={(value) => `${value}h`} />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Legend />
+                              <Bar yAxisId="left" dataKey="accuracy" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                              <Bar yAxisId="right" dataKey="variance" fill="#f97316" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                          );
+                        case 'area':
+                          return (
+                            <AreaChart data={data}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="label" />
+                              <YAxis yAxisId="left" domain={[0, 120]} tickFormatter={(value) => `${value}%`} />
+                              <YAxis yAxisId="right" orientation="right" tickFormatter={(value) => `${value}h`} />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Legend />
+                              <Area yAxisId="left" type="monotone" dataKey="accuracy" stroke="#6366f1" fill="#6366f1" fillOpacity={0.4} />
+                              <Area yAxisId="right" type="monotone" dataKey="variance" stroke="#f97316" fill="#f97316" fillOpacity={0.4} />
+                            </AreaChart>
+                          );
+                        case 'pie':
+                          return (
+                            <PieChart>
+                              <Pie data={[{ name: 'Avg Accuracy', value: data.reduce((a, b) => a + (b.accuracy || 0), 0) / data.length }, { name: 'Avg Variance', value: Math.abs(data.reduce((a, b) => a + (b.variance || 0), 0) / data.length) }]} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
+                                <Cell fill="#6366f1" />
+                                <Cell fill="#f97316" />
+                              </Pie>
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Legend />
+                            </PieChart>
+                          );
+                        case 'radar':
+                          return (
+                            <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
+                              <PolarGrid />
+                              <PolarAngleAxis dataKey="label" />
+                              <PolarRadiusAxis />
+                              <Radar name="Accuracy (%)" dataKey="accuracy" stroke="#6366f1" fill="#6366f1" fillOpacity={0.6} />
+                              <Radar name="Variance (h)" dataKey="variance" stroke="#f97316" fill="#f97316" fillOpacity={0.6} />
+                              <Legend />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                            </RadarChart>
+                          );
+                        case 'line':
+                        default:
+                          return (
+                            <LineChart data={data}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="label" />
+                              <YAxis yAxisId="left" domain={[0, 120]} tickFormatter={(value) => `${value}%`} />
+                              <YAxis yAxisId="right" orientation="right" tickFormatter={(value) => `${value}h`} />
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Legend />
+                              <Line yAxisId="left" type="monotone" dataKey="accuracy" stroke="#6366f1" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                              <Line yAxisId="right" type="monotone" dataKey="variance" stroke="#f97316" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                            </LineChart>
+                          );
+                      }
+                    })()}
                   </ResponsiveContainer>
                 </ChartContainer>
               ) : (

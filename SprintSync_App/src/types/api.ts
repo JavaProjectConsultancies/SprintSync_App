@@ -29,7 +29,7 @@ export interface User extends BaseEntity {
   lastLogin?: string;
 }
 
-export type UserRole = 'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'QA_MANAGER' | 'QA_DEVELOPER' | 'MASTER_ADMIN' | 'TESTER' | 'ANALYST';
+export type UserRole = 'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'QA_MANAGER' | 'QA_DEVELOPER' | 'MASTER_ADMIN' | 'TESTER' | 'ANALYST' | 'SUPPORT_AND_IMPLEMENTATION';
 
 // Department entity
 export interface Department extends BaseEntity {
@@ -183,7 +183,7 @@ export interface Issue extends BaseEntity {
   issueNumber?: number;
   dueDate?: string;
   labels?: string[];
-   // IDs of tasks linked to this issue
+  // IDs of tasks linked to this issue
   linkedTaskIds?: string[];
 }
 

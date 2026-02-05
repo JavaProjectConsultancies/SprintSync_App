@@ -40,11 +40,12 @@ const RoleSwitcherDropdown: React.FC<RoleSwitcherDropdownProps> = ({
     } = useRoleSwitcher();
 
     // If master_admin, show Master_admin View badge (view-only access)
-    if (user?.role === 'master_admin') {
+    if (user?.role === 'master_admin' || user?.role === 'support_and_implementation') {
+        const isSupport = user?.role === 'support_and_implementation';
         return (
-            <Badge variant="outline" className={cn("bg-violet-50 text-violet-700 border-violet-200", className)}>
+            <Badge variant="outline" className={cn(isSupport ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-violet-50 text-violet-700 border-violet-200", className)}>
                 <Shield className="w-3 h-3 mr-1" />
-                Master_admin View
+                {isSupport ? 'Support & Implementation View' : 'Master_admin View'}
             </Badge>
         );
     }

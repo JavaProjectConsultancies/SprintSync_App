@@ -66,7 +66,7 @@ public interface ProjectRepository extends JpaRepository<Project, String> {
     /**
      * Find projects by status with pagination.
      * 
-     * @param status the project status
+     * @param status   the project status
      * @param pageable pagination information
      * @return page of projects with the specified status
      */
@@ -76,7 +76,7 @@ public interface ProjectRepository extends JpaRepository<Project, String> {
      * Find projects by manager with pagination.
      * 
      * @param managerId the manager ID
-     * @param pageable pagination information
+     * @param pageable  pagination information
      * @return page of projects managed by the specified user
      */
     Page<Project> findByManagerId(String managerId, Pageable pageable);
@@ -90,17 +90,18 @@ public interface ProjectRepository extends JpaRepository<Project, String> {
     List<Project> findByNameContainingIgnoreCase(String name);
 
     /**
-     * Find overdue projects (end date is in the past and status is not completed/cancelled).
+     * Find overdue projects (end date is in the past and status is not
+     * completed/cancelled).
      * 
-     * @param currentDate the current date
+     * @param currentDate     the current date
      * @param completedStatus the completed status
      * @param cancelledStatus the cancelled status
      * @return list of overdue projects
      */
     @Query("SELECT p FROM Project p WHERE p.endDate < :currentDate AND p.status NOT IN (:completedStatus, :cancelledStatus)")
     List<Project> findOverdueProjects(@Param("currentDate") LocalDate currentDate,
-                                     @Param("completedStatus") ProjectStatus completedStatus,
-                                     @Param("cancelledStatus") ProjectStatus cancelledStatus);
+            @Param("completedStatus") ProjectStatus completedStatus,
+            @Param("cancelledStatus") ProjectStatus cancelledStatus);
 
     /**
      * Find projects with progress below threshold.
@@ -114,21 +115,21 @@ public interface ProjectRepository extends JpaRepository<Project, String> {
     /**
      * Find projects by multiple criteria.
      * 
-     * @param status the project status (optional)
-     * @param priority the project priority (optional)
+     * @param status    the project status (optional)
+     * @param priority  the project priority (optional)
      * @param managerId the manager ID (optional)
-     * @param isActive the active status (optional)
+     * @param isActive  the active status (optional)
      * @return list of projects matching the criteria
      */
     @Query("SELECT p FROM Project p WHERE " +
-           "(:status IS NULL OR p.status = :status) AND " +
-           "(:priority IS NULL OR p.priority = :priority) AND " +
-           "(:managerId IS NULL OR p.managerId = :managerId) AND " +
-           "(:isActive IS NULL OR p.isActive = :isActive)")
+            "(:status IS NULL OR p.status = :status) AND " +
+            "(:priority IS NULL OR p.priority = :priority) AND " +
+            "(:managerId IS NULL OR p.managerId = :managerId) AND " +
+            "(:isActive IS NULL OR p.isActive = :isActive)")
     List<Project> findProjectsByCriteria(@Param("status") ProjectStatus status,
-                                        @Param("priority") Priority priority,
-                                        @Param("managerId") String managerId,
-                                        @Param("isActive") Boolean isActive);
+            @Param("priority") Priority priority,
+            @Param("managerId") String managerId,
+            @Param("isActive") Boolean isActive);
 
     /**
      * Count projects by status.
@@ -158,23 +159,23 @@ public interface ProjectRepository extends JpaRepository<Project, String> {
      * Find projects starting within date range.
      * 
      * @param startDate the start date
-     * @param endDate the end date
+     * @param endDate   the end date
      * @return list of projects starting within the date range
      */
     @Query("SELECT p FROM Project p WHERE p.startDate BETWEEN :startDate AND :endDate")
     List<Project> findProjectsStartingBetween(@Param("startDate") LocalDate startDate,
-                                             @Param("endDate") LocalDate endDate);
+            @Param("endDate") LocalDate endDate);
 
     /**
      * Find projects ending within date range.
      * 
      * @param startDate the start date
-     * @param endDate the end date
+     * @param endDate   the end date
      * @return list of projects ending within the date range
      */
     @Query("SELECT p FROM Project p WHERE p.endDate BETWEEN :startDate AND :endDate")
     List<Project> findProjectsEndingBetween(@Param("startDate") LocalDate startDate,
-                                           @Param("endDate") LocalDate endDate);
+            @Param("endDate") LocalDate endDate);
 
     /**
      * Find the maximum ID in the projects table.
@@ -185,6 +186,6 @@ public interface ProjectRepository extends JpaRepository<Project, String> {
     @Query("SELECT MAX(p.id) FROM Project p")
     Optional<String> findMaxId();
 
-    @Query("SELECT DISTINCT p FROM Project p WHERE EXISTS (SELECT 1 FROM ProjectTeamMember ptm WHERE ptm.projectId = p.id AND ptm.userId = :userId)")
+    @Query("SELECT DISTINCT p FROM Project p WHERE p.managerId = :userId OR EXISTS (SELECT 1 FROM ProjectTeamMember ptm WHERE ptm.projectId = p.id AND ptm.userId = :userId)")
     List<Project> findProjectsByUserAccess(@Param("userId") String userId);
 }

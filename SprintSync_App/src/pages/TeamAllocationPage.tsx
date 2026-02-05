@@ -96,8 +96,8 @@ const TeamAllocationPage: React.FC = () => {
   const { user: currentUser } = useAuth();
   const { activeRole } = useRoleSwitcher();
 
-  // Use activeRole for permission checks - admin and master_admin stay as their roles, others use activeRole
-  const effectiveRole = currentUser?.role === 'admin' ? 'admin' : (currentUser?.role === 'master_admin' ? 'master_admin' : activeRole);
+  // Use activeRole for permission checks - admin, master_admin and support roles stay as their roles, others use activeRole
+  const effectiveRole = (currentUser?.role === 'admin' || currentUser?.role === 'master_admin' || currentUser?.role === 'qa_manager' || currentUser?.role === 'support_and_implementation') ? currentUser.role : activeRole;
 
   const [selectedMember, setSelectedMember] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -114,7 +114,7 @@ const TeamAllocationPage: React.FC = () => {
   const [newMember, setNewMember] = useState({
     name: '',
     email: '',
-    role: 'developer' as 'developer' | 'manager' | 'admin' | 'qa_manager' | 'qa_developer',
+    role: 'developer' as 'developer' | 'manager' | 'admin' | 'qa_manager' | 'qa_developer' | 'support_and_implementation',
     domain: '',
     department: '',
     password: '',
@@ -153,7 +153,7 @@ const TeamAllocationPage: React.FC = () => {
 
   const { teamMembers: projectTeamMembers, refreshTeamMembers } = useProjectTeamMembers(selectedProjectId || undefined);
 
-  const roleOptions = ['developer', 'manager', 'admin', 'qa_manager', 'qa_developer', 'master_admin'];
+  const roleOptions = ['developer', 'manager', 'admin', 'qa_manager', 'qa_developer', 'master_admin', 'support_and_implementation'];
 
   // Project helpers: team members per project and manager names cache
   const [projectIdToMembers, setProjectIdToMembers] = useState<Record<string, any[]>>({});
@@ -480,7 +480,7 @@ const TeamAllocationPage: React.FC = () => {
     // Count managers in the team based on role
     const managers = list.filter((member: any) => {
       const role = (member.role || '').toString().toLowerCase();
-      return role === 'manager' || role === 'qa_manager';
+      return role === 'manager' || role === 'qa_manager' || role === 'support_and_implementation';
     });
     const managerCount = managers.length;
 
@@ -540,7 +540,7 @@ const TeamAllocationPage: React.FC = () => {
       const resolvedDepartment = (user as any).departmentId ? (departmentIdToName[(user as any).departmentId as string] || '') : ((user as any).department || '');
 
       // Generate realistic data based on resolved values
-      const baseCapacity = normalizedRole === 'admin' ? 35 : normalizedRole === 'manager' ? 35 : 40;
+      const baseCapacity = (normalizedRole === 'admin' || normalizedRole === 'manager' || normalizedRole === 'qa_manager' || normalizedRole === 'support_and_implementation') ? 35 : 40;
       const utilization = Math.floor(Math.random() * 30) + 70; // 70-100%
       const allocated = Math.floor((utilization / 100) * baseCapacity);
 
@@ -621,14 +621,14 @@ const TeamAllocationPage: React.FC = () => {
         ];
 
         // Assign user to 1-2 projects based on their role and availability
-        const numProjects = normalizedRole === 'manager' ? 1 : Math.floor(Math.random() * 2) + 1;
+        const numProjects = (normalizedRole === 'manager' || normalizedRole === 'qa_manager' || normalizedRole === 'support_and_implementation') ? 1 : Math.floor(Math.random() * 2) + 1;
         const availableProjects = projectDistribution.filter(p =>
-          normalizedRole === 'manager' ? !p.hasManager : true
+          (normalizedRole === 'manager' || normalizedRole === 'qa_manager' || normalizedRole === 'support_and_implementation') ? !p.hasManager : true
         );
 
         for (let i = 0; i < Math.min(numProjects, availableProjects.length); i++) {
           const project = availableProjects[i];
-          const allocation = normalizedRole === 'manager' ?
+          const allocation = (normalizedRole === 'manager' || normalizedRole === 'qa_manager' || normalizedRole === 'support_and_implementation') ?
             Math.floor(Math.random() * 30) + 50 : // Managers get 50-80% allocation
             Math.floor(Math.random() * 40) + 30;  // Others get 30-70% allocation
 
@@ -644,7 +644,7 @@ const TeamAllocationPage: React.FC = () => {
 
       const getRoleInProject = (userRole: string, domain: string) => {
         if (userRole === 'admin') return 'System Administrator';
-        if (userRole === 'manager') return 'Project Manager';
+        if (userRole === 'manager' || userRole === 'qa_manager' || userRole === 'support_and_implementation') return 'Project Manager';
 
         const devRoles: { [key: string]: string } = {
           'Angular': 'Frontend Developer',
@@ -778,7 +778,7 @@ const TeamAllocationPage: React.FC = () => {
 
   const getRoleIcon = (role: string, domain: string) => {
     if (role === 'admin') return Shield;
-    if (role === 'manager') return Users;
+    if (role === 'manager' || role === 'qa_manager' || role === 'support_and_implementation') return Users;
     if (role === 'developer') {
       if (domain === 'Angular' || domain === 'Maui') return Code;
       if (domain === 'Java') return Coffee;
@@ -1968,6 +1968,7 @@ const TeamAllocationPage: React.FC = () => {
                           <SelectItem value="admin">Admin</SelectItem>
                           <SelectItem value="qa_manager">QA Manager</SelectItem>
                           <SelectItem value="qa_developer">QA Developer</SelectItem>
+                          <SelectItem value="support_and_implementation">Support & Implementation</SelectItem>
                           <SelectItem value="master_admin">Master Admin</SelectItem>
                         </SelectContent>
                       </Select>

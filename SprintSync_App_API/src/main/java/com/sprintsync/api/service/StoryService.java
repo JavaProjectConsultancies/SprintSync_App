@@ -40,6 +40,8 @@ public class StoryService {
     private NotificationService notificationService;
     private TaskService taskService;
     private ActivityLogService activityLogService;
+    private IssueService issueService;
+    private com.sprintsync.api.repository.SprintRepository sprintRepository;
 
     @Autowired
     public StoryService(StoryRepository storyRepository, IdGenerationService idGenerationService) {
@@ -60,6 +62,16 @@ public class StoryService {
     @Autowired
     public void setActivityLogService(ActivityLogService activityLogService) {
         this.activityLogService = activityLogService;
+    }
+
+    @Autowired
+    public void setIssueService(IssueService issueService) {
+        this.issueService = issueService;
+    }
+
+    @Autowired
+    public void setSprintRepository(com.sprintsync.api.repository.SprintRepository sprintRepository) {
+        this.sprintRepository = sprintRepository;
     }
 
     /**
@@ -442,6 +454,9 @@ public class StoryService {
 
     /**
      * Move story to sprint.
+     * Automatically updates the story's due date and all associated tasks and
+     * issues
+     * to match the new sprint's end date.
      * 
      * @param id       the story ID
      * @param sprintId the sprint ID
@@ -454,6 +469,24 @@ public class StoryService {
             Story story = storyOptional.get();
             String oldSprintId = story.getSprintId();
             story.setSprintId(sprintId);
+
+            // Get the new sprint's end date to update due dates
+            LocalDate newDueDate = null;
+            if (sprintRepository != null && sprintId != null) {
+                try {
+                    Optional<com.sprintsync.api.entity.Sprint> sprintOpt = sprintRepository.findById(sprintId);
+                    if (sprintOpt.isPresent()) {
+                        newDueDate = sprintOpt.get().getEndDate();
+                        // Update story's due date to match the new sprint's end date
+                        if (newDueDate != null) {
+                            story.setDueDate(newDueDate);
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("Failed to fetch sprint details for due date update: " + e.getMessage());
+                }
+            }
+
             Story savedStory = storyRepository.save(story);
 
             // Verify the sprintId was set correctly
@@ -463,14 +496,58 @@ public class StoryService {
                                 id, sprintId, savedStory.getSprintId()));
             }
 
+            // Update due dates for all tasks and issues in this story
+            if (newDueDate != null) {
+                updateTaskAndIssueDueDates(id, newDueDate);
+            }
+
             // Log the change for debugging
             System.out.println(String.format(
-                    "Story %s moved from sprint %s to sprint %s. Story sprintId is now: %s",
-                    id, oldSprintId != null ? oldSprintId : "null", sprintId, savedStory.getSprintId()));
+                    "Story %s moved from sprint %s to sprint %s. Story sprintId is now: %s, Due date updated to: %s",
+                    id, oldSprintId != null ? oldSprintId : "null", sprintId, savedStory.getSprintId(),
+                    newDueDate != null ? newDueDate.toString() : "null"));
 
             return savedStory;
         } else {
             throw new IllegalArgumentException("Story not found with ID: " + id);
+        }
+    }
+
+    /**
+     * Update due dates for all tasks and issues associated with a story.
+     * This is called when a story is moved to a new sprint to ensure all
+     * tasks and issues have due dates aligned with the new sprint timeline.
+     * 
+     * @param storyId    the story ID
+     * @param newDueDate the new due date to set
+     */
+    private void updateTaskAndIssueDueDates(String storyId, LocalDate newDueDate) {
+        try {
+            // Update all tasks for this story
+            if (taskService != null) {
+                List<com.sprintsync.api.entity.Task> tasks = taskService.getTasksByStoryId(storyId);
+                for (com.sprintsync.api.entity.Task task : tasks) {
+                    task.setDueDate(newDueDate);
+                    taskService.updateTask(task);
+                }
+                System.out.println(String.format("Updated due dates for %d tasks in story %s to %s",
+                        tasks.size(), storyId, newDueDate));
+            }
+
+            // Update all issues for this story
+            if (issueService != null) {
+                List<com.sprintsync.api.entity.Issue> issues = issueService.getIssuesByStoryId(storyId);
+                for (com.sprintsync.api.entity.Issue issue : issues) {
+                    issue.setDueDate(newDueDate);
+                    issueService.updateIssue(issue);
+                }
+                System.out.println(String.format("Updated due dates for %d issues in story %s to %s",
+                        issues.size(), storyId, newDueDate));
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to update task/issue due dates for story " + storyId + ": " + e.getMessage());
+            // Don't throw exception - allow the story move to succeed even if task/issue
+            // updates fail
         }
     }
 

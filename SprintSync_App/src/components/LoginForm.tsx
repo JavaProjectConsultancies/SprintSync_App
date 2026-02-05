@@ -352,7 +352,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
             )}
 
             {/* First and Last Name in two columns */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px' }}>
               <div>
                 <input
                   type="text"
@@ -400,7 +400,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
             </div>
 
             {/* Password and Confirm Password in two columns */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px' }}>
               {/* Password field with eye button */}
               <div style={{ position: 'relative' }}>
                 <input
@@ -475,7 +475,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
             </div>
 
             {/* Role and Department in two columns */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', margin: '4px 0' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px', margin: '4px 0' }}>
               <Select
                 value={signUpData.role}
                 onValueChange={(value) => setSignUpData(prev => ({ ...prev, role: value }))}
@@ -490,6 +490,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="qa_manager">QA Manager</SelectItem>
                   <SelectItem value="qa_developer">QA Developer</SelectItem>
+                  <SelectItem value="support_and_implementation">Support & Implementation</SelectItem>
                   <SelectItem value="master_admin">Master Admin</SelectItem>
                 </SelectContent>
               </Select>

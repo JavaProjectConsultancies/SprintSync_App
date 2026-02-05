@@ -152,7 +152,7 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [isEditingAttachments, setIsEditingAttachments] = useState(false);
     const userRole = user?.role?.toUpperCase() || '';
-    const canEditAttachments = ['MANAGER', 'QA_MANAGER', 'QA_DEVELOPER'].includes(userRole);
+    const canEditAttachments = ['MANAGER', 'QA_MANAGER', 'QA_DEVELOPER', 'SUPPORT_AND_IMPLEMENTATION'].includes(userRole);
 
     const handleSaveDescription = async () => {
         if (!currentIssue) return;

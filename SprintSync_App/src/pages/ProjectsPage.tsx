@@ -1698,7 +1698,7 @@ const ProjectsPage: React.FC = () => {
 
     if (user.role === 'admin') {
       return projects; // Admin can see all projects
-    } else if (user.role === 'manager') {
+    } else if (user.role === 'manager' || user.role === 'qa_manager') {
       return projects.filter(project => project.managerId === user.id); // Manager sees their projects
     } else {
       // Developer sees only projects they're assigned to
@@ -1748,7 +1748,7 @@ const ProjectsPage: React.FC = () => {
 
   // Check if user can add projects/milestones
   const canAddProject = () => {
-    return user?.role === 'admin' || user?.role === 'master_admin' || user?.role === 'manager';
+    return user?.role === 'admin' || user?.role === 'master_admin' || user?.role === 'manager' || user?.role === 'qa_manager' || user?.role === 'support_and_implementation';
   };
 
   // Handle create project query param from Dashboard

@@ -62,7 +62,8 @@ const UserCalendarPage: React.FC = () => {
         user?.role === 'manager' ||
         user?.role === 'admin' ||
         user?.role === 'qa_manager' ||
-        user?.role === 'master_admin';
+        user?.role === 'master_admin' ||
+        user?.role === 'support_and_implementation';
 
     useEffect(() => {
         const fetchProjects = async () => {

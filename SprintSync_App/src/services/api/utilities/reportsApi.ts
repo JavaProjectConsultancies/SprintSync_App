@@ -112,7 +112,7 @@ export class ReportsApiService {
       format,
       ...filters,
     });
-    
+
     // Convert response to blob for download
     return {
       ...response,
@@ -149,14 +149,17 @@ export class ReportsApiService {
   }
 
   // Export bug report to Excel
-  async exportBugReportToExcel(projectId?: string): Promise<Blob> {
-    const params = projectId ? { projectId } : undefined;
-    // IMPORTANT: Use /export/bug-report/excel (NOT /bug-report/export/excel)
+  async exportBugReportToExcel(projectId?: string, sprintId?: string): Promise<Blob> {
+    const params: any = {};
+    if (projectId) params.projectId = projectId;
+    if (sprintId) params.sprintId = sprintId;
+
     const endpoint = `${API_ENDPOINTS.REPORTS}/export/bug-report/excel`;
     console.log('🔵 EXPORT DEBUG - Full endpoint path:', endpoint);
     console.log('🔵 EXPORT DEBUG - API_ENDPOINTS.REPORTS:', API_ENDPOINTS.REPORTS);
     console.log('🔵 EXPORT DEBUG - Params:', params);
-    return apiClient.download(endpoint, params);
+
+    return apiClient.download(endpoint, Object.keys(params).length > 0 ? params : undefined);
   }
 }
 

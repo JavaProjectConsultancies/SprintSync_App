@@ -90,7 +90,7 @@ const TaskLogDialog: React.FC<TaskLogDialogProps> = ({
     const { user, hasPermission } = useAuth();
 
     // Check if user is a manager (can move to Done)
-    const isManager = user?.role === 'manager' || user?.role === 'admin' || hasPermission('manage_sprints');
+    const isManager = user?.role === 'manager' || user?.role === 'admin' || user?.role === 'support_and_implementation' || hasPermission('manage_sprints');
 
     // Determine current status
     const getCurrentStatus = () => {

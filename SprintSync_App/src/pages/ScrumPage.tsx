@@ -271,8 +271,16 @@ const ScrumPage: React.FC = () => {
     };
   }, [resetToOriginalRole]);
 
-  // Use activeRole for permission checks - admin and master_admin stay as their roles, others use activeRole
-  const effectiveRole = user?.role === 'admin' ? 'admin' : (user?.role === 'master_admin' ? 'master_admin' : activeRole);
+  // Use activeRole for permission checks - admin, master_admin, QA roles and support roles stay as their roles, others use activeRole
+  const baseRole = (user?.role || '').toLowerCase();
+  const effectiveRole =
+    baseRole === 'admin' ||
+      baseRole === 'master_admin' ||
+      baseRole === 'qa_manager' ||
+      baseRole === 'qa_developer' ||
+      baseRole === 'support_and_implementation'
+      ? baseRole
+      : activeRole;
   const [searchParams] = useSearchParams();
 
   const [selectedProject, setSelectedProject] = useState("");
@@ -639,7 +647,8 @@ const ScrumPage: React.FC = () => {
   // Role-based permissions - using effectiveRole for dynamic role switching
 
   // Role checks for different user types - using effectiveRole to support role switching
-  const isManager = effectiveRole?.toUpperCase() === "MANAGER";
+  const isManager = effectiveRole?.toUpperCase() === "MANAGER" || effectiveRole?.toUpperCase() === "QA_MANAGER" || effectiveRole?.toUpperCase() === "SUPPORT_AND_IMPLEMENTATION";
+  const isSupport = effectiveRole?.toUpperCase() === "SUPPORT_AND_IMPLEMENTATION" || activeRole === 'support_and_implementation' || user?.role?.toLowerCase() === 'support_and_implementation';
   const isQAManager = effectiveRole?.toUpperCase() === "QA_MANAGER";
   const isQADeveloper = effectiveRole?.toUpperCase() === "QA_DEVELOPER";
   const isAdmin = effectiveRole?.toUpperCase() === "ADMIN";
@@ -653,7 +662,7 @@ const ScrumPage: React.FC = () => {
   const isOriginalQAManager = user?.role?.toUpperCase() === "QA_MANAGER";
   const isOriginalQADeveloper = user?.role?.toUpperCase() === "QA_DEVELOPER";
 
-  const canEditAttachments = !isViewOnly && (isManager || isQAManager || isQADeveloper || isOriginalQAManager || isOriginalQADeveloper);
+  const canEditAttachments = !isViewOnly && (isManager || isSupport || isQAManager || isQADeveloper || isOriginalQAManager || isOriginalQADeveloper);
 
   // QA Developers should be treated like developers but with extra permissions (view all, drag to Done)
   const isDeveloper = isRegularDeveloper || isQADeveloper;
@@ -663,15 +672,15 @@ const ScrumPage: React.FC = () => {
   const canManageSprintsAndStories =
     !isViewOnly && (
       isManager ||
-      isQAManager ||
+      isSupport ||
       effectiveRole?.toUpperCase() === "QA"
     );
 
   // Managers and QA Managers can create tasks (Master Admin cannot - view only)
-  const canAddTasks = !isViewOnly && (isManager || isOriginalQAManager);
+  const canAddTasks = !isViewOnly && (isManager || isSupport || isOriginalQAManager);
 
   // Managers, QA Managers, and QA Developers can create issues (Master Admin cannot - view only)
-  const canAddIssues = !isViewOnly && (isManager || isQAManager || isQADeveloper || isOriginalQAManager || isOriginalQADeveloper);
+  const canAddIssues = !isViewOnly && (isManager || isSupport || isQADeveloper || isOriginalQAManager || isOriginalQADeveloper);
 
   // Managers, QA (deprecated), and QA Managers can create boards (Master Admin cannot - view only)
   const canCreateBoards = canManageSprintsAndStories;
@@ -681,16 +690,16 @@ const ScrumPage: React.FC = () => {
   // QA Manager and QA Developer CANNOT log effort on TASKS (only on issues)
   const canLogEffortOnTasks = !isViewOnly && !isQAManager && !isQADeveloper;
   // QA Manager and QA Developer can log effort on OTHER users' tasks (like managers)
-  const canLogEffortForOthers = !isViewOnly && (canManageSprintsAndStories || isQADeveloper);
+  const canLogEffortForOthers = !isViewOnly && (canManageSprintsAndStories || isQADeveloper || isSupport);
 
   // Master Admin cannot drag items (view only), but QA Developer and QA Manager can
-  const canDragToDone = !isViewOnly && (isManager || isQAManager || isQADeveloper || isOriginalQAManager || isOriginalQADeveloper);
+  const canDragToDone = !isViewOnly && (isManager || isSupport || isQADeveloper || isOriginalQAManager || isOriginalQADeveloper);
 
   // Master Admin CAN view all tasks and issues (like managers) - this is their primary access
   // QA Developer and QA Manager can see ALL tasks AND issues (like managers)
   // Regular Developer sees only their assigned tasks AND issues
-  const canViewAllTasks = isMasterAdmin || canManageSprintsAndStories || isQADeveloper || isOriginalQAManager || isOriginalQADeveloper;
-  const canViewAllIssues = isMasterAdmin || canManageSprintsAndStories || isQADeveloper || isOriginalQAManager || isOriginalQADeveloper;
+  const canViewAllTasks = isMasterAdmin || canManageSprintsAndStories || isSupport || isQADeveloper || isOriginalQAManager || isOriginalQADeveloper;
+  const canViewAllIssues = isMasterAdmin || canManageSprintsAndStories || isSupport || isQADeveloper || isOriginalQAManager || isOriginalQADeveloper;
 
   // All users can create subtasks (checked individually where needed)
 
@@ -1806,8 +1815,6 @@ const ScrumPage: React.FC = () => {
           localStorage.getItem("authToken") ||
           "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJkb21haW4iOiJET01OMDAwMDAwMDAwMDAwMSIsIm5hbWUiOiJBZG1pbiBVc2VyIiwiZGVwYXJ0bWVudCI6IkRFUFQwMDAwMDAwMDAwMDEiLCJ1c2VySWQiOiJVU0VSMDAwMDAwMDAwMDAxIiwic3ViIjoiYWRtaW5Ac3ByaW50c3luYy5jb20iLCJpYXQiOjE3NTk3NDg0NjUsImV4cCI6MTc1OTgzNDg2NX0.QdwUhiS_AvtqzTefTe14N7TKWB1jzrQg01Sz_lNOGBleAPqfVAgTHf97-JmCUQKZyXtAqkhYD-HN3YAMDywxRg";
 
-        // Get backlog stories for the current project
-
         const currentBacklogStories = selectedProject
           ? (Array.isArray(backlogStoriesData)
             ? backlogStoriesData
@@ -1815,87 +1822,45 @@ const ScrumPage: React.FC = () => {
           ).filter((s: Story) => s.status === "BACKLOG")
           : [];
 
-        // Get all stories to fetch tasks from (sprint stories + backlog stories)
-
         const allStoriesToFetch = includeBacklog
           ? [...stories, ...currentBacklogStories]
           : stories;
 
         if (allStoriesToFetch.length === 0) {
           setAllTasks([]);
-
+          setAllIssues([]);
+          isFetchingTasksRef.current = false;
+          setTasksLoading(false);
+          setIssuesLoading(false);
           return;
         }
 
-        const taskPromises = allStoriesToFetch.map(async (story: Story) => {
-          try {
-            const response = await fetch(
-              `${API_CONFIG.BASE_URL}/tasks/story/${story.id}`,
-              {
-                headers: {
-                  Authorization: `Bearer ${token}`,
+        // Fetch tasks and issues in parallel for all stories
+        const taskPromises = allStoriesToFetch.map(story =>
+          taskApiService.getTasksByStory(story.id)
+            .then(res => Array.isArray(res.data) ? res.data : (res.data as any)?.data || [])
+            .catch(err => {
+              console.error(`Error fetching tasks for story ${story.id}:`, err);
+              return [];
+            })
+        );
 
-                  "Content-Type": "application/json",
-                },
-              },
-            );
+        const issuePromises = allStoriesToFetch.map(story =>
+          issueApiService.getIssuesByStory(story.id)
+            .then(res => Array.isArray(res.data) ? res.data : (res.data as any)?.data || [])
+            .catch(err => {
+              console.error(`Error fetching issues for story ${story.id}:`, err);
+              return [];
+            })
+        );
 
-            if (response.ok) {
-              const data = await response.json();
-
-              const tasks = Array.isArray(data) ? data : (data as any)?.data || [];
-
-              return tasks;
-            }
-
-            return [];
-          } catch (error) {
-            console.error(`Error fetching tasks for story ${story.id}:`, error);
-
-            return [];
-          }
-        });
-
-        const taskArrays = await Promise.all(taskPromises);
+        // Await everything at once for maximum speed
+        const [taskArrays, issueArrays] = await Promise.all([
+          Promise.all(taskPromises),
+          Promise.all(issuePromises)
+        ]);
 
         let allTasksFlat = taskArrays.flat();
-
-        // Fetch issues for all stories
-
-        const issuePromises = allStoriesToFetch.map(async (story: Story) => {
-          try {
-            const response = await fetch(
-              `${API_CONFIG.BASE_URL}/issues/story/${story.id}`,
-              {
-                headers: {
-                  Authorization: `Bearer ${token}`,
-
-                  "Content-Type": "application/json",
-                },
-              },
-            );
-
-            if (response.ok) {
-              const data = await response.json();
-
-              const issues = Array.isArray(data) ? data : (data as any)?.data || [];
-
-              return issues;
-            }
-
-            return [];
-          } catch (error) {
-            console.error(
-              `Error fetching issues for story ${story.id}:`,
-              error,
-            );
-
-            return [];
-          }
-        });
-
-        const issueArrays = await Promise.all(issuePromises);
-
         let allIssuesFlat = issueArrays.flat();
 
         // Role-based filtering for ISSUES:
@@ -2265,7 +2230,14 @@ const ScrumPage: React.FC = () => {
 
     // Role-based filtering: Non-managers/admins see only stories with tasks or issues assigned to them
     // QA Developer can see ALL stories (has canViewAllTasks = true)
-    if (!canViewAllTasks && user) {
+
+    // Managers/admins/QA Developers/Support see all stories
+    // Explicitly check high-privilege roles to bypass filtering
+    if (canViewAllTasks || isSupport || isManager || isQADeveloper || isQAManager) {
+      return sprintStories;
+    }
+
+    if (user) {
       // Filter stories to show only those that have at least one task or issue assigned to the current user
       const filtered = sprintStories.filter((story: Story) => {
         // Check if this story has any tasks assigned to the current user
@@ -2281,16 +2253,12 @@ const ScrumPage: React.FC = () => {
         return hasUserTask || hasUserIssue;
       });
 
-      console.log(
-        `Filtered sprint stories for user ${user.name}: showing ${filtered.length} stories with assigned tasks/issues out of ${sprintStories.length} total`
-      );
-
       return filtered;
     }
 
     // Managers/admins/QA Developers see all stories
     return sprintStories;
-  }, [sprintStories, allTasks, canViewAllTasks, user]);
+  }, [sprintStories, allTasks, allIssues, canViewAllTasks, user]);
 
   const backlogStories = useMemo(() => {
     if (!selectedProject) return [];
@@ -2408,82 +2376,7 @@ const ScrumPage: React.FC = () => {
 
   // Log lane count information
 
-  useEffect(() => {
-    console.log("=== WORKFLOW LANES COUNT ===");
 
-    console.log("Total lanes fetched:", workflowLanes.length);
-
-    console.log("Custom lanes created:", customLanesCount);
-
-    console.log("Lanes after In Progress:", lanesAfterInProgress.length);
-
-    console.log("Lanes after QA:", lanesAfterQA.length);
-
-    console.log("=== DETAILED LANE INFORMATION ===");
-
-    console.log("Selected Project:", selectedProject);
-
-    console.log(
-      "All Lanes:",
-      workflowLanes.map((l) => ({
-        id: l.id,
-
-        title: l.title,
-
-        color: l.color,
-
-        displayOrder: l.displayOrder,
-
-        statusValue: l.statusValue,
-      })),
-    );
-
-    console.log(
-      `✓ Lanes After In Progress: ${lanesAfterInProgress.length} lane(s)`,
-    );
-
-    lanesAfterInProgress.forEach((lane, idx) => {
-      console.log(`  ${idx + 1}. ${lane.title} (Order: ${lane.displayOrder})`);
-    });
-
-    console.log(`✓ Lanes After QA: ${lanesAfterQA.length} lane(s)`);
-
-    lanesAfterQA.forEach((lane, idx) => {
-      console.log(`  ${idx + 1}. ${lane.title} (Order: ${lane.displayOrder})`);
-    });
-  }, [
-    workflowLanes.length,
-    customLanesCount,
-    lanesAfterInProgress.length,
-    lanesAfterQA.length,
-    selectedProject,
-  ]);
-
-  // Debug logging (removed excessive dependencies that cause re-renders)
-
-  // Only log when key data actually changes, not on every render
-
-  useEffect(() => {
-    console.log("=== SCRUM PAGE DEBUG ===");
-
-    console.log("Selected Project:", selectedProject);
-
-    console.log("Sprints Count:", sprints.length);
-
-    console.log("Selected Sprint:", selectedSprint);
-
-    console.log("Sprint Stories Count:", sprintStories.length);
-
-    console.log("All Tasks Count:", allTasks.length);
-
-    if (sprints.length > 0) {
-      console.log("✅ Sprints loaded successfully!");
-    } else if (selectedProject && !sprintsLoading) {
-      console.log("⚠️ No sprints found for project:", selectedProject);
-    }
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProject, selectedSprint]); // Reduced dependencies to prevent excessive re-renders
 
   // Fetch tasks when sprint stories change
 
@@ -4275,7 +4168,7 @@ const ScrumPage: React.FC = () => {
 
           // === RULE 2: Issues in DONE - Only MANAGERS can move, and ONLY to TODO ===
           if (oldStatus === "DONE") {
-            // First check: only managers can move from DONE
+            // First check: only managers and QA managers can move from DONE
             if (!isManager) {
               toast.error("Only managers can move issues from Done column");
               try {
@@ -9725,7 +9618,7 @@ const ScrumPage: React.FC = () => {
         </TabsContent>
 
         {/* Add Story Button - Positioned above scrum board, below sprint section, on the right */}
-        {activeView === "scrum-board" && isManager && (
+        {activeView === "scrum-board" && (isManager || isQAManager) && (
           <div className="flex justify-end mb-4">
             <Button
               onClick={() => setIsAddStoryDialogOpen(true)}
@@ -16915,7 +16808,7 @@ const ScrumPage: React.FC = () => {
                           Due Date
                         </label>
 
-                        {(user?.role === 'manager' || user?.role === 'qa_manager') ? (
+                        {(isManager || isSupport || isQAManager || isAdmin) ? (
                           <Popover open={isIssueDueDatePopoverOpen} onOpenChange={setIsIssueDueDatePopoverOpen} modal={true}>
                             <PopoverTrigger asChild>
                               <Button

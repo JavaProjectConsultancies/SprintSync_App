@@ -247,7 +247,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
   // Role validation and conversion logic
   const validateAndConvertRole = (selectedRole: string): string => {
     // Define accepted roles in the exact case expected by database (lowercase)
-    const acceptedRoles = ['admin', 'manager', 'developer', 'qa_manager', 'qa_developer', 'master_admin'];
+    const acceptedRoles = ['admin', 'manager', 'developer', 'qa_manager', 'qa_developer', 'master_admin', 'support_and_implementation'];
 
     // Normalize the selected role to lowercase
     const normalizedRole = selectedRole.toLowerCase();
@@ -262,7 +262,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
   };
 
   // Allowed roles matching backend enum values (lowercase)
-  const allowedRoles = ['admin', 'manager', 'developer', 'qa_manager', 'qa_developer', 'master_admin'] as const;
+  const allowedRoles = ['admin', 'manager', 'developer', 'qa_manager', 'qa_developer', 'master_admin', 'support_and_implementation'] as const;
 
   const convertRoleForBackend = (frontendRole: string): string => frontendRole.toLowerCase();
 
@@ -879,6 +879,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ isOpen, onClose, onSuccess,
                       <SelectItem value="developer">Developer</SelectItem>
                       <SelectItem value="qa_manager">QA Manager</SelectItem>
                       <SelectItem value="qa_developer">QA Developer</SelectItem>
+                      <SelectItem value="support_and_implementation">Support & Implementation</SelectItem>
                       <SelectItem value="master_admin">Master Admin</SelectItem>
                     </SelectContent>
                   </Select>

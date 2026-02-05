@@ -128,6 +128,8 @@ const getRoleColor = (role?: string) => {
       return 'bg-green-100 text-green-800 border-green-200';
     case 'qa_manager':
       return 'bg-orange-100 text-orange-800 border-orange-200';
+    case 'support_and_implementation':
+      return 'bg-blue-100 text-blue-800 border-blue-200';
     case 'qa_developer':
       return 'bg-teal-100 text-teal-800 border-teal-200';
     case 'master_admin':

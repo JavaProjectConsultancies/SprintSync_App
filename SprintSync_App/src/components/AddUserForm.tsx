@@ -62,7 +62,7 @@ interface FormData {
   domainId: string;
   avatarUrl: string;
   experience: string;
-   experienceYears: string;
+  experienceYears: string;
   hourlyRate: string;
   ctc: string;
   availabilityPercentage: string;
@@ -732,6 +732,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                       <SelectItem value="developer">Developer</SelectItem>
                       <SelectItem value="qa_manager">QA Manager</SelectItem>
                       <SelectItem value="qa_developer">QA Developer</SelectItem>
+                      <SelectItem value="support_and_implementation">Support & Implementation</SelectItem>
                       <SelectItem value="master_admin">Master Admin</SelectItem>
                     </SelectContent>
                   </Select>
