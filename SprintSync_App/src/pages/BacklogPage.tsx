@@ -1051,7 +1051,7 @@ const BacklogPage: React.FC = () => {
             <div className="space-y-4">
               {/* Story Info */}
               {story.description && (
-                <p className="text-sm text-muted-foreground">{story.description}</p>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{story.description}</p>
               )}
               <div className="flex items-center space-x-4 text-sm">
                 <Badge variant="outline" className={`${getPriorityColor(story.priority)}`}>

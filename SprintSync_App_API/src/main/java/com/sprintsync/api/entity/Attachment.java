@@ -47,7 +47,7 @@ public class Attachment {
     private String fileType;
 
     @NotBlank(message = "File URL cannot be blank")
-    @Column(name = "file_url", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "file_url", nullable = false, columnDefinition = "LONGTEXT")
     private String fileUrl;
 
     @Column(name = "thumbnail_url", columnDefinition = "TEXT")
@@ -69,4 +69,3 @@ public class Attachment {
         }
     }
 }
-

@@ -62,6 +62,81 @@ import { useAuth } from "../contexts/AuthContextEnhanced";
 import { userApiService } from "../services/api/entities/userApi";
 import ChatSection from './ChatSection';
 
+// Helper component to render description with images and line breaks
+const RenderDescription = ({ description }: { description?: string }) => {
+    if (!description) return <p className="text-sm text-gray-500 italic">No description provided.</p>;
+
+    // Regex to find ![image](url) OR raw attachment URLs
+    const imageRegex = /(!\[.*?\]\((.*?)\))|(https?:\/\/[^\s]+\/attachments\/view\/[a-zA-Z0-9_\-]+)/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = imageRegex.exec(description)) !== null) {
+        // Add text before the image
+        const textBefore = description.substring(lastIndex, match.index);
+        if (textBefore) {
+            parts.push({ type: 'text', content: textBefore });
+        }
+
+        // Determine URL
+        let imageUrl = '';
+        if (match[1]) {
+            // Markdown format ![...](url) -> match[2]
+            imageUrl = match[2];
+        } else {
+            // Raw URL format -> match[0] (or match[3])
+            imageUrl = match[0];
+        }
+
+        // Add the image
+        parts.push({ type: 'image', url: imageUrl });
+        lastIndex = match.index + match[0].length;
+    }
+
+    // Add remaining text
+    const remainingText = description.substring(lastIndex);
+    if (remainingText) {
+        parts.push({ type: 'text', content: remainingText });
+    }
+
+    return (
+        <div className="space-y-2">
+            {parts.map((part, index) => {
+                if (part.type === 'image') {
+                    return (
+                        <div key={index} className="my-2 border rounded-lg overflow-hidden bg-white max-w-full">
+                            <img
+                                src={part.url}
+                                alt="Description image"
+                                className="max-w-full h-auto object-contain cursor-pointer hover:opacity-90"
+                                onClick={() => window.open(part.url, '_blank')}
+                                onError={(e) => {
+                                    (e.target as HTMLImageElement).src = 'https://placehold.co/400x200?text=Image+Load+Error';
+                                }}
+                            />
+                        </div>
+                    );
+                }
+                return (
+                    <p key={index} className="text-sm text-gray-700 whitespace-pre-wrap">
+                        {part.content}
+                    </p>
+                );
+            })}
+        </div>
+    );
+};
+
+const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = error => reject(error);
+    });
+};
+
 interface TaskDetailsJiraDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -138,12 +213,21 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [isEditingAttachments, setIsEditingAttachments] = useState(false);
     const userRole = user?.role?.toUpperCase() || '';
-    const canEditAttachments = ['MANAGER', 'QA_MANAGER', 'QA_DEVELOPER', 'SUPPORT_AND_IMPLEMENTATION'].includes(userRole);
+    const isAdmin = userRole === 'ADMIN';
+    const isMasterAdmin = userRole === 'MASTER_ADMIN';
+    const isViewOnly = isAdmin || isMasterAdmin;
+
+    // Title editing state
+    const [isEditingTitle, setIsEditingTitle] = useState(false);
+    const [tempTitle, setTempTitle] = useState("");
+
+    const canEditContent = ['MANAGER', 'QA_MANAGER', 'QA_DEVELOPER', 'SUPPORT_AND_IMPLEMENTATION'].includes(userRole);
+    const canEditAttachments = canEditContent;
 
     const handleSaveDescription = async () => {
         if (!currentTask) return;
         try {
-            await taskApiService.updateTask(currentTask.id, { description: tempDescription });
+            await taskApiService.updateTaskDescription(currentTask.id, tempDescription);
             setCurrentTask(prev => prev ? { ...prev, description: tempDescription } : prev);
             setIsEditingDescription(false);
             toast.success("Description updated successfully");
@@ -154,8 +238,64 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
         }
     };
 
+    const handleSaveTitle = async () => {
+        if (!currentTask || !tempTitle.trim()) return;
+        try {
+            await taskApiService.updateTaskTitle(currentTask.id, tempTitle);
+            setCurrentTask(prev => prev ? { ...prev, title: tempTitle } : prev);
+            setIsEditingTitle(false);
+            toast.success("Title updated successfully");
+            if (onTaskUpdated) onTaskUpdated();
+        } catch (error) {
+            console.error("Error updating title:", error);
+            toast.error("Failed to update title");
+        }
+    };
+
+    const handleDescriptionPaste = async (e: React.ClipboardEvent) => {
+        const items = e.clipboardData.items;
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                const file = items[i].getAsFile();
+                if (file && currentTask) {
+                    try {
+                        const fileDataUrl = await fileToBase64(file);
+                        const response = await attachmentApiService.createAttachment({
+                            uploadedBy: user?.id,
+                            entityType: 'task',
+                            entityId: currentTask.id.split(':')[0],
+                            fileName: file.name || `pasted-image-${Date.now()}.png`,
+                            fileSize: file.size,
+                            fileType: file.type || 'image/png',
+                            fileUrl: fileDataUrl,
+                            attachmentType: 'file' as const,
+                            isPublic: true,
+                        });
+
+                        if (response.success && response.data) {
+                            const attachmentId = response.data.id;
+                            const imageUrl = attachmentApiService.getAttachmentViewUrl(attachmentId);
+                            const imageMarkdown = `\n${imageUrl}\n`;
+                            setTempDescription(prev => prev + imageMarkdown);
+                            toast.success("Image pasted and uploaded");
+
+                            // Also refresh attachments list
+                            const refreshRes = await attachmentApiService.getAttachmentsByEntity("task", currentTask.id);
+                            setTaskAttachments(refreshRes.data || []);
+                        }
+                    } catch (error) {
+                        console.error("Error handling pasted image:", error);
+                        toast.error("Failed to upload pasted image");
+                    }
+                }
+            }
+        }
+    };
+
     // Check if sprint has ended - block time logging after sprint end
     const isSprintEnded = sprintEndDate ? new Date() > new Date(sprintEndDate) : false;
+    const isDueDateExceeded = currentTask?.dueDate ? new Date() > new Date(currentTask.dueDate) : false;
+    const canLogTime = !isViewOnly;
 
     useEffect(() => {
         setCurrentTask(task);
@@ -190,6 +330,7 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
     };
 
     const fetchTaskData = async (taskId: string, storyId?: string) => {
+        const cleanTaskId = taskId.split(':')[0];
         setLoadingTaskLogs(true);
         setLoadingAttachments(true);
         setLoadingSubtasks(true);
@@ -205,45 +346,77 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                     storyId = taskData.storyId;
                 }
 
+                // Ensure we use clean IDs
+                const cleanStoryId = storyId ? storyId.split(':')[0] : undefined;
+
                 // Fetch linked issues if linkedIssueIds exist
                 const taskDataAny = taskData as any;
                 let linkedIssueIds: string[] = [];
 
-                // Try camelCase first, then snake_case, handle null/undefined
+                console.log('[TaskDetailsJiraDialog] Raw task data for links:', {
+                    id: taskDataAny?.id,
+                    linkedIssueIds: taskDataAny?.linkedIssueIds,
+                    linked_issue_ids: taskDataAny?.linked_issue_ids,
+                    allKeys: taskDataAny ? Object.keys(taskDataAny) : []
+                });
+
+                // Try camelCase first
                 if (taskDataAny.linkedIssueIds) {
                     if (Array.isArray(taskDataAny.linkedIssueIds)) {
                         linkedIssueIds = taskDataAny.linkedIssueIds;
+                    } else if (typeof taskDataAny.linkedIssueIds === 'string') {
+                        try {
+                            const parsed = JSON.parse(taskDataAny.linkedIssueIds);
+                            if (Array.isArray(parsed)) linkedIssueIds = parsed;
+                        } catch (e) {
+                            console.warn('[TaskDetailsJiraDialog] Failed to parse linkedIssueIds string:', e);
+                        }
                     }
-                } else if (taskDataAny.linked_issue_ids) {
+                }
+                // Then try snake_case if empty
+                if (linkedIssueIds.length === 0 && taskDataAny.linked_issue_ids) {
                     if (Array.isArray(taskDataAny.linked_issue_ids)) {
                         linkedIssueIds = taskDataAny.linked_issue_ids;
+                    } else if (typeof taskDataAny.linked_issue_ids === 'string') {
+                        try {
+                            const parsed = JSON.parse(taskDataAny.linked_issue_ids);
+                            if (Array.isArray(parsed)) linkedIssueIds = parsed;
+                        } catch (e) {
+                            console.warn('[TaskDetailsJiraDialog] Failed to parse linked_issue_ids string:', e);
+                        }
                     }
                 }
 
+                // Filter out any null/empty strings
+                linkedIssueIds = linkedIssueIds.filter(id => id && typeof id === 'string' && id.trim() !== '');
+
+                console.log('[TaskDetailsJiraDialog] Final parsed linkedIssueIds:', linkedIssueIds);
+
                 console.log('[TaskDetailsJiraDialog] Task linkedIssueIds from API:', linkedIssueIds);
 
-                if (linkedIssueIds && linkedIssueIds.length > 0 && storyId) {
+                if (linkedIssueIds && linkedIssueIds.length > 0) {
                     try {
                         setLoadingLinkedIssues(true);
-                        console.log('[TaskDetailsJiraDialog] Fetching issues for story:', storyId);
-                        // Fetch all issues for this story
-                        const issuesRes = await issueApiService.getIssuesByStory(storyId);
-                        const raw = issuesRes.data as any;
-                        let issues: Issue[] = [];
-                        if (Array.isArray(raw)) {
-                            issues = raw;
-                        } else if (raw && Array.isArray(raw.data)) {
-                            issues = raw.data;
-                        } else if (raw && Array.isArray(raw.content)) {
-                            issues = raw.content;
-                        }
+                        console.log('[TaskDetailsJiraDialog] Fetching linked issues directly by IDs:', linkedIssueIds);
 
-                        console.log('[TaskDetailsJiraDialog] Fetched issues from story:', issues.length, 'Issue IDs:', issues.map(i => i.id));
+                        const issuePromises = linkedIssueIds.map(async (issueId: string) => {
+                            try {
+                                const issueRes = await issueApiService.getIssueById(issueId);
+                                if (issueRes.data) {
+                                    return issueRes.data;
+                                }
+                                return null;
+                            } catch (err) {
+                                console.error(`[TaskDetailsJiraDialog] Failed to fetch issue ${issueId}:`, err);
+                                return null;
+                            }
+                        });
 
-                        // Filter issues to only show those that are linked
-                        const filtered = issues.filter(i => linkedIssueIds.includes(i.id));
-                        setLinkedIssues(filtered);
-                        console.log('[TaskDetailsJiraDialog] Found linked issues:', filtered.length, 'out of', issues.length, 'total issues. Linked Issue IDs:', filtered.map(i => i.id));
+                        const fetchedIssues = await Promise.all(issuePromises);
+                        const validIssues = fetchedIssues.filter((i): i is Issue => i !== null && i !== undefined);
+
+                        setLinkedIssues(validIssues);
+                        console.log('[TaskDetailsJiraDialog] Found linked issues:', validIssues.length, 'Issue IDs:', validIssues.map(i => i.id));
                     } catch (err) {
                         console.error("Error fetching linked issues:", err);
                         setLinkedIssues([]);
@@ -252,10 +425,9 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                     }
                 } else {
                     setLinkedIssues([]);
-                    console.log('[TaskDetailsJiraDialog] No linkedIssueIds found for task. Task data:', {
+                    console.log('[TaskDetailsJiraDialog] No linkedIssueIds found or empty array. Task data:', {
                         linkedIssueIds: taskDataAny.linkedIssueIds,
                         linked_issue_ids: taskDataAny.linked_issue_ids,
-                        storyId: storyId,
                         allKeys: Object.keys(taskDataAny)
                     });
                 }
@@ -272,9 +444,16 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
             }
 
             // Fetch Task Attachments
-            const taskAttachRes = await attachmentApiService.getAttachmentsByEntity("task", taskId);
-            setTaskAttachments(taskAttachRes.data || []);
-            console.log('[TaskDetailsJiraDialog] Fetched task attachments:', taskAttachRes.data?.length || 0);
+            console.log('[TaskDetailsJiraDialog] Fetching attachments for cleanTaskId:', cleanTaskId);
+            try {
+                const taskAttachRes = await attachmentApiService.getAttachmentsByEntity("task", cleanTaskId);
+                console.log('[TaskDetailsJiraDialog] Attachments response:', taskAttachRes);
+                setTaskAttachments(taskAttachRes.data || []);
+                console.log('[TaskDetailsJiraDialog] Fetched task attachments:', taskAttachRes.data?.length || 0);
+            } catch (err) {
+                console.error('[TaskDetailsJiraDialog] Failed to fetch attachments:', err);
+                setTaskAttachments([]);
+            }
 
             // Fetch Subtasks
             const subRes = await subtaskApiService.getSubtasksByTask(taskId);
@@ -289,14 +468,7 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
         }
     };
 
-    const fileToBase64 = (file: File): Promise<string> => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = (error) => reject(error);
-        });
-    };
+
 
     const uploadFileAndCreateAttachment = async (
         file: File,
@@ -318,7 +490,7 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
             const response = await attachmentApiService.createAttachment({
                 uploadedBy: user?.id,
                 entityType,
-                entityId,
+                entityId: entityId.split(':')[0],
                 fileName: file.name,
                 fileSize: file.size,
                 fileType,
@@ -475,10 +647,10 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className={`h-8 px-2 ${isSprintEnded ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-100'}`}
-                                        onClick={() => !isSprintEnded && setIsLogEffortOpen(true)}
-                                        disabled={isSprintEnded}
-                                        title={isSprintEnded ? 'Cannot log time after sprint has ended' : 'Log time for this task'}
+                                        className={`h-8 px-2 ${!canLogTime ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-100'}`}
+                                        onClick={() => canLogTime && setIsLogEffortOpen(true)}
+                                        disabled={!canLogTime}
+                                        title={!canLogTime ? 'View-only access' : 'Log time for this task'}
                                     >
                                         <Clock className="w-4 h-4 mr-1 text-blue-600" />
                                         Add Log
@@ -488,9 +660,43 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
 
                             {/* Title Section */}
                             <div className="p-6 border-b border-gray-200 flex-shrink-0">
-                                <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                                    {currentTask.title}
-                                </h2>
+                                <div className="flex items-center justify-between mb-2">
+                                    {isEditingTitle ? (
+                                        <div className="flex-1 flex items-center space-x-2">
+                                            <Input
+                                                value={tempTitle}
+                                                onChange={(e) => setTempTitle(e.target.value)}
+                                                className="text-xl font-semibold h-10"
+                                                autoFocus
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') handleSaveTitle();
+                                                    if (e.key === 'Escape') setIsEditingTitle(false);
+                                                }}
+                                            />
+                                            <Button size="sm" onClick={handleSaveTitle}>Save</Button>
+                                            <Button size="sm" variant="outline" onClick={() => setIsEditingTitle(false)}>Cancel</Button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center justify-between w-full">
+                                            <h2 className="text-xl font-semibold text-gray-900">
+                                                {currentTask.title}
+                                            </h2>
+                                            {canEditContent && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        setTempTitle(currentTask.title);
+                                                        setIsEditingTitle(true);
+                                                    }}
+                                                    className="h-8 px-2"
+                                                >
+                                                    <Edit3 className="w-3 h-4" />
+                                                </Button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
                                 <div className="flex items-center space-x-4 text-sm text-gray-600">
                                     <div className="flex items-center space-x-1">
                                         <Flag className="w-4 h-4" />
@@ -585,7 +791,7 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                                         <div>
                                             <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center justify-between">
                                                 <span>Description</span>
-                                                {canManage && (user?.role === 'manager' || user?.role === 'qa_manager') && !isEditingDescription && (
+                                                {canEditContent && !isEditingDescription && (
                                                     <Button variant="ghost" size="sm" onClick={() => {
                                                         setTempDescription(currentTask.description || "");
                                                         setIsEditingDescription(true);
@@ -600,8 +806,9 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                                                         <Textarea
                                                             value={tempDescription}
                                                             onChange={(e) => setTempDescription(e.target.value)}
-                                                            className="min-h-[120px] bg-white"
-                                                            placeholder="Enter task description..."
+                                                            onPaste={handleDescriptionPaste}
+                                                            className="min-h-[120px] bg-white whitespace-pre-wrap"
+                                                            placeholder="Enter task description... (You can paste images here)"
                                                         />
                                                         <div className="flex justify-end space-x-2">
                                                             <Button variant="outline" size="sm" onClick={() => setIsEditingDescription(false)}>Cancel</Button>
@@ -609,9 +816,7 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                                                         </div>
                                                     </div>
                                                 ) : (
-                                                    <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                                                        {currentTask.description || "No description provided."}
-                                                    </p>
+                                                    <RenderDescription description={currentTask.description} />
                                                 )}
                                             </div>
                                         </div>
@@ -864,8 +1069,16 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                                         <div className="flex items-center justify-between">
                                             <h3 className="text-sm font-semibold text-gray-900">Linked Issues</h3>
                                             <p className="text-xs text-gray-500">
-                                                Issues from the same story linked to this task
+                                                Issues linked to this task
                                             </p>
+                                        </div>
+
+                                        {/* DEBUG SECTION */}
+                                        <div className="p-2 bg-gray-100 border border-gray-300 rounded text-xs font-mono mb-2">
+                                            <p>DEBUG: Linked Issues Detection</p>
+                                            <p>Loading: {loadingLinkedIssues ? 'Yes' : 'No'}</p>
+                                            <p>Count: {linkedIssues.length}</p>
+                                            <p>Raw IDs found: {JSON.stringify((currentTask as any).linkedIssueIds || (currentTask as any).linked_issue_ids || [])}</p>
                                         </div>
 
                                         {loadingLinkedIssues ? (
@@ -1071,6 +1284,7 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                                 value={effortLog.description}
                                 onChange={(e) => setEffortLog(p => ({ ...p, description: e.target.value }))}
                                 placeholder="What did you work on?"
+                                className="whitespace-pre-wrap"
                             />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
@@ -1211,7 +1425,7 @@ const TaskEffortLogs: React.FC<{ taskId: string, users: any[] }> = ({ taskId, us
                         </div>
                         <span className="text-xs text-gray-400">{new Date(log.createdAt).toLocaleDateString()}</span>
                     </div>
-                    <p className="text-xs text-gray-600 line-clamp-2">{log.description || "Time logged"}</p>
+                    <p className="text-xs text-gray-600 whitespace-pre-wrap">{log.description || "Time logged"}</p>
                 </div>
             ))}
         </div>

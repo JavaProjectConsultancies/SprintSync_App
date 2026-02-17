@@ -1116,7 +1116,7 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
                             </Button>
                           </div>
                         </div>
-                        <p className={`text-sm mt-1 ${isOverdue ? 'text-red-700' : 'text-muted-foreground'}`}>
+                        <p className={`text-sm mt-1 whitespace-pre-wrap ${isOverdue ? 'text-red-700' : 'text-muted-foreground'}`}>
                           {task.description}
                         </p>
                         <div className={`flex items-center space-x-4 mt-2 text-xs ${isOverdue ? 'text-red-600' : 'text-muted-foreground'}`}>

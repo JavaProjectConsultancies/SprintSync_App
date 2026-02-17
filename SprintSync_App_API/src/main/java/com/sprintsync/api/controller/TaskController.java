@@ -489,4 +489,44 @@ public class TaskController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
     }
+
+    /**
+     * Update task title
+     */
+    @PatchMapping("/{id}/title")
+    public ResponseEntity<Task> updateTaskTitle(@PathVariable String id, @RequestBody Map<String, String> update) {
+        try {
+            String title = update.get("title");
+            if (title == null || title.trim().isEmpty()) {
+                return ResponseEntity.badRequest().build();
+            }
+            Task updatedTask = taskService.updateTaskTitle(id, title);
+            if (updatedTask != null) {
+                return ResponseEntity.ok(updatedTask);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
+
+    /**
+     * Update task description
+     */
+    @PatchMapping("/{id}/description")
+    public ResponseEntity<Task> updateTaskDescription(@PathVariable String id,
+            @RequestBody Map<String, String> update) {
+        try {
+            String description = update.get("description");
+            Task updatedTask = taskService.updateTaskDescription(id, description);
+            if (updatedTask != null) {
+                return ResponseEntity.ok(updatedTask);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
 }

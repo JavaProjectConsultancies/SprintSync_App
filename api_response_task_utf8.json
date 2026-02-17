@@ -1,0 +1,22 @@
+﻿{
+    "id":  "TASK14e7bb45765e4f5da9b899ca31682db8",
+    "createdAt":  "2026-02-06T12:12:03.170124",
+    "updatedAt":  "2026-02-07T17:24:28.381645",
+    "storyId":  "STRY2edb35d2c8ab472da7d1cd9482bbc5eb",
+    "title":  "Implement API endpoint",
+    "description":  "Create RESTful API endpoint with proper request/response handling and error management.",
+    "status":  "to_do",
+    "priority":  "high",
+    "assigneeId":  "USER000000000024",
+    "reporterId":  null,
+    "estimatedHours":  6.00,
+    "actualHours":  0.00,
+    "orderIndex":  0,
+    "taskNumber":  1,
+    "dueDate":  "2026-02-18",
+    "labels":  null,
+    "isPulledFromBacklog":  false,
+    "linkedIssueIds":  [
+                           "ISSU9cbcc138912447f9a725741cd387412c"
+                       ]
+}

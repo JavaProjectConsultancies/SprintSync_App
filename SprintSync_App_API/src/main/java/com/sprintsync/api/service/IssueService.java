@@ -367,4 +367,32 @@ public class IssueService {
             System.err.println("Failed to sync actual hours for issue " + issueId + ": " + e.getMessage());
         }
     }
+
+    /**
+     * Update issue title
+     */
+    public Issue updateIssueTitle(String id, String title) {
+        Optional<Issue> issueOpt = issueRepository.findById(id);
+        if (issueOpt.isPresent()) {
+            Issue issue = issueOpt.get();
+            issue.setTitle(title);
+            issue.setUpdatedAt(LocalDateTime.now());
+            return issueRepository.save(issue);
+        }
+        return null;
+    }
+
+    /**
+     * Update issue description
+     */
+    public Issue updateIssueDescription(String id, String description) {
+        Optional<Issue> issueOpt = issueRepository.findById(id);
+        if (issueOpt.isPresent()) {
+            Issue issue = issueOpt.get();
+            issue.setDescription(description);
+            issue.setUpdatedAt(LocalDateTime.now());
+            return issueRepository.save(issue);
+        }
+        return null;
+    }
 }

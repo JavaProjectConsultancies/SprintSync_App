@@ -1,0 +1,23 @@
+﻿{
+    "id":  "ISSU9cbcc138912447f9a725741cd387412c",
+    "createdAt":  "2026-02-07T17:26:28.954507",
+    "updatedAt":  "2026-02-07T17:26:29.707294",
+    "storyId":  "STRY2edb35d2c8ab472da7d1cd9482bbc5eb",
+    "title":  "akjscvbjkas",
+    "description":  "aksjch9asc",
+    "status":  "to_do",
+    "priority":  "medium",
+    "assigneeId":  "USER000000000018",
+    "reporterId":  "USER000000000017",
+    "estimatedHours":  4.00,
+    "actualHours":  0.00,
+    "orderIndex":  0,
+    "issueNumber":  2,
+    "dueDate":  "2026-02-13",
+    "labels":  [
+
+               ],
+    "linkedTaskIds":  [
+                          "TASK14e7bb45765e4f5da9b899ca31682db8"
+                      ]
+}

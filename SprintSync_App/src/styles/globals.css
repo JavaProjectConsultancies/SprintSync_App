@@ -797,3 +797,9 @@ html {
     background-color: #7f1d1d !important;
   }
 }
+
+@layer utilities {
+  .whitespace-pre-wrap {
+    white-space: pre-wrap;
+  }
+}

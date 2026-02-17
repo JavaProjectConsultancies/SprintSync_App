@@ -127,6 +127,72 @@ import {
   Save,
 } from "lucide-react";
 
+// Helper component to render description with images and line breaks
+const RenderDescription = ({ description }: { description?: string }) => {
+  if (!description) return <p className="text-sm text-gray-500 italic">No description provided.</p>;
+
+  // Regex to find ![image](url) OR raw attachment URLs
+  const imageRegex = /(!\[.*?\]\((.*?)\))|(https?:\/\/[^\s]+\/attachments\/view\/[a-zA-Z0-9_\-]+)/g;
+  const parts = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = imageRegex.exec(description)) !== null) {
+    // Add text before the image
+    const textBefore = description.substring(lastIndex, match.index);
+    if (textBefore) {
+      parts.push({ type: 'text', content: textBefore });
+    }
+
+    // Determine URL
+    let imageUrl = '';
+    if (match[1]) {
+      // Markdown format ![...](url) -> match[2]
+      imageUrl = match[2];
+    } else {
+      // Raw URL format -> match[0] (or match[3])
+      imageUrl = match[0];
+    }
+
+    // Add the image
+    parts.push({ type: 'image', url: imageUrl });
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text
+  const remainingText = description.substring(lastIndex);
+  if (remainingText) {
+    parts.push({ type: 'text', content: remainingText });
+  }
+
+  return (
+    <div className="space-y-2">
+      {parts.map((part, index) => {
+        if (part.type === 'image') {
+          return (
+            <div key={index} className="my-2 border rounded-lg overflow-hidden bg-white max-w-full">
+              <img
+                src={part.url}
+                alt="Description image"
+                className="max-w-full h-auto object-contain cursor-pointer hover:opacity-90"
+                onClick={() => window.open(part.url, '_blank')}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'https://placehold.co/400x200?text=Image+Load+Error';
+                }}
+              />
+            </div>
+          );
+        }
+        return (
+          <p key={index} className="text-sm text-gray-700 whitespace-pre-wrap">
+            {part.content}
+          </p>
+        );
+      })}
+    </div>
+  );
+};
+
 import { Checkbox } from "../components/ui/checkbox";
 
 import { Calendar } from "../components/ui/calendar";
@@ -539,6 +605,11 @@ const ScrumPage: React.FC = () => {
   const [selectedTaskForEffort, setSelectedTaskForEffort] =
     useState<Task | null>(null);
 
+  // State for linked items
+  const [linkedTasks, setLinkedTasks] = useState<Task[]>([]);
+  const [linkedIssues, setLinkedIssues] = useState<Issue[]>([]);
+  const [loadingLinkedItems, setLoadingLinkedItems] = useState(false);
+
   const [selectedIssueForEffort, setSelectedIssueForEffort] =
     useState<Issue | null>(null);
 
@@ -598,6 +669,12 @@ const ScrumPage: React.FC = () => {
   const [isLoggingEffort, setIsLoggingEffort] = useState(false);
 
   // Edit Story Dialog State
+  const [isEditingTaskTitle, setIsEditingTaskTitle] = useState(false);
+  const [isEditingIssueTitle, setIsEditingIssueTitle] = useState(false);
+  const [isEditingTaskDescription, setIsEditingTaskDescription] = useState(false);
+  const [isEditingIssueDescription, setIsEditingIssueDescription] = useState(false);
+  const [tempTitle, setTempTitle] = useState("");
+  const [tempDescription, setTempDescription] = useState("");
   const [isEditStoryDialogOpen, setIsEditStoryDialogOpen] = useState(false);
   const [editingStory, setEditingStory] = useState<Story | null>(null);
   const [editStoryForm, setEditStoryForm] = useState({
@@ -639,11 +716,6 @@ const ScrumPage: React.FC = () => {
     }
   }, [user?.id]);
 
-  // Description editing state (added for inline editing in details dialogs)
-  const [isEditingTaskDescription, setIsEditingTaskDescription] = useState(false);
-  const [isEditingIssueDescription, setIsEditingIssueDescription] = useState(false);
-  const [tempDescription, setTempDescription] = useState("");
-
   // Role-based permissions - using effectiveRole for dynamic role switching
 
   // Role checks for different user types - using effectiveRole to support role switching
@@ -662,7 +734,8 @@ const ScrumPage: React.FC = () => {
   const isOriginalQAManager = user?.role?.toUpperCase() === "QA_MANAGER";
   const isOriginalQADeveloper = user?.role?.toUpperCase() === "QA_DEVELOPER";
 
-  const canEditAttachments = !isViewOnly && (isManager || isSupport || isQAManager || isQADeveloper || isOriginalQAManager || isOriginalQADeveloper);
+  const canEditContent = !isViewOnly && (isManager || isSupport || isQAManager || isQADeveloper || isOriginalQAManager || isOriginalQADeveloper);
+  const canEditAttachments = canEditContent;
 
   // QA Developers should be treated like developers but with extra permissions (view all, drag to Done)
   const isDeveloper = isRegularDeveloper || isQADeveloper;
@@ -673,11 +746,13 @@ const ScrumPage: React.FC = () => {
     !isViewOnly && (
       isManager ||
       isSupport ||
+      isQAManager ||
+      isQADeveloper ||
       effectiveRole?.toUpperCase() === "QA"
     );
 
   // Managers and QA Managers can create tasks (Master Admin cannot - view only)
-  const canAddTasks = !isViewOnly && (isManager || isSupport || isOriginalQAManager);
+  const canAddTasks = !isViewOnly && (isManager || isSupport || isOriginalQAManager || isOriginalQADeveloper || isQADeveloper);
 
   // Managers, QA Managers, and QA Developers can create issues (Master Admin cannot - view only)
   const canAddIssues = !isViewOnly && (isManager || isSupport || isQADeveloper || isOriginalQAManager || isOriginalQADeveloper);
@@ -687,8 +762,8 @@ const ScrumPage: React.FC = () => {
 
   // Master Admin cannot log effort (view only)
   const canLogEffort = !isViewOnly;
-  // QA Manager and QA Developer CANNOT log effort on TASKS (only on issues)
-  const canLogEffortOnTasks = !isViewOnly && !isQAManager && !isQADeveloper;
+  // All non-admin roles can log effort on tasks
+  const canLogEffortOnTasks = !isViewOnly;
   // QA Manager and QA Developer can log effort on OTHER users' tasks (like managers)
   const canLogEffortForOthers = !isViewOnly && (canManageSprintsAndStories || isQADeveloper || isSupport);
 
@@ -877,6 +952,72 @@ const ScrumPage: React.FC = () => {
 
     fetchStoryTaskAttachments();
   }, [selectedStoryForDetails?.id, isStoryDetailsOpen]);
+
+  // Fetch linked issues for the selected task
+  useEffect(() => {
+    const fetchLinkedIssues = async () => {
+      if (selectedTaskForDetails && selectedTaskForDetails.linkedIssueIds && selectedTaskForDetails.linkedIssueIds.length > 0) {
+        setLoadingLinkedItems(true);
+        try {
+          const issues = await Promise.all(
+            selectedTaskForDetails.linkedIssueIds.map(async (id) => {
+              try {
+                const response = await issueApiService.getIssueById(id);
+                return response.data || response;
+              } catch (e) {
+                console.error(`Failed to fetch linked issue ${id}`, e);
+                return null;
+              }
+            })
+          );
+          setLinkedIssues(issues.filter((i): i is Issue => i !== null));
+        } catch (error) {
+          console.error("Error fetching linked issues:", error);
+        } finally {
+          setLoadingLinkedItems(false);
+        }
+      } else {
+        setLinkedIssues([]);
+      }
+    };
+
+    if (isTaskDetailsOpen && selectedTaskForDetails) {
+      fetchLinkedIssues();
+    }
+  }, [selectedTaskForDetails, isTaskDetailsOpen]);
+
+  // Fetch linked tasks for the selected issue
+  useEffect(() => {
+    const fetchLinkedTasks = async () => {
+      if (selectedIssueForDetails && selectedIssueForDetails.linkedTaskIds && selectedIssueForDetails.linkedTaskIds.length > 0) {
+        setLoadingLinkedItems(true);
+        try {
+          const tasks = await Promise.all(
+            selectedIssueForDetails.linkedTaskIds.map(async (id) => {
+              try {
+                const response = await taskApiService.getTaskById(id);
+                return response.data || response;
+              } catch (e) {
+                console.error(`Failed to fetch linked task ${id}`, e);
+                return null;
+              }
+            })
+          );
+          setLinkedTasks(tasks.filter((t): t is Task => t !== null));
+        } catch (error) {
+          console.error("Error fetching linked tasks:", error);
+        } finally {
+          setLoadingLinkedItems(false);
+        }
+      } else {
+        setLinkedTasks([]);
+      }
+    };
+
+    if (isIssueDetailsOpen && selectedIssueForDetails) {
+      fetchLinkedTasks();
+    }
+  }, [selectedIssueForDetails, isIssueDetailsOpen]);
 
   // Fetch issue attachments for all issues in the story when story details dialog opens
   useEffect(() => {
@@ -1608,36 +1749,7 @@ const ScrumPage: React.FC = () => {
       // Sanitize ID in case it comes from a Draggable with index suffix (e.g. TASK...:0)
       const cleanId = selectedTaskForDetails.id.split(':')[0];
 
-      // Map UI status to Backend valid Enum (names)
-      // The backend expects: TO_DO, IN_PROGRESS, QA_REVIEW, DONE, BLOCKED, CANCELLED
-      const statusMap: Record<string, string> = {
-        'todo': 'TO_DO',
-        'to_do': 'TO_DO',
-        'inprogress': 'IN_PROGRESS',
-        'in_progress': 'IN_PROGRESS',
-        'qa': 'QA_REVIEW',
-        'qa_review': 'QA_REVIEW',
-        'done': 'DONE',
-        'blocked': 'BLOCKED',
-        'cancelled': 'CANCELLED'
-      };
-
-      const currentStatus = (selectedTaskForDetails.status || '').toLowerCase();
-      const validStatus = (statusMap[currentStatus] || selectedTaskForDetails.status.toUpperCase()) as any;
-
-      // Priority mapping: LOW, MEDIUM, HIGH, CRITICAL
-      const validPriority = (selectedTaskForDetails.priority || 'MEDIUM').toUpperCase() as any;
-
-      // Ensure we send the full object as required by the backend PUT validation
-      const updatedTask = {
-        ...selectedTaskForDetails,
-        id: cleanId,
-        description: tempDescription,
-        status: validStatus,
-        priority: validPriority
-      };
-
-      await taskApiService.updateTask(cleanId, updatedTask as any);
+      await taskApiService.updateTaskDescription(cleanId, tempDescription);
 
       // Update local state
       setSelectedTaskForDetails(prev => prev ? { ...prev, description: tempDescription } : prev);
@@ -1654,49 +1766,93 @@ const ScrumPage: React.FC = () => {
   const handleSaveIssueDescription = async () => {
     if (!selectedIssueForDetails) return;
     try {
-      // Sanitize ID in case it comes from a Draggable with index suffix
       const cleanId = selectedIssueForDetails.id.split(':')[0];
-
-      // Map UI status to Backend valid Enum (names)
-      // The backend Issue entity uses TaskStatus enum: TO_DO, IN_PROGRESS, QA_REVIEW, DONE, BLOCKED, CANCELLED
-      const statusMap: Record<string, string> = {
-        'todo': 'TO_DO',
-        'to_do': 'TO_DO',
-        'inprogress': 'IN_PROGRESS',
-        'in_progress': 'IN_PROGRESS',
-        'qa': 'QA_REVIEW',
-        'qa_review': 'QA_REVIEW',
-        'done': 'DONE',
-        'blocked': 'BLOCKED',
-        'cancelled': 'CANCELLED'
-      };
-
-      const currentStatus = (selectedIssueForDetails.status || '').toLowerCase();
-      const validStatus = (statusMap[currentStatus] || selectedIssueForDetails.status.toUpperCase()) as any;
-
-      // Priority mapping: LOW, MEDIUM, HIGH, CRITICAL
-      const validPriority = (selectedIssueForDetails.priority || 'MEDIUM').toUpperCase() as any;
-
-      // Ensure we send the full object as required by the backend PUT validation
-      const updatedIssue = {
-        ...selectedIssueForDetails,
-        id: cleanId,
-        description: tempDescription,
-        status: validStatus,
-        priority: validPriority
-      };
-
-      await issueApiService.updateIssue(cleanId, updatedIssue as any);
-
-      // Update local state
+      await issueApiService.updateIssueDescription(cleanId, tempDescription);
       setSelectedIssueForDetails(prev => prev ? { ...prev, description: tempDescription } : prev);
       setAllIssues(prev => prev.map(i => i.id === selectedIssueForDetails.id ? { ...i, description: tempDescription } : i));
-
       setIsEditingIssueDescription(false);
       toast.success("Description updated successfully");
     } catch (error) {
-      console.error("Error updating description:", error);
+      console.error("Error updating issue description:", error);
       toast.error("Failed to update description");
+    }
+  };
+
+  const handleSaveTaskTitle = async () => {
+    if (!selectedTaskForDetails || !tempTitle.trim()) return;
+    try {
+      const cleanId = selectedTaskForDetails.id.split(':')[0];
+
+      await taskApiService.updateTaskTitle(cleanId, tempTitle);
+      setSelectedTaskForDetails(prev => prev ? { ...prev, title: tempTitle } : prev);
+      setAllTasks(prev => prev.map(t => t.id === selectedTaskForDetails.id ? { ...t, title: tempTitle } : t));
+      setIsEditingTaskTitle(false);
+      toast.success("Title updated successfully");
+    } catch (error) {
+      console.error("Error updating task title:", error);
+      toast.error("Failed to update title");
+    }
+  };
+
+  const handleSaveIssueTitle = async () => {
+    if (!selectedIssueForDetails || !tempTitle.trim()) return;
+    try {
+      const cleanId = selectedIssueForDetails.id.split(':')[0];
+
+      await issueApiService.updateIssueTitle(cleanId, tempTitle);
+      setSelectedIssueForDetails(prev => prev ? { ...prev, title: tempTitle } : prev);
+      setAllIssues(prev => prev.map(i => i.id === selectedIssueForDetails.id ? { ...i, title: tempTitle } : i));
+      setIsEditingIssueTitle(false);
+      toast.success("Title updated successfully");
+    } catch (error) {
+      console.error("Error updating issue title:", error);
+      toast.error("Failed to update title");
+    }
+  };
+
+  const handleDescriptionPaste = async (e: React.ClipboardEvent, entityType: 'task' | 'issue', entityId: string) => {
+    const items = e.clipboardData.items;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const file = items[i].getAsFile();
+        if (file && entityId) {
+          try {
+            const cleanId = entityId.split(':')[0];
+            const fileDataUrl = await fileToBase64(file);
+            const response = await attachmentApiService.createAttachment({
+              uploadedBy: user?.id,
+              entityType: entityType,
+              entityId: cleanId,
+              fileName: file.name || `pasted-image-${Date.now()}.png`,
+              fileSize: file.size,
+              fileType: file.type || 'image/png',
+              fileUrl: fileDataUrl,
+              attachmentType: 'file' as const,
+              isPublic: true,
+            });
+
+            if (response.success && response.data) {
+              const attachmentId = response.data.id;
+              const imageUrl = attachmentApiService.getAttachmentViewUrl(attachmentId);
+              const imageMarkdown = `\n${imageUrl}\n`;
+              setTempDescription(prev => prev + imageMarkdown);
+              toast.success("Image pasted and uploaded");
+
+              // Also refresh attachments list
+              if (entityType === 'task') {
+                const refreshRes = await attachmentApiService.getAttachmentsByEntity("task", cleanId);
+                setTaskAttachments(refreshRes.data || []);
+              } else {
+                const refreshRes = await attachmentApiService.getAttachmentsByEntity("issue", cleanId);
+                setIssueAttachments(refreshRes.data || []);
+              }
+            }
+          } catch (error) {
+            console.error("Error handling pasted image:", error);
+            toast.error("Failed to upload pasted image");
+          }
+        }
+      }
     }
   };
 
@@ -4923,7 +5079,7 @@ const ScrumPage: React.FC = () => {
       const updateData = {
         ...editingStory,
         title: editStoryForm.title.trim(),
-        description: editStoryForm.description.trim(),
+        description: editStoryForm.description,
         priority: editStoryForm.priority,
         storyPoints: editStoryForm.storyPoints,
         dueDate: editStoryForm.dueDate || null,
@@ -9478,7 +9634,7 @@ const ScrumPage: React.FC = () => {
                                                         )}
                                                       </div>
                                                       {item.description && (
-                                                        <p className="text-xs text-muted-foreground mb-2">{item.description}</p>
+                                                        <p className="text-xs text-muted-foreground mb-2 whitespace-pre-wrap">{item.description}</p>
                                                       )}
                                                       <div className="flex items-center space-x-4 text-xs text-muted-foreground">
                                                         <Badge variant="outline" className={`${getBacklogPriorityColor(item.priority)}`}>
@@ -12820,7 +12976,7 @@ const ScrumPage: React.FC = () => {
                         <Textarea
                           value={tempDescription}
                           onChange={(e) => setTempDescription(e.target.value)}
-                          className="min-h-[100px]"
+                          className="min-h-[100px] whitespace-pre-wrap"
                         />
                         <div className="flex justify-end space-x-2">
                           <Button variant="outline" size="sm" onClick={() => setIsEditingTaskDescription(false)}>Cancel</Button>
@@ -14090,7 +14246,7 @@ const ScrumPage: React.FC = () => {
                           });
                           setIsLogEffortDialogOpen(true);
                         }}
-                        title={canLogEffortOnTasks ? "Log work on this task" : "QA roles cannot log on tasks"}
+                        title="Log work on this task"
                         disabled={!canLogEffortOnTasks}
                       >
                         <Clock className="w-4 h-4 mr-1 text-blue-600" />
@@ -14099,12 +14255,44 @@ const ScrumPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Task Title */}
-
                   <div className="p-6 border-b border-gray-200 flex-shrink-0">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                      {selectedTaskForDetails.title}
-                    </h2>
+                    <div className="flex items-center justify-between mb-2">
+                      {isEditingTaskTitle ? (
+                        <div className="flex-1 flex items-center space-x-2">
+                          <Input
+                            value={tempTitle}
+                            onChange={(e) => setTempTitle(e.target.value)}
+                            className="text-xl font-semibold h-10"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveTaskTitle();
+                              if (e.key === 'Escape') setIsEditingTaskTitle(false);
+                            }}
+                          />
+                          <Button size="sm" onClick={handleSaveTaskTitle}>Save</Button>
+                          <Button size="sm" variant="outline" onClick={() => setIsEditingTaskTitle(false)}>Cancel</Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between w-full">
+                          <h2 className="text-xl font-semibold text-gray-900">
+                            {selectedTaskForDetails.title}
+                          </h2>
+                          {canEditContent && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setTempTitle(selectedTaskForDetails.title);
+                                setIsEditingTaskTitle(true);
+                              }}
+                              className="h-8 px-2"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
 
                     <div className="flex items-center space-x-4 text-sm text-gray-600">
                       <div className="flex items-center space-x-1">
@@ -14294,14 +14482,12 @@ const ScrumPage: React.FC = () => {
                           <TaskEffortLogs taskId={selectedTaskForDetails.id} />
                         </div>
 
-                        {/* Description */}
-
                         <div>
                           <div className="flex items-center justify-between mb-2">
                             <h3 className="text-sm font-semibold text-gray-900">
                               Description
                             </h3>
-                            {canManageSprintsAndStories && !isEditingTaskDescription && (
+                            {canEditContent && !isEditingTaskDescription && (
                               <Button variant="ghost" size="sm" onClick={() => {
                                 setTempDescription(selectedTaskForDetails.description || "");
                                 setIsEditingTaskDescription(true);
@@ -14317,7 +14503,9 @@ const ScrumPage: React.FC = () => {
                                 <Textarea
                                   value={tempDescription}
                                   onChange={(e) => setTempDescription(e.target.value)}
-                                  className="min-h-[100px] bg-white"
+                                  onPaste={(e) => handleDescriptionPaste(e, 'task', selectedTaskForDetails.id)}
+                                  className="min-h-[120px] bg-white whitespace-pre-wrap"
+                                  placeholder="Enter task description... (You can paste images here)"
                                 />
                                 <div className="flex justify-end space-x-2">
                                   <Button variant="outline" size="sm" onClick={() => setIsEditingTaskDescription(false)}>Cancel</Button>
@@ -14325,9 +14513,7 @@ const ScrumPage: React.FC = () => {
                                 </div>
                               </div>
                             ) : (
-                              <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                                {selectedTaskForDetails.description || "No description provided."}
-                              </p>
+                              <RenderDescription description={selectedTaskForDetails.description} />
                             )}
                           </div>
                         </div>
@@ -14938,11 +15124,11 @@ const ScrumPage: React.FC = () => {
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      className={`h-7 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity ${isSprintEnded ? 'cursor-not-allowed opacity-50' : 'hover:bg-green-100'}`}
-                                      disabled={isSprintEnded}
-                                      title={isSprintEnded ? 'Cannot log time - sprint has ended' : 'Log work on this subtask'}
+                                      className="h-7 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity hover:bg-green-100"
+                                      disabled={!canLogEffort}
+                                      title="Log work on this subtask"
                                       onClick={() => {
-                                        if (isSprintEnded) return;
+                                        if (!canLogEffort) return;
                                         setSelectedSubtaskForLog(subtask);
                                         setSubtaskLogEffort({
                                           hours: 0,
@@ -15093,16 +15279,57 @@ const ScrumPage: React.FC = () => {
                             Linked Issues
                           </h3>
 
-                          <div className="text-center py-8 text-gray-500">
-                            <Link className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-
-                            <p className="text-sm">No linked issues</p>
-
-                            <p className="text-xs text-gray-400 mt-1">
-                              Links to related tasks and stories will appear
-                              here
-                            </p>
-                          </div>
+                          {loadingLinkedItems ? (
+                            <div className="flex justify-center py-8">
+                              <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                            </div>
+                          ) : linkedIssues.length > 0 ? (
+                            <div className="space-y-3">
+                              {linkedIssues.map((issue) => (
+                                <div
+                                  key={issue.id}
+                                  className="flex items-center justify-between p-3 bg-white border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                                  onClick={() => {
+                                    setIsTaskDetailsOpen(false);
+                                    setSelectedIssueForDetails(issue);
+                                    setIsIssueDetailsOpen(true);
+                                  }}
+                                >
+                                  <div className="flex items-center space-x-3">
+                                    <div className={`p-1.5 rounded-md ${issue.priority === "HIGH" || issue.priority === "CRITICAL"
+                                        ? "bg-red-100 text-red-700"
+                                        : issue.priority === "MEDIUM"
+                                          ? "bg-orange-100 text-orange-700"
+                                          : "bg-green-100 text-green-700"
+                                      }`}>
+                                      <AlertCircle className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                      <div className="font-medium text-sm text-gray-900">{issue.title}</div>
+                                      <div className="text-xs text-gray-500 flex items-center mt-1">
+                                        <span className="font-mono mr-2">I){issue.id.slice(0, 8)}</span>
+                                        <span className="capitalize px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[10px]">
+                                          {issue.status.replace(/_/g, " ")}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-center py-8 text-gray-500">
+                              <Link className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                              <p className="text-sm">No linked issues</p>
+                              <p className="text-xs text-gray-400 mt-1">
+                                Links to related tasks and stories will appear
+                                here
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </TabsContent>
 
@@ -15606,12 +15833,44 @@ const ScrumPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Issue Title */}
-
                 <div className="p-6 border-b border-gray-200 flex-shrink-0">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                    {selectedIssueForDetails.title}
-                  </h2>
+                  <div className="flex items-center justify-between mb-2">
+                    {isEditingIssueTitle ? (
+                      <div className="flex-1 flex items-center space-x-2">
+                        <Input
+                          value={tempTitle}
+                          onChange={(e) => setTempTitle(e.target.value)}
+                          className="text-xl font-semibold h-10"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveIssueTitle();
+                            if (e.key === 'Escape') setIsEditingIssueTitle(false);
+                          }}
+                        />
+                        <Button size="sm" onClick={handleSaveIssueTitle}>Save</Button>
+                        <Button size="sm" variant="outline" onClick={() => setIsEditingIssueTitle(false)}>Cancel</Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between w-full">
+                        <h2 className="text-xl font-semibold text-gray-900">
+                          {selectedIssueForDetails.title}
+                        </h2>
+                        {canEditContent && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setTempTitle(selectedIssueForDetails.title);
+                              setIsEditingIssueTitle(true);
+                            }}
+                            className="h-8 px-2"
+                          >
+                            <Edit3 className="w-4 h-4 ml-1" />
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
                   <div className="flex items-center space-x-4 text-sm text-gray-600">
                     <div className="flex items-center space-x-1">
@@ -15760,15 +16019,13 @@ const ScrumPage: React.FC = () => {
                         )}
                       </div>
 
-                      {/* Description */}
-
                       <div>
                         {/* Accessibility fix: Header with Edit button */}
                         <div className="flex items-center justify-between mb-2">
                           <h3 className="text-sm font-semibold text-gray-900">
                             Description
                           </h3>
-                          {canManageSprintsAndStories && !isEditingIssueDescription && (
+                          {canEditContent && !isEditingIssueDescription && (
                             <Button variant="ghost" size="sm" onClick={() => {
                               setTempDescription(selectedIssueForDetails.description || "");
                               setIsEditingIssueDescription(true);
@@ -15784,7 +16041,9 @@ const ScrumPage: React.FC = () => {
                               <Textarea
                                 value={tempDescription}
                                 onChange={(e) => setTempDescription(e.target.value)}
-                                className="min-h-[100px] bg-white"
+                                onPaste={(e) => handleDescriptionPaste(e, 'issue', selectedIssueForDetails.id)}
+                                className="min-h-[120px] bg-white whitespace-pre-wrap"
+                                placeholder="Enter issue description... (You can paste images here)"
                               />
                               <div className="flex justify-end space-x-2">
                                 <Button variant="outline" size="sm" onClick={() => setIsEditingIssueDescription(false)}>Cancel</Button>
@@ -15792,9 +16051,7 @@ const ScrumPage: React.FC = () => {
                               </div>
                             </div>
                           ) : (
-                            <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                              {selectedIssueForDetails.description || "No description provided."}
-                            </p>
+                            <RenderDescription description={selectedIssueForDetails.description} />
                           )}
                         </div>
                       </div>
@@ -16503,15 +16760,56 @@ const ScrumPage: React.FC = () => {
                           Linked Tasks
                         </h3>
 
-                        <div className="text-center py-8 text-gray-500">
-                          <Link className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-
-                          <p className="text-sm">No linked tasks</p>
-
-                          <p className="text-xs text-gray-400 mt-1">
-                            Links to related tasks will appear here
-                          </p>
-                        </div>
+                        {loadingLinkedItems ? (
+                          <div className="flex justify-center py-8">
+                            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                          </div>
+                        ) : linkedTasks.length > 0 ? (
+                          <div className="space-y-3">
+                            {linkedTasks.map((task) => (
+                              <div
+                                key={task.id}
+                                className="flex items-center justify-between p-3 bg-white border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                                onClick={() => {
+                                  setIsIssueDetailsOpen(false);
+                                  setSelectedTaskForDetails(task);
+                                  setIsTaskDetailsOpen(true);
+                                }}
+                              >
+                                <div className="flex items-center space-x-3">
+                                  <div className={`p-1.5 rounded-md ${task.priority === "HIGH" || task.priority === "CRITICAL"
+                                      ? "bg-red-100 text-red-700"
+                                      : task.priority === "MEDIUM"
+                                        ? "bg-orange-100 text-orange-700"
+                                        : "bg-green-100 text-green-700"
+                                    }`}>
+                                    <CheckSquare className="w-4 h-4" />
+                                  </div>
+                                  <div>
+                                    <div className="font-medium text-sm text-gray-900">{task.title}</div>
+                                    <div className="text-xs text-gray-500 flex items-center mt-1">
+                                      <span className="font-mono mr-2">T){task.id.slice(0, 8)}</span>
+                                      <span className="capitalize px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[10px]">
+                                        {task.status.replace(/_/g, " ")}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-gray-500">
+                            <Link className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                            <p className="text-sm">No linked tasks</p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              Links to related tasks will appear here
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </TabsContent>
 

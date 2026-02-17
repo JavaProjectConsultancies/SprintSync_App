@@ -276,6 +276,47 @@ public class IssueController {
     }
 
     /**
+     * Update issue title
+     */
+    @PatchMapping("/{id}/title")
+    public ResponseEntity<Issue> updateIssueTitle(@PathVariable String id, @RequestBody Map<String, String> update) {
+        try {
+            String title = update.get("title");
+            if (title == null || title.trim().isEmpty()) {
+                return ResponseEntity.badRequest().build();
+            }
+            Issue updatedIssue = issueService.updateIssueTitle(id, title);
+            if (updatedIssue != null) {
+                return ResponseEntity.ok(updatedIssue);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
+
+    /**
+     * Update issue description
+     */
+    @PatchMapping("/{id}/description")
+    public ResponseEntity<Issue> updateIssueDescription(@PathVariable String id,
+            @RequestBody Map<String, String> update) {
+        try {
+            String description = update.get("description");
+            // Description can be empty
+            Issue updatedIssue = issueService.updateIssueDescription(id, description);
+            if (updatedIssue != null) {
+                return ResponseEntity.ok(updatedIssue);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
+
+    /**
      * Update issue actual hours (for effort logging)
      */
     @PatchMapping("/{id}/actual-hours")

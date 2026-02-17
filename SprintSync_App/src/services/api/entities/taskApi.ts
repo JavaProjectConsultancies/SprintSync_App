@@ -27,6 +27,12 @@ export const taskApiService = {
     return response;
   },
 
+  updateTaskTitle: (id: string, title: string) =>
+    apiClient.patch<Task>(`${BASE_URL}/${id}/title`, { title }),
+
+  updateTaskDescription: (id: string, description: string) =>
+    apiClient.patch<Task>(`${BASE_URL}/${id}/description`, { description }),
+
   // Story-specific operations
   getTasksByStory: (storyId: string, params?: any) =>
     apiClient.get<Task[]>(`${BASE_URL}/story/${storyId}`, { params }),

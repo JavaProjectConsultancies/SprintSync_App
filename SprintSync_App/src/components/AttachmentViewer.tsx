@@ -28,7 +28,7 @@ const dataUrlToBlob = (dataUrl: string, fileName?: string, fileType?: string): B
         const arr = dataUrl.split(',');
         const mimeMatch = arr[0].match(/:(.*?);/);
         let mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
-        
+
         // If MIME type is generic, try to determine from file extension
         if (mime === 'application/octet-stream' && fileName) {
             const ext = fileName.toLowerCase().split('.').pop();
@@ -57,12 +57,12 @@ const dataUrlToBlob = (dataUrl: string, fileName?: string, fileType?: string): B
                 mime = mimeMap[ext];
             }
         }
-        
+
         // Use provided fileType if available and more specific
         if (fileType && fileType !== 'application/octet-stream') {
             mime = fileType;
         }
-        
+
         const bstr = atob(arr[1]);
         let n = bstr.length;
         const u8arr = new Uint8Array(n);
@@ -136,45 +136,25 @@ const AttachmentViewer: React.FC<AttachmentViewerProps> = ({
 
         // If attachment has an ID, fetch via backend view endpoint to get proper headers
         if (attachment.id) {
-            const viewUrl = attachmentApiService.getAttachmentViewUrl(attachment.id);
-            console.log('[AttachmentViewer] Fetching file via view URL:', viewUrl);
-            
-            // Fetch the file content and create a blob URL for preview
-            fetch(viewUrl, {
-                method: 'GET',
-                headers: {
-                    'Accept': '*/*',
-                },
-                credentials: 'include', // Include cookies for authentication
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                // Check content-disposition header
-                const contentDisposition = response.headers.get('content-disposition');
-                console.log('[AttachmentViewer] Response headers:', {
-                    contentType: response.headers.get('content-type'),
-                    contentDisposition: contentDisposition,
+            // Use apiClient to fetch the blob, which automatically handles Authorization headers
+            console.log('[AttachmentViewer] Fetching file via authenticated API:', attachment.id);
+
+            attachmentApiService.viewAttachment(attachment.id)
+                .then(blob => {
+                    console.log('[AttachmentViewer] Received blob:', {
+                        type: blob.type,
+                        size: blob.size,
+                    });
+                    const url = URL.createObjectURL(blob);
+                    setPreviewUrl(url);
+                    setObjectUrl(url);
+                    setIsLoading(false);
+                })
+                .catch(error => {
+                    console.error('[AttachmentViewer] Error fetching via authenticated API:', error);
+                    // Fallback to direct URL handling if API fails
+                    setIsLoading(false);
                 });
-                
-                return response.blob();
-            })
-            .then(blob => {
-                console.log('[AttachmentViewer] Received blob:', {
-                    type: blob.type,
-                    size: blob.size,
-                });
-                const url = URL.createObjectURL(blob);
-                setPreviewUrl(url);
-                setObjectUrl(url);
-                setIsLoading(false);
-            })
-            .catch(error => {
-                console.error('[AttachmentViewer] Error fetching via view URL:', error);
-                // Fallback to direct URL handling
-                setIsLoading(false);
-            });
         }
 
         // Handle base64 data URLs - convert to blob URL for preview with proper MIME type
@@ -198,7 +178,7 @@ const AttachmentViewer: React.FC<AttachmentViewerProps> = ({
                     console.error('Error decoding text content:', e);
                 }
             }
-            
+
             if (!attachment.id) {
                 setIsLoading(false);
             }
@@ -244,7 +224,7 @@ const AttachmentViewer: React.FC<AttachmentViewerProps> = ({
                 }
             } else {
                 // For regular URLs - use view URL if available, otherwise direct URL
-                const downloadUrl = attachment.id 
+                const downloadUrl = attachment.id
                     ? attachmentApiService.getAttachmentViewUrl(attachment.id) + '?download=true'
                     : attachment.fileUrl;
                 const link = document.createElement('a');
@@ -299,7 +279,7 @@ const AttachmentViewer: React.FC<AttachmentViewerProps> = ({
         const fileName = attachment.fileName.toLowerCase();
         // Use previewUrl (blob URL from fetch) if available, otherwise fallback to objectUrl or fileUrl
         const displayUrl = previewUrl || objectUrl || attachment.fileUrl;
-        
+
         console.log('[AttachmentViewer] Rendering attachment:', {
             id: attachment.id,
             fileName: attachment.fileName,
@@ -432,8 +412,17 @@ const AttachmentViewer: React.FC<AttachmentViewerProps> = ({
             <div className="flex flex-col items-center justify-center p-12 bg-gray-50 rounded-lg min-h-[300px]">
                 {getFileIcon(attachment.fileName, attachment.fileType)}
                 <p className="text-lg font-medium text-gray-900 mt-4 mb-2">{attachment.fileName}</p>
+
+                {/* Warning for potentially corrupted or inaccessible files */}
+                {(!attachment.fileUrl || (attachment.fileUrl.length < 100 && !attachment.id)) && (
+                    <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded border border-red-200 max-w-md text-center">
+                        <p className="font-semibold">⚠️ content unavailable</p>
+                        <p>This file appears to be corrupted or inaccessible. If this is an older attachment, it may have been truncated.</p>
+                    </div>
+                )}
+
                 <p className="text-sm text-gray-600 mb-6">
-                    Preview not available for this file type
+                    {canPreviewInBrowser ? 'Preview loading failed or not supported' : 'Preview not available for this file type'}
                 </p>
                 <div className="flex gap-3">
                     {attachment.id && (

@@ -23,6 +23,12 @@ export const issueApiService = {
   deleteIssue: (id: string) =>
     apiClient.delete<void>(`${BASE_URL}/${id}`),
 
+  updateIssueTitle: (id: string, title: string) =>
+    apiClient.patch<Issue>(`${BASE_URL}/${id}/title`, { title }),
+
+  updateIssueDescription: (id: string, description: string) =>
+    apiClient.patch<Issue>(`${BASE_URL}/${id}/description`, { description }),
+
   // Story-specific operations
   getIssuesByStory: (storyId: string, params?: any) =>
     apiClient.get<Issue[]>(`${BASE_URL}/story/${storyId}`, { params }),

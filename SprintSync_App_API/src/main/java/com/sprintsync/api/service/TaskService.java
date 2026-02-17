@@ -663,4 +663,70 @@ public class TaskService {
             System.err.println("Failed to sync actual hours for task " + taskId + ": " + e.getMessage());
         }
     }
+
+    /**
+     * Update task title
+     */
+    public Task updateTaskTitle(String id, String title) {
+        Optional<Task> taskOpt = taskRepository.findById(id);
+        if (taskOpt.isPresent()) {
+            Task task = taskOpt.get();
+            task.setTitle(title);
+            task.setUpdatedAt(LocalDateTime.now());
+            Task updatedTask = taskRepository.save(task);
+
+            // Log activity
+            if (activityLogService != null) {
+                try {
+                    activityLogService.logActivity(
+                            "system", // TODO: Get current user
+                            "task",
+                            updatedTask.getId(),
+                            "updated",
+                            "Updated task title: " + updatedTask.getTitle(),
+                            null,
+                            updatedTask,
+                            null);
+                } catch (Exception e) {
+                    System.err.println("Failed to log activity: " + e.getMessage());
+                }
+            }
+
+            return updatedTask;
+        }
+        return null;
+    }
+
+    /**
+     * Update task description
+     */
+    public Task updateTaskDescription(String id, String description) {
+        Optional<Task> taskOpt = taskRepository.findById(id);
+        if (taskOpt.isPresent()) {
+            Task task = taskOpt.get();
+            task.setDescription(description);
+            task.setUpdatedAt(LocalDateTime.now());
+            Task updatedTask = taskRepository.save(task);
+
+            // Log activity
+            if (activityLogService != null) {
+                try {
+                    activityLogService.logActivity(
+                            "system", // TODO: Get current user
+                            "task",
+                            updatedTask.getId(),
+                            "updated",
+                            "Updated task description",
+                            null,
+                            updatedTask,
+                            null);
+                } catch (Exception e) {
+                    System.err.println("Failed to log activity: " + e.getMessage());
+                }
+            }
+
+            return updatedTask;
+        }
+        return null;
+    }
 }
