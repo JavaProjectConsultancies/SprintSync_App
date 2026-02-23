@@ -17,9 +17,10 @@ interface TodoItemProps {
   onUpdate: (id: string, updates: Partial<TodoItemType>) => void;
   onDelete: (id: string) => void;
   onTaskUpdated?: () => void;
+  allLanes?: any[];
 }
 
-const TodoItem: React.FC<TodoItemProps> = ({ item, onUpdate, onDelete, onTaskUpdated }) => {
+const TodoItem: React.FC<TodoItemProps> = ({ item, onUpdate, onDelete, onTaskUpdated, allLanes = [] }) => {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(item.text);
@@ -250,6 +251,7 @@ const TodoItem: React.FC<TodoItemProps> = ({ item, onUpdate, onDelete, onTaskUpd
           <IssueDetailsJiraDialog
             open={showLogDialog}
             onOpenChange={setShowLogDialog}
+            allLanes={allLanes}
             issue={{
               id: item.id,
               storyId: (item as any).storyId || '',
@@ -271,6 +273,7 @@ const TodoItem: React.FC<TodoItemProps> = ({ item, onUpdate, onDelete, onTaskUpd
           <TaskDetailsJiraDialog
             open={showLogDialog}
             onOpenChange={setShowLogDialog}
+            allLanes={allLanes}
             task={{
               id: item.id,
               storyId: (item as any).storyId || '',

@@ -386,8 +386,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const canAccessProject = (projectId: string): boolean => {
     if (!user) return false;
 
-    // Admin, Manager, and Master Admin can access all projects
-    if (user.role === 'admin' || user.role === 'manager' || user.role === 'master_admin' || user.role === 'support_and_implementation') return true;
+    // Only admin, master_admin, and support_and_implementation can access all projects
+    // manager, qa_manager, qa_developer, developer can only access their assigned projects
+    if (user.role === 'admin' || user.role === 'master_admin' || user.role === 'support_and_implementation') return true;
 
     // Other roles can only access assigned projects
     return user.assignedProjects?.includes(projectId) || false;

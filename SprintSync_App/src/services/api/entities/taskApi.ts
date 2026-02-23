@@ -19,7 +19,7 @@ export const taskApiService = {
     apiClient.get<Task[]>(`${BASE_URL}/all`),
 
   updateTask: (id: string, task: Partial<Task>) =>
-    apiClient.put<Task>(`${BASE_URL}/${id}`, task),
+    apiClient.patch<Task>(`${BASE_URL}/${id}`, task),
 
   deleteTask: async (id: string, projectId?: string) => {
     const response = await apiClient.delete<void>(`${BASE_URL}/${id}`);

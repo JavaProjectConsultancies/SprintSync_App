@@ -4,35 +4,54 @@ import { Story } from '../../../types/api';
 const BASE_URL = '/stories';
 
 // Helper to sanitize story data before sending to API
-const sanitizeStoryData = (story: any) => {
-  return {
-    ...story,
-    // Normalize priority to lowercase (backend expects lowercase)
-    priority: story.priority ? story.priority.toLowerCase() : 'medium',
-    // Normalize status to uppercase (backend expects uppercase)
-    status: story.status ? story.status.toUpperCase() : 'BACKLOG',
-    // Convert acceptanceCriteria to array if it's a string
-    acceptanceCriteria: story.acceptanceCriteria
-      ? (typeof story.acceptanceCriteria === 'string'
-        ? story.acceptanceCriteria.split('\n').filter((line: string) => line.trim())
-        : story.acceptanceCriteria)
-      : [],
-    // Convert empty strings to null for optional fields
-    epicId: story.epicId || null,
-    releaseId: story.releaseId || null,
-    sprintId: story.sprintId || null,
-    parentId: story.parentId || null,
-    assigneeId: story.assigneeId || null,
-    reporterId: story.reporterId || null,
-    dueDate: story.dueDate || null,
-    labels: (story.labels && story.labels.length > 0) ? story.labels : null,
-  };
+const sanitizeStoryData = (story: any, isPartial: boolean = false) => {
+  const sanitized: any = { ...story };
+
+  // Normalize priority to lowercase (backend expects lowercase)
+  if (story.priority) {
+    sanitized.priority = story.priority.toLowerCase();
+  } else if (!isPartial) {
+    sanitized.priority = 'medium';
+  }
+
+  // Normalize status to uppercase (backend expects uppercase)
+  if (story.status) {
+    sanitized.status = story.status.toUpperCase();
+  } else if (!isPartial) {
+    sanitized.status = 'BACKLOG';
+  }
+
+  // Convert acceptanceCriteria to array if it's a string
+  if (story.acceptanceCriteria !== undefined) {
+    sanitized.acceptanceCriteria = typeof story.acceptanceCriteria === 'string'
+      ? story.acceptanceCriteria.split('\n').filter((line: string) => line.trim())
+      : story.acceptanceCriteria;
+  } else if (!isPartial) {
+    sanitized.acceptanceCriteria = [];
+  }
+
+  // Handle optional fields normalization
+  const optionalFields = ['epicId', 'releaseId', 'sprintId', 'parentId', 'assigneeId', 'reporterId', 'dueDate'];
+  optionalFields.forEach(field => {
+    if (story[field] === '') {
+      sanitized[field] = null;
+    } else if (story[field] === undefined && !isPartial) {
+      sanitized[field] = null;
+    }
+  });
+
+  // Handle labels
+  if (story.labels) {
+    sanitized.labels = story.labels.length > 0 ? story.labels : null;
+  }
+
+  return sanitized;
 };
 
 export const storyApiService = {
   // Basic CRUD operations
   createStory: (story: Story) =>
-    apiClient.post<Story>(BASE_URL, sanitizeStoryData(story)),
+    apiClient.post<Story>(BASE_URL, sanitizeStoryData(story, false)),
 
   getStoryById: (id: string) =>
     apiClient.get<Story>(`${BASE_URL}/${id}`),
@@ -44,7 +63,7 @@ export const storyApiService = {
     apiClient.get<Story[]>(`${BASE_URL}/all`),
 
   updateStory: (id: string, story: Partial<Story>) =>
-    apiClient.put<Story>(`${BASE_URL}/${id}`, sanitizeStoryData(story)),
+    apiClient.patch<Story>(`${BASE_URL}/${id}`, sanitizeStoryData(story, true)),
 
   deleteStory: (id: string) =>
     apiClient.delete<void>(`${BASE_URL}/${id}`),

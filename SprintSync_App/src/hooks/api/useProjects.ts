@@ -185,26 +185,13 @@ export const prefetchProjects = async (userId?: string): Promise<Project[]> => {
         return prefetched;
       }
 
-      // Try both endpoints in parallel with race condition
-      const fetchPromises = [
-        projectApiService.getAccessibleProjects().catch(() => null),
-        projectApiService.getAllProjects().catch(() => null),
-      ];
-
-      // Use Promise.race to get the first successful response
-      const responses = await Promise.allSettled(fetchPromises);
-
-      let response: any = null;
-      // Prefer accessible projects if available, otherwise use all projects
-      for (const result of responses) {
-        if (result.status === 'fulfilled' && result.value) {
-          response = result.value;
-          break; // Use first successful response
-        }
-      }
+      // Only call /accessible - this respects role-based access control
+      // /accessible returns all projects for admin/master_admin/support_and_implementation
+      // and only assigned projects for manager/qa_manager/qa_developer/developer
+      const response = await projectApiService.getAccessibleProjects().catch(() => null);
 
       if (!response) {
-        throw new Error('Failed to fetch projects from all endpoints');
+        throw new Error('Failed to fetch accessible projects');
       }
 
       // Fast normalization
@@ -372,25 +359,13 @@ export const useProjects = (): UseProjectsReturn => {
           }
         }
 
-        // Try both endpoints in parallel - optimized
-        const fetchPromises = [
-          projectApiService.getAccessibleProjects().catch(() => null),
-          projectApiService.getAllProjects().catch(() => null),
-        ];
-
-        const responses = await Promise.allSettled(fetchPromises);
-
-        let response: any = null;
-        // Use first successful response
-        for (const result of responses) {
-          if (result.status === 'fulfilled' && result.value) {
-            response = result.value;
-            break;
-          }
-        }
+        // Only call /accessible - this respects role-based access control
+        // /accessible returns all projects for admin/master_admin/support_and_implementation
+        // and only assigned projects for manager/qa_manager/qa_developer/developer
+        const response = await projectApiService.getAccessibleProjects().catch(() => null);
 
         if (!response) {
-          throw new Error('Failed to fetch projects from all endpoints');
+          throw new Error('Failed to fetch accessible projects');
         }
 
         // Fast normalization

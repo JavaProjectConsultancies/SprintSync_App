@@ -21,7 +21,7 @@ export class SprintApiService {
 
   // Update sprint
   async updateSprint(id: string, sprint: Partial<Sprint>): Promise<ApiResponse<Sprint>> {
-    return apiClient.put<Sprint>(`${API_ENDPOINTS.SPRINTS}/${id}`, sprint);
+    return apiClient.patch<Sprint>(`${API_ENDPOINTS.SPRINTS}/${id}`, sprint);
   }
 
   // Delete sprint
@@ -107,7 +107,7 @@ export class StoryApiService {
 
   // Update story
   async updateStory(id: string, story: Partial<Story>): Promise<ApiResponse<Story>> {
-    return apiClient.put<Story>(`${API_ENDPOINTS.STORIES}/${id}`, story);
+    return apiClient.patch<Story>(`${API_ENDPOINTS.STORIES}/${id}`, story);
   }
 
   // Delete story
@@ -198,7 +198,7 @@ export class TaskApiService {
 
   // Update task
   async updateTask(id: string, task: Partial<Task>): Promise<ApiResponse<Task>> {
-    return apiClient.put<Task>(`${API_ENDPOINTS.TASKS}/${id}`, task);
+    return apiClient.patch<Task>(`${API_ENDPOINTS.TASKS}/${id}`, task);
   }
 
   // Delete task
@@ -279,7 +279,7 @@ export class SubtaskApiService {
 
   // Update subtask
   async updateSubtask(id: string, subtask: Partial<Subtask>): Promise<ApiResponse<Subtask>> {
-    return apiClient.put<Subtask>(`${API_ENDPOINTS.SUBTASKS}/${id}`, subtask);
+    return apiClient.patch<Subtask>(`${API_ENDPOINTS.SUBTASKS}/${id}`, subtask);
   }
 
   // Delete subtask

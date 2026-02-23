@@ -7,7 +7,7 @@ export class ProjectApiService {
   // Get all projects (with pagination support)
   async getProjects(params?: PaginationParams): Promise<ApiResponse<Project[]>> {
     const response = await apiClient.get<any>(API_ENDPOINTS.PROJECTS, params);
-    
+
     // Backend returns { content: [...], totalElements: ..., ... }
     let normalized: Project[] = [];
     if (Array.isArray(response.data)) {
@@ -17,14 +17,14 @@ export class ProjectApiService {
     } else if (response.data?.content && Array.isArray(response.data.content)) {
       normalized = response.data.content;
     }
-    
+
     return { ...response, data: normalized } as ApiResponse<Project[]>;
   }
 
   // Get all projects without pagination
   async getAllProjects(): Promise<ApiResponse<Project[]>> {
     const response = await apiClient.get<any>(`${API_ENDPOINTS.PROJECTS}/all`);
-    
+
     // Backend returns { content: [...], totalElements: ..., ... }
     let normalized: Project[] = [];
     if (Array.isArray(response.data)) {
@@ -34,7 +34,7 @@ export class ProjectApiService {
     } else if (response.data?.content && Array.isArray(response.data.content)) {
       normalized = response.data.content;
     }
-    
+
     return { ...response, data: normalized } as ApiResponse<Project[]>;
   }
 
@@ -68,7 +68,7 @@ export class ProjectApiService {
 
   // Update project
   async updateProject(id: string, project: Partial<Project>): Promise<ApiResponse<Project>> {
-    return apiClient.put<Project>(`${API_ENDPOINTS.PROJECTS}/${id}`, project);
+    return apiClient.patch<Project>(`${API_ENDPOINTS.PROJECTS}/${id}`, project);
   }
 
   // Delete project
@@ -134,7 +134,7 @@ export class EpicApiService {
 
   // Update epic
   async updateEpic(id: string, epic: Partial<Epic>): Promise<ApiResponse<Epic>> {
-    return apiClient.put<Epic>(`${API_ENDPOINTS.EPICS}/${id}`, epic);
+    return apiClient.patch<Epic>(`${API_ENDPOINTS.EPICS}/${id}`, epic);
   }
 
   // Delete epic
@@ -195,7 +195,7 @@ export class ReleaseApiService {
 
   // Update release
   async updateRelease(id: string, release: Partial<Release>): Promise<ApiResponse<Release>> {
-    return apiClient.put<Release>(`${API_ENDPOINTS.RELEASES}/${id}`, release);
+    return apiClient.patch<Release>(`${API_ENDPOINTS.RELEASES}/${id}`, release);
   }
 
   // Delete release

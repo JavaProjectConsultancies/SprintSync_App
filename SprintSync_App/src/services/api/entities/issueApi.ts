@@ -18,7 +18,7 @@ export const issueApiService = {
     apiClient.get<Issue[]>(`${BASE_URL}/all`),
 
   updateIssue: (id: string, issue: Partial<Issue>) =>
-    apiClient.put<Issue>(`${BASE_URL}/${id}`, issue),
+    apiClient.patch<Issue>(`${BASE_URL}/${id}`, issue),
 
   deleteIssue: (id: string) =>
     apiClient.delete<void>(`${BASE_URL}/${id}`),

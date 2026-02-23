@@ -484,16 +484,18 @@ const TimeTrackingPage: React.FC = () => {
         const { projectApiService } = await import('../services/api/entities/projectApi');
         const { sprintApiService } = await import('../services/api/entities/sprintApi');
 
-        // Fetch comprehensive project list so time entries have complete context
+        // Fetch accessible projects for time entry context - respects role-based access
+        // admin/master_admin/support_and_implementation get all projects
+        // manager/qa_manager/qa_developer/developer get only their assigned projects
         try {
           let projectData: Project[] = [];
           try {
-            const response = await projectApiService.getAllProjects();
+            const response = await projectApiService.getAccessibleProjects();
             if (Array.isArray(response.data)) {
               projectData = response.data;
             }
-          } catch (allProjectsError) {
-            console.warn('Failed to fetch /projects/all, falling back to paginated projects.', allProjectsError);
+          } catch (accessibleError) {
+            console.warn('Failed to fetch accessible projects, falling back to paginated.', accessibleError);
             try {
               const response = await projectApiService.getProjects({ page: 0, size: 1000 });
               if (Array.isArray(response.data)) {
@@ -501,27 +503,6 @@ const TimeTrackingPage: React.FC = () => {
               }
             } catch (paginatedError) {
               console.warn('Failed to fetch paginated projects.', paginatedError);
-            }
-          }
-
-          const userRole = (currentUser?.role as string)?.toLowerCase() || '';
-          const isManagerOrAdmin = currentUser && (
-            userRole === 'admin' ||
-            userRole === 'master_admin' ||
-            userRole === 'manager' ||
-            userRole === 'qa_manager' ||
-            userRole === 'support' ||
-            userRole === 'support_and_implementation'
-          );
-
-          if (!isManagerOrAdmin) {
-            try {
-              const accessibleResponse = await projectApiService.getAccessibleProjects();
-              if (Array.isArray(accessibleResponse.data) && accessibleResponse.data.length > 0) {
-                projectData = mergeById(projectData, accessibleResponse.data);
-              }
-            } catch (accessibleError) {
-              console.warn('Failed to fetch accessible projects.', accessibleError);
             }
           }
 

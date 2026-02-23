@@ -566,6 +566,10 @@ const ScrumPage: React.FC = () => {
     "inprogress" | "qa" | null
   >(null);
 
+  // Inline task/issue lane update state
+  const [isUpdatingTaskLane, setIsUpdatingTaskLane] = useState(false);
+  const [isUpdatingIssueLane, setIsUpdatingIssueLane] = useState(false);
+
   // Board dialogs
 
   const [isCreateBoardDialogOpen, setIsCreateBoardDialogOpen] = useState(false);
@@ -14217,15 +14221,77 @@ const ScrumPage: React.FC = () => {
                           T){selectedTaskForDetails.id.toUpperCase()}
                         </Badge>
 
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 px-3"
+                        {/* Lane/Status Dropdown - shows all board lanes */}
+                        <Select
+                          value={selectedTaskForDetails.status}
+                          onValueChange={async (newStatus) => {
+                            if (!canManageSprintsAndStories) return;
+                            setIsUpdatingTaskLane(true);
+                            try {
+                              await taskApiService.updateTaskStatus(selectedTaskForDetails.id, newStatus);
+                              setSelectedTaskForDetails(prev => prev ? { ...prev, status: newStatus as any } : prev);
+                              setAllTasks(prev => prev.map(t => t.id === selectedTaskForDetails.id ? { ...t, status: newStatus as any } : t));
+                              toast.success('Lane updated');
+                            } catch (err) {
+                              console.error('Failed to update task lane:', err);
+                              toast.error('Failed to update lane');
+                            } finally {
+                              setIsUpdatingTaskLane(false);
+                            }
+                          }}
+                          disabled={!canManageSprintsAndStories || isUpdatingTaskLane}
                         >
-                          {selectedTaskForDetails.status.replace("_", " ")}
-
-                          <ChevronDown className="w-3 h-3 ml-1" />
-                        </Button>
+                          <SelectTrigger className={`h-7 px-3 text-xs border rounded-md ${canManageSprintsAndStories
+                            ? 'border-blue-300 bg-white hover:bg-blue-50 text-blue-800 cursor-pointer'
+                            : 'border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed opacity-70'
+                            }`}>
+                            {isUpdatingTaskLane
+                              ? <span className="flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Updating...</span>
+                              : (() => {
+                                const allLanes = [
+                                  { id: 'std_todo', title: 'To Do', color: '#6b7280', statusValue: 'TO_DO' },
+                                  { id: 'std_inprogress', title: 'In Progress', color: '#3b82f6', statusValue: 'IN_PROGRESS' },
+                                  { id: 'std_qa', title: 'QA Review', color: '#f59e0b', statusValue: 'QA_REVIEW' },
+                                  { id: 'std_done', title: 'Done', color: '#10b981', statusValue: 'DONE' },
+                                  ...workflowLanes,
+                                ];
+                                const currentStatus = (selectedTaskForDetails.status || '').toString().toUpperCase();
+                                const matchedLane = allLanes.find((l: any) =>
+                                  (l.statusValue || '').toUpperCase() === currentStatus ||
+                                  (l.title || '').toUpperCase() === currentStatus
+                                );
+                                return (
+                                  <span className="flex items-center gap-1.5 truncate max-w-[140px]">
+                                    <span
+                                      className="inline-block w-2 h-2 rounded-full flex-shrink-0"
+                                      style={{ backgroundColor: matchedLane?.color || '#6b7280' }}
+                                    />
+                                    {matchedLane?.title || currentStatus || 'Select lane'}
+                                  </span>
+                                );
+                              })()
+                            }
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[
+                              { id: 'std_todo', title: 'To Do', color: '#6b7280', statusValue: 'TO_DO' },
+                              { id: 'std_inprogress', title: 'In Progress', color: '#3b82f6', statusValue: 'IN_PROGRESS' },
+                              { id: 'std_qa', title: 'QA Review', color: '#f59e0b', statusValue: 'QA_REVIEW' },
+                              { id: 'std_done', title: 'Done', color: '#10b981', statusValue: 'DONE' },
+                              ...workflowLanes.filter((l) => !['TO_DO', 'IN_PROGRESS', 'QA_REVIEW', 'DONE'].includes(l.statusValue)),
+                            ].map((lane: any) => (
+                              <SelectItem key={lane.id || lane.statusValue} value={lane.statusValue}>
+                                <span className="flex items-center gap-2">
+                                  <span
+                                    className="inline-block w-2 h-2 rounded-full"
+                                    style={{ backgroundColor: lane.color || '#6b7280' }}
+                                  />
+                                  {lane.title}
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
 
@@ -15297,10 +15363,10 @@ const ScrumPage: React.FC = () => {
                                 >
                                   <div className="flex items-center space-x-3">
                                     <div className={`p-1.5 rounded-md ${issue.priority === "HIGH" || issue.priority === "CRITICAL"
-                                        ? "bg-red-100 text-red-700"
-                                        : issue.priority === "MEDIUM"
-                                          ? "bg-orange-100 text-orange-700"
-                                          : "bg-green-100 text-green-700"
+                                      ? "bg-red-100 text-red-700"
+                                      : issue.priority === "MEDIUM"
+                                        ? "bg-orange-100 text-orange-700"
+                                        : "bg-green-100 text-green-700"
                                       }`}>
                                       <AlertCircle className="w-4 h-4" />
                                     </div>
@@ -15661,7 +15727,7 @@ const ScrumPage: React.FC = () => {
                                           status: selectedTaskForDetails.status?.toUpperCase() as any,
                                           dueDate: formattedDate
                                         };
-                                        await taskApiService.updateTask(selectedTaskForDetails.id, taskUpdate);
+                                        await taskApiService.updateTaskDueDate(selectedTaskForDetails.id, formattedDate);
                                         setSelectedTaskForDetails((prev) =>
                                           prev ? { ...prev, dueDate: formattedDate } : prev
                                         );
@@ -15800,11 +15866,77 @@ const ScrumPage: React.FC = () => {
                         I){selectedIssueForDetails.id.toUpperCase()}
                       </Badge>
 
-                      <Button variant="outline" size="sm" className="h-7 px-3">
-                        {selectedIssueForDetails.status.replace("_", " ")}
-
-                        <ChevronDown className="w-3 h-3 ml-1" />
-                      </Button>
+                      {/* Lane/Status Dropdown - shows all board lanes */}
+                      <Select
+                        value={selectedIssueForDetails.status}
+                        onValueChange={async (newStatus) => {
+                          if (!canManageSprintsAndStories) return;
+                          setIsUpdatingIssueLane(true);
+                          try {
+                            await issueApiService.updateIssueStatus(selectedIssueForDetails.id, newStatus);
+                            setSelectedIssueForDetails(prev => prev ? { ...prev, status: newStatus as any } : prev);
+                            setAllIssues(prev => prev.map(i => i.id === selectedIssueForDetails.id ? { ...i, status: newStatus as any } : i));
+                            toast.success('Lane updated');
+                          } catch (err) {
+                            console.error('Failed to update issue lane:', err);
+                            toast.error('Failed to update lane');
+                          } finally {
+                            setIsUpdatingIssueLane(false);
+                          }
+                        }}
+                        disabled={!canManageSprintsAndStories || isUpdatingIssueLane}
+                      >
+                        <SelectTrigger className={`h-7 px-3 text-xs border rounded-md ${canManageSprintsAndStories
+                          ? 'border-red-300 bg-white hover:bg-red-50 text-red-800 cursor-pointer'
+                          : 'border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed opacity-70'
+                          }`}>
+                          {isUpdatingIssueLane
+                            ? <span className="flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Updating...</span>
+                            : (() => {
+                              const allLanes = [
+                                { id: 'std_todo', title: 'To Do', color: '#6b7280', statusValue: 'TO_DO' },
+                                { id: 'std_inprogress', title: 'In Progress', color: '#3b82f6', statusValue: 'IN_PROGRESS' },
+                                { id: 'std_qa', title: 'QA Review', color: '#f59e0b', statusValue: 'QA_REVIEW' },
+                                { id: 'std_done', title: 'Done', color: '#10b981', statusValue: 'DONE' },
+                                ...workflowLanes,
+                              ];
+                              const currentStatus = (selectedIssueForDetails.status || '').toString().toUpperCase();
+                              const matchedLane = allLanes.find((l: any) =>
+                                (l.statusValue || '').toUpperCase() === currentStatus ||
+                                (l.title || '').toUpperCase() === currentStatus
+                              );
+                              return (
+                                <span className="flex items-center gap-1.5 truncate max-w-[140px]">
+                                  <span
+                                    className="inline-block w-2 h-2 rounded-full flex-shrink-0"
+                                    style={{ backgroundColor: matchedLane?.color || '#6b7280' }}
+                                  />
+                                  {matchedLane?.title || currentStatus || 'Select lane'}
+                                </span>
+                              );
+                            })()
+                          }
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[
+                            { id: 'std_todo', title: 'To Do', color: '#6b7280', statusValue: 'TO_DO' },
+                            { id: 'std_inprogress', title: 'In Progress', color: '#3b82f6', statusValue: 'IN_PROGRESS' },
+                            { id: 'std_qa', title: 'QA Review', color: '#f59e0b', statusValue: 'QA_REVIEW' },
+                            { id: 'std_done', title: 'Done', color: '#10b981', statusValue: 'DONE' },
+                            ...workflowLanes.filter((l) => !['TO_DO', 'IN_PROGRESS', 'QA_REVIEW', 'DONE'].includes(l.statusValue)),
+                          ].map((lane: any) => (
+                            <SelectItem key={lane.id || lane.statusValue} value={lane.statusValue}>
+                              <span className="flex items-center gap-2">
+                                <span
+                                  className="inline-block w-2 h-2 rounded-full"
+                                  style={{ backgroundColor: lane.color || '#6b7280' }}
+                                />
+                                {lane.title}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
 
@@ -16778,10 +16910,10 @@ const ScrumPage: React.FC = () => {
                               >
                                 <div className="flex items-center space-x-3">
                                   <div className={`p-1.5 rounded-md ${task.priority === "HIGH" || task.priority === "CRITICAL"
-                                      ? "bg-red-100 text-red-700"
-                                      : task.priority === "MEDIUM"
-                                        ? "bg-orange-100 text-orange-700"
-                                        : "bg-green-100 text-green-700"
+                                    ? "bg-red-100 text-red-700"
+                                    : task.priority === "MEDIUM"
+                                      ? "bg-orange-100 text-orange-700"
+                                      : "bg-green-100 text-green-700"
                                     }`}>
                                     <CheckSquare className="w-4 h-4" />
                                   </div>

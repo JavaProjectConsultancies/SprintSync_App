@@ -150,6 +150,8 @@ interface IssueDetailsJiraDialogProps {
     sprintEndDate?: string; // Used to block time logging after sprint ends
     projectId?: string;
     unreadMentions?: any[];
+    allLanes?: any[];
+    onLaneChanged?: () => void; // Called after lane is changed so board can refresh
 }
 
 const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
@@ -162,6 +164,8 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
     sprintEndDate,
     projectId,
     unreadMentions = [],
+    allLanes = [],
+    onLaneChanged,
 }) => {
     const { user } = useAuth();
     const [activeTab, setActiveTab] = useState<string>("details");
@@ -237,6 +241,29 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
     const isViewOnly = isAdmin || isMasterAdmin;
     const canEditContent = ['MANAGER', 'QA_MANAGER', 'QA_DEVELOPER', 'SUPPORT_AND_IMPLEMENTATION'].includes(userRole);
     const canEditAttachments = canEditContent;
+    // Only Manager and QA Manager can change the lane
+    const canChangeLane = canManage && ['MANAGER', 'QA_MANAGER'].includes(userRole);
+
+    // Lane changing state
+    const [isUpdatingLane, setIsUpdatingLane] = useState(false);
+
+    // Handle lane change from dropdown
+    const handleLaneChange = async (newStatusValue: string) => {
+        if (!currentIssue || !canChangeLane) return;
+        setIsUpdatingLane(true);
+        try {
+            await issueApiService.updateIssueStatus(currentIssue.id, newStatusValue);
+            setCurrentIssue(prev => prev ? { ...prev, status: newStatusValue as any } : prev);
+            toast.success('Lane updated successfully');
+            if (onIssueUpdated) onIssueUpdated();
+            if (onLaneChanged) onLaneChanged();
+        } catch (error) {
+            console.error('Error updating issue lane:', error);
+            toast.error('Failed to update lane');
+        } finally {
+            setIsUpdatingLane(false);
+        }
+    };
 
     const handleSaveDescription = async () => {
         if (!currentIssue) return;
@@ -759,10 +786,55 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                                         <Badge variant="secondary" className="bg-red-100 text-red-800 font-semibold">
                                             ISS-{currentIssue.id.slice(-4).toUpperCase()}
                                         </Badge>
-                                        <Button variant="outline" size="sm" className="h-7 px-3 border-red-200 text-red-700">
-                                            {currentIssue.status.replace("_", " ")}
-                                            <ChevronDown className="w-3 h-3 ml-1" />
-                                        </Button>
+                                        {/* Lane / Status Dropdown */}
+                                        {(() => {
+                                            const BOARD_LANES = [
+                                                { id: 'std_todo', title: 'To Do', color: '#6b7280', statusValue: 'TO_DO' },
+                                                { id: 'std_inprogress', title: 'In Progress', color: '#3b82f6', statusValue: 'IN_PROGRESS' },
+                                                { id: 'std_qa', title: 'QA Review', color: '#f59e0b', statusValue: 'QA_REVIEW' },
+                                                { id: 'std_done', title: 'Done', color: '#10b981', statusValue: 'DONE' },
+                                            ];
+                                            const boardStatusValues = new Set(BOARD_LANES.map(l => l.statusValue));
+                                            const customOnly = allLanes.filter((l: any) => !boardStatusValues.has(l.statusValue));
+                                            const laneOptions = [...BOARD_LANES, ...customOnly];
+                                            return (
+                                                <div className="relative">
+                                                    <Select
+                                                        value={currentIssue.status}
+                                                        onValueChange={handleLaneChange}
+                                                        disabled={!canChangeLane || isUpdatingLane}
+                                                    >
+                                                        <SelectTrigger className={`h-7 px-3 text-xs border rounded-md ${canChangeLane
+                                                            ? 'border-red-300 bg-white hover:bg-red-50 text-red-800 cursor-pointer'
+                                                            : 'border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed opacity-70'
+                                                            }`}>
+                                                            {isUpdatingLane
+                                                                ? <span className="flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Updating...</span>
+                                                                : <SelectValue placeholder="Select lane" />
+                                                            }
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {laneOptions.map((lane: any) => (
+                                                                <SelectItem key={lane.id || lane.statusValue} value={lane.statusValue}>
+                                                                    <span className="flex items-center gap-2">
+                                                                        <span
+                                                                            className="inline-block w-2 h-2 rounded-full"
+                                                                            style={{ backgroundColor: lane.color || '#6b7280' }}
+                                                                        />
+                                                                        {lane.title}
+                                                                    </span>
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    {!canChangeLane && (
+                                                        <span className="absolute -bottom-5 left-0 text-[10px] text-gray-400 whitespace-nowrap">
+                                                            Manager/QA Manager only
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                                 <div className="flex items-center space-x-2">

@@ -1,91 +1,91 @@
 import apiClient from '../client';
-import { Subtask, Page } from '../../types/api';
+import { Subtask, Page } from '../../../types/api';
 
 const BASE_URL = '/subtasks';
 
 export const subtaskApiService = {
   // Basic CRUD operations
-  createSubtask: (subtask: Omit<Subtask, 'id' | 'createdAt' | 'updatedAt'>) => 
+  createSubtask: (subtask: Omit<Subtask, 'id' | 'createdAt' | 'updatedAt'>) =>
     apiClient.post<Subtask>(BASE_URL, subtask),
-  
-  getSubtaskById: (id: string) => 
+
+  getSubtaskById: (id: string) =>
     apiClient.get<Subtask>(`${BASE_URL}/${id}`),
-  
-  getSubtasks: (params?: any) => 
+
+  getSubtasks: (params?: any) =>
     apiClient.get<Page<Subtask>>(BASE_URL, { params }),
-  
+
   // Note: /all endpoint doesn't exist in backend, use getSubtasks with large page size instead
-  getAllSubtasks: () => 
+  getAllSubtasks: () =>
     apiClient.get<Page<Subtask>>(BASE_URL, { params: { page: 0, size: 10000 } }),
-  
-  updateSubtask: (id: string, subtask: Partial<Subtask>) => 
-    apiClient.put<Subtask>(`${BASE_URL}/${id}`, subtask),
-  
+
+  updateSubtask: (id: string, subtask: Partial<Subtask>) =>
+    apiClient.patch<Subtask>(`${BASE_URL}/${id}`, subtask),
+
   updateSubtaskActualHours: (id: string, actualHours: number) =>
     apiClient.patch<Subtask>(`${BASE_URL}/${id}/actual-hours`, { actualHours }),
-  
-  deleteSubtask: (id: string) => 
+
+  deleteSubtask: (id: string) =>
     apiClient.delete<void>(`${BASE_URL}/${id}`),
 
   // Task-specific operations
-  getSubtasksByTask: (taskId: string, params?: any) => 
+  getSubtasksByTask: (taskId: string, params?: any) =>
     apiClient.get<Subtask[]>(`${BASE_URL}/task/${taskId}`, { params }),
 
   // Issue-specific operations
-  getSubtasksByIssue: (issueId: string, params?: any) => 
+  getSubtasksByIssue: (issueId: string, params?: any) =>
     apiClient.get<Subtask[]>(`${BASE_URL}/issue/${issueId}`, { params }),
 
   // Search and filter operations
-  searchSubtasks: (query: string, params?: any) => 
-    apiClient.get<Subtask[]>(`${BASE_URL}/search`, { 
-      params: { ...params, query } 
+  searchSubtasks: (query: string, params?: any) =>
+    apiClient.get<Subtask[]>(`${BASE_URL}/search`, {
+      params: { ...params, query }
     }),
 
   // Completion operations
-  updateSubtaskCompletion: (id: string, isCompleted: boolean) => 
-    apiClient.patch<Subtask>(`${BASE_URL}/${id}/completion`, { 
-      isCompleted 
+  updateSubtaskCompletion: (id: string, isCompleted: boolean) =>
+    apiClient.patch<Subtask>(`${BASE_URL}/${id}/completion`, {
+      isCompleted
     }),
 
-  getSubtasksByCompletion: (isCompleted: boolean, params?: any) => 
+  getSubtasksByCompletion: (isCompleted: boolean, params?: any) =>
     apiClient.get<Subtask[]>(`${BASE_URL}/status/${isCompleted}`, { params }),
 
   // Assignee operations
-  updateSubtaskAssignee: (id: string, assigneeId: string) => 
-    apiClient.patch<Subtask>(`${BASE_URL}/${id}/assignee`, null, { 
-      params: { assigneeId } 
+  updateSubtaskAssignee: (id: string, assigneeId: string) =>
+    apiClient.patch<Subtask>(`${BASE_URL}/${id}/assignee`, null, {
+      params: { assigneeId }
     }),
 
-  getSubtasksByAssignee: (assigneeId: string, params?: any) => 
+  getSubtasksByAssignee: (assigneeId: string, params?: any) =>
     apiClient.get<Subtask[]>(`${BASE_URL}/assignee/${assigneeId}`, { params }),
 
   // Date operations
-  getSubtasksByDateRange: (startDate: string, endDate: string, params?: any) => 
-    apiClient.get<Subtask[]>(`${BASE_URL}/date-range`, { 
-      params: { ...params, startDate, endDate } 
+  getSubtasksByDateRange: (startDate: string, endDate: string, params?: any) =>
+    apiClient.get<Subtask[]>(`${BASE_URL}/date-range`, {
+      params: { ...params, startDate, endDate }
     }),
 
-  getOverdueSubtasks: (params?: any) => 
+  getOverdueSubtasks: (params?: any) =>
     apiClient.get<Subtask[]>(`${BASE_URL}/overdue`, { params }),
 
-  getSubtasksDueSoon: (days: number = 7, params?: any) => 
-    apiClient.get<Subtask[]>(`${BASE_URL}/due-soon`, { 
-      params: { ...params, days } 
+  getSubtasksDueSoon: (days: number = 7, params?: any) =>
+    apiClient.get<Subtask[]>(`${BASE_URL}/due-soon`, {
+      params: { ...params, days }
     }),
 
   // Bulk operations
-  bulkUpdateSubtaskCompletion: (subtaskIds: string[], isCompleted: boolean) => 
-    apiClient.patch<Subtask[]>(`${BASE_URL}/bulk/completion`, { 
-      subtaskIds, isCompleted 
+  bulkUpdateSubtaskCompletion: (subtaskIds: string[], isCompleted: boolean) =>
+    apiClient.patch<Subtask[]>(`${BASE_URL}/bulk/completion`, {
+      subtaskIds, isCompleted
     }),
 
   // Time tracking
-  logTime: (id: string, hours: number, description?: string) => 
-    apiClient.patch<Subtask>(`${BASE_URL}/${id}/time`, { 
-      hours, description 
+  logTime: (id: string, hours: number, description?: string) =>
+    apiClient.patch<Subtask>(`${BASE_URL}/${id}/time`, {
+      hours, description
     }),
 
   // Statistics
-  getSubtaskStatistics: (id: string) => 
+  getSubtaskStatistics: (id: string) =>
     apiClient.get<any>(`${BASE_URL}/${id}/statistics`),
 };
