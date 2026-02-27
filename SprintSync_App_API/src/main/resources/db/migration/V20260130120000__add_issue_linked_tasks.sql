@@ -5,3 +5,4 @@ ALTER TABLE issues
 COMMENT ON COLUMN issues.linked_task_ids IS 'JSON array of task IDs linked to this issue';
 
 
+

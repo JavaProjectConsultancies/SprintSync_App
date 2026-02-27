@@ -565,4 +565,59 @@ public class ReportsController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
+
+    /**
+     * Generate resource utilization report
+     */
+    @GetMapping("/resource-utilization")
+    public ResponseEntity<Map<String, Object>> generateResourceUtilizationReport(
+            @RequestParam(required = false) String projectId,
+            @RequestParam(required = false) String period) {
+        try {
+            Map<String, Object> report = reportsService.generateResourceUtilizationReport(projectId, period);
+            return ResponseEntity.ok(report);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Export resource utilization report to Excel
+     * Sheet1: detailed rows
+     * Sheet2: developers, managers and testers summary
+     */
+    @GetMapping(value = "/export/resource-utilization/excel", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    public ResponseEntity<byte[]> exportResourceUtilizationToExcel(
+            @RequestParam(required = false) String projectId,
+            @RequestParam(required = false) String period,
+            @RequestParam(required = false) String projectName,
+            @RequestParam(required = false) String userKey,
+            @RequestParam(required = false) String sprint,
+            @RequestParam(required = false) String duration,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate fromDate,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate toDate) {
+        try {
+            byte[] excelData = reportsService.exportResourceUtilizationToExcel(
+                    projectId, period, projectName, userKey, sprint, duration, fromDate, toDate);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            String filename = projectId != null && !projectId.isEmpty()
+                    ? String.format("resource-utilization-project-%s.xlsx", projectId)
+                    : "resource-utilization.xlsx";
+            headers.setContentDispositionFormData("attachment", filename);
+            headers.setContentLength(excelData.length);
+
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(excelData);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
 }

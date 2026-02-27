@@ -95,6 +95,27 @@ export class ReportsApiService {
     });
   }
 
+  // Export resource utilization (resource performance) to Excel
+  async exportResourceUtilizationToExcel(filters?: {
+    projectName?: string;
+    userKey?: string;
+    sprint?: string;
+    duration?: string;
+    fromDate?: string;
+    toDate?: string;
+  }): Promise<Blob> {
+    const params: any = {};
+    if (filters?.projectName) params.projectName = filters.projectName;
+    if (filters?.userKey) params.userKey = filters.userKey;
+    if (filters?.sprint) params.sprint = filters.sprint;
+    if (filters?.duration && filters.duration !== 'all') params.duration = filters.duration;
+    if (filters?.fromDate) params.fromDate = filters.fromDate;
+    if (filters?.toDate) params.toDate = filters.toDate;
+
+    const endpoint = `${API_ENDPOINTS.REPORTS}/export/resource-utilization/excel`;
+    return apiClient.download(endpoint, Object.keys(params).length > 0 ? params : undefined);
+  }
+
   // Get budget reports
   async getBudgetReports(projectId?: string): Promise<ApiResponse<any>> {
     return apiClient.get<any>(`${API_ENDPOINTS.REPORTS}/budget`, projectId ? { projectId } : undefined);

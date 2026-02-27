@@ -55,13 +55,21 @@ const TOKEN_KEY = 'sprintsync_token';
 const USER_KEY = 'sprintsync_user';
 const SESSION_TIMESTAMP_KEY = 'sprintsync_session_timestamp';
 // Session duration: 1 minute (for testing; increase to 30 * 60 * 1000 for 30 minutes)
-const SESSION_DURATION_MS = 30 * 60 * 1000;
+const SESSION_DURATION_MS = 30* 60 * 1000;
+
+const refreshSessionTimestamp = () => {
+  try {
+    localStorage.setItem(SESSION_TIMESTAMP_KEY, Date.now().toString());
+  } catch {
+    // Ignore storage errors
+  }
+};
 
 const saveAuthData = (token: string, user: User) => {
   secureStorage.setItem(TOKEN_KEY, token, API_CONFIG.SIGNING_KEY);
   secureStorage.setItem(USER_KEY, user, token);
-  // Store login timestamp for session expiration
-  localStorage.setItem(SESSION_TIMESTAMP_KEY, Date.now().toString());
+  // Store or refresh timestamp for session expiration
+  refreshSessionTimestamp();
 };
 
 const clearAuthData = () => {
@@ -208,7 +216,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         logout();
         // Show toast notification immediately as well
         toast.error('Your session has expired. Please log in again.');
+        return true;
       }
+      return false;
     };
 
     // Check immediately
@@ -217,17 +227,45 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Set up interval to check every minute
     const intervalId = setInterval(checkSessionExpiry, 60 * 1000); // Check every minute
 
-    // Also check on visibility change (when user returns to tab)
+    // On visibility change:
+    // - when tab is hidden (blur): start timer from that moment
+    // - when tab becomes visible (focus): if not expired, refresh session timestamp
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        checkSessionExpiry();
+      if (document.visibilityState === 'hidden') {
+        // User moved away from the app – start timeout from this moment
+        refreshSessionTimestamp();
+      } else if (document.visibilityState === 'visible') {
+        // User returned – if not yet expired, refresh session to keep them logged in
+        const expired = checkSessionExpiry();
+        if (!expired) {
+          refreshSessionTimestamp();
+        }
       }
     };
+
+    // On user activity (mouse / keyboard / touch), refresh the session timer
+    const handleUserActivity = () => {
+      // Only refresh if the session is not already expired
+      if (!isSessionExpired()) {
+        refreshSessionTimestamp();
+      }
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('mousemove', handleUserActivity);
+    window.addEventListener('keydown', handleUserActivity);
+    window.addEventListener('click', handleUserActivity);
+    window.addEventListener('scroll', handleUserActivity);
+    window.addEventListener('touchstart', handleUserActivity);
 
     return () => {
       clearInterval(intervalId);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('mousemove', handleUserActivity);
+      window.removeEventListener('keydown', handleUserActivity);
+      window.removeEventListener('click', handleUserActivity);
+      window.removeEventListener('scroll', handleUserActivity);
+      window.removeEventListener('touchstart', handleUserActivity);
     };
   }, [user, token, logout]);
 
