@@ -22,8 +22,6 @@ import java.util.Optional;
  */
 @RestController
 @RequestMapping("/api/departments")
-@CrossOrigin(origins = "*")
-
 public class DepartmentController {
 
     private final DepartmentService departmentService;
@@ -59,15 +57,15 @@ public class DepartmentController {
     public ResponseEntity<Department> getDepartmentById(@PathVariable String id) {
         Optional<Department> department = departmentService.findById(id);
         return department.map(ResponseEntity::ok)
-                        .orElse(ResponseEntity.notFound().build());
+                .orElse(ResponseEntity.notFound().build());
     }
 
     /**
      * Get all departments with pagination.
      * 
-     * @param page page number (default: 0)
-     * @param size page size (default: 10)
-     * @param sortBy sort field (default: name)
+     * @param page    page number (default: 0)
+     * @param size    page size (default: 10)
+     * @param sortBy  sort field (default: name)
      * @param sortDir sort direction (default: asc)
      * @return ResponseEntity containing page of departments
      */
@@ -77,11 +75,9 @@ public class DepartmentController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "name") String sortBy,
             @RequestParam(defaultValue = "asc") String sortDir) {
-        
-        Sort sort = sortDir.equalsIgnoreCase("desc") ? 
-                   Sort.by(sortBy).descending() : 
-                   Sort.by(sortBy).ascending();
-        
+
+        Sort sort = sortDir.equalsIgnoreCase("desc") ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
+
         Pageable pageable = PageRequest.of(page, size, sort);
         Page<Department> departments = departmentService.getAllDepartments(pageable);
         return ResponseEntity.ok(departments);
@@ -124,12 +120,13 @@ public class DepartmentController {
     /**
      * Update an existing department.
      * 
-     * @param id the department ID
+     * @param id                the department ID
      * @param departmentDetails the updated department details
      * @return ResponseEntity containing the updated department
      */
     @PutMapping("/{id}")
-    public ResponseEntity<Department> updateDepartment(@PathVariable String id, @RequestBody Department departmentDetails) {
+    public ResponseEntity<Department> updateDepartment(@PathVariable String id,
+            @RequestBody Department departmentDetails) {
         try {
             // Set the ID to ensure we're updating the correct department
             departmentDetails.setId(id);
@@ -158,20 +155,21 @@ public class DepartmentController {
 
     // TODO: Add is_active column to database and uncomment this method
     // /**
-    //  * Activate or deactivate a department.
-    //  * 
-    //  * @param id the department ID
-    //  * @param isActive the active status
-    //  * @return ResponseEntity with no content if successful
-    //  */
+    // * Activate or deactivate a department.
+    // *
+    // * @param id the department ID
+    // * @param isActive the active status
+    // * @return ResponseEntity with no content if successful
+    // */
     // @PatchMapping("/{id}/active")
-    // public ResponseEntity<Void> setDepartmentActiveStatus(@PathVariable String id, @RequestParam boolean isActive) {
-    //     try {
-    //         departmentService.setDepartmentActiveStatus(id, isActive);
-    //         return ResponseEntity.noContent().build();
-    //     } catch (IllegalArgumentException e) {
-    //         return ResponseEntity.notFound().build();
-    //     }
+    // public ResponseEntity<Void> setDepartmentActiveStatus(@PathVariable String
+    // id, @RequestParam boolean isActive) {
+    // try {
+    // departmentService.setDepartmentActiveStatus(id, isActive);
+    // return ResponseEntity.noContent().build();
+    // } catch (IllegalArgumentException e) {
+    // return ResponseEntity.notFound().build();
+    // }
     // }
 
     /**
@@ -183,13 +181,9 @@ public class DepartmentController {
     public ResponseEntity<String> getDepartmentStats() {
         long totalDepartments = departmentService.getAllDepartments().size();
         long activeDepartments = departmentService.findActiveDepartments().size();
-        
-        String stats = String.format("Total Departments: %d, Active Departments: %d", 
-                                   totalDepartments, activeDepartments);
+
+        String stats = String.format("Total Departments: %d, Active Departments: %d",
+                totalDepartments, activeDepartments);
         return ResponseEntity.ok(stats);
     }
 }
-
-
-
-

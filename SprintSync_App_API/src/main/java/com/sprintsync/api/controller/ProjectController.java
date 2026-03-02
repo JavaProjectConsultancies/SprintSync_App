@@ -39,7 +39,6 @@ import java.util.stream.Collectors;
  */
 @RestController
 @RequestMapping("/api/projects")
-@CrossOrigin(origins = "*")
 public class ProjectController {
 
     private static final Logger logger = LoggerFactory.getLogger(ProjectController.class);

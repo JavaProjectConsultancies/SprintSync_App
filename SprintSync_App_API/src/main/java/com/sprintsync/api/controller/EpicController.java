@@ -10,7 +10,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -37,7 +36,6 @@ import jakarta.validation.Valid;
  */
 @RestController
 @RequestMapping("/api/epics")
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173"})
 public class EpicController {
 
     private final EpicService epicService;
@@ -87,7 +85,7 @@ public class EpicController {
     /**
      * Update an existing epic.
      * 
-     * @param id the epic ID
+     * @param id   the epic ID
      * @param epic the updated epic data
      * @return ResponseEntity containing the updated epic
      */
@@ -178,7 +176,7 @@ public class EpicController {
      * Get epics by project with pagination.
      * 
      * @param projectId the project ID
-     * @param pageable pagination parameters
+     * @param pageable  pagination parameters
      * @return ResponseEntity containing page of epics in the specified project
      */
     @GetMapping("/project/{projectId}/paginated")
@@ -212,7 +210,7 @@ public class EpicController {
     /**
      * Get epics by status with pagination.
      * 
-     * @param status the epic status
+     * @param status   the epic status
      * @param pageable pagination parameters
      * @return ResponseEntity containing page of epics with the specified status
      */
@@ -248,7 +246,8 @@ public class EpicController {
      * Get epics by assignee.
      * 
      * @param assigneeId the assignee ID
-     * @return ResponseEntity containing list of epics assigned to the specified user
+     * @return ResponseEntity containing list of epics assigned to the specified
+     *         user
      */
     @GetMapping("/assignee/{assigneeId}")
     public ResponseEntity<?> getEpicsByAssignee(@PathVariable String assigneeId) {
@@ -282,7 +281,8 @@ public class EpicController {
      * Search epics by title.
      * 
      * @param title the title to search for
-     * @return ResponseEntity containing list of epics with titles containing the search term
+     * @return ResponseEntity containing list of epics with titles containing the
+     *         search term
      */
     @GetMapping("/search")
     public ResponseEntity<?> searchEpicsByTitle(@RequestParam String title) {
@@ -315,9 +315,9 @@ public class EpicController {
     /**
      * Get epics by multiple criteria.
      * 
-     * @param projectId the project ID (optional)
-     * @param status the epic status (optional)
-     * @param priority the epic priority (optional)
+     * @param projectId  the project ID (optional)
+     * @param status     the epic status (optional)
+     * @param priority   the epic priority (optional)
      * @param assigneeId the assignee ID (optional)
      * @return ResponseEntity containing list of epics matching the criteria
      */
@@ -340,7 +340,8 @@ public class EpicController {
      * Get active epics by project.
      * 
      * @param projectId the project ID
-     * @return ResponseEntity containing list of active epics in the specified project
+     * @return ResponseEntity containing list of active epics in the specified
+     *         project
      */
     @GetMapping("/project/{projectId}/active")
     public ResponseEntity<?> getActiveEpicsByProject(@PathVariable String projectId) {
@@ -357,11 +358,13 @@ public class EpicController {
      * Get epics by assignee and status.
      * 
      * @param assigneeId the assignee ID
-     * @param status the epic status
-     * @return ResponseEntity containing list of epics assigned to user with specified status
+     * @param status     the epic status
+     * @return ResponseEntity containing list of epics assigned to user with
+     *         specified status
      */
     @GetMapping("/assignee/{assigneeId}/status/{status}")
-    public ResponseEntity<?> getEpicsByAssigneeAndStatus(@PathVariable String assigneeId, @PathVariable EpicStatus status) {
+    public ResponseEntity<?> getEpicsByAssigneeAndStatus(@PathVariable String assigneeId,
+            @PathVariable EpicStatus status) {
         try {
             List<Epic> epics = epicService.findEpicsByAssigneeAndStatus(assigneeId, status);
             return ResponseEntity.ok(epics);
@@ -375,8 +378,9 @@ public class EpicController {
      * Get epics by date range.
      * 
      * @param startDate the start date
-     * @param endDate the end date
-     * @return ResponseEntity containing list of epics within the specified date range
+     * @param endDate   the end date
+     * @return ResponseEntity containing list of epics within the specified date
+     *         range
      */
     @GetMapping("/date-range")
     public ResponseEntity<?> getEpicsByDateRange(
@@ -395,11 +399,13 @@ public class EpicController {
      * Get epic count by status in project.
      * 
      * @param projectId the project ID
-     * @param status the epic status
-     * @return ResponseEntity containing count of epics with the specified status in project
+     * @param status    the epic status
+     * @return ResponseEntity containing count of epics with the specified status in
+     *         project
      */
     @GetMapping("/count/project/{projectId}/status/{status}")
-    public ResponseEntity<?> getEpicCountByProjectIdAndStatus(@PathVariable String projectId, @PathVariable EpicStatus status) {
+    public ResponseEntity<?> getEpicCountByProjectIdAndStatus(@PathVariable String projectId,
+            @PathVariable EpicStatus status) {
         try {
             long count = epicService.countEpicsByProjectIdAndStatus(projectId, status);
             return ResponseEntity.ok(Map.of("count", count));
@@ -446,7 +452,8 @@ public class EpicController {
      * Get completed story points by project.
      * 
      * @param projectId the project ID
-     * @return ResponseEntity containing total completed story points for the project
+     * @return ResponseEntity containing total completed story points for the
+     *         project
      */
     @GetMapping("/project/{projectId}/completed-story-points")
     public ResponseEntity<?> getCompletedStoryPointsByProject(@PathVariable String projectId) {
@@ -462,7 +469,7 @@ public class EpicController {
     /**
      * Update epic status.
      * 
-     * @param id the epic ID
+     * @param id     the epic ID
      * @param status the new status
      * @return ResponseEntity with no content if successful
      */
@@ -482,7 +489,7 @@ public class EpicController {
     /**
      * Update epic progress.
      * 
-     * @param id the epic ID
+     * @param id       the epic ID
      * @param progress the new progress percentage (0-100)
      * @return ResponseEntity with no content if successful
      */
@@ -502,7 +509,7 @@ public class EpicController {
     /**
      * Assign epic to user.
      * 
-     * @param id the epic ID
+     * @param id         the epic ID
      * @param assigneeId the assignee ID
      * @return ResponseEntity with no content if successful
      */
@@ -522,15 +529,15 @@ public class EpicController {
     /**
      * Update epic story points.
      * 
-     * @param id the epic ID
-     * @param storyPoints the new story points
+     * @param id                   the epic ID
+     * @param storyPoints          the new story points
      * @param completedStoryPoints the completed story points
      * @return ResponseEntity with no content if successful
      */
     @PatchMapping("/{id}/story-points")
-    public ResponseEntity<?> updateEpicStoryPoints(@PathVariable String id, 
-                                                  @RequestParam Integer storyPoints, 
-                                                  @RequestParam Integer completedStoryPoints) {
+    public ResponseEntity<?> updateEpicStoryPoints(@PathVariable String id,
+            @RequestParam Integer storyPoints,
+            @RequestParam Integer completedStoryPoints) {
         try {
             epicService.updateEpicStoryPoints(id, storyPoints, completedStoryPoints);
             return ResponseEntity.noContent().build();
@@ -563,7 +570,7 @@ public class EpicController {
      * Create multiple epics for a project in batch.
      * 
      * @param projectId the project ID
-     * @param epics list of epics to create
+     * @param epics     list of epics to create
      * @return ResponseEntity containing list of created epics
      */
     @PostMapping("/project/{projectId}/batch")
@@ -579,6 +586,3 @@ public class EpicController {
         }
     }
 }
-
-
-

@@ -4147,17 +4147,15 @@ const ScrumPage: React.FC = () => {
     async (id: string, newStatus: string, itemType: string) => {
       const mappedNewStatus = mapColumnToTaskStatus(newStatus);
 
-      // === RULE 1: Only MANAGER/QA Manager/QA Developer can move tasks TO DONE column ===
+      // === RULE 1: Only QA Developer, QA Manager, Manager, Implementation, and Support roles can move items TO DONE lane ===
       if (mappedNewStatus === "DONE" && !canDragToDone) {
-        toast.error("Only managers and QA roles can move tasks to the Done column");
+        toast.error("Only QA Developer, QA Manager, Manager, Implementation, and Support roles can move items to the Done lane");
         return;
       }
 
       if (itemType === ItemTypes.TASK) {
         // Check if newStatus is a valid default status or a custom lane statusValue
-
         const validStatuses = ["todo", "inprogress", "qa", "done"];
-
         const isCustomLane = workflowLanes.some(
           (lane) => lane.statusValue === newStatus,
         );
@@ -4165,56 +4163,12 @@ const ScrumPage: React.FC = () => {
         if (validStatuses.includes(newStatus) || isCustomLane) {
           const task = allTasks.find((t) => t.id === id);
           const oldStatus = task?.status;
+          const oldColumn = mapTaskStatusToColumn(oldStatus || "");
 
-          // === RULE 2: Tasks in DONE - Only MANAGERS/QA roles can move, and ONLY to TODO ===
-          if (oldStatus === "DONE") {
-            // First check: only managers/QA can move from DONE
-            if (!canDragToDone) {
-              toast.error("Only managers and QA roles can move tasks from Done column");
-              try {
-                await activityLogApiService.createActivityLog({
-                  userId: user?.id || "",
-                  entityType: "tasks",
-                  entityId: id,
-                  action: "status_change_blocked",
-                  description: `Non-manager attempted to move task from DONE (blocked - manager only)`,
-                  oldValues: JSON.stringify({ status: oldStatus }),
-                  newValues: JSON.stringify({ status: mappedNewStatus }),
-                  ipAddress: undefined,
-                  userAgent: undefined,
-                });
-              } catch (error) {
-                console.error("Failed to log blocked activity:", error);
-              }
-              return;
-            }
-            // Second check: even managers can only move to TODO
-            if (newStatus !== "todo") {
-              toast.error("Done tasks can only be moved back to To Do");
-              try {
-                await activityLogApiService.createActivityLog({
-                  userId: user?.id || "",
-                  entityType: "tasks",
-                  entityId: id,
-                  action: "status_change_blocked",
-                  description: `Attempted to move task from DONE to ${mappedNewStatus} (blocked - can only go to TODO)`,
-                  oldValues: JSON.stringify({ status: oldStatus }),
-                  newValues: JSON.stringify({ status: mappedNewStatus }),
-                  ipAddress: undefined,
-                  userAgent: undefined,
-                });
-              } catch (error) {
-                console.error("Failed to log blocked activity:", error);
-              }
-              return;
-            }
-          }
+          // === RULE: TO_DO lane to any other Lane requires effort logged ===
+          const isMovingFromTodo = oldColumn === "todo" && newStatus !== "todo";
 
-          // === RULE 3: TODO → IN_PROGRESS requires effort logged ===
-          const isMovingFromTodoToInProgress =
-            oldStatus === "TO_DO" && newStatus === "inprogress";
-
-          if (isMovingFromTodoToInProgress) {
+          if (isMovingFromTodo) {
             // Check if task has any time entries logged
             try {
               const response = await timeEntryApiService.getTimeEntriesByTask(id);
@@ -4223,16 +4177,16 @@ const ScrumPage: React.FC = () => {
                 : (Array.isArray(response) ? response : []);
 
               if (entries.length === 0) {
-                toast.error("Log effort at least once before moving to In Progress");
+                toast.error("Please add at least one effort log before moving from the To Do lane");
                 try {
                   await activityLogApiService.createActivityLog({
                     userId: user?.id || "",
                     entityType: "tasks",
                     entityId: id,
                     action: "status_change_blocked",
-                    description: `Attempted to move task from TODO to IN_PROGRESS (blocked - no effort logged)`,
+                    description: `Attempted to move task from TODO to ${newStatus} (blocked - no effort logged)`,
                     oldValues: JSON.stringify({ status: oldStatus }),
-                    newValues: JSON.stringify({ status: "IN_PROGRESS" }),
+                    newValues: JSON.stringify({ status: mappedNewStatus }),
                     ipAddress: undefined,
                     userAgent: undefined,
                   });
@@ -4248,35 +4202,10 @@ const ScrumPage: React.FC = () => {
             }
           }
 
-          // === RULE 4: Only managers can move tasks from In Progress back to To Do ===
-          const isMovingFromInProgressToTodo =
-            oldStatus === "IN_PROGRESS" && newStatus === "todo";
-
-          if (isMovingFromInProgressToTodo && !canManageSprintsAndStories) {
-            toast.error("Only managers can move tasks from In Progress back to To Do");
-            try {
-              await activityLogApiService.createActivityLog({
-                userId: user?.id || "",
-                entityType: "tasks",
-                entityId: id,
-                action: "status_change_blocked",
-                description: `Attempted to move task from ${oldStatus} to TODO (blocked - manager only)`,
-                oldValues: JSON.stringify({ status: oldStatus }),
-                newValues: JSON.stringify({ status: "TODO" }),
-                ipAddress: undefined,
-                userAgent: undefined,
-              });
-            } catch (error) {
-              console.error("Failed to log blocked activity:", error);
-            }
-            return;
-          }
-
           const mappedStatus = mapColumnToTaskStatus(newStatus);
 
           await updateTaskStatusMutate({
             id,
-
             status: mappedStatus as any, // Allow custom status strings
           });
 
@@ -4284,24 +4213,16 @@ const ScrumPage: React.FC = () => {
 
           // Log activity
           try {
-            const isMovingToInProgress = mappedStatus === "IN_PROGRESS";
-            const isMovingFromTodo = oldStatus === "TO_DO";
-
-            let description = `Changed status from ${oldStatus} to ${mappedStatus}`;
-            if (isMovingFromTodo && isMovingToInProgress && canManageSprintsAndStories) {
-              description = `Manager moved task from To Do to In Progress`;
-            }
-
             await activityLogApiService.createActivityLog({
               userId: user?.id || "",
               entityType: "tasks",
               entityId: id,
               action: "status_changed",
-              description: description,
+              description: `Changed status from ${oldStatus} to ${mappedStatus}`,
               oldValues: JSON.stringify({ status: oldStatus }),
               newValues: JSON.stringify({ status: mappedStatus }),
-              ipAddress: undefined, // Not tracking IP from frontend
-              userAgent: undefined, // Not tracking user agent from frontend
+              ipAddress: undefined,
+              userAgent: undefined,
             });
           } catch (error) {
             console.error("Failed to log activity:", error);
@@ -4310,14 +4231,11 @@ const ScrumPage: React.FC = () => {
           toast.success("Task status updated");
 
           // Refetch tasks to update the UI (include backlog stories)
-
           await fetchAllTasks(sprintStories, true);
         }
       } else if (itemType === ItemTypes.ISSUE) {
         // Check if newStatus is a valid default status or a custom lane statusValue
-
         const validStatuses = ["todo", "inprogress", "qa", "done"];
-
         const isCustomLane = workflowLanes.some(
           (lane) => lane.statusValue === newStatus,
         );
@@ -4325,129 +4243,60 @@ const ScrumPage: React.FC = () => {
         if (validStatuses.includes(newStatus) || isCustomLane) {
           const issue = allIssues.find((i) => i.id === id);
           const oldStatus = issue?.status;
+          const oldColumn = mapTaskStatusToColumn(oldStatus || "");
 
-          // === RULE 2: Issues in DONE - Only MANAGERS can move, and ONLY to TODO ===
-          if (oldStatus === "DONE") {
-            // First check: only managers and QA managers can move from DONE
-            if (!isManager) {
-              toast.error("Only managers can move issues from Done column");
-              try {
-                await activityLogApiService.createActivityLog({
-                  userId: user?.id || "",
-                  entityType: "issues",
-                  entityId: id,
-                  action: "status_change_blocked",
-                  description: `Non-manager attempted to move issue from DONE (blocked - manager only)`,
-                  oldValues: JSON.stringify({ status: oldStatus }),
-                  newValues: JSON.stringify({ status: mappedNewStatus }),
-                  ipAddress: undefined,
-                  userAgent: undefined,
-                });
-              } catch (error) {
-                console.error("Failed to log blocked activity:", error);
-              }
-              return;
-            }
-            // Second check: even managers can only move to TODO
-            if (newStatus !== "todo") {
-              toast.error("Done issues can only be moved back to To Do");
-              try {
-                await activityLogApiService.createActivityLog({
-                  userId: user?.id || "",
-                  entityType: "issues",
-                  entityId: id,
-                  action: "status_change_blocked",
-                  description: `Attempted to move issue from DONE to ${mappedNewStatus} (blocked - can only go to TODO)`,
-                  oldValues: JSON.stringify({ status: oldStatus }),
-                  newValues: JSON.stringify({ status: mappedNewStatus }),
-                  ipAddress: undefined,
-                  userAgent: undefined,
-                });
-              } catch (error) {
-                console.error("Failed to log blocked activity:", error);
-              }
-              return;
-            }
-          }
+          // === RULE: TO_DO lane to any other Lane requires effort logged ===
+          const isMovingFromTodo = oldColumn === "todo" && newStatus !== "todo";
 
-          // === RULE 3: TODO → IN_PROGRESS requires effort logged (for issues) ===
-          const isMovingFromTodoToInProgress =
-            oldStatus === "TO_DO" && newStatus === "inprogress";
-
-          if (isMovingFromTodoToInProgress) {
-            // Check if issue has any effort logged (actualHours > 0)
-            const issue = allIssues.find((i) => i.id === id);
-            const hasLoggedEffort = issue && (issue.actualHours || 0) > 0;
-
-            if (!hasLoggedEffort) {
-              toast.error("Log effort at least once before moving issue to In Progress");
-              try {
-                await activityLogApiService.createActivityLog({
-                  userId: user?.id || "",
-                  entityType: "issues",
-                  entityId: id,
-                  action: "status_change_blocked",
-                  description: `Attempted to move issue from TODO to IN_PROGRESS (blocked - no effort logged)`,
-                  oldValues: JSON.stringify({ status: oldStatus }),
-                  newValues: JSON.stringify({ status: "IN_PROGRESS" }),
-                  ipAddress: undefined,
-                  userAgent: undefined,
-                });
-              } catch (logError) {
-                console.error("Failed to log blocked activity:", logError);
-              }
-              return;
-            }
-          }
-
-          // === RULE 4: Only managers can move issues from In Progress back to To Do ===
-          const isMovingFromInProgressToTodo =
-            oldStatus === "IN_PROGRESS" && newStatus === "todo";
-
-          if (isMovingFromInProgressToTodo && !canManageSprintsAndStories) {
-            toast.error("Only managers can move issues from In Progress back to To Do");
+          if (isMovingFromTodo) {
+            // Check if issue has any time entries logged
             try {
-              await activityLogApiService.createActivityLog({
-                userId: user?.id || "",
-                entityType: "issues",
-                entityId: id,
-                action: "status_change_blocked",
-                description: `Attempted to move issue from ${oldStatus} to TODO (blocked - manager only)`,
-                oldValues: JSON.stringify({ status: oldStatus }),
-                newValues: JSON.stringify({ status: "TODO" }),
-                ipAddress: undefined,
-                userAgent: undefined,
-              });
+              const response = await timeEntryApiService.getTimeEntriesByIssue(id);
+              const entries = Array.isArray(response.data)
+                ? response.data
+                : (Array.isArray(response) ? response : []);
+
+              if (entries.length === 0) {
+                toast.error("Please add at least one effort log before moving from the To Do lane");
+                try {
+                  await activityLogApiService.createActivityLog({
+                    userId: user?.id || "",
+                    entityType: "issues",
+                    entityId: id,
+                    action: "status_change_blocked",
+                    description: `Attempted to move issue from TODO to ${newStatus} (blocked - no effort logged)`,
+                    oldValues: JSON.stringify({ status: oldStatus }),
+                    newValues: JSON.stringify({ status: mappedNewStatus }),
+                    ipAddress: undefined,
+                    userAgent: undefined,
+                  });
+                } catch (logError) {
+                  console.error("Failed to log blocked activity:", logError);
+                }
+                return;
+              }
             } catch (error) {
-              console.error("Failed to log blocked activity:", error);
+              console.error("Failed to check time entries:", error);
+              toast.error("Unable to verify effort logs. Please try again.");
+              return;
             }
-            return;
           }
 
           const mappedStatus = mapColumnToTaskStatus(newStatus);
 
           await updateIssueStatusMutate({
             id,
-
             status: mappedStatus as any, // Allow custom status strings
           });
 
           // Log activity
           try {
-            const isMovingToInProgress = mappedStatus === "IN_PROGRESS";
-            const isMovingFromTodo = oldStatus === "TO_DO";
-
-            let description = `Changed issue status from ${oldStatus} to ${mappedStatus}`;
-            if (isMovingFromTodo && isMovingToInProgress && canManageSprintsAndStories) {
-              description = `Manager moved issue from To Do to In Progress`;
-            }
-
             await activityLogApiService.createActivityLog({
               userId: user?.id || "",
               entityType: "issues",
               entityId: id,
               action: "status_changed",
-              description: description,
+              description: `Changed status from ${oldStatus} to ${mappedStatus}`,
               oldValues: JSON.stringify({ status: oldStatus }),
               newValues: JSON.stringify({ status: mappedStatus }),
               ipAddress: undefined,
@@ -4460,7 +4309,6 @@ const ScrumPage: React.FC = () => {
           toast.success("Issue status updated");
 
           // Refetch issues and tasks to update the UI (include backlog stories)
-
           await fetchAllTasks(sprintStories, true);
         }
       } else if (itemType === ItemTypes.STORY) {

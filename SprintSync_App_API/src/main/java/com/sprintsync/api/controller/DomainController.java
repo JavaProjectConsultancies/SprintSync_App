@@ -22,8 +22,6 @@ import java.util.Optional;
  */
 @RestController
 @RequestMapping("/api/domains")
-@CrossOrigin(origins = "*")
-
 public class DomainController {
 
     private final DomainService domainService;
@@ -59,15 +57,15 @@ public class DomainController {
     public ResponseEntity<Domain> getDomainById(@PathVariable String id) {
         Optional<Domain> domain = domainService.findById(id);
         return domain.map(ResponseEntity::ok)
-                    .orElse(ResponseEntity.notFound().build());
+                .orElse(ResponseEntity.notFound().build());
     }
 
     /**
      * Get all domains with pagination.
      * 
-     * @param page page number (default: 0)
-     * @param size page size (default: 10)
-     * @param sortBy sort field (default: name)
+     * @param page    page number (default: 0)
+     * @param size    page size (default: 10)
+     * @param sortBy  sort field (default: name)
      * @param sortDir sort direction (default: asc)
      * @return ResponseEntity containing page of domains
      */
@@ -77,11 +75,9 @@ public class DomainController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "name") String sortBy,
             @RequestParam(defaultValue = "asc") String sortDir) {
-        
-        Sort sort = sortDir.equalsIgnoreCase("desc") ? 
-                   Sort.by(sortBy).descending() : 
-                   Sort.by(sortBy).ascending();
-        
+
+        Sort sort = sortDir.equalsIgnoreCase("desc") ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
+
         Pageable pageable = PageRequest.of(page, size, sort);
         Page<Domain> domains = domainService.getAllDomains(pageable);
         return ResponseEntity.ok(domains);
@@ -124,7 +120,7 @@ public class DomainController {
     /**
      * Update an existing domain.
      * 
-     * @param id the domain ID
+     * @param id            the domain ID
      * @param domainDetails the updated domain details
      * @return ResponseEntity containing the updated domain
      */
@@ -159,19 +155,20 @@ public class DomainController {
     /**
      * Activate or deactivate a domain.
      * 
-     * @param id the domain ID
+     * @param id       the domain ID
      * @param isActive the active status
      * @return ResponseEntity with no content if successful
      */
     // TODO: Add is_active column to database and uncomment this method
     // @PatchMapping("/{id}/active")
-    // public ResponseEntity<Void> setDomainActiveStatus(@PathVariable String id, @RequestParam boolean isActive) {
-    //     try {
-    //         domainService.setDomainActiveStatus(id, isActive);
-    //         return ResponseEntity.ok().build();
-    //     } catch (IllegalArgumentException e) {
-    //         return ResponseEntity.notFound().build();
-    //     }
+    // public ResponseEntity<Void> setDomainActiveStatus(@PathVariable String id,
+    // @RequestParam boolean isActive) {
+    // try {
+    // domainService.setDomainActiveStatus(id, isActive);
+    // return ResponseEntity.ok().build();
+    // } catch (IllegalArgumentException e) {
+    // return ResponseEntity.notFound().build();
+    // }
     // }
 
     /**
@@ -183,13 +180,9 @@ public class DomainController {
     public ResponseEntity<String> getDomainStats() {
         long totalDomains = domainService.getAllDomains().size();
         long activeDomains = domainService.findActiveDomains().size();
-        
-        String stats = String.format("Total Domains: %d, Active Domains: %d", 
-                                   totalDomains, activeDomains);
+
+        String stats = String.format("Total Domains: %d, Active Domains: %d",
+                totalDomains, activeDomains);
         return ResponseEntity.ok(stats);
     }
 }
-
-
-
-
