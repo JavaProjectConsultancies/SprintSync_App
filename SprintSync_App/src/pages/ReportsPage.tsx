@@ -4,7 +4,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Label } from '../components/ui/label';
-import { Bug, AlertCircle, AlertTriangle, CheckCircle2, XCircle, Clock, Loader2, X, Download, ChevronDown, Users, TrendingUp, BarChart3, ArrowLeft, Filter } from 'lucide-react';
+import { Bug, AlertCircle, AlertTriangle, CheckCircle2, XCircle, Clock, Loader2, X, Download, ChevronDown, ChevronRight, Users, TrendingUp, BarChart3, ArrowLeft, Filter } from 'lucide-react';
+import { Input } from '../components/ui/input';
 import { reportsApiService } from '../services/api/utilities/reportsApi';
 import { toast } from 'sonner';
 import { useUsers } from '../hooks/api';
@@ -71,7 +72,48 @@ interface ResourcePerformanceData {
   rows?: ResourcePerformanceRow[];
 }
 
-type ReportType = 'bug-report' | 'resource-performance' | null;
+interface TaskIssueItem {
+  taskIssueName?: string;
+  taskIssueId?: string;
+  itemType: 'TASK' | 'ISSUE';
+  estimationHours: number;
+  actualHours: number;
+}
+
+interface ProjectSprintBreakdown {
+  project: string;
+  sprint: string;
+  taskCount: number;
+  issueCount: number;
+  taskIssueCount: number;
+  taskItems: TaskIssueItem[];
+  issueItems: TaskIssueItem[];
+  allocatedHours: number;
+  hoursLogged: number;
+  utilizationLevel: number;
+  status: 'idle' | 'underutilized' | 'optimal' | 'overloaded';
+}
+
+interface IndividualUtilizationRow {
+  resourceName: string;
+  resourceEmailId?: string;
+  resourceKey: string;
+  projects: string[];
+  projectSprintPairs: string[];
+  projectSprintBreakdown: ProjectSprintBreakdown[];
+  taskCount: number;
+  issueCount: number;
+  taskIssueCount: number;
+  taskItems: TaskIssueItem[];
+  issueItems: TaskIssueItem[];
+  hoursLogged: number;
+  allocatedHours: number;
+  utilizationLevel: number;
+  status: 'idle' | 'underutilized' | 'optimal' | 'overloaded';
+  concerns: string[];
+}
+
+type ReportType = 'bug-report' | 'resource-performance' | 'resource-utilization' | null;
 type ResourceDurationFilter = 'all' | 'last7' | 'last30' | 'custom';
 
 const ReportsPage: React.FC = () => {
@@ -94,6 +136,20 @@ const ReportsPage: React.FC = () => {
   const [customDurationTo, setCustomDurationTo] = useState<string>('');
   const [resourcePage, setResourcePage] = useState<number>(1);
   const [exportingResource, setExportingResource] = useState(false);
+  const [expandedUtilizationRows, setExpandedUtilizationRows] = useState<Set<string>>(new Set());
+  const [expandedCountCells, setExpandedCountCells] = useState<Set<string>>(new Set());
+
+  const toggleUtilizationRow = useCallback((resourceKey: string) => {
+    setExpandedUtilizationRows(prev => {
+      const next = new Set(prev);
+      if (next.has(resourceKey)) {
+        next.delete(resourceKey);
+      } else {
+        next.add(resourceKey);
+      }
+      return next;
+    });
+  }, []);
 
   // Fetch users to get their roles
   const { data: usersData } = useUsers({ page: 0, size: 10000 });
@@ -154,12 +210,12 @@ const ReportsPage: React.FC = () => {
     }
   }, [activeReport]);
 
-  // Shared loader for resource performance data
+  // Loader for resource performance data (Resource Performance page only)
   const loadResourcePerformance = useCallback(async () => {
     try {
       setLoadingResourcePerformance(true);
 
-      const response = await reportsApiService.getResourceUtilizationReports();
+      const response = await reportsApiService.getResourcePerformanceReports();
       console.log('Resource Performance API Response:', response);
       
       const data = response?.data || null;
@@ -252,17 +308,105 @@ const ReportsPage: React.FC = () => {
     }
   }, [formatDate]);
 
-  // Preload resource performance data once when the Reports page mounts
-  useEffect(() => {
-    loadResourcePerformance();
-  }, [loadResourcePerformance]);
+  // Preload resource performance only when resource-performance is selected
 
-  // Optionally ensure data is available when switching to resource-performance view
+  // Load resource performance when switching to resource-performance view
   useEffect(() => {
     if (activeReport === 'resource-performance' && resourcePerformanceRows.length === 0) {
       loadResourcePerformance();
     }
   }, [activeReport, resourcePerformanceRows.length, loadResourcePerformance]);
+
+  // Resource Utilization - separate state and API
+  const [resourceUtilizationRows, setResourceUtilizationRows] = useState<ResourcePerformanceRow[]>([]);
+  const [loadingResourceUtilization, setLoadingResourceUtilization] = useState(false);
+  const [resourceUtilizationFilterOptions, setResourceUtilizationFilterOptions] = useState<{
+    projects: string[];
+    sprints: string[];
+    users: { id: string; label: string }[];
+  }>({ projects: [], sprints: [], users: [] });
+
+  const loadResourceUtilization = useCallback(async () => {
+    try {
+      setLoadingResourceUtilization(true);
+      const needsFilterOptions = resourceUtilizationFilterOptions.projects.length === 0;
+      const projectName = !needsFilterOptions && selectedResourceProject !== 'all' ? selectedResourceProject : undefined;
+      const userKey = !needsFilterOptions && selectedResourceUser !== 'all' ? selectedResourceUser : undefined;
+      const sprint = !needsFilterOptions && selectedResourceSprint !== 'all' ? selectedResourceSprint : undefined;
+      let duration: string | undefined;
+      let fromDate: string | undefined;
+      let toDate: string | undefined;
+      if (!needsFilterOptions && selectedResourceDuration !== 'all') {
+        duration = selectedResourceDuration;
+        if (selectedResourceDuration === 'custom') {
+          fromDate = customDurationFrom || undefined;
+          toDate = customDurationTo || undefined;
+        }
+      }
+      const response = await reportsApiService.getIndividualUtilizationReport({
+        projectName,
+        userKey,
+        sprint,
+        duration,
+        fromDate,
+        toDate,
+      });
+      const data = response?.data;
+      let rows: ResourcePerformanceRow[] = [];
+      if (data?.rows && Array.isArray(data.rows)) {
+        rows = data.rows.map((row: any) => ({
+          resourceEmailId: row.resourceEmailId || null,
+          resourceName: row.resourceName || null,
+          taskIssueName: row.taskIssueName || null,
+          taskIssueId: row.taskIssueId || null,
+          storyName: row.storyName || null,
+          storyId: row.storyId || null,
+          estimationHours: row.estimationHours != null ? Number(row.estimationHours) : null,
+          actualHours: row.actualHours != null ? Number(row.actualHours) : 0,
+          remainingHours: row.remainingHours != null ? Number(row.remainingHours) : null,
+          reporterName: row.reporterName || null,
+          workCategory: row.workCategory || 'Development',
+          status: row.status || null,
+          createdDate: row.createdDate ? formatDate(row.createdDate) : null,
+          dueDate: row.dueDate ? formatDate(row.dueDate) : null,
+          completedDate: row.completedDate ? formatDate(row.completedDate) : null,
+          sprint: row.sprint || null,
+          project: row.project || null,
+          itemType: row.itemType || null,
+          isBug: typeof row.isBug === 'boolean' ? row.isBug : typeof row.isBug === 'string' ? row.isBug.toLowerCase() === 'true' : undefined,
+        }));
+      }
+      setResourceUtilizationRows(rows);
+      if (needsFilterOptions) {
+        const projectSet = new Set<string>();
+        const sprintSet = new Set<string>();
+        const userMap = new Map<string, { id: string; label: string }>();
+        rows.forEach(r => {
+          if (r.project) projectSet.add(r.project);
+          if (r.sprint) sprintSet.add(r.sprint);
+          const key = r.resourceEmailId || r.resourceName || '';
+          if (key) userMap.set(key, { id: key, label: r.resourceName || r.resourceEmailId || key });
+        });
+        setResourceUtilizationFilterOptions({
+          projects: Array.from(projectSet).sort(),
+          sprints: Array.from(sprintSet).sort(),
+          users: Array.from(userMap.values()),
+        });
+      }
+    } catch (err: any) {
+      console.error('Error fetching resource utilization:', err);
+      toast.error(err.message || 'Failed to fetch resource utilization data');
+      setResourceUtilizationRows([]);
+    } finally {
+      setLoadingResourceUtilization(false);
+    }
+  }, [selectedResourceProject, selectedResourceUser, selectedResourceSprint, selectedResourceDuration, customDurationFrom, customDurationTo, resourceUtilizationFilterOptions.projects.length, formatDate]);
+
+  useEffect(() => {
+    if (activeReport === 'resource-utilization') {
+      loadResourceUtilization();
+    }
+  }, [activeReport, loadResourceUtilization]);
 
   // Get unique projects and sprints for filters
   const projects = Array.from(new Set(bugReports.map(r => r.board).filter(Boolean)));
@@ -297,8 +441,8 @@ const ReportsPage: React.FC = () => {
       filtered = filtered.filter(row => row.sprint === selectedResourceSprint);
     }
 
-    // Filter by duration (relative to createdDate) - only when a sprint is selected
-    if (selectedResourceSprint !== 'all' && selectedResourceDuration !== 'all') {
+    // Filter by duration (relative to createdDate)
+    if (selectedResourceDuration !== 'all') {
       if (selectedResourceDuration === 'custom') {
         // Custom from/to date range
         const fromDate = customDurationFrom ? new Date(customDurationFrom) : null;
@@ -334,7 +478,7 @@ const ReportsPage: React.FC = () => {
     }
 
     return filtered;
-  }, [resourcePerformanceRows, selectedResourceProject, selectedResourceUser, selectedResourceSprint, selectedResourceDuration]);
+  }, [resourcePerformanceRows, selectedResourceProject, selectedResourceUser, selectedResourceSprint, selectedResourceDuration, customDurationFrom, customDurationTo]);
 
   // Reset pagination when filters change
   useEffect(() => {
@@ -474,6 +618,167 @@ const ReportsPage: React.FC = () => {
     return { developers, testers, managers };
   }, [filteredResourcePerformanceRows, userRoleMap]);
 
+  // Compute individual utilization summary (from resource utilization rows - Resource Utilization page only)
+  const individualUtilization = useMemo((): IndividualUtilizationRow[] => {
+    if (resourceUtilizationRows.length === 0) return [];
+
+    const resourceMap = new Map<string, { rows: ResourcePerformanceRow[] }>();
+    resourceUtilizationRows.forEach(row => {
+      const key = row.resourceEmailId || row.resourceName || '';
+      if (key) {
+        if (!resourceMap.has(key)) {
+          resourceMap.set(key, { rows: [] });
+        }
+        resourceMap.get(key)!.rows.push(row);
+      }
+    });
+
+    const result: IndividualUtilizationRow[] = [];
+    resourceMap.forEach(({ rows }, resourceKey) => {
+      const firstRow = rows[0];
+      const resourceName = firstRow.resourceName || resourceKey;
+      const resourceEmailId = firstRow.resourceEmailId;
+
+      const projects = Array.from(new Set(rows.map(r => r.project).filter(Boolean))) as string[];
+      const projectSprintPairs = Array.from(
+        new Set(
+          rows.map(r => {
+            const p = r.project || '—';
+            const s = r.sprint || '—';
+            return `${p} - ${s}`;
+          })
+        )
+      ).sort();
+      const taskCount = rows.filter(r => (r.itemType || '').toUpperCase() === 'TASK').length;
+      const issueCount = rows.filter(r => (r.itemType || '').toUpperCase() === 'ISSUE').length;
+      const taskIssueCount = rows.length;
+      const hoursLogged = rows.reduce((sum, r) => sum + (r.actualHours ?? 0), 0);
+      const allocatedHours = rows.reduce((sum, r) => sum + (r.estimationHours ?? 0), 0);
+      const utilizationLevel = allocatedHours > 0 ? (hoursLogged / allocatedHours) * 100 : 0;
+
+      const taskItems: TaskIssueItem[] = rows
+        .filter(r => (r.itemType || '').toUpperCase() === 'TASK')
+        .map(r => ({
+          taskIssueName: r.taskIssueName,
+          taskIssueId: r.taskIssueId,
+          itemType: 'TASK' as const,
+          estimationHours: r.estimationHours ?? 0,
+          actualHours: r.actualHours ?? 0,
+        }));
+      const issueItems: TaskIssueItem[] = rows
+        .filter(r => (r.itemType || '').toUpperCase() === 'ISSUE')
+        .map(r => ({
+          taskIssueName: r.taskIssueName,
+          taskIssueId: r.taskIssueId,
+          itemType: 'ISSUE' as const,
+          estimationHours: r.estimationHours ?? 0,
+          actualHours: r.actualHours ?? 0,
+        }));
+      const otherAsTasks: TaskIssueItem[] = rows
+        .filter(r => (r.itemType || '').toUpperCase() !== 'TASK' && (r.itemType || '').toUpperCase() !== 'ISSUE')
+        .map(r => ({
+          taskIssueName: r.taskIssueName,
+          taskIssueId: r.taskIssueId,
+          itemType: 'TASK' as const,
+          estimationHours: r.estimationHours ?? 0,
+          actualHours: r.actualHours ?? 0,
+        }));
+      const allTaskItems = [...taskItems, ...otherAsTasks];
+
+      // Project-Sprint breakdown (sprints per project)
+      const projectSprintMap = new Map<string, { taskItems: TaskIssueItem[]; issueItems: TaskIssueItem[]; allocated: number; logged: number }>();
+      rows.forEach(r => {
+        const proj = r.project || 'Unknown';
+        const sprint = r.sprint || '—';
+        const mapKey = `${proj}|||${sprint}`;
+        const curr = projectSprintMap.get(mapKey) || { taskItems: [], issueItems: [], allocated: 0, logged: 0 };
+        const item: TaskIssueItem = {
+          taskIssueName: r.taskIssueName,
+          taskIssueId: r.taskIssueId,
+          itemType: ((r.itemType || '').toUpperCase() === 'ISSUE' ? 'ISSUE' : 'TASK') as 'TASK' | 'ISSUE',
+          estimationHours: r.estimationHours ?? 0,
+          actualHours: r.actualHours ?? 0,
+        };
+        if (item.itemType === 'ISSUE') curr.issueItems.push(item);
+        else curr.taskItems.push(item);
+        curr.allocated += r.estimationHours ?? 0;
+        curr.logged += r.actualHours ?? 0;
+        projectSprintMap.set(mapKey, curr);
+      });
+      const projectSprintBreakdown: ProjectSprintBreakdown[] = Array.from(projectSprintMap.entries()).map(([mapKey, { taskItems: tItems, issueItems: iItems, allocated, logged }]) => {
+        const [project, sprint] = mapKey.split('|||');
+        const util = allocated > 0 ? (logged / allocated) * 100 : 0;
+        let projStatus: ProjectSprintBreakdown['status'] = 'optimal';
+        if (logged === 0) projStatus = 'idle';
+        else if (allocated === 0) projStatus = 'optimal';
+        else if (util < 50) projStatus = 'underutilized';
+        else if (util > 120) projStatus = 'overloaded';
+        return {
+          project,
+          sprint,
+          taskCount: tItems.length,
+          issueCount: iItems.length,
+          taskIssueCount: tItems.length + iItems.length,
+          taskItems: tItems,
+          issueItems: iItems,
+          allocatedHours: allocated,
+          hoursLogged: logged,
+          utilizationLevel: util,
+          status: projStatus,
+        };
+      }).sort((a, b) => {
+        const cmp = a.project.localeCompare(b.project);
+        return cmp !== 0 ? cmp : a.sprint.localeCompare(b.sprint);
+      });
+
+      const inProgressCount = rows.filter(r => {
+        const s = (r.status || '').toLowerCase();
+        return s === 'in_progress' || s === 'in-progress' || s === 'in progress';
+      }).length;
+
+      let status: IndividualUtilizationRow['status'] = 'optimal';
+      const concerns: string[] = [];
+
+      if (hoursLogged === 0) {
+        status = 'idle';
+        concerns.push('Idle');
+      } else if (allocatedHours === 0) {
+        status = 'optimal';
+        concerns.push('No allocation');
+      } else if (utilizationLevel < 50) {
+        status = 'underutilized';
+        concerns.push('Underutilized');
+      } else if (utilizationLevel > 120 || inProgressCount > 5) {
+        status = 'overloaded';
+        if (utilizationLevel > 120) concerns.push('Overloaded');
+        if (inProgressCount > 5) concerns.push('High in-progress count');
+      }
+
+      result.push({
+        resourceName,
+        resourceEmailId,
+        resourceKey,
+        projects,
+        projectSprintPairs,
+        projectSprintBreakdown,
+        taskCount,
+        issueCount,
+        taskIssueCount,
+        taskItems: allTaskItems,
+        issueItems,
+        hoursLogged,
+        allocatedHours,
+        utilizationLevel,
+        status,
+        concerns,
+      });
+    });
+
+    return result.sort((a, b) => a.resourceName.localeCompare(b.resourceName));
+  }, [resourceUtilizationRows]);
+
+  const filteredIndividualUtilization = individualUtilization;
+
   // Get unique projects and users from resource performance data
   const resourceProjects = useMemo(() => {
     const projectSet = new Set<string>();
@@ -606,7 +911,7 @@ const ReportsPage: React.FC = () => {
       let fromDateForExport: string | undefined;
       let toDateForExport: string | undefined;
 
-      if (sprintForExport && selectedResourceDuration !== 'all') {
+      if (selectedResourceDuration !== 'all') {
         durationForExport = selectedResourceDuration;
         if (selectedResourceDuration === 'custom') {
           fromDateForExport = customDurationFrom || undefined;
@@ -614,7 +919,7 @@ const ReportsPage: React.FC = () => {
         }
       }
 
-      const blob = await reportsApiService.exportResourceUtilizationToExcel({
+      const blob = await reportsApiService.exportIndividualUtilizationToExcel({
         projectName: projectNameForExport,
         userKey: userKeyForExport,
         sprint: sprintForExport,
@@ -630,7 +935,7 @@ const ReportsPage: React.FC = () => {
       const link = document.createElement('a');
       link.href = url;
 
-      let filename = 'resource-performance';
+      let filename = 'resource-utilization';
       if (projectNameForExport) {
         filename += `-project-${projectNameForExport}`;
       }
@@ -645,9 +950,10 @@ const ReportsPage: React.FC = () => {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
       }, 100);
+      toast.success('Resource utilization exported to Excel successfully!');
     } catch (err: any) {
-      console.error('Error exporting resource performance:', err);
-      toast.error(err.message || 'Failed to export resource performance to Excel');
+      console.error('Error exporting resource utilization:', err);
+      toast.error(err.message || 'Failed to export resource utilization to Excel');
     } finally {
       setExportingResource(false);
     }
@@ -928,7 +1234,7 @@ const ReportsPage: React.FC = () => {
   // Show report view if a report is selected
   if (activeReport) {
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-slate-50 via-white to-white px-4 sm:px-6 lg:px-10 py-6 lg:py-8 space-y-8">
+    <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-slate-50 via-white to-white px-4 sm:px-6 lg:px-10 py-6 lg:py-8 space-y-10">
         {/* Back Button and Header */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center space-x-4">
@@ -961,29 +1267,426 @@ const ReportsPage: React.FC = () => {
                 </div>
               </>
             )}
+            {activeReport === 'resource-utilization' && (
+              <>
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-700 shadow-lg">
+                  <TrendingUp className="h-6 w-6 text-white" strokeWidth={2.5} />
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold text-foreground">Resource Utilization Report</h1>
+                  <p className="text-sm text-muted-foreground">Resource utilization analytics</p>
+                </div>
+              </>
+            )}
           </div>
         </div>
-        {activeReport === 'resource-performance' && (
+        {(activeReport === 'resource-performance' || activeReport === 'resource-utilization') && (
           <button
             type="button"
             onClick={handleExportResourcePerformance}
-            disabled={exportingResource || resourcePerformanceRows.length === 0}
-            className="inline-flex items-center justify-center gap-3 rounded-lg bg-gradient-to-r from-green-600 to-cyan-600 px-8 py-3 text-sm font-semibold text-white shadow-md hover:from-green-700 hover:to-cyan-700 active:shadow-lg disabled:from-green-400 disabled:to-cyan-400 disabled:cursor-not-allowed min-w-[190px] mr-4"
+            disabled={exportingResource || resourceUtilizationRows.length === 0}
+            className="inline-flex items-center justify-center gap-3 rounded-lg bg-gradient-to-r from-green-600 to-cyan-600 px-10 py-3 text-sm font-semibold text-white shadow-md hover:from-green-700 hover:to-cyan-700 active:shadow-lg disabled:from-green-400 disabled:to-cyan-400 disabled:cursor-not-allowed min-w-[190px] mr-4"
           >
             {exportingResource ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Exporting...
+                <span className="px-2">Exporting...</span>
               </>
             ) : (
               <>
                 <Download className="h-4 w-4" />
-                Export to Excel
+                <span className="px-2">Export to Excel</span>
               </>
             )}
           </button>
         )}
       </div>
+
+        {/* Resource Utilization Report Section */}
+        {activeReport === 'resource-utilization' && (
+          <div className="flex flex-col gap-10 mt-8">
+            {/* Filters and Export */}
+            {resourceUtilizationFilterOptions.projects.length > 0 && (
+              <Card className="shadow-sm border">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2 text-lg">
+                    <Filter className="h-5 w-5" />
+                    <span>Filters</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-6">
+                    <div className="flex-1 min-w-[200px] space-y-2">
+                      <Label htmlFor="util-project-filter">Project</Label>
+                      <Select value={selectedResourceProject} onValueChange={setSelectedResourceProject}>
+                        <SelectTrigger id="util-project-filter">
+                          <SelectValue placeholder="All Projects" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Projects</SelectItem>
+                          {resourceUtilizationFilterOptions.projects.map(projectName => (
+                            <SelectItem key={projectName} value={projectName}>
+                              {projectName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex-1 min-w-[200px] space-y-2">
+                      <Label htmlFor="util-user-filter">User</Label>
+                      <Select value={selectedResourceUser} onValueChange={setSelectedResourceUser}>
+                        <SelectTrigger id="util-user-filter">
+                          <SelectValue placeholder="All Users" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Users</SelectItem>
+                          {resourceUtilizationFilterOptions.users.map(u => (
+                            <SelectItem key={u.id} value={u.id}>
+                              {u.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex-1 min-w-[200px] space-y-2">
+                      <Label htmlFor="util-sprint-filter">Sprint</Label>
+                      <Select value={selectedResourceSprint} onValueChange={setSelectedResourceSprint}>
+                        <SelectTrigger id="util-sprint-filter">
+                          <SelectValue placeholder="All Sprints" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Sprints</SelectItem>
+                          {resourceUtilizationFilterOptions.sprints.map(s => (
+                            <SelectItem key={s} value={s}>
+                              {s}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex-1 min-w-[200px] space-y-2">
+                      <Label htmlFor="util-duration-filter">Date Range</Label>
+                      <Select value={selectedResourceDuration} onValueChange={(v) => setSelectedResourceDuration(v as ResourceDurationFilter)}>
+                        <SelectTrigger id="util-duration-filter">
+                          <SelectValue placeholder="All time" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All time</SelectItem>
+                          <SelectItem value="last7">Last 7 days</SelectItem>
+                          <SelectItem value="last30">Last 30 days</SelectItem>
+                          <SelectItem value="custom">Custom range</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {selectedResourceDuration === 'custom' && (
+                        <div className="mt-2 flex flex-col gap-2">
+                          <div className="flex gap-3">
+                            <div className="flex-1 space-y-1">
+                              <Label htmlFor="util-duration-from" className="text-[11px] text-muted-foreground">
+                                From date
+                              </Label>
+                              <Input
+                                id="util-duration-from"
+                                type="date"
+                                className="h-9"
+                                value={customDurationFrom}
+                                onChange={(e) => setCustomDurationFrom(e.target.value)}
+                              />
+                            </div>
+                            <div className="flex-1 space-y-1">
+                              <Label htmlFor="util-duration-to" className="text-[11px] text-muted-foreground">
+                                To date
+                              </Label>
+                              <Input
+                                id="util-duration-to"
+                                type="date"
+                                className="h-9"
+                                value={customDurationTo}
+                                onChange={(e) => setCustomDurationTo(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {(selectedResourceProject !== 'all' || selectedResourceUser !== 'all' || selectedResourceSprint !== 'all' || selectedResourceDuration !== 'all' || customDurationFrom || customDurationTo) && (
+                      <div className="flex items-end">
+                        <button
+                          onClick={() => {
+                            setSelectedResourceProject('all');
+                            setSelectedResourceUser('all');
+                            setSelectedResourceSprint('all');
+                            setSelectedResourceDuration('all');
+                            setCustomDurationFrom('');
+                            setCustomDurationTo('');
+                          }}
+                          className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                        >
+                          Clear Filters
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            {/* Individual Utilization Summary */}
+            {loadingResourceUtilization ? (
+              <Card className="shadow-md border-t-4 border-t-teal-500">
+                <CardContent className="flex flex-col items-center justify-center py-16">
+                  <Loader2 className="h-10 w-10 animate-spin text-teal-500 mb-4" />
+                  <p className="text-sm text-muted-foreground">Loading resource utilization data...</p>
+                </CardContent>
+              </Card>
+            ) : resourceUtilizationRows.length > 0 && individualUtilization.length > 0 ? (
+              <Card className="shadow-md border-t-4 border-t-teal-500">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-3">
+                    <div className="rounded-lg bg-teal-100 p-2">
+                      <TrendingUp className="h-6 w-6 text-teal-600" strokeWidth={2.5} />
+                    </div>
+                    <span className="text-xl">Individual Utilization Summary</span>
+                  </CardTitle>
+                  <CardDescription className="mt-2">
+                    Team member hours and utilization level
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="rounded-lg border border-slate-200 overflow-hidden shadow-sm bg-white">
+                    <div className="overflow-auto max-h-[min(70vh,32rem)] min-h-[12rem]">
+                      <Table className="min-w-[56rem]">
+                        <TableHeader>
+                          <TableRow className="sticky top-0 z-10 bg-teal-50 border-b-2 border-teal-300 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.06)]">
+                            <TableHead className="font-semibold border-r border-slate-200 px-4 py-3 min-w-[12rem]">Team Member Name</TableHead>
+                            <TableHead className="font-semibold border-r border-slate-200 px-4 py-3 min-w-[10rem]">Project</TableHead>
+                            <TableHead className="font-semibold border-r border-slate-200 px-4 py-3 min-w-[8rem]">Sprint</TableHead>
+                            <TableHead className="font-semibold border-r border-slate-200 px-4 py-3 text-center min-w-[7rem]">Task/Issue Count</TableHead>
+                            <TableHead className="font-semibold border-r border-slate-200 px-4 py-3 text-center min-w-[6rem]">Total Assigned Hours</TableHead>
+                            <TableHead className="font-semibold border-r border-slate-200 px-4 py-3 text-center min-w-[5rem]">Hours Logged</TableHead>
+                            <TableHead className="font-semibold border-r border-slate-200 px-4 py-3 text-center min-w-[5rem]">Utilization Level</TableHead>
+                            <TableHead className="font-semibold text-center px-4 py-3 min-w-[6rem]">Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                      <TableBody>
+                        {filteredIndividualUtilization.length === 0 ? (
+                          <TableRow className="hover:bg-transparent">
+                            <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                              No utilization data available.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          filteredIndividualUtilization.map((row, index) => {
+                            const isExpanded = expandedUtilizationRows.has(row.resourceKey);
+                            const hasBreakdown = row.projectSprintBreakdown.length > 1;
+                            return (
+                              <React.Fragment key={row.resourceKey}>
+                                <TableRow
+                                  className={`hover:bg-teal-50/60 transition-colors duration-150 border-b border-slate-100 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'} ${hasBreakdown ? 'cursor-pointer' : ''}`}
+                                  onClick={hasBreakdown ? () => toggleUtilizationRow(row.resourceKey) : undefined}
+                                >
+                                  <TableCell className="font-medium border-r border-slate-100 px-4 py-3 min-w-0">
+                                    {hasBreakdown ? (
+                                      <span className="inline-flex items-center justify-center w-6 h-6 text-teal-600">
+                                        {isExpanded ? (
+                                          <ChevronDown className="h-4 w-4" />
+                                        ) : (
+                                          <ChevronRight className="h-4 w-4" />
+                                        )}
+                                      </span>
+                                    ) : (
+                                      <span className="inline-block w-6" />
+                                    )}
+                                    <span className={`${hasBreakdown ? 'ml-1' : ''} break-words`}>{row.resourceName}</span>
+                                  </TableCell>
+                                  <TableCell className="border-r border-slate-100 px-4 py-3 text-sm min-w-0">
+                                    <span className="break-words">{Array.from(new Set(row.projects)).join(', ') || '—'}</span>
+                                  </TableCell>
+                                  <TableCell className="border-r border-slate-100 px-4 py-3 text-sm min-w-0">
+                                    {row.projectSprintBreakdown.length > 0
+                                      ? Array.from(new Set(row.projectSprintBreakdown.map(p => p.sprint))).join(', ')
+                                      : '—'}
+                                  </TableCell>
+                                  <TableCell className="text-center border-r border-slate-100 px-4 py-3">
+                                    <div className="flex flex-col items-center gap-0.5">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const key = row.resourceKey;
+                                          setExpandedCountCells(prev => {
+                                            const next = new Set(prev);
+                                            if (next.has(key)) next.delete(key);
+                                            else next.add(key);
+                                            return next;
+                                          });
+                                        }}
+                                        className="flex items-center gap-1 font-semibold text-teal-700 hover:text-teal-900 focus:outline-none focus:ring-2 focus:ring-teal-500 rounded"
+                                      >
+                                        {row.taskIssueCount}
+                                        {(row.taskItems.length + row.issueItems.length) > 0 ? (
+                                          expandedCountCells.has(row.resourceKey) ? (
+                                            <ChevronDown className="h-3.5 w-3.5" />
+                                          ) : (
+                                            <ChevronRight className="h-3.5 w-3.5" />
+                                          )
+                                        ) : null}
+                                      </button>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-center border-r border-slate-100 px-4 py-3">
+                                    <span className="font-semibold tabular-nums">{row.allocatedHours.toFixed(1)}</span>
+                                  </TableCell>
+                                  <TableCell className="text-center border-r border-slate-100 px-4 py-3">
+                                    <span className="font-semibold tabular-nums">{row.hoursLogged.toFixed(1)}</span>
+                                  </TableCell>
+                                  <TableCell className="text-center border-r border-slate-100 px-4 py-3">
+                                    <span className="font-semibold tabular-nums">
+                                      {row.allocatedHours > 0 ? `${row.utilizationLevel.toFixed(1)}%` : 'N/A'}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="text-center px-4 py-3">
+                                    <span className="flex justify-center">
+                                      <Badge
+                                        className={
+                                          row.status === 'idle'
+                                            ? 'bg-slate-200 text-slate-700'
+                                            : row.status === 'underutilized'
+                                            ? 'bg-amber-100 text-amber-800 border-amber-200'
+                                            : row.status === 'overloaded'
+                                            ? 'bg-red-100 text-red-800 border-red-200'
+                                            : 'bg-green-100 text-green-800 border-green-200'
+                                        }
+                                      >
+                                        {row.status.charAt(0).toUpperCase() + row.status.slice(1)}
+                                      </Badge>
+                                    </span>
+                                  </TableCell>
+                                </TableRow>
+                                {expandedCountCells.has(row.resourceKey) && [...row.taskItems, ...row.issueItems].map((item, idx) => (
+                                  <TableRow key={`${row.resourceKey}-${item.taskIssueId || idx}`} className="bg-teal-50/25 border-b border-slate-100 hover:bg-teal-50/35 transition-colors duration-150">
+                                    <TableCell className="pl-12 py-2 text-sm border-r border-slate-100" />
+                                    <TableCell className="py-2 text-sm border-r border-slate-100" />
+                                    <TableCell className="py-2 text-sm border-r border-slate-100" />
+                                    <TableCell className="py-2 text-sm font-medium border-r border-slate-100 px-4 min-w-0">
+                                      <span className={item.itemType === 'ISSUE' ? 'text-amber-700' : 'text-teal-700'}>
+                                        {item.itemType}: <span className="break-words">{item.taskIssueName || '—'}</span>
+                                      </span>
+                                    </TableCell>
+                                    <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
+                                      {item.estimationHours.toFixed(1)}
+                                    </TableCell>
+                                    <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
+                                      {item.actualHours.toFixed(1)}
+                                    </TableCell>
+                                    <TableCell className="py-2 text-sm text-center border-r border-slate-100 px-4">—</TableCell>
+                                    <TableCell className="py-2 text-center px-4">—</TableCell>
+                                  </TableRow>
+                                ))}
+                                {isExpanded && hasBreakdown && row.projectSprintBreakdown.map((psb) => (
+                                  <React.Fragment key={`${psb.project}-${psb.sprint}`}>
+                                  <TableRow className="bg-teal-50/35 border-b border-slate-100 hover:bg-teal-50/50 transition-colors duration-150">
+                                    <TableCell className="pl-12 py-2 text-sm border-r border-slate-100" />
+                                    <TableCell className="py-2 text-sm font-medium border-r border-slate-100 px-4 min-w-0">
+                                      <span className="break-words">{psb.project}</span>
+                                    </TableCell>
+                                    <TableCell className="py-2 text-sm font-medium border-r border-slate-100 px-4 min-w-0">
+                                      <span className="break-words">{psb.sprint}</span>
+                                    </TableCell>
+                                    <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4">
+                                      <div className="flex flex-col items-center gap-0.5">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            const key = `${row.resourceKey}-${psb.project}-${psb.sprint}`;
+                                            setExpandedCountCells(prev => {
+                                              const next = new Set(prev);
+                                              if (next.has(key)) next.delete(key);
+                                              else next.add(key);
+                                              return next;
+                                            });
+                                          }}
+                                          className="flex items-center gap-1 font-medium text-teal-700 hover:text-teal-900 focus:outline-none focus:ring-2 focus:ring-teal-500 rounded"
+                                        >
+                                          {psb.taskIssueCount}
+                                          {(psb.taskItems.length + psb.issueItems.length) > 0 ? (
+                                            expandedCountCells.has(`${row.resourceKey}-${psb.project}-${psb.sprint}`) ? (
+                                              <ChevronDown className="h-3 w-3" />
+                                            ) : (
+                                              <ChevronRight className="h-3 w-3" />
+                                            )
+                                          ) : null}
+                                        </button>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
+                                      {psb.allocatedHours.toFixed(1)}
+                                    </TableCell>
+                                    <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
+                                      {psb.hoursLogged.toFixed(1)}
+                                    </TableCell>
+                                    <TableCell className="py-2 text-sm text-center border-r border-slate-100 px-4">
+                                      {psb.allocatedHours > 0 ? `${psb.utilizationLevel.toFixed(1)}%` : 'N/A'}
+                                    </TableCell>
+                                    <TableCell className="py-2 text-center px-4">
+                                      <span className="flex justify-center">
+                                        <Badge
+                                          className={
+                                            psb.status === 'idle'
+                                              ? 'bg-slate-200 text-slate-700'
+                                              : psb.status === 'underutilized'
+                                              ? 'bg-amber-100 text-amber-800 border-amber-200'
+                                              : psb.status === 'overloaded'
+                                              ? 'bg-red-100 text-red-800 border-red-200'
+                                              : 'bg-green-100 text-green-800 border-green-200'
+                                          }
+                                        >
+                                              {psb.status.charAt(0).toUpperCase() + psb.status.slice(1)}
+                                        </Badge>
+                                      </span>
+                                    </TableCell>
+                                  </TableRow>
+                                  {expandedCountCells.has(`${row.resourceKey}-${psb.project}-${psb.sprint}`) && [...psb.taskItems, ...psb.issueItems].map((item, idx) => (
+                                    <TableRow key={`${row.resourceKey}-${psb.project}-${psb.sprint}-${item.taskIssueId || idx}`} className="bg-teal-50/20 border-b border-slate-100 hover:bg-teal-50/30 transition-colors duration-150">
+                                      <TableCell className="pl-16 py-2 text-sm border-r border-slate-100" />
+                                      <TableCell className="py-2 text-sm border-r border-slate-100" />
+                                      <TableCell className="py-2 text-sm border-r border-slate-100" />
+                                      <TableCell className="py-2 text-sm font-medium border-r border-slate-100 px-4 min-w-0">
+                                        <span className={item.itemType === 'ISSUE' ? 'text-amber-700' : 'text-teal-700'}>
+                                          {item.itemType}: <span className="break-words">{item.taskIssueName || '—'}</span>
+                                        </span>
+                                      </TableCell>
+                                      <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
+                                        {item.estimationHours.toFixed(1)}
+                                      </TableCell>
+                                      <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
+                                        {item.actualHours.toFixed(1)}
+                                      </TableCell>
+                                      <TableCell className="py-2 text-sm text-center border-r border-slate-100 px-4">—</TableCell>
+                                      <TableCell className="py-2 text-center px-4">—</TableCell>
+                                    </TableRow>
+                                  ))}
+                                  </React.Fragment>
+                                ))}
+                              </React.Fragment>
+                            );
+                          })
+                        )}
+                      </TableBody>
+                    </Table>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="shadow-md border-t-4 border-t-slate-700">
+                <CardContent className="flex flex-col items-center justify-center py-24 text-muted-foreground">
+                  <TrendingUp className="h-16 w-16 mb-4 text-slate-300" strokeWidth={1.5} />
+                  <p className="text-sm">No utilization data available.</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
 
         {/* Bug Report Section */}
         {activeReport === 'bug-report' && (
@@ -1246,7 +1949,7 @@ const ReportsPage: React.FC = () => {
 
         {/* Resource Performance Section */}
         {activeReport === 'resource-performance' && (
-          <div className="space-y-8">
+          <div className="flex flex-col gap-10">
 
           {/* Loading or Content */}
           {loadingResourcePerformance ? (
@@ -1393,17 +2096,17 @@ const ReportsPage: React.FC = () => {
                             <SelectItem value="custom">Custom range</SelectItem>
                           </SelectContent>
                         </Select>
-                        {selectedResourceSprint !== 'all' && selectedResourceDuration === 'custom' && (
+                        {selectedResourceDuration === 'custom' && (
                           <div className="mt-2 flex flex-col gap-2">
                             <div className="flex gap-3">
                               <div className="flex-1 space-y-1">
                                 <Label htmlFor="duration-from" className="text-[11px] text-muted-foreground">
                                   From date
                                 </Label>
-                                <input
+                                <Input
                                   id="duration-from"
                                   type="date"
-                                  className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                  className="h-9"
                                   value={customDurationFrom}
                                   onChange={e => setCustomDurationFrom(e.target.value)}
                                 />
@@ -1412,18 +2115,15 @@ const ReportsPage: React.FC = () => {
                                 <Label htmlFor="duration-to" className="text-[11px] text-muted-foreground">
                                   To date
                                 </Label>
-                                <input
+                                <Input
                                   id="duration-to"
                                   type="date"
-                                  className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                  className="h-9"
                                   value={customDurationTo}
                                   onChange={e => setCustomDurationTo(e.target.value)}
                                 />
                               </div>
                             </div>
-                            <p className="text-[11px] text-muted-foreground">
-                              Leave one side empty to filter from or up to a specific date.
-                            </p>
                           </div>
                         )}
                       </div>
@@ -1451,7 +2151,7 @@ const ReportsPage: React.FC = () => {
                 </Card>
               )}
 
-              <Card className="shadow-lg border-t-4 border-t-blue-500 mt-2">
+              <Card className="shadow-lg border-t-4 border-t-blue-500">
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-3">
                     <div className="rounded-lg bg-blue-100 p-2">
@@ -1720,7 +2420,7 @@ const ReportsPage: React.FC = () => {
 
               {/* Resource Performance Summary Tables */}
               {filteredResourcePerformanceRows.length > 0 && (
-                <div className="space-y-6">
+                <div className="flex flex-col gap-10">
                   {/* Developers Summary Table */}
                   {resourceSummary.developers.length > 0 && (
                     <Card className="shadow-md border-t-4 border-t-blue-500">
@@ -1982,6 +2682,29 @@ const ReportsPage: React.FC = () => {
                 </p>
               </div>
               <p className="text-xs text-orange-600 font-medium mt-2 group-hover:underline">
+                Click to view →
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Resource Utilization Report Card */}
+          <Card
+            className="group cursor-pointer border border-slate-200/80 bg-white/80 shadow-sm hover:shadow-lg hover:border-slate-400 hover:-translate-y-0.5 transition-all duration-200 rounded-xl"
+            onClick={() => setActiveReport('resource-utilization')}
+          >
+            <CardContent className="p-8 flex flex-col items-start space-y-3 text-left">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 group-hover:bg-slate-200 transition-colors">
+                <TrendingUp className="w-8 h-8 text-slate-600" strokeWidth={2.5} />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-foreground mb-1 group-hover:text-slate-700 transition-colors">
+                  Resource Utilization Report
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Resource utilization analytics.
+                </p>
+              </div>
+              <p className="text-xs text-slate-600 font-medium mt-2 group-hover:underline">
                 Click to view →
               </p>
             </CardContent>

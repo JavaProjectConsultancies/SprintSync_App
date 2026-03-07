@@ -2377,8 +2377,8 @@ const ScrumPage: React.FC = () => {
       return true;
     });
 
-    // Don't filter stories here based on allTasks - that creates a timing issue
-    // Stories will be filtered for display after tasks are fetched
+    // Sort by orderIndex so story position is preserved (e.g. after edit)
+    filteredStories.sort((a: Story, b: Story) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
     return filteredStories;
   }, [selectedSprint, selectedProject, sprintStoriesData, currentSprint]);
 

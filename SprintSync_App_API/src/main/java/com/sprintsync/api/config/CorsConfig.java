@@ -19,19 +19,21 @@ public class CorsConfig implements WebMvcConfigurer {
     @Value("${app.cors.allowed-methods:GET,POST,PUT,DELETE,OPTIONS}")
     private String allowedMethods;
 
-    @Value("${app.cors.allowed-headers:*}")
-    private String allowedHeaders;
-
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         String[] origins = allowedOrigins.split(",");
         String[] methods = allowedMethods.split(",");
-        String[] headers = allowedHeaders.split(",");
+        // Explicit headers - wildcard * can cause issues with credentials
+        String[] headers = new String[]{
+                "Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With",
+                "Access-Control-Request-Method", "Access-Control-Request-Headers"
+        };
 
         registry.addMapping("/api/**")
                 .allowedOrigins(origins)
                 .allowedMethods(methods)
-                .allowedHeaders(headers);
+                .allowedHeaders(headers)
+                .maxAge(3600);
     }
 }
 

@@ -88,6 +88,8 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authz -> authz
+                        // Allow CORS preflight OPTIONS requests
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // Public endpoints - allow all GET requests for projects, sprints, dashboard,
                         // etc.
                         .requestMatchers("/api/auth/**", "/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
@@ -118,11 +120,13 @@ public class SecurityConfig {
         String[] methods = allowedMethods.split(",");
         configuration.setAllowedMethods(Arrays.asList(methods));
 
-        String[] headers = allowedHeaders.split(",");
-        configuration.setAllowedHeaders(Arrays.asList(headers));
-        // Use properties-based allow credentials
+        // Explicit headers - required when allowCredentials is true (wildcard * doesn't work)
+        configuration.setAllowedHeaders(Arrays.asList(
+                "Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With",
+                "Access-Control-Request-Method", "Access-Control-Request-Headers"));
         configuration.setAllowCredentials(allowCredentials);
         configuration.setExposedHeaders(Arrays.asList("Authorization"));
+        configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

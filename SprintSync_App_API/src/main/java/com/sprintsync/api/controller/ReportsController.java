@@ -567,7 +567,46 @@ public class ReportsController {
     }
 
     /**
-     * Generate resource utilization report
+     * Generate resource performance report (for Resource Performance page).
+     * Returns rows, project utilization, summaries - does NOT include individual utilization.
+     */
+    @GetMapping("/resource-performance")
+    public ResponseEntity<Map<String, Object>> generateResourcePerformanceReport(
+            @RequestParam(required = false) String projectId,
+            @RequestParam(required = false) String period) {
+        try {
+            Map<String, Object> report = reportsService.generateResourcePerformanceReport(projectId, period);
+            return ResponseEntity.ok(report);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Generate individual utilization report (for Resource Utilization page).
+     * Returns rows and individual utilization summary with optional filters.
+     */
+    @GetMapping("/individual-utilization")
+    public ResponseEntity<Map<String, Object>> generateIndividualUtilizationReport(
+            @RequestParam(required = false) String projectName,
+            @RequestParam(required = false) String userKey,
+            @RequestParam(required = false) String sprint,
+            @RequestParam(required = false) String duration,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate fromDate,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate toDate) {
+        try {
+            Map<String, Object> report = reportsService.generateIndividualUtilizationReport(
+                    projectName, userKey, sprint, duration, fromDate, toDate);
+            return ResponseEntity.ok(report);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Generate resource utilization report (legacy - kept for backward compatibility)
      */
     @GetMapping("/resource-utilization")
     public ResponseEntity<Map<String, Object>> generateResourceUtilizationReport(
@@ -576,6 +615,40 @@ public class ReportsController {
         try {
             Map<String, Object> report = reportsService.generateResourceUtilizationReport(projectId, period);
             return ResponseEntity.ok(report);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Export Individual Utilization Summary to Excel (Resource Utilization page data).
+     * Exports the same data shown on the Resource Utilization page with filters applied.
+     */
+    @GetMapping(value = "/export/individual-utilization/excel", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    public ResponseEntity<byte[]> exportIndividualUtilizationToExcel(
+            @RequestParam(required = false) String projectName,
+            @RequestParam(required = false) String userKey,
+            @RequestParam(required = false) String sprint,
+            @RequestParam(required = false) String duration,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate fromDate,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate toDate) {
+        try {
+            byte[] excelData = reportsService.exportIndividualUtilizationToExcel(
+                    projectName, userKey, sprint, duration, fromDate, toDate);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            String filename = "resource-utilization-" + java.time.LocalDate.now() + ".xlsx";
+            headers.setContentDispositionFormData("attachment", filename);
+            headers.setContentLength(excelData.length);
+
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(excelData);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();

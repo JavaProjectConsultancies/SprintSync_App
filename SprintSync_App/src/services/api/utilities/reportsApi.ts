@@ -87,7 +87,7 @@ export class ReportsApiService {
     });
   }
 
-  // Get resource utilization reports
+  // Get resource utilization reports (legacy)
   async getResourceUtilizationReports(projectId?: string, period?: string): Promise<ApiResponse<any>> {
     return apiClient.get<any>(`${API_ENDPOINTS.REPORTS}/resource-utilization`, {
       projectId,
@@ -95,7 +95,34 @@ export class ReportsApiService {
     });
   }
 
-  // Export resource utilization (resource performance) to Excel
+  // Get resource performance report (for Resource Performance page)
+  async getResourcePerformanceReports(projectId?: string, period?: string): Promise<ApiResponse<any>> {
+    return apiClient.get<any>(`${API_ENDPOINTS.REPORTS}/resource-performance`, {
+      projectId,
+      period,
+    });
+  }
+
+  // Get individual utilization report (for Resource Utilization page) - separate API with filters
+  async getIndividualUtilizationReport(filters?: {
+    projectName?: string;
+    userKey?: string;
+    sprint?: string;
+    duration?: string;
+    fromDate?: string;
+    toDate?: string;
+  }): Promise<ApiResponse<any>> {
+    const params: Record<string, string> = {};
+    if (filters?.projectName) params.projectName = filters.projectName;
+    if (filters?.userKey) params.userKey = filters.userKey;
+    if (filters?.sprint) params.sprint = filters.sprint;
+    if (filters?.duration && filters.duration !== 'all') params.duration = filters.duration;
+    if (filters?.fromDate) params.fromDate = filters.fromDate;
+    if (filters?.toDate) params.toDate = filters.toDate;
+    return apiClient.get<any>(`${API_ENDPOINTS.REPORTS}/individual-utilization`, Object.keys(params).length > 0 ? params : undefined);
+  }
+
+  // Export resource utilization (resource performance) to Excel - legacy
   async exportResourceUtilizationToExcel(filters?: {
     projectName?: string;
     userKey?: string;
@@ -113,6 +140,27 @@ export class ReportsApiService {
     if (filters?.toDate) params.toDate = filters.toDate;
 
     const endpoint = `${API_ENDPOINTS.REPORTS}/export/resource-utilization/excel`;
+    return apiClient.download(endpoint, Object.keys(params).length > 0 ? params : undefined);
+  }
+
+  // Export Individual Utilization Summary to Excel (Resource Utilization page data)
+  async exportIndividualUtilizationToExcel(filters?: {
+    projectName?: string;
+    userKey?: string;
+    sprint?: string;
+    duration?: string;
+    fromDate?: string;
+    toDate?: string;
+  }): Promise<Blob> {
+    const params: Record<string, string> = {};
+    if (filters?.projectName) params.projectName = filters.projectName;
+    if (filters?.userKey) params.userKey = filters.userKey;
+    if (filters?.sprint) params.sprint = filters.sprint;
+    if (filters?.duration && filters.duration !== 'all') params.duration = filters.duration;
+    if (filters?.fromDate) params.fromDate = filters.fromDate;
+    if (filters?.toDate) params.toDate = filters.toDate;
+
+    const endpoint = `${API_ENDPOINTS.REPORTS}/export/individual-utilization/excel`;
     return apiClient.download(endpoint, Object.keys(params).length > 0 ? params : undefined);
   }
 

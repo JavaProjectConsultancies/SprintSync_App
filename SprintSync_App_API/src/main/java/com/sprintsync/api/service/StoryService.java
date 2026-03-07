@@ -134,6 +134,10 @@ public class StoryService {
             throw new IllegalArgumentException("Story not found with ID: " + story.getId());
         }
 
+        Story existingStory = existingStoryOpt.get();
+        // Preserve orderIndex so edit does not change story position
+        story.setOrderIndex(existingStory.getOrderIndex());
+
         Story savedStory = storyRepository.save(story);
 
         // Log activity
@@ -222,7 +226,7 @@ public class StoryService {
      */
     @Transactional(readOnly = true)
     public List<Story> findStoriesBySprint(String sprintId) {
-        List<Story> stories = storyRepository.findBySprintId(sprintId);
+        List<Story> stories = storyRepository.findStoriesBySprintOrderedByIndex(sprintId);
         // Enrich stories with parent story details
         enrichStoriesWithParentDetails(stories);
         return stories;

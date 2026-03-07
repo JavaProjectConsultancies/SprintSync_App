@@ -242,7 +242,7 @@ public class StoryController {
      * @param storyDetails the updated story details
      * @return ResponseEntity containing the updated story
      */
-    @PutMapping("/{id}")
+    @RequestMapping(value = "/{id}", method = {RequestMethod.PUT, RequestMethod.PATCH})
     public ResponseEntity<Story> updateStory(@PathVariable String id, @RequestBody Story storyDetails) {
         try {
             storyDetails.setId(id);
