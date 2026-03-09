@@ -27,6 +27,11 @@ public interface TaskRepository extends JpaRepository<Task, String> {
     List<Task> findByStoryId(String storyId);
 
     /**
+     * Find tasks by multiple story IDs
+     */
+    List<Task> findByStoryIdIn(java.util.Collection<String> storyIds);
+
+    /**
      * Find tasks by assignee ID
      */
     List<Task> findByAssigneeId(String assigneeId);

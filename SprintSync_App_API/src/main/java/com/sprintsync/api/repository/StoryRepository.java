@@ -108,14 +108,14 @@ public interface StoryRepository extends JpaRepository<Story, String> {
      */
     @Query("SELECT COUNT(s) FROM Story s WHERE s.createdAt BETWEEN :start AND :end AND s.status = :status")
     long countByCreatedAtBetweenAndStatus(@Param("start") LocalDateTime start,
-                                         @Param("end") LocalDateTime end,
-                                         @Param("status") StoryStatus status);
+            @Param("end") LocalDateTime end,
+            @Param("status") StoryStatus status);
 
     /**
      * Find stories by project ID with pagination.
      * 
      * @param projectId the project ID
-     * @param pageable pagination information
+     * @param pageable  pagination information
      * @return page of stories for the specified project
      */
     Page<Story> findByProjectId(String projectId, Pageable pageable);
@@ -132,7 +132,7 @@ public interface StoryRepository extends JpaRepository<Story, String> {
     /**
      * Find stories by status with pagination.
      * 
-     * @param status the story status
+     * @param status   the story status
      * @param pageable pagination information
      * @return page of stories with the specified status
      */
@@ -173,27 +173,27 @@ public interface StoryRepository extends JpaRepository<Story, String> {
     /**
      * Find stories by multiple criteria.
      * 
-     * @param projectId the project ID (optional)
-     * @param sprintId the sprint ID (optional)
-     * @param epicId the epic ID (optional)
-     * @param status the story status (optional)
-     * @param priority the story priority (optional)
+     * @param projectId  the project ID (optional)
+     * @param sprintId   the sprint ID (optional)
+     * @param epicId     the epic ID (optional)
+     * @param status     the story status (optional)
+     * @param priority   the story priority (optional)
      * @param assigneeId the assignee ID (optional)
      * @return list of stories matching the criteria
      */
     @Query("SELECT s FROM Story s WHERE " +
-           "(:projectId IS NULL OR s.projectId = :projectId) AND " +
-           "(:sprintId IS NULL OR s.sprintId = :sprintId) AND " +
-           "(:epicId IS NULL OR s.epicId = :epicId) AND " +
-           "(:status IS NULL OR s.status = :status) AND " +
-           "(:priority IS NULL OR s.priority = :priority) AND " +
-           "(:assigneeId IS NULL OR s.assigneeId = :assigneeId)")
+            "(:projectId IS NULL OR s.projectId = :projectId) AND " +
+            "(:sprintId IS NULL OR s.sprintId = :sprintId) AND " +
+            "(:epicId IS NULL OR s.epicId = :epicId) AND " +
+            "(:status IS NULL OR s.status = :status) AND " +
+            "(:priority IS NULL OR s.priority = :priority) AND " +
+            "(:assigneeId IS NULL OR s.assigneeId = :assigneeId)")
     List<Story> findStoriesByCriteria(@Param("projectId") String projectId,
-                                     @Param("sprintId") String sprintId,
-                                     @Param("epicId") String epicId,
-                                     @Param("status") StoryStatus status,
-                                     @Param("priority") StoryPriority priority,
-                                     @Param("assigneeId") String assigneeId);
+            @Param("sprintId") String sprintId,
+            @Param("epicId") String epicId,
+            @Param("status") StoryStatus status,
+            @Param("priority") StoryPriority priority,
+            @Param("assigneeId") String assigneeId);
 
     /**
      * Count stories by status.
@@ -281,7 +281,7 @@ public interface StoryRepository extends JpaRepository<Story, String> {
      * @param sprintId the sprint ID
      * @return list of stories ordered by order index
      */
-    @Query("SELECT s FROM Story s WHERE s.sprintId = :sprintId ORDER BY s.orderIndex ASC")
+    @Query("SELECT s FROM Story s WHERE s.sprintId = :sprintId ORDER BY s.orderIndex ASC, s.createdAt ASC")
     List<Story> findStoriesBySprintOrderedByIndex(@Param("sprintId") String sprintId);
 
     /**
@@ -296,7 +296,8 @@ public interface StoryRepository extends JpaRepository<Story, String> {
     List<Story> findTop10ByUpdatedAtAfterOrderByUpdatedAtDesc(LocalDateTime since);
 
     /**
-     * Find recently updated stories for a project after the given timestamp (limited to 10).
+     * Find recently updated stories for a project after the given timestamp
+     * (limited to 10).
      */
     List<Story> findTop10ByProjectIdAndUpdatedAtAfterOrderByUpdatedAtDesc(String projectId, LocalDateTime since);
 

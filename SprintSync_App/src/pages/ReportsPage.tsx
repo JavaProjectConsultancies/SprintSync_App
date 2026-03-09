@@ -162,7 +162,7 @@ const ReportsPage: React.FC = () => {
       const email = user.email?.toLowerCase();
       const name = user.name?.toLowerCase();
       const role = (user.role || '').toLowerCase();
-      
+
       if (email) map.set(email, role);
       if (name) map.set(name, role);
     });
@@ -175,10 +175,10 @@ const ReportsPage: React.FC = () => {
     try {
       const date = new Date(dateString);
       if (isNaN(date.getTime())) return dateString; // Return original if invalid
-      return date.toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'short', 
-        day: 'numeric' 
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
       });
     } catch (e) {
       return dateString; // Return original if parsing fails
@@ -188,25 +188,25 @@ const ReportsPage: React.FC = () => {
   // Fetch bug report data from API when bug report is selected
   useEffect(() => {
     if (activeReport === 'bug-report') {
-    const fetchBugReports = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+      const fetchBugReports = async () => {
+        try {
+          setLoading(true);
+          setError(null);
 
-        const response = await reportsApiService.getBugReport();
+          const response = await reportsApiService.getBugReport();
 
-        setBugReports(response.data);
-      } catch (err: any) {
-        console.error('Error fetching bug reports:', err);
-        setError(err.message || 'Failed to fetch bug reports');
-        // Keep empty array on error so UI shows "No data" message
-        setBugReports([]);
-      } finally {
-        setLoading(false);
-      }
-    };
+          setBugReports(response.data);
+        } catch (err: any) {
+          console.error('Error fetching bug reports:', err);
+          setError(err.message || 'Failed to fetch bug reports');
+          // Keep empty array on error so UI shows "No data" message
+          setBugReports([]);
+        } finally {
+          setLoading(false);
+        }
+      };
 
-    fetchBugReports();
+      fetchBugReports();
     }
   }, [activeReport]);
 
@@ -217,9 +217,9 @@ const ReportsPage: React.FC = () => {
 
       const response = await reportsApiService.getResourcePerformanceReports();
       console.log('Resource Performance API Response:', response);
-      
+
       const data = response?.data || null;
-      
+
       if (data) {
         // Set summary data
         setResourcePerformance({
@@ -232,10 +232,10 @@ const ReportsPage: React.FC = () => {
           projectUtilization: data.projectUtilization || [],
           rows: data.rows || []
         });
-        
+
         // Extract and transform rows data
         let rows: ResourcePerformanceRow[] = [];
-        
+
         if (Array.isArray(data.rows)) {
           rows = data.rows.map((row: any) => ({
             resourceEmailId: row.resourceEmailId || null,
@@ -259,8 +259,8 @@ const ReportsPage: React.FC = () => {
             isBug: typeof row.isBug === 'boolean'
               ? row.isBug
               : typeof row.isBug === 'string'
-              ? row.isBug.toLowerCase() === 'true'
-              : undefined,
+                ? row.isBug.toLowerCase() === 'true'
+                : undefined,
           }));
         } else if (Array.isArray(data)) {
           // If data is directly an array
@@ -286,11 +286,11 @@ const ReportsPage: React.FC = () => {
             isBug: typeof row.isBug === 'boolean'
               ? row.isBug
               : typeof row.isBug === 'string'
-              ? row.isBug.toLowerCase() === 'true'
-              : undefined,
+                ? row.isBug.toLowerCase() === 'true'
+                : undefined,
           }));
         }
-        
+
         console.log('Processed Resource Performance Rows:', rows);
         setResourcePerformanceRows(rows);
       } else {
@@ -546,10 +546,10 @@ const ReportsPage: React.FC = () => {
       const resourceName = firstRow.resourceName || resourceKey;
       const resourceEmail = (firstRow.resourceEmailId || '').toLowerCase();
       const resourceNameLower = (resourceName || '').toLowerCase();
-      
+
       // Get user role from the map
       const userRole = (userRoleMap.get(resourceEmail) || userRoleMap.get(resourceNameLower) || '').toLowerCase();
-      
+
       const isManager = userRole.includes('manager');
       const isTester = !isManager && (userRole.includes('qa') || userRole === 'tester' || userRole.includes('test'));
 
@@ -1233,74 +1233,71 @@ const ReportsPage: React.FC = () => {
 
   // Show report view if a report is selected
   if (activeReport) {
-  return (
-    <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-slate-50 via-white to-white px-4 sm:px-6 lg:px-10 py-6 lg:py-8 space-y-10">
+    return (
+      <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-slate-50 via-white to-white px-4 sm:px-6 lg:px-10 py-6 lg:py-8 space-y-10">
         {/* Back Button and Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={() => setActiveReport(null)}
-            className="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5 text-gray-700" />
-          </button>
+        <div className="flex items-center justify-between gap-4">
           <div className="flex items-center space-x-4">
-            {activeReport === 'bug-report' && (
-              <>
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-500 shadow-lg">
-                  <Bug className="h-6 w-6 text-white" strokeWidth={2.5} />
-                </div>
-                <div>
-                  <h1 className="text-3xl font-bold text-foreground">Bug Report</h1>
-                  <p className="text-sm text-muted-foreground">Track and manage defects across all projects</p>
-                </div>
-              </>
-            )}
-            {activeReport === 'resource-performance' && (
-              <>
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500 shadow-lg">
-                  <Users className="h-6 w-6 text-white" strokeWidth={2.5} />
-                </div>
-                <div>
-                  <h1 className="text-3xl font-bold text-foreground">Resource Performance</h1>
-                  <p className="text-sm text-muted-foreground">Team utilization and allocation metrics</p>
-                </div>
-              </>
-            )}
-            {activeReport === 'resource-utilization' && (
-              <>
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-700 shadow-lg">
-                  <TrendingUp className="h-6 w-6 text-white" strokeWidth={2.5} />
-                </div>
-                <div>
-                  <h1 className="text-3xl font-bold text-foreground">Resource Utilization Report</h1>
-                  <p className="text-sm text-muted-foreground">Resource utilization analytics</p>
-                </div>
-              </>
-            )}
+            <button
+              onClick={() => setActiveReport(null)}
+              className="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+            >
+              <ArrowLeft className="h-5 w-5 text-gray-700" />
+            </button>
+            <div className="flex items-center space-x-4">
+              {activeReport === 'bug-report' && (
+                <>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-500 shadow-lg">
+                    <Bug className="h-6 w-6 text-white" strokeWidth={2.5} />
+                  </div>
+                  <div>
+                    <h1 className="text-3xl font-bold text-foreground">Bug Report</h1>
+                    <p className="text-sm text-muted-foreground">Track and manage defects across all projects</p>
+                  </div>
+                </>
+              )}
+              {activeReport === 'resource-performance' && (
+                <>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500 shadow-lg">
+                    <Users className="h-6 w-6 text-white" strokeWidth={2.5} />
+                  </div>
+                  <div>
+                    <h1 className="text-3xl font-bold text-foreground">Resource Performance</h1>
+                    <p className="text-sm text-muted-foreground">Team utilization and allocation metrics</p>
+                  </div>
+                </>
+              )}
+              {activeReport === 'resource-utilization' && (
+                <>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-700 shadow-lg">
+                    <TrendingUp className="h-6 w-6 text-white" strokeWidth={2.5} />
+                  </div>
+                  <div>
+                    <h1 className="text-3xl font-bold text-foreground">Resource Utilization Report</h1>
+                    <p className="text-sm text-muted-foreground">Resource utilization analytics</p>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
+          {(activeReport === 'resource-performance' || activeReport === 'resource-utilization') && (
+            <button
+              type="button"
+              onClick={handleExportResourcePerformance}
+              disabled={exportingResource || resourceUtilizationRows.length === 0}
+              className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-green-600 to-cyan-600 px-24 py-3 text-l font-bold text-white shadow-2xl hover:from-green-700 hover:to-cyan-700 hover:scale-105 active:shadow-inner transition-all duration-300 disabled:from-green-400 disabled:to-cyan-400 disabled:cursor-not-allowed disabled:scale-100 min-w-[40px] mr-4"
+            >
+              {exportingResource ? (
+                <>
+                  <Loader2 className="h-2 w-2 animate-spin mr-2" />
+                  <span>Exporting...</span>
+                </>
+              ) : (
+                <span>Export to Excel</span>
+              )}
+            </button>
+          )}
         </div>
-        {(activeReport === 'resource-performance' || activeReport === 'resource-utilization') && (
-          <button
-            type="button"
-            onClick={handleExportResourcePerformance}
-            disabled={exportingResource || resourceUtilizationRows.length === 0}
-            className="inline-flex items-center justify-center gap-3 rounded-lg bg-gradient-to-r from-green-600 to-cyan-600 px-10 py-3 text-sm font-semibold text-white shadow-md hover:from-green-700 hover:to-cyan-700 active:shadow-lg disabled:from-green-400 disabled:to-cyan-400 disabled:cursor-not-allowed min-w-[190px] mr-4"
-          >
-            {exportingResource ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="px-2">Exporting...</span>
-              </>
-            ) : (
-              <>
-                <Download className="h-4 w-4" />
-                <span className="px-2">Export to Excel</span>
-              </>
-            )}
-          </button>
-        )}
-      </div>
 
         {/* Resource Utilization Report Section */}
         {activeReport === 'resource-utilization' && (
@@ -1453,151 +1450,65 @@ const ReportsPage: React.FC = () => {
                 <CardContent>
                   <div className="rounded-lg border border-slate-200 overflow-hidden shadow-sm bg-white">
                     <div className="overflow-auto max-h-[min(70vh,32rem)] min-h-[12rem]">
-                      <Table className="min-w-[56rem]">
+                      <Table className="min-w-[56rem] border-separate border-spacing-0">
                         <TableHeader>
-                          <TableRow className="sticky top-0 z-10 bg-teal-50 border-b-2 border-teal-300 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.06)]">
-                            <TableHead className="font-semibold border-r border-slate-200 px-4 py-3 min-w-[12rem]">Team Member Name</TableHead>
-                            <TableHead className="font-semibold border-r border-slate-200 px-4 py-3 min-w-[10rem]">Project</TableHead>
-                            <TableHead className="font-semibold border-r border-slate-200 px-4 py-3 min-w-[8rem]">Sprint</TableHead>
-                            <TableHead className="font-semibold border-r border-slate-200 px-4 py-3 text-center min-w-[7rem]">Task/Issue Count</TableHead>
-                            <TableHead className="font-semibold border-r border-slate-200 px-4 py-3 text-center min-w-[6rem]">Total Assigned Hours</TableHead>
-                            <TableHead className="font-semibold border-r border-slate-200 px-4 py-3 text-center min-w-[5rem]">Hours Logged</TableHead>
-                            <TableHead className="font-semibold border-r border-slate-200 px-4 py-3 text-center min-w-[5rem]">Utilization Level</TableHead>
-                            <TableHead className="font-semibold text-center px-4 py-3 min-w-[6rem]">Status</TableHead>
+                          <TableRow className="bg-teal-50 border-b shadow-[0_2px_4px_-1px_rgba(0,0,0,0.06)]">
+                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-slate-200 px-4 py-3 min-w-[12rem] bg-teal-50">Team Member Name</TableHead>
+                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-slate-200 px-4 py-3 min-w-[10rem] bg-teal-50">Project</TableHead>
+                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-slate-200 px-4 py-3 min-w-[8rem] bg-teal-50">Sprint</TableHead>
+                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-slate-200 px-4 py-3 text-center min-w-[7rem] bg-teal-50">Task/Issue Count</TableHead>
+                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-slate-200 px-4 py-3 text-center min-w-[6rem] bg-teal-50">Total Assigned Hours</TableHead>
+                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-slate-200 px-4 py-3 text-center min-w-[5rem] bg-teal-50">Hours Logged</TableHead>
+                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-slate-200 px-4 py-3 text-center min-w-[5rem] bg-teal-50">Utilization Level</TableHead>
+                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold text-center px-4 py-3 min-w-[6rem] border-b border-slate-200 bg-teal-50">Status</TableHead>
                           </TableRow>
                         </TableHeader>
-                      <TableBody>
-                        {filteredIndividualUtilization.length === 0 ? (
-                          <TableRow className="hover:bg-transparent">
-                            <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
-                              No utilization data available.
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          filteredIndividualUtilization.map((row, index) => {
-                            const isExpanded = expandedUtilizationRows.has(row.resourceKey);
-                            const hasBreakdown = row.projectSprintBreakdown.length > 1;
-                            return (
-                              <React.Fragment key={row.resourceKey}>
-                                <TableRow
-                                  className={`hover:bg-teal-50/60 transition-colors duration-150 border-b border-slate-100 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'} ${hasBreakdown ? 'cursor-pointer' : ''}`}
-                                  onClick={hasBreakdown ? () => toggleUtilizationRow(row.resourceKey) : undefined}
-                                >
-                                  <TableCell className="font-medium border-r border-slate-100 px-4 py-3 min-w-0">
-                                    {hasBreakdown ? (
-                                      <span className="inline-flex items-center justify-center w-6 h-6 text-teal-600">
-                                        {isExpanded ? (
-                                          <ChevronDown className="h-4 w-4" />
-                                        ) : (
-                                          <ChevronRight className="h-4 w-4" />
-                                        )}
-                                      </span>
-                                    ) : (
-                                      <span className="inline-block w-6" />
-                                    )}
-                                    <span className={`${hasBreakdown ? 'ml-1' : ''} break-words`}>{row.resourceName}</span>
-                                  </TableCell>
-                                  <TableCell className="border-r border-slate-100 px-4 py-3 text-sm min-w-0">
-                                    <span className="break-words">{Array.from(new Set(row.projects)).join(', ') || '—'}</span>
-                                  </TableCell>
-                                  <TableCell className="border-r border-slate-100 px-4 py-3 text-sm min-w-0">
-                                    {row.projectSprintBreakdown.length > 0
-                                      ? Array.from(new Set(row.projectSprintBreakdown.map(p => p.sprint))).join(', ')
-                                      : '—'}
-                                  </TableCell>
-                                  <TableCell className="text-center border-r border-slate-100 px-4 py-3">
-                                    <div className="flex flex-col items-center gap-0.5">
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          const key = row.resourceKey;
-                                          setExpandedCountCells(prev => {
-                                            const next = new Set(prev);
-                                            if (next.has(key)) next.delete(key);
-                                            else next.add(key);
-                                            return next;
-                                          });
-                                        }}
-                                        className="flex items-center gap-1 font-semibold text-teal-700 hover:text-teal-900 focus:outline-none focus:ring-2 focus:ring-teal-500 rounded"
-                                      >
-                                        {row.taskIssueCount}
-                                        {(row.taskItems.length + row.issueItems.length) > 0 ? (
-                                          expandedCountCells.has(row.resourceKey) ? (
-                                            <ChevronDown className="h-3.5 w-3.5" />
+                        <TableBody>
+                          {filteredIndividualUtilization.length === 0 ? (
+                            <TableRow className="hover:bg-transparent">
+                              <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                                No utilization data available.
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            filteredIndividualUtilization.map((row, index) => {
+                              const isExpanded = expandedUtilizationRows.has(row.resourceKey);
+                              const hasBreakdown = row.projectSprintBreakdown.length > 1;
+                              return (
+                                <React.Fragment key={row.resourceKey}>
+                                  <TableRow
+                                    className={`hover:bg-teal-50/60 transition-colors duration-150 border-b border-slate-100 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'} ${hasBreakdown ? 'cursor-pointer' : ''}`}
+                                    onClick={hasBreakdown ? () => toggleUtilizationRow(row.resourceKey) : undefined}
+                                  >
+                                    <TableCell className="font-medium border-r border-slate-100 px-4 py-3 min-w-0">
+                                      {hasBreakdown ? (
+                                        <span className="inline-flex items-center justify-center w-6 h-6 text-teal-600">
+                                          {isExpanded ? (
+                                            <ChevronDown className="h-4 w-4" />
                                           ) : (
-                                            <ChevronRight className="h-3.5 w-3.5" />
-                                          )
-                                        ) : null}
-                                      </button>
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="text-center border-r border-slate-100 px-4 py-3">
-                                    <span className="font-semibold tabular-nums">{row.allocatedHours.toFixed(1)}</span>
-                                  </TableCell>
-                                  <TableCell className="text-center border-r border-slate-100 px-4 py-3">
-                                    <span className="font-semibold tabular-nums">{row.hoursLogged.toFixed(1)}</span>
-                                  </TableCell>
-                                  <TableCell className="text-center border-r border-slate-100 px-4 py-3">
-                                    <span className="font-semibold tabular-nums">
-                                      {row.allocatedHours > 0 ? `${row.utilizationLevel.toFixed(1)}%` : 'N/A'}
-                                    </span>
-                                  </TableCell>
-                                  <TableCell className="text-center px-4 py-3">
-                                    <span className="flex justify-center">
-                                      <Badge
-                                        className={
-                                          row.status === 'idle'
-                                            ? 'bg-slate-200 text-slate-700'
-                                            : row.status === 'underutilized'
-                                            ? 'bg-amber-100 text-amber-800 border-amber-200'
-                                            : row.status === 'overloaded'
-                                            ? 'bg-red-100 text-red-800 border-red-200'
-                                            : 'bg-green-100 text-green-800 border-green-200'
-                                        }
-                                      >
-                                        {row.status.charAt(0).toUpperCase() + row.status.slice(1)}
-                                      </Badge>
-                                    </span>
-                                  </TableCell>
-                                </TableRow>
-                                {expandedCountCells.has(row.resourceKey) && [...row.taskItems, ...row.issueItems].map((item, idx) => (
-                                  <TableRow key={`${row.resourceKey}-${item.taskIssueId || idx}`} className="bg-teal-50/25 border-b border-slate-100 hover:bg-teal-50/35 transition-colors duration-150">
-                                    <TableCell className="pl-12 py-2 text-sm border-r border-slate-100" />
-                                    <TableCell className="py-2 text-sm border-r border-slate-100" />
-                                    <TableCell className="py-2 text-sm border-r border-slate-100" />
-                                    <TableCell className="py-2 text-sm font-medium border-r border-slate-100 px-4 min-w-0">
-                                      <span className={item.itemType === 'ISSUE' ? 'text-amber-700' : 'text-teal-700'}>
-                                        {item.itemType}: <span className="break-words">{item.taskIssueName || '—'}</span>
-                                      </span>
+                                            <ChevronRight className="h-4 w-4" />
+                                          )}
+                                        </span>
+                                      ) : (
+                                        <span className="inline-block w-6" />
+                                      )}
+                                      <span className={`${hasBreakdown ? 'ml-1' : ''} break-words`}>{row.resourceName}</span>
                                     </TableCell>
-                                    <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
-                                      {item.estimationHours.toFixed(1)}
+                                    <TableCell className="border-r border-slate-100 px-4 py-3 text-sm min-w-0">
+                                      <span className="break-words">{Array.from(new Set(row.projects)).join(', ') || '—'}</span>
                                     </TableCell>
-                                    <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
-                                      {item.actualHours.toFixed(1)}
+                                    <TableCell className="border-r border-slate-100 px-4 py-3 text-sm min-w-0">
+                                      {row.projectSprintBreakdown.length > 0
+                                        ? Array.from(new Set(row.projectSprintBreakdown.map(p => p.sprint))).join(', ')
+                                        : '—'}
                                     </TableCell>
-                                    <TableCell className="py-2 text-sm text-center border-r border-slate-100 px-4">—</TableCell>
-                                    <TableCell className="py-2 text-center px-4">—</TableCell>
-                                  </TableRow>
-                                ))}
-                                {isExpanded && hasBreakdown && row.projectSprintBreakdown.map((psb) => (
-                                  <React.Fragment key={`${psb.project}-${psb.sprint}`}>
-                                  <TableRow className="bg-teal-50/35 border-b border-slate-100 hover:bg-teal-50/50 transition-colors duration-150">
-                                    <TableCell className="pl-12 py-2 text-sm border-r border-slate-100" />
-                                    <TableCell className="py-2 text-sm font-medium border-r border-slate-100 px-4 min-w-0">
-                                      <span className="break-words">{psb.project}</span>
-                                    </TableCell>
-                                    <TableCell className="py-2 text-sm font-medium border-r border-slate-100 px-4 min-w-0">
-                                      <span className="break-words">{psb.sprint}</span>
-                                    </TableCell>
-                                    <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4">
+                                    <TableCell className="text-center border-r border-slate-100 px-4 py-3">
                                       <div className="flex flex-col items-center gap-0.5">
                                         <button
                                           type="button"
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            const key = `${row.resourceKey}-${psb.project}-${psb.sprint}`;
+                                            const key = row.resourceKey;
                                             setExpandedCountCells(prev => {
                                               const next = new Set(prev);
                                               if (next.has(key)) next.delete(key);
@@ -1605,49 +1516,51 @@ const ReportsPage: React.FC = () => {
                                               return next;
                                             });
                                           }}
-                                          className="flex items-center gap-1 font-medium text-teal-700 hover:text-teal-900 focus:outline-none focus:ring-2 focus:ring-teal-500 rounded"
+                                          className="flex items-center gap-1 font-semibold text-teal-700 hover:text-teal-900 focus:outline-none focus:ring-2 focus:ring-teal-500 rounded"
                                         >
-                                          {psb.taskIssueCount}
-                                          {(psb.taskItems.length + psb.issueItems.length) > 0 ? (
-                                            expandedCountCells.has(`${row.resourceKey}-${psb.project}-${psb.sprint}`) ? (
-                                              <ChevronDown className="h-3 w-3" />
+                                          {row.taskIssueCount}
+                                          {(row.taskItems.length + row.issueItems.length) > 0 ? (
+                                            expandedCountCells.has(row.resourceKey) ? (
+                                              <ChevronDown className="h-3.5 w-3.5" />
                                             ) : (
-                                              <ChevronRight className="h-3 w-3" />
+                                              <ChevronRight className="h-3.5 w-3.5" />
                                             )
                                           ) : null}
                                         </button>
                                       </div>
                                     </TableCell>
-                                    <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
-                                      {psb.allocatedHours.toFixed(1)}
+                                    <TableCell className="text-center border-r border-slate-100 px-4 py-3">
+                                      <span className="font-semibold tabular-nums">{row.allocatedHours.toFixed(1)}</span>
                                     </TableCell>
-                                    <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
-                                      {psb.hoursLogged.toFixed(1)}
+                                    <TableCell className="text-center border-r border-slate-100 px-4 py-3">
+                                      <span className="font-semibold tabular-nums">{row.hoursLogged.toFixed(1)}</span>
                                     </TableCell>
-                                    <TableCell className="py-2 text-sm text-center border-r border-slate-100 px-4">
-                                      {psb.allocatedHours > 0 ? `${psb.utilizationLevel.toFixed(1)}%` : 'N/A'}
+                                    <TableCell className="text-center border-r border-slate-100 px-4 py-3">
+                                      <span className="font-semibold tabular-nums">
+                                        {row.allocatedHours > 0 ? `${row.utilizationLevel.toFixed(1)}%` : 'N/A'}
+                                      </span>
                                     </TableCell>
-                                    <TableCell className="py-2 text-center px-4">
+                                    <TableCell className="text-center px-4 py-3">
                                       <span className="flex justify-center">
                                         <Badge
                                           className={
-                                            psb.status === 'idle'
+                                            row.status === 'idle'
                                               ? 'bg-slate-200 text-slate-700'
-                                              : psb.status === 'underutilized'
-                                              ? 'bg-amber-100 text-amber-800 border-amber-200'
-                                              : psb.status === 'overloaded'
-                                              ? 'bg-red-100 text-red-800 border-red-200'
-                                              : 'bg-green-100 text-green-800 border-green-200'
+                                              : row.status === 'underutilized'
+                                                ? 'bg-amber-100 text-amber-800 border-amber-200'
+                                                : row.status === 'overloaded'
+                                                  ? 'bg-red-100 text-red-800 border-red-200'
+                                                  : 'bg-green-100 text-green-800 border-green-200'
                                           }
                                         >
-                                              {psb.status.charAt(0).toUpperCase() + psb.status.slice(1)}
+                                          {row.status.charAt(0).toUpperCase() + row.status.slice(1)}
                                         </Badge>
                                       </span>
                                     </TableCell>
                                   </TableRow>
-                                  {expandedCountCells.has(`${row.resourceKey}-${psb.project}-${psb.sprint}`) && [...psb.taskItems, ...psb.issueItems].map((item, idx) => (
-                                    <TableRow key={`${row.resourceKey}-${psb.project}-${psb.sprint}-${item.taskIssueId || idx}`} className="bg-teal-50/20 border-b border-slate-100 hover:bg-teal-50/30 transition-colors duration-150">
-                                      <TableCell className="pl-16 py-2 text-sm border-r border-slate-100" />
+                                  {expandedCountCells.has(row.resourceKey) && [...row.taskItems, ...row.issueItems].map((item, idx) => (
+                                    <TableRow key={`${row.resourceKey}-${item.taskIssueId || idx}`} className="bg-teal-50/25 border-b border-slate-100 hover:bg-teal-50/35 transition-colors duration-150">
+                                      <TableCell className="pl-12 py-2 text-sm border-r border-slate-100" />
                                       <TableCell className="py-2 text-sm border-r border-slate-100" />
                                       <TableCell className="py-2 text-sm border-r border-slate-100" />
                                       <TableCell className="py-2 text-sm font-medium border-r border-slate-100 px-4 min-w-0">
@@ -1665,14 +1578,98 @@ const ReportsPage: React.FC = () => {
                                       <TableCell className="py-2 text-center px-4">—</TableCell>
                                     </TableRow>
                                   ))}
-                                  </React.Fragment>
-                                ))}
-                              </React.Fragment>
-                            );
-                          })
-                        )}
-                      </TableBody>
-                    </Table>
+                                  {isExpanded && hasBreakdown && row.projectSprintBreakdown.map((psb) => (
+                                    <React.Fragment key={`${psb.project}-${psb.sprint}`}>
+                                      <TableRow className="bg-teal-50/35 border-b border-slate-100 hover:bg-teal-50/50 transition-colors duration-150">
+                                        <TableCell className="pl-12 py-2 text-sm border-r border-slate-100" />
+                                        <TableCell className="py-2 text-sm font-medium border-r border-slate-100 px-4 min-w-0">
+                                          <span className="break-words">{psb.project}</span>
+                                        </TableCell>
+                                        <TableCell className="py-2 text-sm font-medium border-r border-slate-100 px-4 min-w-0">
+                                          <span className="break-words">{psb.sprint}</span>
+                                        </TableCell>
+                                        <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4">
+                                          <div className="flex flex-col items-center gap-0.5">
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const key = `${row.resourceKey}-${psb.project}-${psb.sprint}`;
+                                                setExpandedCountCells(prev => {
+                                                  const next = new Set(prev);
+                                                  if (next.has(key)) next.delete(key);
+                                                  else next.add(key);
+                                                  return next;
+                                                });
+                                              }}
+                                              className="flex items-center gap-1 font-medium text-teal-700 hover:text-teal-900 focus:outline-none focus:ring-2 focus:ring-teal-500 rounded"
+                                            >
+                                              {psb.taskIssueCount}
+                                              {(psb.taskItems.length + psb.issueItems.length) > 0 ? (
+                                                expandedCountCells.has(`${row.resourceKey}-${psb.project}-${psb.sprint}`) ? (
+                                                  <ChevronDown className="h-3 w-3" />
+                                                ) : (
+                                                  <ChevronRight className="h-3 w-3" />
+                                                )
+                                              ) : null}
+                                            </button>
+                                          </div>
+                                        </TableCell>
+                                        <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
+                                          {psb.allocatedHours.toFixed(1)}
+                                        </TableCell>
+                                        <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
+                                          {psb.hoursLogged.toFixed(1)}
+                                        </TableCell>
+                                        <TableCell className="py-2 text-sm text-center border-r border-slate-100 px-4">
+                                          {psb.allocatedHours > 0 ? `${psb.utilizationLevel.toFixed(1)}%` : 'N/A'}
+                                        </TableCell>
+                                        <TableCell className="py-2 text-center px-4">
+                                          <span className="flex justify-center">
+                                            <Badge
+                                              className={
+                                                psb.status === 'idle'
+                                                  ? 'bg-slate-200 text-slate-700'
+                                                  : psb.status === 'underutilized'
+                                                    ? 'bg-amber-100 text-amber-800 border-amber-200'
+                                                    : psb.status === 'overloaded'
+                                                      ? 'bg-red-100 text-red-800 border-red-200'
+                                                      : 'bg-green-100 text-green-800 border-green-200'
+                                              }
+                                            >
+                                              {psb.status.charAt(0).toUpperCase() + psb.status.slice(1)}
+                                            </Badge>
+                                          </span>
+                                        </TableCell>
+                                      </TableRow>
+                                      {expandedCountCells.has(`${row.resourceKey}-${psb.project}-${psb.sprint}`) && [...psb.taskItems, ...psb.issueItems].map((item, idx) => (
+                                        <TableRow key={`${row.resourceKey}-${psb.project}-${psb.sprint}-${item.taskIssueId || idx}`} className="bg-teal-50/20 border-b border-slate-100 hover:bg-teal-50/30 transition-colors duration-150">
+                                          <TableCell className="pl-16 py-2 text-sm border-r border-slate-100" />
+                                          <TableCell className="py-2 text-sm border-r border-slate-100" />
+                                          <TableCell className="py-2 text-sm border-r border-slate-100" />
+                                          <TableCell className="py-2 text-sm font-medium border-r border-slate-100 px-4 min-w-0">
+                                            <span className={item.itemType === 'ISSUE' ? 'text-amber-700' : 'text-teal-700'}>
+                                              {item.itemType}: <span className="break-words">{item.taskIssueName || '—'}</span>
+                                            </span>
+                                          </TableCell>
+                                          <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
+                                            {item.estimationHours.toFixed(1)}
+                                          </TableCell>
+                                          <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
+                                            {item.actualHours.toFixed(1)}
+                                          </TableCell>
+                                          <TableCell className="py-2 text-sm text-center border-r border-slate-100 px-4">—</TableCell>
+                                          <TableCell className="py-2 text-center px-4">—</TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </React.Fragment>
+                                  ))}
+                                </React.Fragment>
+                              );
+                            })
+                          )}
+                        </TableBody>
+                      </Table>
                     </div>
                   </div>
                 </CardContent>
@@ -1691,926 +1688,933 @@ const ReportsPage: React.FC = () => {
         {/* Bug Report Section */}
         {activeReport === 'bug-report' && (
           <div className="space-y-8">
-        {/* Filters and Export */}
+            {/* Filters and Export */}
             <div className="flex items-end justify-end gap-6 mb-4 lg:mb-6">
-          <MultiSelect
-            label="Projects"
-            icon="📁"
-            options={projects}
-            selected={selectedProjects}
-            onChange={setSelectedProjects}
-          />
+              <MultiSelect
+                label="Projects"
+                icon="📁"
+                options={projects}
+                selected={selectedProjects}
+                onChange={setSelectedProjects}
+              />
 
-          <MultiSelect
-            label="Sprints"
-            icon="🚀"
-            options={sprints}
-            selected={selectedSprints}
-            onChange={setSelectedSprints}
-          />
+              <MultiSelect
+                label="Sprints"
+                icon="🚀"
+                options={sprints}
+                selected={selectedSprints}
+                onChange={setSelectedSprints}
+              />
 
-          <button
-            onClick={() => {
-              setSelectedProjects([]);
-              setSelectedSprints([]);
-            }}
-            disabled={selectedProjects.length === 0 && selectedSprints.length === 0}
-            className="flex-shrink-0 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold flex items-center gap-2 transition-all hover:shadow-md h-11 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <X className="h-4 w-4" />
-            Clear {selectedProjects.length > 0 || selectedSprints.length > 0 ? `(${selectedProjects.length + selectedSprints.length})` : ''}
-          </button>
+              <button
+                onClick={() => {
+                  setSelectedProjects([]);
+                  setSelectedSprints([]);
+                }}
+                disabled={selectedProjects.length === 0 && selectedSprints.length === 0}
+                className="flex-shrink-0 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold flex items-center gap-2 transition-all hover:shadow-md h-11 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <X className="h-4 w-4" />
+                Clear {selectedProjects.length > 0 || selectedSprints.length > 0 ? `(${selectedProjects.length + selectedSprints.length})` : ''}
+              </button>
 
-          <button
-            onClick={handleExportToExcel}
-            disabled={exporting || rows.length === 0}
-            className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold flex items-center gap-2 transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed h-11"
-          >
-            {exporting ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Exporting...
-              </>
-            ) : (
-              <>
-                <Download className="h-4 w-4" />
-                Export to Excel
-              </>
-            )}
-          </button>
-        </div>
+              <button
+                onClick={handleExportToExcel}
+                disabled={exporting || rows.length === 0}
+                className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold flex items-center gap-2 transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed h-11"
+              >
+                {exporting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    Export to Excel
+                  </>
+                )}
+              </button>
+            </div>
 
             {/* Loading State */}
-          {loading && (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 text-blue-500 animate-spin mr-2" />
-              <span className="text-muted-foreground">Loading bug reports...</span>
-      </div>
-          )}
+            {loading && (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 text-blue-500 animate-spin mr-2" />
+                <span className="text-muted-foreground">Loading bug reports...</span>
+              </div>
+            )}
 
-          {/* Error State */}
-          {error && (
-            <Card className="border-red-200 bg-red-50">
-              <CardContent className="p-6">
-                <div className="flex items-center space-x-3 text-red-800">
-                  <AlertCircle className="h-6 w-6" />
-                  <div>
-                    <p className="font-semibold">Error loading bug reports</p>
-                    <p className="text-sm">{error}</p>
-        </div>
-      </div>
-              </CardContent>
-            </Card>
-          )}
+            {/* Error State */}
+            {error && (
+              <Card className="border-red-200 bg-red-50">
+                <CardContent className="p-6">
+                  <div className="flex items-center space-x-3 text-red-800">
+                    <AlertCircle className="h-6 w-6" />
+                    <div>
+                      <p className="font-semibold">Error loading bug reports</p>
+                      <p className="text-sm">{error}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-      {/* Summary Cards */}
-          {!loading && !error && (
-            <>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="border-l-4 border-l-red-500 shadow-md hover:shadow-lg transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Total Bugs</p>
-                <p className="text-3xl font-bold text-foreground">{rows.length}</p>
-              </div>
-              <div className="rounded-full bg-red-100 p-3 flex-shrink-0">
-                <Bug className="h-8 w-8 text-red-500" strokeWidth={2} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-orange-500 shadow-md hover:shadow-lg transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Open</p>
-                <p className="text-3xl font-bold text-orange-600">
-                  {rows.filter(r => r.resolution?.toLowerCase() === 'open').length}
-                </p>
-              </div>
-              <div className="rounded-full bg-orange-100 p-3 flex-shrink-0">
-                <AlertCircle className="h-8 w-8 text-orange-500" strokeWidth={2} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-blue-500 shadow-md hover:shadow-lg transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">In Progress</p>
-                <p className="text-3xl font-bold text-blue-600">
-                  {rows.filter(r => r.resolution?.toLowerCase() === 'in progress').length}
-                </p>
-              </div>
-              <div className="rounded-full bg-blue-100 p-3 flex-shrink-0">
-                <Clock className="h-8 w-8 text-blue-500" strokeWidth={2} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-green-500 shadow-md hover:shadow-lg transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Resolved</p>
-                <p className="text-3xl font-bold text-green-600">
-                          {rows.filter(r => r.resolution?.toLowerCase() === 'resolved' || r.resolution?.toLowerCase() === 'closed').length}
-                </p>
-              </div>
-              <div className="rounded-full bg-green-100 p-3 flex-shrink-0">
-                <CheckCircle2 className="h-8 w-8 text-green-500" strokeWidth={2} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Bug Report Table */}
-      <Card className="shadow-md border-t-4 border-t-red-500">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-3">
-            <div className="rounded-lg bg-red-100 p-2">
-              <Bug className="h-6 w-6 text-red-600" strokeWidth={2.5} />
-            </div>
-            <span className="text-xl">Defect Details</span>
-          </CardTitle>
-          <CardDescription className="mt-2">
-            Showing {rows.length} of {bugReports.length} {bugReports.length === 1 ? 'defect' : 'defects'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-md border overflow-x-auto">
-            <Table className="[&_th]:text-xs [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-muted-foreground [&_th]:px-4 [&_th]:py-3 [&_td]:text-sm [&_td]:px-4 [&_td]:py-3">
-              <TableHeader>
-                <TableRow className="bg-slate-50 border-b-2 border-slate-300">
-                  <TableHead className="font-semibold border-r border-gray-300">Defect Code</TableHead>
-                  <TableHead className="font-semibold border-r border-gray-300">Defect Name</TableHead>
-                  <TableHead className="font-semibold border-r border-gray-300">Type</TableHead>
-                  <TableHead className="font-semibold border-r border-gray-300">Parent Code</TableHead>
-                  <TableHead className="font-semibold border-r border-gray-300">Story</TableHead>
-                  <TableHead className="font-semibold border-r border-gray-300">Linked To Task</TableHead>
-                  <TableHead className="font-semibold border-r border-gray-300">Assigned To</TableHead>
-                  <TableHead className="font-semibold border-r border-gray-300">Workflow Lane</TableHead>
-                  <TableHead className="font-semibold border-r border-gray-300">Priority</TableHead>
-                  <TableHead className="font-semibold border-r border-gray-300">Severity</TableHead>
-                  <TableHead className="font-semibold border-r border-gray-300">Category</TableHead>
-                  <TableHead className="font-semibold border-r border-gray-300">Resolution</TableHead>
-                  <TableHead className="font-semibold border-r border-gray-300">Reported By</TableHead>
-                  <TableHead className="font-semibold border-r border-gray-300">Created Date</TableHead>
-                  <TableHead className="font-semibold border-r border-gray-300">Release</TableHead>
-                  <TableHead className="font-semibold border-r border-gray-300">Sprint</TableHead>
-                  <TableHead className="font-semibold">Board</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={17} className="text-center py-12">
-                      <div className="flex flex-col items-center space-y-2 text-muted-foreground">
-                        <Bug className="h-12 w-12 text-slate-300" />
-                        <p className="text-sm">No defect data available yet.</p>
+            {/* Summary Cards */}
+            {!loading && !error && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <Card className="border-l-4 border-l-red-500 shadow-md hover:shadow-lg transition-shadow">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Total Bugs</p>
+                          <p className="text-3xl font-bold text-foreground">{rows.length}</p>
+                        </div>
+                        <div className="rounded-full bg-red-100 p-3 flex-shrink-0">
+                          <Bug className="h-8 w-8 text-red-500" strokeWidth={2} />
+                        </div>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  rows.map((row, index) => (
-                    <TableRow
-                      key={row.defectCode}
-                      className={`hover:bg-blue-50 transition-colors border-b border-slate-200 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
-                    >
-                      <TableCell className="font-mono text-xs font-semibold text-blue-600 border-r border-gray-300">
-                        {row.defectCode}
-                      </TableCell>
-                      <TableCell className="max-w-xs border-r border-gray-300">
-                        <div className="font-medium text-foreground">{row.defectName}</div>
-                      </TableCell>
-                      <TableCell className="border-r border-gray-300">
-                        <Badge variant="outline" className="bg-slate-100">
-                          {row.type || '—'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground border-r border-gray-300">
-                        {row.parentCode || '—'}
-                      </TableCell>
-                      <TableCell className="border-r border-gray-300">
-                        <span className="text-sm text-foreground">
-                          {row.storyName || '—'}
-                        </span>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-blue-600 border-r border-gray-300">
-                        {row.linkedToTask || '—'}
-                      </TableCell>
-                      <TableCell className="border-r border-gray-300">
-                        <span className="text-sm font-medium">{row.assignedTo || '—'}</span>
-                      </TableCell>
-                      <TableCell className="border-r border-gray-300">
-                        <Badge variant="outline" className="bg-slate-50">
-                          {row.workflowLane || '—'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="border-r border-gray-300">{getPriorityBadge(row.priority)}</TableCell>
-                      <TableCell className="border-r border-gray-300">{getSeverityBadge(row.severity)}</TableCell>
-                      <TableCell className="border-r border-gray-300">{getCategoryBadge(row.defectCategory)}</TableCell>
-                      <TableCell className="border-r border-gray-300">{getResolutionBadge(row.resolution)}</TableCell>
-                      <TableCell className="text-muted-foreground border-r border-gray-300">
-                        {row.reportedBy || '—'}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-xs border-r border-gray-300">
-                        {row.createdDate || '—'}
-                      </TableCell>
-                      <TableCell className="border-r border-gray-300">
-                        <Badge variant="outline" className="text-xs">
-                          {row.release || '—'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground border-r border-gray-300">
-                        {row.sprint || '—'}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {row.board || '—'}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-l-4 border-l-orange-500 shadow-md hover:shadow-lg transition-shadow">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Open</p>
+                          <p className="text-3xl font-bold text-orange-600">
+                            {rows.filter(r => r.resolution?.toLowerCase() === 'open').length}
+                          </p>
+                        </div>
+                        <div className="rounded-full bg-orange-100 p-3 flex-shrink-0">
+                          <AlertCircle className="h-8 w-8 text-orange-500" strokeWidth={2} />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-l-4 border-l-blue-500 shadow-md hover:shadow-lg transition-shadow">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">In Progress</p>
+                          <p className="text-3xl font-bold text-blue-600">
+                            {rows.filter(r => r.resolution?.toLowerCase() === 'in progress').length}
+                          </p>
+                        </div>
+                        <div className="rounded-full bg-blue-100 p-3 flex-shrink-0">
+                          <Clock className="h-8 w-8 text-blue-500" strokeWidth={2} />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-l-4 border-l-green-500 shadow-md hover:shadow-lg transition-shadow">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Resolved</p>
+                          <p className="text-3xl font-bold text-green-600">
+                            {rows.filter(r => r.resolution?.toLowerCase() === 'resolved' || r.resolution?.toLowerCase() === 'closed').length}
+                          </p>
+                        </div>
+                        <div className="rounded-full bg-green-100 p-3 flex-shrink-0">
+                          <CheckCircle2 className="h-8 w-8 text-green-500" strokeWidth={2} />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Bug Report Table */}
+                <Card className="shadow-md border-t-4 border-t-red-500">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-3">
+                      <div className="rounded-lg bg-red-100 p-2">
+                        <Bug className="h-6 w-6 text-red-600" strokeWidth={2.5} />
+                      </div>
+                      <span className="text-xl">Defect Details</span>
+                    </CardTitle>
+                    <CardDescription className="mt-2">
+                      Showing {rows.length} of {bugReports.length} {bugReports.length === 1 ? 'defect' : 'defects'}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="rounded-md border overflow-x-auto">
+                      <Table className="[&_th]:text-xs [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-muted-foreground [&_th]:px-4 [&_th]:py-3 [&_td]:text-sm [&_td]:px-4 [&_td]:py-3">
+                        <TableHeader>
+                          <TableRow className="bg-slate-50 border-b-2 border-slate-300">
+                            <TableHead className="font-semibold border-r border-gray-300">Defect Code</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Defect Name</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Type</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Parent Code</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Story</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Linked To Task</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Assigned To</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Workflow Lane</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Priority</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Severity</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Category</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Resolution</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Reported By</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Created Date</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Release</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Sprint</TableHead>
+                            <TableHead className="font-semibold">Board</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {rows.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={17} className="text-center py-12">
+                                <div className="flex flex-col items-center space-y-2 text-muted-foreground">
+                                  <Bug className="h-12 w-12 text-slate-300" />
+                                  <p className="text-sm">No defect data available yet.</p>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            rows.map((row, index) => (
+                              <TableRow
+                                key={row.defectCode}
+                                className={`hover:bg-blue-50 transition-colors border-b border-slate-200 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
+                              >
+                                <TableCell className="font-mono text-xs font-semibold text-blue-600 border-r border-gray-300">
+                                  {row.defectCode}
+                                </TableCell>
+                                <TableCell className="max-w-xs border-r border-gray-300">
+                                  <div className="font-medium text-foreground">{row.defectName}</div>
+                                </TableCell>
+                                <TableCell className="border-r border-gray-300">
+                                  <Badge variant="outline" className="bg-slate-100">
+                                    {row.type || '—'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="font-mono text-xs text-muted-foreground border-r border-gray-300">
+                                  {row.parentCode || '—'}
+                                </TableCell>
+                                <TableCell className="border-r border-gray-300">
+                                  <span className="text-sm text-foreground">
+                                    {row.storyName || '—'}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="font-mono text-xs text-blue-600 border-r border-gray-300">
+                                  {row.linkedToTask || '—'}
+                                </TableCell>
+                                <TableCell className="border-r border-gray-300">
+                                  <span className="text-sm font-medium">{row.assignedTo || '—'}</span>
+                                </TableCell>
+                                <TableCell className="border-r border-gray-300">
+                                  <Badge variant="outline" className="bg-slate-50">
+                                    {row.workflowLane || '—'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="border-r border-gray-300">{getPriorityBadge(row.priority)}</TableCell>
+                                <TableCell className="border-r border-gray-300">{getSeverityBadge(row.severity)}</TableCell>
+                                <TableCell className="border-r border-gray-300">{getCategoryBadge(row.defectCategory)}</TableCell>
+                                <TableCell className="border-r border-gray-300">{getResolutionBadge(row.resolution)}</TableCell>
+                                <TableCell className="text-muted-foreground border-r border-gray-300">
+                                  {row.reportedBy || '—'}
+                                </TableCell>
+                                <TableCell className="text-muted-foreground text-xs border-r border-gray-300">
+                                  {row.createdDate || '—'}
+                                </TableCell>
+                                <TableCell className="border-r border-gray-300">
+                                  <Badge variant="outline" className="text-xs">
+                                    {row.release || '—'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-muted-foreground border-r border-gray-300">
+                                  {row.sprint || '—'}
+                                </TableCell>
+                                <TableCell className="text-muted-foreground">
+                                  {row.board || '—'}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </div>
-        </CardContent>
-      </Card>
-            </>
-          )}
-        </div>
         )}
 
         {/* Resource Performance Section */}
         {activeReport === 'resource-performance' && (
           <div className="flex flex-col gap-10">
 
-          {/* Loading or Content */}
-          {loadingResourcePerformance ? (
-            <>
-              {/* Skeleton Summary Card */}
-              <Card className="shadow-lg border-t-4 border-t-blue-500">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-3">
-                    <div className="rounded-lg bg-blue-100 p-2">
-                      <Users className="h-6 w-6 text-blue-600" strokeWidth={2.5} />
-                    </div>
-                    <span>Resource Performance Summary</span>
-                  </CardTitle>
-                  <CardDescription>Loading team utilization and allocation metrics...</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    {[1, 2, 3, 4].map((i) => (
-                      <div
-                        key={i}
-                        className="p-4 rounded-lg border border-slate-200 bg-slate-50 animate-pulse space-y-2"
-                      >
-                        <div className="h-3 w-24 bg-slate-200 rounded" />
-                        <div className="h-7 w-20 bg-slate-300 rounded" />
-                        <div className="h-3 w-28 bg-slate-200 rounded" />
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Skeleton Table Card */}
-              <Card className="shadow-md border-t-4 border-t-blue-500">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-3">
-                    <div className="rounded-lg bg-blue-100 p-2">
-                      <Users className="h-6 w-6 text-blue-600" strokeWidth={2.5} />
-                    </div>
-                    <span className="text-xl">Resource Performance Details</span>
-                  </CardTitle>
-                  <CardDescription className="mt-2 flex items-center space-x-2 text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-                    <span>Preparing detailed data, this can take a few seconds...</span>
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="rounded-md border overflow-hidden">
-                    <div className="h-10 bg-slate-50 border-b border-slate-200" />
-                    {[0, 1, 2, 3, 4].map((row) => (
-                      <div
-                        key={row}
-                        className="grid grid-cols-6 gap-4 px-4 py-3 border-b border-slate-100 animate-pulse"
-                      >
-                        {[0, 1, 2, 3, 4, 5].map((col) => (
-                          <div key={col} className="h-4 bg-slate-200 rounded" />
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </>
-          ) : (
-            <>
-              {/* Filters */}
-              {resourcePerformanceRows.length > 0 && (
-                <Card className="shadow-sm border">
+            {/* Loading or Content */}
+            {loadingResourcePerformance ? (
+              <>
+                {/* Skeleton Summary Card */}
+                <Card className="shadow-lg border-t-4 border-t-blue-500">
                   <CardHeader>
-                    <CardTitle className="flex items-center space-x-2 text-lg">
-                      <Filter className="h-5 w-5" />
-                      <span>Filters</span>
+                    <CardTitle className="flex items-center space-x-3">
+                      <div className="rounded-lg bg-blue-100 p-2">
+                        <Users className="h-6 w-6 text-blue-600" strokeWidth={2.5} />
+                      </div>
+                      <span>Resource Performance Summary</span>
                     </CardTitle>
+                    <CardDescription>Loading team utilization and allocation metrics...</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex flex-wrap gap-6">
-                      {/* Project Filter */}
-                      <div className="flex-1 min-w-[200px] space-y-2">
-                        <Label htmlFor="project-filter">Project</Label>
-                        <Select value={selectedResourceProject} onValueChange={setSelectedResourceProject}>
-                          <SelectTrigger id="project-filter">
-                            <SelectValue placeholder="All Projects" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Projects</SelectItem>
-                            {resourceProjects.map(projectName => (
-                              <SelectItem key={projectName} value={projectName}>
-                                {projectName}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Sprint Filter */}
-                      <div className="flex-1 min-w-[200px] space-y-2">
-                        <Label htmlFor="sprint-filter">Sprint</Label>
-                        <Select value={selectedResourceSprint} onValueChange={handleResourceSprintChange}>
-                          <SelectTrigger id="sprint-filter">
-                            <SelectValue placeholder="All Sprints" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Sprints</SelectItem>
-                            {resourceSprints.map(sprintName => (
-                              <SelectItem key={sprintName} value={sprintName}>
-                                {sprintName}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* User Filter */}
-                      <div className="flex-1 min-w-[200px] space-y-2">
-                        <Label htmlFor="user-filter">User</Label>
-                        <Select value={selectedResourceUser} onValueChange={setSelectedResourceUser}>
-                          <SelectTrigger id="user-filter">
-                            <SelectValue placeholder="All Users" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Users</SelectItem>
-                            {resourceUsers.map(user => (
-                              <SelectItem key={user.id} value={user.id}>
-                                {user.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Duration Filter */}
-                      <div className="flex-1 min-w-[200px] space-y-2">
-                        <Label htmlFor="duration-filter">Duration</Label>
-                        <Select
-                          value={selectedResourceDuration}
-                          onValueChange={value => setSelectedResourceDuration(value as ResourceDurationFilter)}
+                    <div className="grid grid-cols-2 gap-4">
+                      {[1, 2, 3, 4].map((i) => (
+                        <div
+                          key={i}
+                          className="p-4 rounded-lg border border-slate-200 bg-slate-50 animate-pulse space-y-2"
                         >
-                          <SelectTrigger id="duration-filter">
-                            <SelectValue placeholder="All time" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All time</SelectItem>
-                            <SelectItem value="last7">Last 7 days</SelectItem>
-                            <SelectItem value="last30">Last 30 days</SelectItem>
-                            <SelectItem value="custom">Custom range</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        {selectedResourceDuration === 'custom' && (
-                          <div className="mt-2 flex flex-col gap-2">
-                            <div className="flex gap-3">
-                              <div className="flex-1 space-y-1">
-                                <Label htmlFor="duration-from" className="text-[11px] text-muted-foreground">
-                                  From date
-                                </Label>
-                                <Input
-                                  id="duration-from"
-                                  type="date"
-                                  className="h-9"
-                                  value={customDurationFrom}
-                                  onChange={e => setCustomDurationFrom(e.target.value)}
-                                />
-                              </div>
-                              <div className="flex-1 space-y-1">
-                                <Label htmlFor="duration-to" className="text-[11px] text-muted-foreground">
-                                  To date
-                                </Label>
-                                <Input
-                                  id="duration-to"
-                                  type="date"
-                                  className="h-9"
-                                  value={customDurationTo}
-                                  onChange={e => setCustomDurationTo(e.target.value)}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Clear Filters Button */}
-                      {(selectedResourceProject !== 'all' || selectedResourceUser !== 'all' || selectedResourceSprint !== 'all' || selectedResourceDuration !== 'all' || customDurationFrom || customDurationTo) && (
-                        <div className="flex items-end">
-                          <button
-                            onClick={() => {
-                              setSelectedResourceProject('all');
-                              setSelectedResourceUser('all');
-                              setSelectedResourceSprint('all');
-                              setSelectedResourceDuration('all');
-                              setCustomDurationFrom('');
-                              setCustomDurationTo('');
-                            }}
-                            className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-                          >
-                            Clear Filters
-                          </button>
+                          <div className="h-3 w-24 bg-slate-200 rounded" />
+                          <div className="h-7 w-20 bg-slate-300 rounded" />
+                          <div className="h-3 w-28 bg-slate-200 rounded" />
                         </div>
-                      )}
+                      ))}
                     </div>
                   </CardContent>
                 </Card>
-              )}
 
-              <Card className="shadow-lg border-t-4 border-t-blue-500">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-3">
-                    <div className="rounded-lg bg-blue-100 p-2">
-                      <Users className="h-6 w-6 text-blue-600" strokeWidth={2.5} />
-                    </div>
-                    <span>Resource Performance Summary</span>
-                  </CardTitle>
-                  <CardDescription>Team utilization and allocation metrics</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {summaryData ? (
-                    <>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                          <p className="text-xs font-medium text-blue-700 uppercase tracking-wider mb-2">Total Resources</p>
-                          <p className="text-3xl font-bold text-blue-600">
-                            {summaryData.totalResources || summaryData.activeResources || 0}
-                          </p>
-                          <p className="text-xs text-blue-600 mt-1">Active team members</p>
-                        </div>
-                        <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                          <p className="text-xs font-medium text-purple-700 uppercase tracking-wider mb-2">Avg Utilization</p>
-                          <p className="text-3xl font-bold text-purple-600">
-                            {summaryData.averageUtilization 
-                              ? `${Math.round(summaryData.averageUtilization)}%`
-                              : summaryData.utilizationRate 
-                              ? `${Math.round(summaryData.utilizationRate)}%`
-                              : '0%'}
-                          </p>
-                          <p className="text-xs text-purple-600 mt-1">Resource efficiency</p>
-                        </div>
-                        <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-                          <p className="text-xs font-medium text-indigo-700 uppercase tracking-wider mb-2">Allocated Hours</p>
-                          <p className="text-3xl font-bold text-indigo-600">
-                            {summaryData.allocatedHours || 0}
-                          </p>
-                          <p className="text-xs text-indigo-600 mt-1">Planned allocation</p>
-                        </div>
-                        <div className="p-4 bg-cyan-50 rounded-lg border border-cyan-200">
-                          <p className="text-xs font-medium text-cyan-700 uppercase tracking-wider mb-2">Total Hours</p>
-                          <p className="text-3xl font-bold text-cyan-600">
-                            {summaryData.totalHours || 0}
-                          </p>
-                          <p className="text-xs text-cyan-600 mt-1">Actual hours logged</p>
-                        </div>
+                {/* Skeleton Table Card */}
+                <Card className="shadow-md border-t-4 border-t-blue-500">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-3">
+                      <div className="rounded-lg bg-blue-100 p-2">
+                        <Users className="h-6 w-6 text-blue-600" strokeWidth={2.5} />
                       </div>
-                      {summaryData.projectUtilization && summaryData.projectUtilization.length > 0 && (
-                        <div className="mt-4 pt-4 border-t border-gray-200">
-                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Top Projects by Utilization</p>
-                          <div className="space-y-2">
-                            {summaryData.projectUtilization.slice(0, 3).map((project, idx) => (
-                              <div key={idx} className="flex justify-between items-center text-sm">
-                                <span className="text-foreground truncate max-w-[200px]" title={project.projectName}>
-                                  {project.projectName}
-                                </span>
-                                <div className="flex items-center gap-2">
-                                  <div className="w-24 bg-gray-200 rounded-full h-2">
-                                    <div
-                                      className="bg-blue-600 h-2 rounded-full"
-                                      style={{ width: `${Math.min(project.utilization, 100)}%` }}
-                                    />
-                                  </div>
-                                  <span className="font-semibold text-blue-600 w-12 text-right">
-                                    {Math.round(project.utilization)}%
-                                  </span>
+                      <span className="text-xl">Resource Performance Details</span>
+                    </CardTitle>
+                    <CardDescription className="mt-2 flex items-center space-x-2 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                      <span>Preparing detailed data, this can take a few seconds...</span>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="rounded-md border overflow-hidden">
+                      <div className="h-10 bg-slate-50 border-b border-slate-200" />
+                      {[0, 1, 2, 3, 4].map((row) => (
+                        <div
+                          key={row}
+                          className="grid grid-cols-6 gap-4 px-4 py-3 border-b border-slate-100 animate-pulse"
+                        >
+                          {[0, 1, 2, 3, 4, 5].map((col) => (
+                            <div key={col} className="h-4 bg-slate-200 rounded" />
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <>
+                {/* Filters */}
+                {resourcePerformanceRows.length > 0 && (
+                  <Card className="shadow-sm border">
+                    <CardHeader>
+                      <CardTitle className="flex items-center space-x-2 text-lg">
+                        <Filter className="h-5 w-5" />
+                        <span>Filters</span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-wrap gap-6">
+                        {/* Project Filter */}
+                        <div className="flex-1 min-w-[200px] space-y-2">
+                          <Label htmlFor="project-filter">Project</Label>
+                          <Select value={selectedResourceProject} onValueChange={setSelectedResourceProject}>
+                            <SelectTrigger id="project-filter">
+                              <SelectValue placeholder="All Projects" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Projects</SelectItem>
+                              {resourceProjects.map(projectName => (
+                                <SelectItem key={projectName} value={projectName}>
+                                  {projectName}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Sprint Filter */}
+                        <div className="flex-1 min-w-[200px] space-y-2">
+                          <Label htmlFor="sprint-filter">Sprint</Label>
+                          <Select value={selectedResourceSprint} onValueChange={handleResourceSprintChange}>
+                            <SelectTrigger id="sprint-filter">
+                              <SelectValue placeholder="All Sprints" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Sprints</SelectItem>
+                              {resourceSprints.map(sprintName => (
+                                <SelectItem key={sprintName} value={sprintName}>
+                                  {sprintName}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* User Filter */}
+                        <div className="flex-1 min-w-[200px] space-y-2">
+                          <Label htmlFor="user-filter">User</Label>
+                          <Select value={selectedResourceUser} onValueChange={setSelectedResourceUser}>
+                            <SelectTrigger id="user-filter">
+                              <SelectValue placeholder="All Users" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Users</SelectItem>
+                              {resourceUsers.map(user => (
+                                <SelectItem key={user.id} value={user.id}>
+                                  {user.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Duration Filter */}
+                        <div className="flex-1 min-w-[200px] space-y-2">
+                          <Label htmlFor="duration-filter">Duration</Label>
+                          <Select
+                            value={selectedResourceDuration}
+                            onValueChange={value => setSelectedResourceDuration(value as ResourceDurationFilter)}
+                          >
+                            <SelectTrigger id="duration-filter">
+                              <SelectValue placeholder="All time" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All time</SelectItem>
+                              <SelectItem value="last7">Last 7 days</SelectItem>
+                              <SelectItem value="last30">Last 30 days</SelectItem>
+                              <SelectItem value="custom">Custom range</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {selectedResourceDuration === 'custom' && (
+                            <div className="mt-2 flex flex-col gap-2">
+                              <div className="flex gap-3">
+                                <div className="flex-1 space-y-1">
+                                  <Label htmlFor="duration-from" className="text-[11px] text-muted-foreground">
+                                    From date
+                                  </Label>
+                                  <Input
+                                    id="duration-from"
+                                    type="date"
+                                    className="h-9"
+                                    value={customDurationFrom}
+                                    onChange={e => setCustomDurationFrom(e.target.value)}
+                                  />
+                                </div>
+                                <div className="flex-1 space-y-1">
+                                  <Label htmlFor="duration-to" className="text-[11px] text-muted-foreground">
+                                    To date
+                                  </Label>
+                                  <Input
+                                    id="duration-to"
+                                    type="date"
+                                    className="h-9"
+                                    value={customDurationTo}
+                                    onChange={e => setCustomDurationTo(e.target.value)}
+                                  />
                                 </div>
                               </div>
-                            ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Clear Filters Button */}
+                        {(selectedResourceProject !== 'all' || selectedResourceUser !== 'all' || selectedResourceSprint !== 'all' || selectedResourceDuration !== 'all' || customDurationFrom || customDurationTo) && (
+                          <div className="flex items-end">
+                            <button
+                              onClick={() => {
+                                setSelectedResourceProject('all');
+                                setSelectedResourceUser('all');
+                                setSelectedResourceSprint('all');
+                                setSelectedResourceDuration('all');
+                                setCustomDurationFrom('');
+                                setCustomDurationTo('');
+                              }}
+                              className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                            >
+                              Clear Filters
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <Card className="shadow-lg border-t-4 border-t-blue-500">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-3">
+                      <div className="rounded-lg bg-blue-100 p-2">
+                        <Users className="h-6 w-6 text-blue-600" strokeWidth={2.5} />
+                      </div>
+                      <span>Resource Performance Summary</span>
+                    </CardTitle>
+                    <CardDescription>Team utilization and allocation metrics</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {summaryData ? (
+                      <>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                            <p className="text-xs font-medium text-blue-700 uppercase tracking-wider mb-2">Total Resources</p>
+                            <p className="text-3xl font-bold text-blue-600">
+                              {summaryData.totalResources || summaryData.activeResources || 0}
+                            </p>
+                            <p className="text-xs text-blue-600 mt-1">Active team members</p>
+                          </div>
+                          <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                            <p className="text-xs font-medium text-purple-700 uppercase tracking-wider mb-2">Avg Utilization</p>
+                            <p className="text-3xl font-bold text-purple-600">
+                              {summaryData.averageUtilization
+                                ? `${Math.round(summaryData.averageUtilization)}%`
+                                : summaryData.utilizationRate
+                                  ? `${Math.round(summaryData.utilizationRate)}%`
+                                  : '0%'}
+                            </p>
+                            <p className="text-xs text-purple-600 mt-1">Resource efficiency</p>
+                          </div>
+                          <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                            <p className="text-xs font-medium text-indigo-700 uppercase tracking-wider mb-2">Allocated Hours</p>
+                            <p className="text-3xl font-bold text-indigo-600">
+                              {summaryData.allocatedHours || 0}
+                            </p>
+                            <p className="text-xs text-indigo-600 mt-1">Planned allocation</p>
+                          </div>
+                          <div className="p-4 bg-cyan-50 rounded-lg border border-cyan-200">
+                            <p className="text-xs font-medium text-cyan-700 uppercase tracking-wider mb-2">Total Hours</p>
+                            <p className="text-3xl font-bold text-cyan-600">
+                              {summaryData.totalHours || 0}
+                            </p>
+                            <p className="text-xs text-cyan-600 mt-1">Actual hours logged</p>
                           </div>
                         </div>
-                      )}
-                    </>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                      <BarChart3 className="h-12 w-12 mb-2 text-gray-300" />
-                      <p className="text-sm">Resource performance data not available</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Resource Performance Table */}
-              <Card className="shadow-md border-t-4 border-t-blue-500">
-              <CardHeader>
-                  <CardTitle className="flex items-center space-x-3">
-                    <div className="rounded-lg bg-blue-100 p-2">
-                      <Users className="h-6 w-6 text-blue-600" strokeWidth={2.5} />
-                    </div>
-                    <span className="text-xl">Resource Performance Details</span>
-                  </CardTitle>
-                  <CardDescription className="mt-2">
-                    Showing {filteredResourcePerformanceRows.length} of {resourcePerformanceRows.length}{' '}
-                    {resourcePerformanceRows.length === 1 ? 'record' : 'records'}
-                    {(selectedResourceProject !== 'all' || selectedResourceUser !== 'all') && (
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        (filtered)
-                      </span>
+                        {summaryData.projectUtilization && summaryData.projectUtilization.length > 0 && (
+                          <div className="mt-4 pt-4 border-t border-gray-200">
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Top Projects by Utilization</p>
+                            <div className="space-y-2">
+                              {summaryData.projectUtilization.slice(0, 3).map((project, idx) => (
+                                <div key={idx} className="flex justify-between items-center text-sm">
+                                  <span className="text-foreground truncate max-w-[200px]" title={project.projectName}>
+                                    {project.projectName}
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-24 bg-gray-200 rounded-full h-2">
+                                      <div
+                                        className="bg-blue-600 h-2 rounded-full"
+                                        style={{ width: `${Math.min(project.utilization, 100)}%` }}
+                                      />
+                                    </div>
+                                    <span className="font-semibold text-blue-600 w-12 text-right">
+                                      {Math.round(project.utilization)}%
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                        <BarChart3 className="h-12 w-12 mb-2 text-gray-300" />
+                        <p className="text-sm">Resource performance data not available</p>
+                      </div>
                     )}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="rounded-md border overflow-x-auto">
-                    <Table className="[&_th]:text-xs [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-muted-foreground [&_th]:px-4 [&_th]:py-3 [&_td]:text-sm [&_td]:px-4 [&_td]:py-3">
-                      <TableHeader>
-                        <TableRow className="bg-slate-50 border-b-2 border-slate-300">
-                          <TableHead className="font-semibold border-r border-gray-300">Resource Email Id</TableHead>
-                          <TableHead className="font-semibold border-r border-gray-300">Resource Name</TableHead>
-                          <TableHead className="font-semibold border-r border-gray-300">Task/Issue Name</TableHead>
-                          <TableHead className="font-semibold border-r border-gray-300">Task/Issue Id</TableHead>
-                          <TableHead className="font-semibold border-r border-gray-300">Story Name</TableHead>
-                          <TableHead className="font-semibold border-r border-gray-300">Story Id</TableHead>
-                          <TableHead className="font-semibold border-r border-gray-300">Estimation Hours</TableHead>
-                          <TableHead className="font-semibold border-r border-gray-300">Actual Hours</TableHead>
-                          <TableHead className="font-semibold border-r border-gray-300">Remaining Hours</TableHead>
-                          <TableHead className="font-semibold border-r border-gray-300">Reporter Name</TableHead>
-                          <TableHead className="font-semibold border-r border-gray-300">Work Category</TableHead>
-                          <TableHead className="font-semibold border-r border-gray-300">Status</TableHead>
-                          <TableHead className="font-semibold border-r border-gray-300">Created Date</TableHead>
-                          <TableHead className="font-semibold border-r border-gray-300">Due Date</TableHead>
-                          <TableHead className="font-semibold border-r border-gray-300">Completed Date</TableHead>
-                          <TableHead className="font-semibold border-r border-gray-300">Sprint</TableHead>
-                          <TableHead className="font-semibold">Project</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredResourcePerformanceRows.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={17} className="text-center py-12">
-                              <div className="flex flex-col items-center space-y-2 text-muted-foreground">
-                                <Users className="h-12 w-12 text-slate-300" />
-                                <p className="text-sm">
-                                  {resourcePerformanceRows.length === 0 
-                                    ? 'No resource performance data available yet.'
-                                    : 'No data matches the selected filters.'}
-                                </p>
-                                {(selectedResourceProject !== 'all' || selectedResourceUser !== 'all') && (
-                                  <button
-                                    onClick={() => {
-                                      setSelectedResourceProject('all');
-                                      setSelectedResourceUser('all');
-                                    }}
-                                    className="mt-2 text-xs text-blue-600 hover:text-blue-800 underline"
-                                  >
-                                    Clear filters
-                                  </button>
-                                )}
-                              </div>
-                            </TableCell>
+                  </CardContent>
+                </Card>
+
+                {/* Resource Performance Table */}
+                <Card className="shadow-md border-t-4 border-t-blue-500">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-3">
+                      <div className="rounded-lg bg-blue-100 p-2">
+                        <Users className="h-6 w-6 text-blue-600" strokeWidth={2.5} />
+                      </div>
+                      <span className="text-xl">Resource Performance Details</span>
+                    </CardTitle>
+                    <CardDescription className="mt-2">
+                      Showing {filteredResourcePerformanceRows.length} of {resourcePerformanceRows.length}{' '}
+                      {resourcePerformanceRows.length === 1 ? 'record' : 'records'}
+                      {(selectedResourceProject !== 'all' || selectedResourceUser !== 'all') && (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          (filtered)
+                        </span>
+                      )}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="rounded-md border overflow-x-auto">
+                      <Table className="[&_th]:text-xs [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-muted-foreground [&_th]:px-4 [&_th]:py-3 [&_td]:text-sm [&_td]:px-4 [&_td]:py-3">
+                        <TableHeader>
+                          <TableRow className="bg-slate-50 border-b-2 border-slate-300">
+                            <TableHead className="font-semibold border-r border-gray-300">Resource Email Id</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Resource Name</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Task/Issue Name</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Task/Issue Id</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Story Name</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Story Id</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Estimation Hours</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Actual Hours</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Remaining Hours</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Reporter Name</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Work Category</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Status</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Created Date</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Due Date</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Completed Date</TableHead>
+                            <TableHead className="font-semibold border-r border-gray-300">Sprint</TableHead>
+                            <TableHead className="font-semibold">Project</TableHead>
                           </TableRow>
-                        ) : (
-                          paginatedResourcePerformanceRows.map((row, index) => (
-                            <TableRow
-                              key={index}
-                              className={`hover:bg-blue-50 transition-colors border-b border-slate-200 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
-                            >
-                              <TableCell className="text-muted-foreground border-r border-gray-300">
-                                {row.resourceEmailId || '—'}
-                              </TableCell>
-                              <TableCell className="font-medium border-r border-gray-300">
-                                {row.resourceName || '—'}
-                              </TableCell>
-                              <TableCell className="max-w-xs border-r border-gray-300">
-                                <div className="font-medium text-foreground">{row.taskIssueName || '—'}</div>
-                              </TableCell>
-                              <TableCell className="font-mono text-xs text-blue-600 border-r border-gray-300">
-                                {row.taskIssueId || '—'}
-                              </TableCell>
-                              <TableCell className="border-r border-gray-300">
-                                <span className="text-sm text-foreground">{row.storyName || '—'}</span>
-                              </TableCell>
-                              <TableCell className="font-mono text-xs text-blue-600 border-r border-gray-300">
-                                {row.storyId || '—'}
-                              </TableCell>
-                              <TableCell className="text-center border-r border-gray-300">
-                                <span className="font-semibold">
-                                  {row.estimationHours != null ? row.estimationHours.toFixed(2) : '—'}
-                                </span>
-                              </TableCell>
-                              <TableCell className="text-center border-r border-gray-300">
-                                <span className="font-semibold text-blue-600">
-                                  {row.actualHours != null ? row.actualHours.toFixed(2) : '—'}
-                                </span>
-                              </TableCell>
-                              <TableCell className="text-center border-r border-gray-300">
-                                <span className="font-semibold text-orange-600">
-                                  {row.remainingHours != null ? row.remainingHours.toFixed(2) : '—'}
-                                </span>
-                              </TableCell>
-                              <TableCell className="text-muted-foreground border-r border-gray-300">
-                                {row.reporterName || '—'}
-                              </TableCell>
-                              <TableCell className="border-r border-gray-300">
-                                <Badge variant="outline" className="bg-slate-50">
-                                  {row.workCategory || '—'}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="border-r border-gray-300">
-                                {row.status ? (
-                                  <Badge 
-                                    className={
-                                      row.status.toLowerCase() === 'completed' || row.status.toLowerCase() === 'done'
-                                        ? 'bg-green-100 text-green-800 border-green-200'
-                                        : row.status.toLowerCase() === 'in progress' || row.status.toLowerCase() === 'in-progress'
-                                        ? 'bg-blue-100 text-blue-800 border-blue-200'
-                                        : 'bg-orange-100 text-orange-800 border-orange-200'
-                                    }
-                                  >
-                                    {row.status}
-                                  </Badge>
-                                ) : (
-                                  <Badge variant="outline">—</Badge>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground text-xs border-r border-gray-300">
-                                {row.createdDate || '—'}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground text-xs border-r border-gray-300">
-                                {row.dueDate || '—'}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground text-xs border-r border-gray-300">
-                                {row.completedDate || '—'}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground border-r border-gray-300">
-                                {row.sprint || '—'}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground">
-                                {row.project || '—'}
+                        </TableHeader>
+                        <TableBody>
+                          {filteredResourcePerformanceRows.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={17} className="text-center py-12">
+                                <div className="flex flex-col items-center space-y-2 text-muted-foreground">
+                                  <Users className="h-12 w-12 text-slate-300" />
+                                  <p className="text-sm">
+                                    {resourcePerformanceRows.length === 0
+                                      ? 'No resource performance data available yet.'
+                                      : 'No data matches the selected filters.'}
+                                  </p>
+                                  {(selectedResourceProject !== 'all' || selectedResourceUser !== 'all') && (
+                                    <button
+                                      onClick={() => {
+                                        setSelectedResourceProject('all');
+                                        setSelectedResourceUser('all');
+                                      }}
+                                      className="mt-2 text-xs text-blue-600 hover:text-blue-800 underline"
+                                    >
+                                      Clear filters
+                                    </button>
+                                  )}
+                                </div>
                               </TableCell>
                             </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-
-                  {filteredResourcePerformanceRows.length > 0 && (
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 text-xs text-muted-foreground">
-                      <span>
-                        Showing {currentStartIndex}-{currentEndIndex} of {filteredResourcePerformanceRows.length}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setResourcePage(prev => Math.max(1, prev - 1))}
-                          disabled={resourcePage <= 1}
-                          className="px-3 py-1.5 rounded border border-slate-300 bg-white text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
-                        >
-                          Previous
-                        </button>
-                        <span className="text-xs">
-                          Page {Math.min(resourcePage, totalResourcePages)} of {totalResourcePages}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setResourcePage(prev => Math.min(totalResourcePages, prev + 1))}
-                          disabled={resourcePage >= totalResourcePages || filteredResourcePerformanceRows.length === 0}
-                          className="px-3 py-1.5 rounded border border-slate-300 bg-white text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
-                        >
-                          Next
-                        </button>
-                      </div>
+                          ) : (
+                            paginatedResourcePerformanceRows.map((row, index) => (
+                              <TableRow
+                                key={index}
+                                className={`hover:bg-blue-50 transition-colors border-b border-slate-200 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
+                              >
+                                <TableCell className="text-muted-foreground border-r border-gray-300">
+                                  {row.resourceEmailId || '—'}
+                                </TableCell>
+                                <TableCell className="font-medium border-r border-gray-300">
+                                  {row.resourceName || '—'}
+                                </TableCell>
+                                <TableCell className="max-w-xs border-r border-gray-300">
+                                  <div className="font-medium text-foreground">{row.taskIssueName || '—'}</div>
+                                </TableCell>
+                                <TableCell className="font-mono text-xs text-blue-600 border-r border-gray-300">
+                                  {row.taskIssueId || '—'}
+                                </TableCell>
+                                <TableCell className="border-r border-gray-300">
+                                  <span className="text-sm text-foreground">{row.storyName || '—'}</span>
+                                </TableCell>
+                                <TableCell className="font-mono text-xs text-blue-600 border-r border-gray-300">
+                                  {row.storyId || '—'}
+                                </TableCell>
+                                <TableCell className="text-center border-r border-gray-300">
+                                  <span className="font-semibold">
+                                    {row.estimationHours != null ? row.estimationHours.toFixed(2) : '—'}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-center border-r border-gray-300">
+                                  <span className="font-semibold text-blue-600">
+                                    {row.actualHours != null ? row.actualHours.toFixed(2) : '—'}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-center border-r border-gray-300">
+                                  <span className="font-semibold text-orange-600">
+                                    {row.remainingHours != null ? row.remainingHours.toFixed(2) : '—'}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-muted-foreground border-r border-gray-300">
+                                  {row.reporterName || '—'}
+                                </TableCell>
+                                <TableCell className="border-r border-gray-300">
+                                  <Badge variant="outline" className="bg-slate-50">
+                                    {row.workCategory || '—'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="border-r border-gray-300">
+                                  {row.status ? (
+                                    <Badge
+                                      className={
+                                        row.status.toLowerCase() === 'completed' || row.status.toLowerCase() === 'done'
+                                          ? 'bg-green-100 text-green-800 border-green-200'
+                                          : row.status.toLowerCase() === 'in progress' || row.status.toLowerCase() === 'in-progress'
+                                            ? 'bg-blue-100 text-blue-800 border-blue-200'
+                                            : 'bg-orange-100 text-orange-800 border-orange-200'
+                                      }
+                                    >
+                                      {row.status}
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline">—</Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-muted-foreground text-xs border-r border-gray-300">
+                                  {row.createdDate || '—'}
+                                </TableCell>
+                                <TableCell className="text-muted-foreground text-xs border-r border-gray-300">
+                                  {row.dueDate || '—'}
+                                </TableCell>
+                                <TableCell className="text-muted-foreground text-xs border-r border-gray-300">
+                                  {row.completedDate || '—'}
+                                </TableCell>
+                                <TableCell className="text-muted-foreground border-r border-gray-300">
+                                  {row.sprint || '—'}
+                                </TableCell>
+                                <TableCell className="text-muted-foreground">
+                                  {row.project || '—'}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
 
-              {/* Resource Performance Summary Tables */}
-              {filteredResourcePerformanceRows.length > 0 && (
-                <div className="flex flex-col gap-10">
-                  {/* Developers Summary Table */}
-                  {resourceSummary.developers.length > 0 && (
-                    <Card className="shadow-md border-t-4 border-t-blue-500">
-                      <CardHeader>
-                        <CardTitle className="flex items-center space-x-3">
-                          <div className="rounded-lg bg-blue-100 p-2">
-                            <Users className="h-6 w-6 text-blue-600" strokeWidth={2.5} />
-                          </div>
-                          <span className="text-xl">Developers Summary</span>
-                        </CardTitle>
-                        <CardDescription className="mt-2">
-                          Task and issue assignment and bug metrics for developers
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="rounded-md border overflow-x-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow className="bg-blue-50 border-b-2 border-blue-300">
-                                <TableHead className="font-semibold border-r border-gray-300">Name (Developer)</TableHead>
-                                <TableHead className="font-semibold border-r border-gray-300">Task Assigned</TableHead>
-                                <TableHead className="font-semibold border-r border-gray-300">Issue Assigned</TableHead>
-                                <TableHead className="font-semibold border-r border-gray-300">To Do</TableHead>
-                                <TableHead className="font-semibold border-r border-gray-300">On Going</TableHead>
-                                <TableHead className="font-semibold border-r border-gray-300">Done</TableHead>
-                                <TableHead className="font-semibold border-r border-gray-300">Total Bug Resolved</TableHead>
-                                <TableHead className="font-semibold">Rework Count For Bugs</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {resourceSummary.developers.map((dev, index) => (
-                                <TableRow
-                                  key={index}
-                                  className={`hover:bg-blue-50 transition-colors border-b border-slate-200 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
-                                >
-                                  <TableCell className="font-medium border-r border-gray-300">
-                                    {dev.name}
-                                  </TableCell>
-                                  <TableCell className="text-center border-r border-gray-300">
-                                    <span className="font-semibold">{dev.taskAssigned}</span>
-                                  </TableCell>
-                                  <TableCell className="text-center border-r border-gray-300">
-                                    <span className="font-semibold text-purple-600">{dev.issueAssigned}</span>
-                                  </TableCell>
-                                  <TableCell className="text-center border-r border-gray-300">
-                                    <Badge className="bg-slate-100 text-slate-800 border-slate-200">
-                                      {dev.toDo}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell className="text-center border-r border-gray-300">
-                                    <Badge className="bg-blue-100 text-blue-800 border-blue-200">
-                                      {dev.onGoing}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell className="text-center border-r border-gray-300">
-                                    <Badge className="bg-green-100 text-green-800 border-green-200">
-                                      {dev.done}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell className="text-center border-r border-gray-300">
-                                    <span className="font-semibold text-green-600">{dev.totalBugResolved}</span>
-                                  </TableCell>
-                                  <TableCell className="text-center">
-                                    <span className="font-semibold text-orange-600">{dev.reworkCountForBugs}</span>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
+                    {filteredResourcePerformanceRows.length > 0 && (
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 text-xs text-muted-foreground">
+                        <span>
+                          Showing {currentStartIndex}-{currentEndIndex} of {filteredResourcePerformanceRows.length}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setResourcePage(prev => Math.max(1, prev - 1))}
+                            disabled={resourcePage <= 1}
+                            className="px-3 py-1.5 rounded border border-slate-300 bg-white text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+                          >
+                            Previous
+                          </button>
+                          <span className="text-xs">
+                            Page {Math.min(resourcePage, totalResourcePages)} of {totalResourcePages}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setResourcePage(prev => Math.min(totalResourcePages, prev + 1))}
+                            disabled={resourcePage >= totalResourcePages || filteredResourcePerformanceRows.length === 0}
+                            className="px-3 py-1.5 rounded border border-slate-300 bg-white text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+                          >
+                            Next
+                          </button>
                         </div>
-                      </CardContent>
-                    </Card>
-                  )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
 
-                  {/* Managers Summary Table */}
-                  {resourceSummary.managers.length > 0 && (
-                    <Card className="shadow-md border-t-4 border-t-indigo-500">
-                      <CardHeader>
-                        <CardTitle className="flex items-center space-x-3">
-                          <div className="rounded-lg bg-indigo-100 p-2">
-                            <Users className="h-6 w-6 text-indigo-600" strokeWidth={2.5} />
+                {/* Resource Performance Summary Tables */}
+                {filteredResourcePerformanceRows.length > 0 && (
+                  <div className="flex flex-col gap-10">
+                    {/* Developers Summary Table */}
+                    {resourceSummary.developers.length > 0 && (
+                      <Card className="shadow-md border-t-4 border-t-blue-500">
+                        <CardHeader>
+                          <CardTitle className="flex items-center space-x-3">
+                            <div className="rounded-lg bg-blue-100 p-2">
+                              <Users className="h-6 w-6 text-blue-600" strokeWidth={2.5} />
+                            </div>
+                            <span className="text-xl">Developers Summary</span>
+                          </CardTitle>
+                          <CardDescription className="mt-2">
+                            Task and issue assignment and bug metrics for developers
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="rounded-lg border border-slate-200 shadow-sm bg-white">
+                            <div style={{ maxHeight: '400px', overflowY: 'auto' }} className="scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-50">
+                              <Table className="border-separate border-spacing-0">
+                                <TableHeader>
+                                  <TableRow className="bg-blue-50 border-b shadow-sm">
+                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-blue-50">Name (Developer)</TableHead>
+                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-blue-50">Task Assigned</TableHead>
+                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-blue-50">Issue Assigned</TableHead>
+                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-blue-50">To Do</TableHead>
+                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-blue-50">On Going</TableHead>
+                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-blue-50">Done</TableHead>
+                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-blue-50">Total Bug Resolved</TableHead>
+                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-b border-gray-300 bg-blue-50">Rework Count For Bugs</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {resourceSummary.developers.map((dev, index) => (
+                                    <TableRow
+                                      key={index}
+                                      className={`hover:bg-blue-50 transition-colors border-b border-slate-200 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
+                                    >
+                                      <TableCell className="font-medium border-r border-gray-300">
+                                        {dev.name}
+                                      </TableCell>
+                                      <TableCell className="text-center border-r border-gray-300">
+                                        <span className="font-semibold">{dev.taskAssigned}</span>
+                                      </TableCell>
+                                      <TableCell className="text-center border-r border-gray-300">
+                                        <span className="font-semibold text-purple-600">{dev.issueAssigned}</span>
+                                      </TableCell>
+                                      <TableCell className="text-center border-r border-gray-300">
+                                        <Badge className="bg-slate-100 text-slate-800 border-slate-200">
+                                          {dev.toDo}
+                                        </Badge>
+                                      </TableCell>
+                                      <TableCell className="text-center border-r border-gray-300">
+                                        <Badge className="bg-blue-100 text-blue-800 border-blue-200">
+                                          {dev.onGoing}
+                                        </Badge>
+                                      </TableCell>
+                                      <TableCell className="text-center border-r border-gray-300">
+                                        <Badge className="bg-green-100 text-green-800 border-green-200">
+                                          {dev.done}
+                                        </Badge>
+                                      </TableCell>
+                                      <TableCell className="text-center border-r border-gray-300">
+                                        <span className="font-semibold text-green-600">{dev.totalBugResolved}</span>
+                                      </TableCell>
+                                      <TableCell className="text-center">
+                                        <span className="font-semibold text-orange-600">{dev.reworkCountForBugs}</span>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </div>
                           </div>
-                          <span className="text-xl">Managers Summary</span>
-                        </CardTitle>
-                        <CardDescription className="mt-2">
-                          Created and assigned tasks/issues for managers
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="rounded-md border overflow-x-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow className="bg-indigo-50 border-b-2 border-indigo-300">
-                                <TableHead className="font-semibold border-r border-gray-300">Name (Manager)</TableHead>
-                                <TableHead className="font-semibold border-r border-gray-300">Issue Created</TableHead>
-                                <TableHead className="font-semibold border-r border-gray-300">Task Created</TableHead>
-                                <TableHead className="font-semibold border-r border-gray-300">Task Assigned</TableHead>
-                                <TableHead className="font-semibold">Issue Assigned</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {resourceSummary.managers.map((mgr, index) => (
-                                <TableRow
-                                  key={index}
-                                  className={`hover:bg-indigo-50 transition-colors border-b border-slate-200 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
-                                >
-                                  <TableCell className="font-medium border-r border-gray-300">
-                                    {mgr.name}
-                                  </TableCell>
-                                  <TableCell className="text-center border-r border-gray-300">
-                                    <span className="font-semibold text-purple-600">{mgr.issueCreated}</span>
-                                  </TableCell>
-                                  <TableCell className="text-center border-r border-gray-300">
-                                    <span className="font-semibold text-blue-600">{mgr.taskCreated}</span>
-                                  </TableCell>
-                                  <TableCell className="text-center border-r border-gray-300">
-                                    <span className="font-semibold">{mgr.taskAssigned}</span>
-                                  </TableCell>
-                                  <TableCell className="text-center">
-                                    <span className="font-semibold text-rose-600">{mgr.issueAssigned}</span>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
+                        </CardContent>
+                      </Card>
+                    )}
 
-                  {/* Testers Summary Table */}
-                  {resourceSummary.testers.length > 0 && (
-                    <Card className="shadow-md border-t-4 border-t-purple-500">
-                      <CardHeader>
-                        <CardTitle className="flex items-center space-x-3">
-                          <div className="rounded-lg bg-purple-100 p-2">
-                            <Users className="h-6 w-6 text-purple-600" strokeWidth={2.5} />
+                    {/* Managers Summary Table */}
+                    {resourceSummary.managers.length > 0 && (
+                      <Card className="shadow-md border-t-4 border-t-indigo-500">
+                        <CardHeader>
+                          <CardTitle className="flex items-center space-x-3">
+                            <div className="rounded-lg bg-indigo-100 p-2">
+                              <Users className="h-6 w-6 text-indigo-600" strokeWidth={2.5} />
+                            </div>
+                            <span className="text-xl">Managers Summary</span>
+                          </CardTitle>
+                          <CardDescription className="mt-2">
+                            Created and assigned tasks/issues for managers
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="rounded-lg border border-slate-200 shadow-sm bg-white">
+                            <div style={{ maxHeight: '400px', overflowY: 'auto' }} className="scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-50">
+                              <Table className="border-separate border-spacing-0">
+                                <TableHeader>
+                                  <TableRow className="bg-indigo-50 border-b shadow-sm">
+                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-indigo-50">Name (Manager)</TableHead>
+                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-indigo-50">Issue Created</TableHead>
+                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-indigo-50">Task Created</TableHead>
+                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-indigo-50">Task Assigned</TableHead>
+                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-b border-gray-300 bg-indigo-50">Issue Assigned</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {resourceSummary.managers.map((mgr, index) => (
+                                    <TableRow
+                                      key={index}
+                                      className={`hover:bg-indigo-50 transition-colors border-b border-slate-200 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
+                                    >
+                                      <TableCell className="font-medium border-r border-gray-300">
+                                        {mgr.name}
+                                      </TableCell>
+                                      <TableCell className="text-center border-r border-gray-300">
+                                        <span className="font-semibold text-purple-600">{mgr.issueCreated}</span>
+                                      </TableCell>
+                                      <TableCell className="text-center border-r border-gray-300">
+                                        <span className="font-semibold text-blue-600">{mgr.taskCreated}</span>
+                                      </TableCell>
+                                      <TableCell className="text-center border-r border-gray-300">
+                                        <span className="font-semibold">{mgr.taskAssigned}</span>
+                                      </TableCell>
+                                      <TableCell className="text-center">
+                                        <span className="font-semibold text-rose-600">{mgr.issueAssigned}</span>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </div>
                           </div>
-                          <span className="text-xl">Testers Summary</span>
-                        </CardTitle>
-                        <CardDescription className="mt-2">
-                          Performance metrics for testers
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="rounded-md border overflow-x-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow className="bg-purple-50 border-b-2 border-purple-300">
-                                <TableHead className="font-semibold border-r border-gray-300">Name (Tester)</TableHead>
-                                <TableHead className="font-semibold border-r border-gray-300">Issue Created</TableHead>
-                                <TableHead className="font-semibold">Task Assigned</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {resourceSummary.testers.map((tester, index) => (
-                                <TableRow
-                                  key={index}
-                                  className={`hover:bg-purple-50 transition-colors border-b border-slate-200 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
-                                >
-                                  <TableCell className="font-medium border-r border-gray-300">
-                                    {tester.name}
-                                  </TableCell>
-                                  <TableCell className="text-center border-r border-gray-300">
-                                    <span className="font-semibold text-purple-600">{tester.issueCreated}</span>
-                                  </TableCell>
-                                  <TableCell className="text-center">
-                                    <span className="font-semibold">{tester.taskAssigned}</span>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
+                        </CardContent>
+                      </Card>
+                    )}
 
-                  {resourceSummary.developers.length === 0 && resourceSummary.testers.length === 0 && resourceSummary.managers.length === 0 && (
-                    <Card className="shadow-md">
-                      <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                        <BarChart3 className="h-12 w-12 mb-2 text-gray-300" />
-                        <p className="text-sm">No summary data available</p>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
-              )}
-            </>
-          )}
+                    {/* Testers Summary Table */}
+                    {resourceSummary.testers.length > 0 && (
+                      <Card className="shadow-md border-t-4 border-t-purple-500">
+                        <CardHeader>
+                          <CardTitle className="flex items-center space-x-3">
+                            <div className="rounded-lg bg-purple-100 p-2">
+                              <Users className="h-6 w-6 text-purple-600" strokeWidth={2.5} />
+                            </div>
+                            <span className="text-xl">Testers Summary</span>
+                          </CardTitle>
+                          <CardDescription className="mt-2">
+                            Performance metrics for testers
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="rounded-lg border border-slate-200 shadow-sm bg-white">
+                            <div style={{ maxHeight: '400px', overflowY: 'auto' }} className="scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-50">
+                              <Table className="border-separate border-spacing-0">
+                                <TableHeader>
+                                  <TableRow className="bg-purple-50 border-b shadow-sm">
+                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-purple-50">Name (Tester)</TableHead>
+                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-purple-50">Issue Created</TableHead>
+                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-purple-50">Task Assigned</TableHead>
+                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-b border-gray-300 bg-purple-50">Total Bug Resolved</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {resourceSummary.testers.map((tester, index) => (
+                                    <TableRow
+                                      key={index}
+                                      className={`hover:bg-purple-50 transition-colors border-b border-slate-200 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
+                                    >
+                                      <TableCell className="font-medium border-r border-gray-300">
+                                        {tester.name}
+                                      </TableCell>
+                                      <TableCell className="text-center border-r border-gray-300">
+                                        <span className="font-semibold text-purple-600">{tester.issueCreated}</span>
+                                      </TableCell>
+                                      <TableCell className="text-center">
+                                        <span className="font-semibold">{tester.taskAssigned}</span>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {resourceSummary.developers.length === 0 && resourceSummary.testers.length === 0 && resourceSummary.managers.length === 0 && (
+                      <Card className="shadow-md">
+                        <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                          <BarChart3 className="h-12 w-12 mb-2 text-gray-300" />
+                          <p className="text-sm">No summary data available</p>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>

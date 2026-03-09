@@ -2378,7 +2378,14 @@ const ScrumPage: React.FC = () => {
     });
 
     // Sort by orderIndex so story position is preserved (e.g. after edit)
-    filteredStories.sort((a: Story, b: Story) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
+    filteredStories.sort((a: Story, b: Story) => {
+      const orderDiff = (a.orderIndex ?? 0) - (b.orderIndex ?? 0);
+      if (orderDiff !== 0) return orderDiff;
+      // Stable sort fallback: use createdAt
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return aTime - bTime;
+    });
     return filteredStories;
   }, [selectedSprint, selectedProject, sprintStoriesData, currentSprint]);
 

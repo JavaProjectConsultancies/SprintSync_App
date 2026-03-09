@@ -25,6 +25,11 @@ public interface IssueRepository extends JpaRepository<Issue, String> {
     List<Issue> findByStoryId(String storyId);
 
     /**
+     * Find issues by multiple story IDs
+     */
+    List<Issue> findByStoryIdIn(java.util.Collection<String> storyIds);
+
+    /**
      * Find issues by assignee ID
      */
     List<Issue> findByAssigneeId(String assigneeId);

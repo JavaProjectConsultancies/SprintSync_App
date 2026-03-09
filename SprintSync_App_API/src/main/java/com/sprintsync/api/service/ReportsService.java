@@ -800,252 +800,239 @@ public class ReportsService {
     /**
      * Generate resource utilization report
      * Returns detailed resource performance data with all task/issue information
-     * Uses time_entries table for actual hours and activity_logs for completion dates
+     * Uses time_entries table for actual hours and activity_logs for completion
+     * dates
      */
     public Map<String, Object> generateResourceUtilizationReport(String projectId, String period) {
         Map<String, Object> report = new HashMap<>();
-        
         List<Map<String, Object>> rows = new ArrayList<>();
-        
-        // Process Tasks
-        // NOTE: To keep this endpoint fast, we avoid per-task time entry and activity log queries.
-        // Actual hours come from the task entity (kept in sync with time entries) and completed date
-        // is approximated using updatedAt when status is DONE.
-        List<Task> tasks = projectId != null && !projectId.isEmpty()
-            ? taskRepository.findAll().stream()
-                .filter(task -> {
-                    if (task.getStoryId() == null) {
-                        return false;
-                    }
-                    Optional<Story> story = storyRepository.findById(task.getStoryId());
-                    return story.isPresent() && projectId.equals(story.get().getProjectId());
-                })
-                .collect(Collectors.toList())
-            : taskRepository.findAll();
-        
-        for (Task task : tasks) {
-            if (task.getAssigneeId() == null || task.getAssigneeId().isEmpty() || task.getStoryId() == null) {
-                continue;
-            }
-            
-            Optional<User> assignee = userRepository.findById(task.getAssigneeId());
-            Optional<Story> story = storyRepository.findById(task.getStoryId());
-            Optional<User> reporter = task.getReporterId() != null 
-                ? userRepository.findById(task.getReporterId()) 
-                : Optional.empty();
-            
-            if (!assignee.isPresent() || !story.isPresent()) {
-                continue;
-            }
-            
-            // Use actual hours from task entity (already synced with time entries)
-            double actualHours = task.getActualHours() != null
-                    ? task.getActualHours().doubleValue()
-                    : 0.0;
 
-            // Work category from labels (fallback to generic label)
+        // 1. Fetch Tasks and Issues (Optimized)
+        List<Task> tasks;
+        List<Issue> issues;
+
+        if (projectId != null && !projectId.isEmpty()) {
+            List<Story> projectStories = storyRepository.findByProjectId(projectId);
+            List<String> storyIds = projectStories.stream().map(Story::getId).collect(Collectors.toList());
+            if (storyIds.isEmpty()) {
+                tasks = new ArrayList<>();
+                issues = new ArrayList<>();
+            } else {
+                tasks = taskRepository.findByStoryIdIn(storyIds);
+                issues = issueRepository.findByStoryIdIn(storyIds);
+            }
+        } else {
+            tasks = taskRepository.findAll();
+            issues = issueRepository.findAll();
+        }
+
+        // 2. Collect all IDs for batch fetching related entities
+        Set<String> storyIdsToFetch = new HashSet<>();
+        Set<String> userIdsToFetch = new HashSet<>();
+
+        tasks.forEach(t -> {
+            if (t.getStoryId() != null)
+                storyIdsToFetch.add(t.getStoryId());
+            if (t.getAssigneeId() != null)
+                userIdsToFetch.add(t.getAssigneeId());
+            if (t.getReporterId() != null)
+                userIdsToFetch.add(t.getReporterId());
+        });
+
+        issues.forEach(i -> {
+            if (i.getStoryId() != null)
+                storyIdsToFetch.add(i.getStoryId());
+            if (i.getAssigneeId() != null)
+                userIdsToFetch.add(i.getAssigneeId());
+            if (i.getReporterId() != null)
+                userIdsToFetch.add(i.getReporterId());
+        });
+
+        // 3. Batch fetch Stories and Users
+        Map<String, Story> storyMap = storyRepository.findAllById(storyIdsToFetch).stream()
+                .collect(Collectors.toMap(Story::getId, s -> s));
+        Map<String, User> userMap = userRepository.findAllById(userIdsToFetch).stream()
+                .collect(Collectors.toMap(User::getId, u -> u));
+
+        // 4. Batch fetch Sprints and Projects (from stories)
+        Set<String> sprintIdsToFetch = storyMap.values().stream()
+                .map(Story::getSprintId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Set<String> projectIdsToFetch = storyMap.values().stream()
+                .map(Story::getProjectId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Map<String, Sprint> sprintMap = sprintRepository.findAllById(sprintIdsToFetch).stream()
+                .collect(Collectors.toMap(Sprint::getId, s -> s));
+        Map<String, Project> projectMap = projectRepository.findAllById(projectIdsToFetch).stream()
+                .collect(Collectors.toMap(Project::getId, p -> p));
+
+        // 5. Process Tasks
+        for (Task task : tasks) {
+            User assignee = task.getAssigneeId() != null ? userMap.get(task.getAssigneeId()) : null;
+            Story story = task.getStoryId() != null ? storyMap.get(task.getStoryId()) : null;
+            User reporter = task.getReporterId() != null ? userMap.get(task.getReporterId()) : null;
+
+            if (assignee == null || story == null)
+                continue;
+
+            double actualHours = task.getActualHours() != null ? task.getActualHours().doubleValue() : 0.0;
             String workCategory = task.getLabels() != null && !task.getLabels().isEmpty()
                     ? String.join(", ", task.getLabels())
                     : "Development";
+            String completedDate = (task.getStatus() != null && task.getStatus().getValue().equals("done")
+                    && task.getUpdatedAt() != null) ? task.getUpdatedAt().toString() : null;
 
-            boolean isBugWorkItem = workCategory.toLowerCase().contains("bug");
-
-            // Approximate completed date using updatedAt when status is DONE
-            String completedDate = null;
-            if (task.getStatus() != null
-                    && task.getStatus().getValue().equals("done")
-                    && task.getUpdatedAt() != null) {
-                completedDate = task.getUpdatedAt().toString();
-            }
-            
             Map<String, Object> row = new HashMap<>();
-            row.put("resourceEmailId", assignee.get().getEmail());
-            row.put("resourceName", assignee.get().getName());
+            row.put("resourceEmailId", assignee.getEmail());
+            row.put("resourceName", assignee.getName());
             row.put("taskIssueName", task.getTitle());
             row.put("taskIssueId", task.getId());
-            row.put("storyName", story.get().getTitle());
-            row.put("storyId", story.get().getId());
-            row.put("estimationHours", task.getEstimatedHours() != null 
-                ? task.getEstimatedHours().doubleValue() 
-                : null);
+            row.put("storyName", story.getTitle());
+            row.put("storyId", story.getId());
+            row.put("estimationHours",
+                    task.getEstimatedHours() != null ? task.getEstimatedHours().doubleValue() : null);
             row.put("actualHours", actualHours);
-            double estimated = task.getEstimatedHours() != null 
-                ? task.getEstimatedHours().doubleValue() 
-                : 0.0;
+            double estimated = task.getEstimatedHours() != null ? task.getEstimatedHours().doubleValue() : 0.0;
             row.put("remainingHours", Math.max(0, estimated - actualHours));
-            row.put("reporterName", reporter.isPresent() ? reporter.get().getName() : null);
+            row.put("reporterName", reporter != null ? reporter.getName() : null);
             row.put("workCategory", workCategory);
             row.put("itemType", "TASK");
-            row.put("isBug", isBugWorkItem);
+            row.put("isBug", workCategory.toLowerCase().contains("bug"));
             row.put("status", task.getStatusAsString() != null ? task.getStatusAsString() : "to_do");
             row.put("createdDate", task.getCreatedAt() != null ? task.getCreatedAt().toString() : null);
             row.put("dueDate", task.getDueDate() != null ? task.getDueDate().toString() : null);
             row.put("completedDate", completedDate);
-            
-            Optional<Sprint> sprint = story.get().getSprintId() != null
-                ? sprintRepository.findById(story.get().getSprintId())
-                : Optional.empty();
-            row.put("sprint", sprint.isPresent() ? sprint.get().getName() : null);
-            
-            Optional<Project> project = projectRepository.findById(story.get().getProjectId());
-            row.put("project", project.isPresent() ? project.get().getName() : null);
-            
+
+            Sprint sprint = story.getSprintId() != null ? sprintMap.get(story.getSprintId()) : null;
+            row.put("sprint", sprint != null ? sprint.getName() : null);
+
+            Project project = story.getProjectId() != null ? projectMap.get(story.getProjectId()) : null;
+            row.put("project", project != null ? project.getName() : null);
+
             rows.add(row);
         }
-        
-        // Process Issues
-        // Same performance optimizations as tasks: rely on issue fields instead of per-issue time entry / activity log queries.
-        List<Issue> issues = projectId != null && !projectId.isEmpty()
-            ? issueRepository.findAll().stream()
-                .filter(issue -> {
-                    if (issue.getStoryId() == null) {
-                        return false;
-                    }
-                    Optional<Story> story = storyRepository.findById(issue.getStoryId());
-                    return story.isPresent() && projectId.equals(story.get().getProjectId());
-                })
-                .collect(Collectors.toList())
-            : issueRepository.findAll();
-        
-        for (Issue issue : issues) {
-            if (issue.getAssigneeId() == null || issue.getAssigneeId().isEmpty() || issue.getStoryId() == null) {
-                continue;
-            }
-            
-            Optional<User> assignee = userRepository.findById(issue.getAssigneeId());
-            Optional<Story> story = storyRepository.findById(issue.getStoryId());
-            Optional<User> reporter = issue.getReporterId() != null 
-                ? userRepository.findById(issue.getReporterId()) 
-                : Optional.empty();
-            
-            if (!assignee.isPresent() || !story.isPresent()) {
-                continue;
-            }
-            
-            // Use actual hours from issue entity
-            double actualHours = issue.getActualHours() != null
-                    ? issue.getActualHours().doubleValue()
-                    : 0.0;
 
-            // Work category from labels (default to Bug for issues)
+        // 6. Process Issues
+        for (Issue issue : issues) {
+            User assignee = issue.getAssigneeId() != null ? userMap.get(issue.getAssigneeId()) : null;
+            Story story = issue.getStoryId() != null ? storyMap.get(issue.getStoryId()) : null;
+            User reporter = issue.getReporterId() != null ? userMap.get(issue.getReporterId()) : null;
+
+            if (assignee == null || story == null)
+                continue;
+
+            double actualHours = issue.getActualHours() != null ? issue.getActualHours().doubleValue() : 0.0;
             String workCategory = issue.getLabels() != null && !issue.getLabels().isEmpty()
                     ? String.join(", ", issue.getLabels())
                     : "Bug";
+            String completedDate = (issue.getStatus() != null && issue.getStatus().getValue().equals("done")
+                    && issue.getUpdatedAt() != null) ? issue.getUpdatedAt().toString() : null;
 
-            boolean isBugWorkItem = true;
-
-            // Approximate completed date using updatedAt when status is DONE
-            String completedDate = null;
-            if (issue.getStatus() != null
-                    && issue.getStatus().getValue().equals("done")
-                    && issue.getUpdatedAt() != null) {
-                completedDate = issue.getUpdatedAt().toString();
-            }
-            
             Map<String, Object> row = new HashMap<>();
-            row.put("resourceEmailId", assignee.get().getEmail());
-            row.put("resourceName", assignee.get().getName());
+            row.put("resourceEmailId", assignee.getEmail());
+            row.put("resourceName", assignee.getName());
             row.put("taskIssueName", issue.getTitle());
             row.put("taskIssueId", issue.getId());
-            row.put("storyName", story.get().getTitle());
-            row.put("storyId", story.get().getId());
-            row.put("estimationHours", issue.getEstimatedHours() != null 
-                ? issue.getEstimatedHours().doubleValue() 
-                : null);
+            row.put("storyName", story.getTitle());
+            row.put("storyId", story.getId());
+            row.put("estimationHours",
+                    issue.getEstimatedHours() != null ? issue.getEstimatedHours().doubleValue() : null);
             row.put("actualHours", actualHours);
-            double estimated = issue.getEstimatedHours() != null 
-                ? issue.getEstimatedHours().doubleValue() 
-                : 0.0;
+            double estimated = issue.getEstimatedHours() != null ? issue.getEstimatedHours().doubleValue() : 0.0;
             row.put("remainingHours", Math.max(0, estimated - actualHours));
-            row.put("reporterName", reporter.isPresent() ? reporter.get().getName() : null);
+            row.put("reporterName", reporter != null ? reporter.getName() : null);
             row.put("workCategory", workCategory);
             row.put("itemType", "ISSUE");
-            row.put("isBug", isBugWorkItem);
+            row.put("isBug", true);
             row.put("status", issue.getStatusAsString() != null ? issue.getStatusAsString() : "to_do");
             row.put("createdDate", issue.getCreatedAt() != null ? issue.getCreatedAt().toString() : null);
             row.put("dueDate", issue.getDueDate() != null ? issue.getDueDate().toString() : null);
             row.put("completedDate", completedDate);
-            
-            Optional<Sprint> sprint = story.get().getSprintId() != null
-                ? sprintRepository.findById(story.get().getSprintId())
-                : Optional.empty();
-            row.put("sprint", sprint.isPresent() ? sprint.get().getName() : null);
-            
-            Optional<Project> project = projectRepository.findById(story.get().getProjectId());
-            row.put("project", project.isPresent() ? project.get().getName() : null);
-            
+
+            Sprint sprint = story.getSprintId() != null ? sprintMap.get(story.getSprintId()) : null;
+            row.put("sprint", sprint != null ? sprint.getName() : null);
+
+            Project project = story.getProjectId() != null ? projectMap.get(story.getProjectId()) : null;
+            row.put("project", project != null ? project.getName() : null);
+
             rows.add(row);
         }
-        
+
         // Calculate summary statistics
         int totalResources = (int) rows.stream()
-            .map(row -> row.get("resourceEmailId"))
-            .distinct()
-            .count();
-        
+                .map(row -> row.get("resourceEmailId"))
+                .distinct()
+                .count();
+
         int activeResources = totalResources;
-        
+
         double totalEstimatedHours = rows.stream()
-            .filter(row -> row.get("estimationHours") != null)
-            .mapToDouble(row -> ((Number) row.get("estimationHours")).doubleValue())
-            .sum();
-        
+                .filter(row -> row.get("estimationHours") != null)
+                .mapToDouble(row -> ((Number) row.get("estimationHours")).doubleValue())
+                .sum();
+
         double totalActualHours = rows.stream()
-            .mapToDouble(row -> ((Number) row.get("actualHours")).doubleValue())
-            .sum();
-        
-        double avgUtilization = totalEstimatedHours > 0 
-            ? (totalActualHours / totalEstimatedHours) * 100 
-            : 0.0;
-        
+                .mapToDouble(row -> ((Number) row.get("actualHours")).doubleValue())
+                .sum();
+
+        double avgUtilization = totalEstimatedHours > 0
+                ? (totalActualHours / totalEstimatedHours) * 100
+                : 0.0;
+
         // Group by project for project utilization
         Map<String, List<Map<String, Object>>> projectGroups = rows.stream()
-            .collect(Collectors.groupingBy(row -> 
-                row.get("project") != null ? row.get("project").toString() : "Unknown"));
-        
+                .collect(Collectors
+                        .groupingBy(row -> row.get("project") != null ? row.get("project").toString() : "Unknown"));
+
         List<Map<String, Object>> projectUtilization = projectGroups.entrySet().stream()
-            .map(entry -> {
-                Map<String, Object> projUtil = new HashMap<>();
-                projUtil.put("projectId", entry.getKey());
-                projUtil.put("projectName", entry.getKey());
-                
-                double projEstimated = entry.getValue().stream()
-                    .filter(row -> row.get("estimationHours") != null)
-                    .mapToDouble(row -> ((Number) row.get("estimationHours")).doubleValue())
-                    .sum();
-                
-                double projActual = entry.getValue().stream()
-                    .mapToDouble(row -> ((Number) row.get("actualHours")).doubleValue())
-                    .sum();
-                
-                projUtil.put("allocatedHours", projEstimated);
-                projUtil.put("actualHours", projActual);
-                projUtil.put("utilization", projEstimated > 0 
-                    ? (projActual / projEstimated) * 100 
-                    : 0.0);
-                
-                return projUtil;
-            })
-            .collect(Collectors.toList());
-        
+                .map(entry -> {
+                    Map<String, Object> projUtil = new HashMap<>();
+                    projUtil.put("projectId", entry.getKey());
+                    projUtil.put("projectName", entry.getKey());
+
+                    double projEstimated = entry.getValue().stream()
+                            .filter(row -> row.get("estimationHours") != null)
+                            .mapToDouble(row -> ((Number) row.get("estimationHours")).doubleValue())
+                            .sum();
+
+                    double projActual = entry.getValue().stream()
+                            .mapToDouble(row -> ((Number) row.get("actualHours")).doubleValue())
+                            .sum();
+
+                    projUtil.put("allocatedHours", projEstimated);
+                    projUtil.put("actualHours", projActual);
+                    projUtil.put("utilization", projEstimated > 0
+                            ? (projActual / projEstimated) * 100
+                            : 0.0);
+
+                    return projUtil;
+                })
+                .collect(Collectors.toList());
+
         // Build individual utilization summary per resource
         Map<String, List<Map<String, Object>>> resourceGroups = rows.stream()
                 .filter(row -> {
                     Object email = row.get("resourceEmailId");
                     Object name = row.get("resourceName");
-                    return (email != null && !email.toString().isEmpty()) || (name != null && !name.toString().isEmpty());
+                    return (email != null && !email.toString().isEmpty())
+                            || (name != null && !name.toString().isEmpty());
                 })
                 .collect(Collectors.groupingBy(row -> {
                     Object email = row.get("resourceEmailId");
                     Object name = row.get("resourceName");
-                    return email != null && !email.toString().isEmpty() ? email.toString() : (name != null ? name.toString() : "Unknown");
+                    return email != null && !email.toString().isEmpty() ? email.toString()
+                            : (name != null ? name.toString() : "Unknown");
                 }));
 
         List<Map<String, Object>> individualUtilization = new ArrayList<>();
         for (Map.Entry<String, List<Map<String, Object>>> entry : resourceGroups.entrySet()) {
             List<Map<String, Object>> resourceRows = entry.getValue();
             Map<String, Object> firstRow = resourceRows.get(0);
-            String resourceName = firstRow.get("resourceName") != null ? firstRow.get("resourceName").toString() : entry.getKey();
+            String resourceName = firstRow.get("resourceName") != null ? firstRow.get("resourceName").toString()
+                    : entry.getKey();
 
             List<String> projects = resourceRows.stream()
                     .map(r -> r.get("project"))
@@ -1083,8 +1070,10 @@ public class ReportsService {
                 concerns.add("Underutilized");
             } else if (utilizationLevel > 120 || inProgressCount > 5) {
                 status = "overloaded";
-                if (utilizationLevel > 120) concerns.add("Overloaded");
-                if (inProgressCount > 5) concerns.add("High in-progress count");
+                if (utilizationLevel > 120)
+                    concerns.add("Overloaded");
+                if (inProgressCount > 5)
+                    concerns.add("High in-progress count");
             }
 
             Map<String, Object> ind = new LinkedHashMap<>();
@@ -1148,11 +1137,14 @@ public class ReportsService {
             filteredRows = filteredRows.stream()
                     .filter(row -> {
                         String email = row.get("resourceEmailId") != null
-                                ? row.get("resourceEmailId").toString().toLowerCase() : null;
+                                ? row.get("resourceEmailId").toString().toLowerCase()
+                                : null;
                         String assigneeName = row.get("resourceName") != null
-                                ? row.get("resourceName").toString().toLowerCase() : null;
+                                ? row.get("resourceName").toString().toLowerCase()
+                                : null;
                         String reporterName = row.get("reporterName") != null
-                                ? row.get("reporterName").toString().toLowerCase() : null;
+                                ? row.get("reporterName").toString().toLowerCase()
+                                : null;
                         return keyLower.equals(email) || keyLower.equals(assigneeName) || keyLower.equals(reporterName);
                     })
                     .collect(Collectors.toList());
@@ -1185,14 +1177,16 @@ public class ReportsService {
                 filteredRows = filteredRows.stream()
                         .filter(row -> {
                             Object created = row.get("createdDate");
-                            if (created == null) return false;
+                            if (created == null)
+                                return false;
                             String createdStr = created.toString();
                             LocalDate createdDate;
                             try {
                                 if (createdStr.length() > 10 && createdStr.charAt(10) == 'T') {
                                     createdDate = LocalDateTime.parse(createdStr).toLocalDate();
                                 } else {
-                                    createdDate = LocalDate.parse(createdStr.substring(0, Math.min(10, createdStr.length())));
+                                    createdDate = LocalDate
+                                            .parse(createdStr.substring(0, Math.min(10, createdStr.length())));
                                 }
                             } catch (Exception e) {
                                 return false;
@@ -1268,7 +1262,8 @@ public class ReportsService {
                     .collect(Collectors.toList());
         }
 
-        // Duration filter (last7, last30, custom) - applied on createdDate when sprint is selected
+        // Duration filter (last7, last30, custom) - applied on createdDate when sprint
+        // is selected
         if (sprint != null && !sprint.isEmpty()
                 && duration != null
                 && !"all".equalsIgnoreCase(duration)) {
@@ -1398,7 +1393,8 @@ public class ReportsService {
         for (Map.Entry<String, List<Map<String, Object>>> entry : resourceMap.entrySet()) {
             List<Map<String, Object>> resourceRows = entry.getValue();
             Map<String, Object> firstRow = resourceRows.get(0);
-            String resourceName = firstRow.get("resourceName") != null ? firstRow.get("resourceName").toString() : entry.getKey();
+            String resourceName = firstRow.get("resourceName") != null ? firstRow.get("resourceName").toString()
+                    : entry.getKey();
 
             List<String> projectSprintPairs = resourceRows.stream()
                     .map(r -> {
@@ -1440,8 +1436,10 @@ public class ReportsService {
                 concerns.add("Underutilized");
             } else if (utilizationLevel > 120 || inProgressCount > 5) {
                 status = "overloaded";
-                if (utilizationLevel > 120) concerns.add("Overloaded");
-                if (inProgressCount > 5) concerns.add("High in-progress count");
+                if (utilizationLevel > 120)
+                    concerns.add("Overloaded");
+                if (inProgressCount > 5)
+                    concerns.add("High in-progress count");
             }
 
             Map<String, Object> ind = new LinkedHashMap<>();
@@ -1582,21 +1580,33 @@ public class ReportsService {
             for (Map<String, Object> row : rows) {
                 Row excelRow = detailsSheet.createRow(rowNum++);
                 int col = 0;
-                createCell(excelRow, col++, row.get("resourceEmailId") != null ? row.get("resourceEmailId").toString() : "", dataStyle);
-                createCell(excelRow, col++, row.get("resourceName") != null ? row.get("resourceName").toString() : "", dataStyle);
-                createCell(excelRow, col++, row.get("taskIssueName") != null ? row.get("taskIssueName").toString() : "", dataStyle);
-                createCell(excelRow, col++, row.get("taskIssueId") != null ? row.get("taskIssueId").toString() : "", dataStyle);
-                createCell(excelRow, col++, row.get("storyName") != null ? row.get("storyName").toString() : "", dataStyle);
+                createCell(excelRow, col++,
+                        row.get("resourceEmailId") != null ? row.get("resourceEmailId").toString() : "", dataStyle);
+                createCell(excelRow, col++, row.get("resourceName") != null ? row.get("resourceName").toString() : "",
+                        dataStyle);
+                createCell(excelRow, col++, row.get("taskIssueName") != null ? row.get("taskIssueName").toString() : "",
+                        dataStyle);
+                createCell(excelRow, col++, row.get("taskIssueId") != null ? row.get("taskIssueId").toString() : "",
+                        dataStyle);
+                createCell(excelRow, col++, row.get("storyName") != null ? row.get("storyName").toString() : "",
+                        dataStyle);
                 createCell(excelRow, col++, row.get("storyId") != null ? row.get("storyId").toString() : "", dataStyle);
-                createCell(excelRow, col++, row.get("estimationHours") != null ? row.get("estimationHours").toString() : "", dataStyle);
-                createCell(excelRow, col++, row.get("actualHours") != null ? row.get("actualHours").toString() : "", dataStyle);
-                createCell(excelRow, col++, row.get("remainingHours") != null ? row.get("remainingHours").toString() : "", dataStyle);
-                createCell(excelRow, col++, row.get("reporterName") != null ? row.get("reporterName").toString() : "", dataStyle);
-                createCell(excelRow, col++, row.get("workCategory") != null ? row.get("workCategory").toString() : "", dataStyle);
+                createCell(excelRow, col++,
+                        row.get("estimationHours") != null ? row.get("estimationHours").toString() : "", dataStyle);
+                createCell(excelRow, col++, row.get("actualHours") != null ? row.get("actualHours").toString() : "",
+                        dataStyle);
+                createCell(excelRow, col++,
+                        row.get("remainingHours") != null ? row.get("remainingHours").toString() : "", dataStyle);
+                createCell(excelRow, col++, row.get("reporterName") != null ? row.get("reporterName").toString() : "",
+                        dataStyle);
+                createCell(excelRow, col++, row.get("workCategory") != null ? row.get("workCategory").toString() : "",
+                        dataStyle);
                 createCell(excelRow, col++, row.get("status") != null ? row.get("status").toString() : "", dataStyle);
-                createCell(excelRow, col++, row.get("createdDate") != null ? row.get("createdDate").toString() : "", dataStyle);
+                createCell(excelRow, col++, row.get("createdDate") != null ? row.get("createdDate").toString() : "",
+                        dataStyle);
                 createCell(excelRow, col++, row.get("dueDate") != null ? row.get("dueDate").toString() : "", dataStyle);
-                createCell(excelRow, col++, row.get("completedDate") != null ? row.get("completedDate").toString() : "", dataStyle);
+                createCell(excelRow, col++, row.get("completedDate") != null ? row.get("completedDate").toString() : "",
+                        dataStyle);
                 createCell(excelRow, col++, row.get("sprint") != null ? row.get("sprint").toString() : "", dataStyle);
                 createCell(excelRow, col++, row.get("project") != null ? row.get("project").toString() : "", dataStyle);
             }
@@ -1609,7 +1619,8 @@ public class ReportsService {
             Sheet indUtilSheet = workbook.createSheet("Individual Utilization");
             Row indUtilHeaderRow = indUtilSheet.createRow(0);
             String[] indUtilHeaders = {
-                    "Team Member Name", "Project and Sprint", "Task/Issue Count", "Total Assigned Hours", "Hours Logged",
+                    "Team Member Name", "Project and Sprint", "Task/Issue Count", "Total Assigned Hours",
+                    "Hours Logged",
                     "Utilization Level", "Status"
             };
             for (int i = 0; i < indUtilHeaders.length; i++) {
@@ -1621,14 +1632,28 @@ public class ReportsService {
             for (Map<String, Object> ind : individualUtilizationExport) {
                 Row r = indUtilSheet.createRow(indUtilRowNum++);
                 int c = 0;
-                createCell(r, c++, ind.get("resourceName") != null ? ind.get("resourceName").toString() : "", dataStyle);
-                createCell(r, c++, ind.get("projectSprintPairs") != null ? ind.get("projectSprintPairs").toString() : "", dataStyle);
-                createCell(r, c++, ind.get("taskIssueCount") != null ? String.valueOf(ind.get("taskIssueCount")) : "0", dataStyle);
-                createCell(r, c++, ind.get("allocatedHours") != null ? String.format("%.1f", ((Number) ind.get("allocatedHours")).doubleValue()) : "0", dataStyle);
-                createCell(r, c++, ind.get("hoursLogged") != null ? String.format("%.1f", ((Number) ind.get("hoursLogged")).doubleValue()) : "0", dataStyle);
-                double allocVal = ind.get("allocatedHours") != null ? ((Number) ind.get("allocatedHours")).doubleValue() : 0;
+                createCell(r, c++, ind.get("resourceName") != null ? ind.get("resourceName").toString() : "",
+                        dataStyle);
+                createCell(r, c++,
+                        ind.get("projectSprintPairs") != null ? ind.get("projectSprintPairs").toString() : "",
+                        dataStyle);
+                createCell(r, c++, ind.get("taskIssueCount") != null ? String.valueOf(ind.get("taskIssueCount")) : "0",
+                        dataStyle);
+                createCell(r, c++,
+                        ind.get("allocatedHours") != null
+                                ? String.format("%.1f", ((Number) ind.get("allocatedHours")).doubleValue())
+                                : "0",
+                        dataStyle);
+                createCell(r, c++,
+                        ind.get("hoursLogged") != null
+                                ? String.format("%.1f", ((Number) ind.get("hoursLogged")).doubleValue())
+                                : "0",
+                        dataStyle);
+                double allocVal = ind.get("allocatedHours") != null ? ((Number) ind.get("allocatedHours")).doubleValue()
+                        : 0;
                 String utilStr = allocVal > 0 && ind.get("utilizationLevel") != null
-                        ? String.format("%.1f%%", ((Number) ind.get("utilizationLevel")).doubleValue()) : "N/A";
+                        ? String.format("%.1f%%", ((Number) ind.get("utilizationLevel")).doubleValue())
+                        : "N/A";
                 createCell(r, c++, utilStr, dataStyle);
                 createCell(r, c++, ind.get("status") != null ? ind.get("status").toString() : "", dataStyle);
             }
@@ -1741,8 +1766,10 @@ public class ReportsService {
     }
 
     /**
-     * Export Individual Utilization Summary to Excel (Resource Utilization page data).
-     * Applies same filters as the page: project, user, sprint, duration (last7, last30, custom).
+     * Export Individual Utilization Summary to Excel (Resource Utilization page
+     * data).
+     * Applies same filters as the page: project, user, sprint, duration (last7,
+     * last30, custom).
      * Duration filter works independently (no sprint required).
      */
     public byte[] exportIndividualUtilizationToExcel(String projectName, String userKey, String sprint,
@@ -1816,14 +1843,16 @@ public class ReportsService {
                 filteredRows = filteredRows.stream()
                         .filter(row -> {
                             Object created = row.get("createdDate");
-                            if (created == null) return false;
+                            if (created == null)
+                                return false;
                             String createdStr = created.toString();
                             LocalDate createdDate;
                             try {
                                 if (createdStr.length() > 10 && createdStr.charAt(10) == 'T') {
                                     createdDate = LocalDateTime.parse(createdStr).toLocalDate();
                                 } else {
-                                    createdDate = LocalDate.parse(createdStr.substring(0, Math.min(10, createdStr.length())));
+                                    createdDate = LocalDate
+                                            .parse(createdStr.substring(0, Math.min(10, createdStr.length())));
                                 }
                             } catch (Exception e) {
                                 return false;
@@ -1840,7 +1869,8 @@ public class ReportsService {
             String email = row.get("resourceEmailId") != null ? row.get("resourceEmailId").toString() : null;
             String name = row.get("resourceName") != null ? row.get("resourceName").toString() : null;
             String key = email != null && !email.isEmpty() ? email : (name != null ? name : null);
-            if (key == null || key.isEmpty()) continue;
+            if (key == null || key.isEmpty())
+                continue;
             resourceMap.computeIfAbsent(key, k -> new ArrayList<>()).add(row);
         }
 
@@ -1848,7 +1878,8 @@ public class ReportsService {
         for (Map.Entry<String, List<Map<String, Object>>> entry : resourceMap.entrySet()) {
             List<Map<String, Object>> resourceRows = entry.getValue();
             Map<String, Object> firstRow = resourceRows.get(0);
-            String resourceName = firstRow.get("resourceName") != null ? firstRow.get("resourceName").toString() : entry.getKey();
+            String resourceName = firstRow.get("resourceName") != null ? firstRow.get("resourceName").toString()
+                    : entry.getKey();
 
             List<String> projects = resourceRows.stream()
                     .map(r -> r.get("project"))
@@ -1868,7 +1899,8 @@ public class ReportsService {
                     .filter(r -> "TASK".equalsIgnoreCase(r.get("itemType") != null ? r.get("itemType").toString() : ""))
                     .count();
             int issueCount = (int) resourceRows.stream()
-                    .filter(r -> "ISSUE".equalsIgnoreCase(r.get("itemType") != null ? r.get("itemType").toString() : ""))
+                    .filter(r -> "ISSUE"
+                            .equalsIgnoreCase(r.get("itemType") != null ? r.get("itemType").toString() : ""))
                     .count();
             int taskIssueCount = resourceRows.size();
 
@@ -1889,10 +1921,14 @@ public class ReportsService {
                     .count();
 
             String status = "optimal";
-            if (hoursLogged == 0) status = "idle";
-            else if (allocated == 0) status = "optimal";
-            else if (utilizationLevel < 50) status = "underutilized";
-            else if (utilizationLevel > 120 || inProgressCount > 5) status = "overloaded";
+            if (hoursLogged == 0)
+                status = "idle";
+            else if (allocated == 0)
+                status = "optimal";
+            else if (utilizationLevel < 50)
+                status = "underutilized";
+            else if (utilizationLevel > 120 || inProgressCount > 5)
+                status = "overloaded";
 
             Map<String, Object> ind = new LinkedHashMap<>();
             ind.put("resourceName", resourceName);
@@ -1947,15 +1983,27 @@ public class ReportsService {
             for (Map<String, Object> ind : individualUtilization) {
                 Row r = sheet.createRow(rowNum++);
                 int c = 0;
-                createCell(r, c++, ind.get("resourceName") != null ? ind.get("resourceName").toString() : "", dataStyle);
+                createCell(r, c++, ind.get("resourceName") != null ? ind.get("resourceName").toString() : "",
+                        dataStyle);
                 createCell(r, c++, ind.get("projects") != null ? ind.get("projects").toString() : "", dataStyle);
                 createCell(r, c++, ind.get("sprints") != null ? ind.get("sprints").toString() : "", dataStyle);
-                createCell(r, c++, ind.get("taskIssueCount") != null ? String.valueOf(ind.get("taskIssueCount")) : "0", dataStyle);
-                createCell(r, c++, ind.get("allocatedHours") != null ? String.format("%.1f", ((Number) ind.get("allocatedHours")).doubleValue()) : "0", dataStyle);
-                createCell(r, c++, ind.get("hoursLogged") != null ? String.format("%.1f", ((Number) ind.get("hoursLogged")).doubleValue()) : "0", dataStyle);
-                double allocVal = ind.get("allocatedHours") != null ? ((Number) ind.get("allocatedHours")).doubleValue() : 0;
+                createCell(r, c++, ind.get("taskIssueCount") != null ? String.valueOf(ind.get("taskIssueCount")) : "0",
+                        dataStyle);
+                createCell(r, c++,
+                        ind.get("allocatedHours") != null
+                                ? String.format("%.1f", ((Number) ind.get("allocatedHours")).doubleValue())
+                                : "0",
+                        dataStyle);
+                createCell(r, c++,
+                        ind.get("hoursLogged") != null
+                                ? String.format("%.1f", ((Number) ind.get("hoursLogged")).doubleValue())
+                                : "0",
+                        dataStyle);
+                double allocVal = ind.get("allocatedHours") != null ? ((Number) ind.get("allocatedHours")).doubleValue()
+                        : 0;
                 String utilStr = allocVal > 0 && ind.get("utilizationLevel") != null
-                        ? String.format("%.1f%%", ((Number) ind.get("utilizationLevel")).doubleValue()) : "N/A";
+                        ? String.format("%.1f%%", ((Number) ind.get("utilizationLevel")).doubleValue())
+                        : "N/A";
                 createCell(r, c++, utilStr, dataStyle);
                 createCell(r, c++, ind.get("status") != null ? ind.get("status").toString() : "", dataStyle);
             }
