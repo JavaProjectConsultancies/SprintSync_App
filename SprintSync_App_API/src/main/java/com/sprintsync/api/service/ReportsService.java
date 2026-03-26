@@ -961,6 +961,56 @@ public class ReportsService {
             rows.add(row);
         }
 
+        // Rework detection for issues: status moved from done/QA to todo, or due date changed
+        List<String> issueIds = rows.stream()
+                .filter(r -> "ISSUE".equals(r.get("itemType")))
+                .map(r -> r.get("taskIssueId"))
+                .filter(Objects::nonNull)
+                .map(Object::toString)
+                .distinct()
+                .collect(Collectors.toList());
+        Set<String> reworkIssueIds = new HashSet<>();
+        if (!issueIds.isEmpty()) {
+            try {
+                List<ActivityLog> issueLogs = activityLogRepository.findByEntityTypeAndEntityIdInOrderByCreatedAtDesc("issue", issueIds);
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                for (ActivityLog log : issueLogs) {
+                    if (!"status_updated".equals(log.getAction()) && !"due_date_updated".equals(log.getAction()))
+                        continue;
+                    if ("due_date_updated".equals(log.getAction())) {
+                        reworkIssueIds.add(log.getEntityId());
+                        continue;
+                    }
+                    try {
+                        String oldJson = log.getOldValues();
+                        String newJson = log.getNewValues();
+                        if (oldJson != null && newJson != null) {
+                            Map<?, ?> oldV = mapper.readValue(oldJson, Map.class);
+                            Map<?, ?> newV = mapper.readValue(newJson, Map.class);
+                            String oldStatus = oldV.get("status") != null ? oldV.get("status").toString().toLowerCase() : "";
+                            String newStatus = newV.get("status") != null ? newV.get("status").toString().toLowerCase() : "";
+                            boolean wasDone = "done".equals(oldStatus) || "completed".equals(oldStatus) || oldStatus.contains("qa");
+                            boolean nowTodo = "to_do".equals(newStatus) || "todo".equals(newStatus) || "in_progress".equals(newStatus) || newStatus.contains("progress");
+                            if (wasDone && nowTodo)
+                                reworkIssueIds.add(log.getEntityId());
+                        }
+                    } catch (Exception e) {
+                        /* ignore parse errors */
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Rework detection failed: " + e.getMessage());
+            }
+        }
+        for (Map<String, Object> row : rows) {
+            if ("ISSUE".equals(row.get("itemType"))) {
+                Object id = row.get("taskIssueId");
+                row.put("isRework", id != null && reworkIssueIds.contains(id.toString()));
+            } else {
+                row.put("isRework", false);
+            }
+        }
+
         // Calculate summary statistics
         int totalResources = (int) rows.stream()
                 .map(row -> row.get("resourceEmailId"))
@@ -1042,11 +1092,10 @@ public class ReportsService {
                     .collect(Collectors.toList());
 
             double hoursLogged = resourceRows.stream()
-                    .mapToDouble(r -> ((Number) r.getOrDefault("actualHours", 0)).doubleValue())
+                    .mapToDouble(r -> safeDouble(r.get("actualHours")))
                     .sum();
             double allocated = resourceRows.stream()
-                    .filter(r -> r.get("estimationHours") != null)
-                    .mapToDouble(r -> ((Number) r.get("estimationHours")).doubleValue())
+                    .mapToDouble(r -> safeDouble(r.get("estimationHours")))
                     .sum();
 
             double utilizationLevel = allocated > 0 ? (hoursLogged / allocated) * 100 : 0;
@@ -1087,7 +1136,7 @@ public class ReportsService {
             ind.put("concerns", String.join(", ", concerns));
             individualUtilization.add(ind);
         }
-        individualUtilization.sort(Comparator.comparing(m -> m.get("resourceName").toString()));
+        individualUtilization.sort(Comparator.comparing(m -> m.get("resourceName") != null ? m.get("resourceName").toString() : ""));
 
         report.put("rows", rows);
         report.put("totalResources", totalResources);
@@ -1203,9 +1252,9 @@ public class ReportsService {
     }
 
     /**
-     * Export resource utilization report to Excel with two sheets:
-     * Sheet 1 - detailed rows
-     * Sheet 2 - developers, managers and testers summary tables
+     * Export resource PERFORMANCE report to Excel with two sheets:
+     * Sheet 1 - Resource Performance Details (detailed rows)
+     * Sheet 2 - Resource Performance Summary (developers, managers, testers)
      */
     public byte[] exportResourceUtilizationToExcel(String projectId,
             String period,
@@ -1409,11 +1458,10 @@ public class ReportsService {
             int taskIssueCount = resourceRows.size();
 
             double hoursLogged = resourceRows.stream()
-                    .mapToDouble(r -> ((Number) r.getOrDefault("actualHours", 0)).doubleValue())
+                    .mapToDouble(r -> safeDouble(r.get("actualHours")))
                     .sum();
             double allocated = resourceRows.stream()
-                    .filter(r -> r.get("estimationHours") != null)
-                    .mapToDouble(r -> ((Number) r.get("estimationHours")).doubleValue())
+                    .mapToDouble(r -> safeDouble(r.get("estimationHours")))
                     .sum();
             double utilizationLevel = allocated > 0 ? (hoursLogged / allocated) * 100 : 0;
 
@@ -1453,7 +1501,7 @@ public class ReportsService {
             ind.put("concerns", String.join(", ", concerns));
             individualUtilizationExport.add(ind);
         }
-        individualUtilizationExport.sort(Comparator.comparing(m -> m.get("resourceName").toString()));
+        individualUtilizationExport.sort(Comparator.comparing(m -> m.get("resourceName") != null ? m.get("resourceName").toString() : ""));
 
         List<Map<String, Object>> developers = new ArrayList<>();
         List<Map<String, Object>> managers = new ArrayList<>();
@@ -1520,10 +1568,9 @@ public class ReportsService {
                 }).count();
 
                 long reworkCountForBugs = resourceRows.stream().filter(r -> {
-                    String status = r.get("status") != null ? r.get("status").toString().toLowerCase() : "";
-                    boolean hasCompletedDate = r.get("completedDate") != null;
-                    boolean isNotDone = !"done".equals(status) && !"completed".equals(status);
-                    return isIssueRow.test(r) && hasCompletedDate && isNotDone;
+                    if (!isIssueRow.test(r)) return false;
+                    Object isRework = r.get("isRework");
+                    return Boolean.TRUE.equals(isRework);
                 }).count();
 
                 Map<String, Object> dev = new LinkedHashMap<>();
@@ -1561,8 +1608,8 @@ public class ReportsService {
             dataStyle.setBorderRight(BorderStyle.THIN);
             dataStyle.setWrapText(true);
 
-            // Sheet 1: Details
-            Sheet detailsSheet = workbook.createSheet("Details");
+            // Sheet 1: Resource Performance Details
+            Sheet detailsSheet = workbook.createSheet("Resource Performance Details");
             Row headerRow = detailsSheet.createRow(0);
             String[] detailsHeaders = {
                     "Resource Email Id", "Resource Name", "Task/Issue Name", "Task/Issue Id", "Story Name", "Story Id",
@@ -1615,54 +1662,8 @@ public class ReportsService {
                 detailsSheet.autoSizeColumn(i);
             }
 
-            // Sheet 2: Individual Utilization Summary
-            Sheet indUtilSheet = workbook.createSheet("Individual Utilization");
-            Row indUtilHeaderRow = indUtilSheet.createRow(0);
-            String[] indUtilHeaders = {
-                    "Team Member Name", "Project and Sprint", "Task/Issue Count", "Total Assigned Hours",
-                    "Hours Logged",
-                    "Utilization Level", "Status"
-            };
-            for (int i = 0; i < indUtilHeaders.length; i++) {
-                Cell cell = indUtilHeaderRow.createCell(i);
-                cell.setCellValue(indUtilHeaders[i]);
-                cell.setCellStyle(headerStyle);
-            }
-            int indUtilRowNum = 1;
-            for (Map<String, Object> ind : individualUtilizationExport) {
-                Row r = indUtilSheet.createRow(indUtilRowNum++);
-                int c = 0;
-                createCell(r, c++, ind.get("resourceName") != null ? ind.get("resourceName").toString() : "",
-                        dataStyle);
-                createCell(r, c++,
-                        ind.get("projectSprintPairs") != null ? ind.get("projectSprintPairs").toString() : "",
-                        dataStyle);
-                createCell(r, c++, ind.get("taskIssueCount") != null ? String.valueOf(ind.get("taskIssueCount")) : "0",
-                        dataStyle);
-                createCell(r, c++,
-                        ind.get("allocatedHours") != null
-                                ? String.format("%.1f", ((Number) ind.get("allocatedHours")).doubleValue())
-                                : "0",
-                        dataStyle);
-                createCell(r, c++,
-                        ind.get("hoursLogged") != null
-                                ? String.format("%.1f", ((Number) ind.get("hoursLogged")).doubleValue())
-                                : "0",
-                        dataStyle);
-                double allocVal = ind.get("allocatedHours") != null ? ((Number) ind.get("allocatedHours")).doubleValue()
-                        : 0;
-                String utilStr = allocVal > 0 && ind.get("utilizationLevel") != null
-                        ? String.format("%.1f%%", ((Number) ind.get("utilizationLevel")).doubleValue())
-                        : "N/A";
-                createCell(r, c++, utilStr, dataStyle);
-                createCell(r, c++, ind.get("status") != null ? ind.get("status").toString() : "", dataStyle);
-            }
-            for (int i = 0; i < indUtilHeaders.length; i++) {
-                indUtilSheet.autoSizeColumn(i);
-            }
-
-            // Sheet 3: Summary
-            Sheet summarySheet = workbook.createSheet("Summary");
+            // Sheet 2: Resource Performance Summary (Developers, Managers, Testers)
+            Sheet summarySheet = workbook.createSheet("Resource Performance Summary");
             int summaryRowNum = 0;
 
             // Developers summary
@@ -1766,102 +1767,16 @@ public class ReportsService {
     }
 
     /**
-     * Export Individual Utilization Summary to Excel (Resource Utilization page
-     * data).
-     * Applies same filters as the page: project, user, sprint, duration (last7,
-     * last30, custom).
-     * Duration filter works independently (no sprint required).
+     * Export Resource Utilization report to Excel with two sheets:
+     * Sheet 1 - Individual Utilization Summary
+     * Sheet 2 - Sprint and Task/Issue Count (expanded report with colors)
      */
     public byte[] exportIndividualUtilizationToExcel(String projectName, String userKey, String sprint,
             String duration, LocalDate fromDate, LocalDate toDate) throws IOException {
-        Map<String, Object> report = generateResourceUtilizationReport(null, null);
+        Map<String, Object> report = generateIndividualUtilizationReport(projectName, userKey, sprint, duration, fromDate, toDate);
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> rows = (List<Map<String, Object>>) report.getOrDefault("rows", new ArrayList<>());
-        List<Map<String, Object>> filteredRows = new ArrayList<>(rows);
-
-        // Project filter by project name
-        if (projectName != null && !projectName.isEmpty()) {
-            filteredRows = filteredRows.stream()
-                    .filter(row -> {
-                        Object proj = row.get("project");
-                        return proj != null && projectName.equals(proj.toString());
-                    })
-                    .collect(Collectors.toList());
-        }
-
-        // User filter (assignee or reporter)
-        if (userKey != null && !userKey.isEmpty()) {
-            final String keyLower = userKey.toLowerCase();
-            filteredRows = filteredRows.stream()
-                    .filter(row -> {
-                        String email = row.get("resourceEmailId") != null
-                                ? row.get("resourceEmailId").toString().toLowerCase()
-                                : null;
-                        String assigneeName = row.get("resourceName") != null
-                                ? row.get("resourceName").toString().toLowerCase()
-                                : null;
-                        String reporterName = row.get("reporterName") != null
-                                ? row.get("reporterName").toString().toLowerCase()
-                                : null;
-                        return keyLower.equals(email) || keyLower.equals(assigneeName) || keyLower.equals(reporterName);
-                    })
-                    .collect(Collectors.toList());
-        }
-
-        // Sprint filter
-        if (sprint != null && !sprint.isEmpty()) {
-            filteredRows = filteredRows.stream()
-                    .filter(row -> {
-                        Object sprintVal = row.get("sprint");
-                        return sprintVal != null && sprint.equals(sprintVal.toString());
-                    })
-                    .collect(Collectors.toList());
-        }
-
-        // Duration filter - applied independently (no sprint required)
-        if (duration != null && !"all".equalsIgnoreCase(duration)) {
-            LocalDate now = LocalDate.now();
-            LocalDate from = null;
-            LocalDate to = null;
-
-            if ("last7".equalsIgnoreCase(duration)) {
-                from = now.minusDays(7);
-                to = now;
-            } else if ("last30".equalsIgnoreCase(duration)) {
-                from = now.minusDays(30);
-                to = now;
-            } else if ("custom".equalsIgnoreCase(duration) && fromDate != null && toDate != null) {
-                from = fromDate;
-                to = toDate;
-            }
-
-            final LocalDate fromFinal = from;
-            final LocalDate toFinal = to;
-
-            if (fromFinal != null && toFinal != null) {
-                filteredRows = filteredRows.stream()
-                        .filter(row -> {
-                            Object created = row.get("createdDate");
-                            if (created == null)
-                                return false;
-                            String createdStr = created.toString();
-                            LocalDate createdDate;
-                            try {
-                                if (createdStr.length() > 10 && createdStr.charAt(10) == 'T') {
-                                    createdDate = LocalDateTime.parse(createdStr).toLocalDate();
-                                } else {
-                                    createdDate = LocalDate
-                                            .parse(createdStr.substring(0, Math.min(10, createdStr.length())));
-                                }
-                            } catch (Exception e) {
-                                return false;
-                            }
-                            return !createdDate.isBefore(fromFinal) && !createdDate.isAfter(toFinal);
-                        })
-                        .collect(Collectors.toList());
-            }
-        }
+        List<Map<String, Object>> filteredRows = (List<Map<String, Object>>) report.getOrDefault("rows", new ArrayList<>());
 
         // Build Individual Utilization with project-sprint breakdown (matching UI)
         Map<String, List<Map<String, Object>>> resourceMap = new LinkedHashMap<>();
@@ -1905,11 +1820,10 @@ public class ReportsService {
             int taskIssueCount = resourceRows.size();
 
             double hoursLogged = resourceRows.stream()
-                    .mapToDouble(r -> ((Number) r.getOrDefault("actualHours", 0)).doubleValue())
+                    .mapToDouble(r -> safeDouble(r.get("actualHours")))
                     .sum();
             double allocated = resourceRows.stream()
-                    .filter(r -> r.get("estimationHours") != null)
-                    .mapToDouble(r -> ((Number) r.get("estimationHours")).doubleValue())
+                    .mapToDouble(r -> safeDouble(r.get("estimationHours")))
                     .sum();
             double utilizationLevel = allocated > 0 ? (hoursLogged / allocated) * 100 : 0;
 
@@ -1944,7 +1858,63 @@ public class ReportsService {
             ind.put("status", status);
             individualUtilization.add(ind);
         }
-        individualUtilization.sort(Comparator.comparing(m -> m.get("resourceName").toString()));
+        individualUtilization.sort(Comparator.comparing(m -> m.get("resourceName") != null ? m.get("resourceName").toString() : ""));
+
+        // Build project-sprint breakdown (expandable rows in UI)
+        List<Map<String, Object>> projectSprintBreakdown = new ArrayList<>();
+        for (Map.Entry<String, List<Map<String, Object>>> entry : resourceMap.entrySet()) {
+            List<Map<String, Object>> resourceRows = entry.getValue();
+            Map<String, Object> firstRow = resourceRows.get(0);
+            String resourceName = firstRow.get("resourceName") != null ? firstRow.get("resourceName").toString()
+                    : entry.getKey();
+
+            // Group by project-sprint
+            Map<String, List<Map<String, Object>>> psMap = new LinkedHashMap<>();
+            for (Map<String, Object> row : resourceRows) {
+                String proj = row.get("project") != null ? row.get("project").toString() : "—";
+                String spr = row.get("sprint") != null ? row.get("sprint").toString() : "—";
+                String key = proj + "|||" + spr;
+                psMap.computeIfAbsent(key, k -> new ArrayList<>()).add(row);
+            }
+
+            for (Map.Entry<String, List<Map<String, Object>>> psEntry : psMap.entrySet()) {
+                String[] parts = psEntry.getKey().split("\\|\\|\\|", 2);
+                String project = parts.length > 0 ? parts[0] : "—";
+                String sprintName = parts.length > 1 ? parts[1] : "—";
+                List<Map<String, Object>> psRows = psEntry.getValue();
+
+                int taskIssueCount = psRows.size();
+                double hoursLogged = psRows.stream()
+                        .mapToDouble(r -> safeDouble(r.get("actualHours")))
+                        .sum();
+                double allocated = psRows.stream()
+                        .mapToDouble(r -> safeDouble(r.get("estimationHours")))
+                        .sum();
+                double utilLevel = allocated > 0 ? (hoursLogged / allocated) * 100 : 0;
+
+                String psStatus = "optimal";
+                if (hoursLogged == 0) psStatus = "idle";
+                else if (allocated == 0) psStatus = "optimal";
+                else if (utilLevel < 50) psStatus = "underutilized";
+                else if (utilLevel > 120) psStatus = "overloaded";
+
+                Map<String, Object> ps = new LinkedHashMap<>();
+                ps.put("resourceName", resourceName);
+                ps.put("resourceEmailId", firstRow.get("resourceEmailId"));
+                ps.put("project", project);
+                ps.put("sprint", sprintName);
+                ps.put("taskIssueCount", taskIssueCount);
+                ps.put("allocatedHours", allocated);
+                ps.put("hoursLogged", hoursLogged);
+                ps.put("utilizationLevel", utilLevel);
+                ps.put("status", psStatus);
+                projectSprintBreakdown.add(ps);
+            }
+        }
+        projectSprintBreakdown.sort(Comparator
+                .comparing((Map<String, Object> m) -> m.get("resourceName") != null ? m.get("resourceName").toString() : "")
+                .thenComparing(m -> m.get("project") != null ? m.get("project").toString() : "")
+                .thenComparing(m -> m.get("sprint") != null ? m.get("sprint").toString() : ""));
 
         try (Workbook workbook = new XSSFWorkbook()) {
             CellStyle headerStyle = workbook.createCellStyle();
@@ -1967,10 +1937,11 @@ public class ReportsService {
             dataStyle.setBorderRight(BorderStyle.THIN);
             dataStyle.setWrapText(true);
 
+            // Sheet 1: Individual Utilization Summary
             Sheet sheet = workbook.createSheet("Individual Utilization Summary");
             Row headerRow = sheet.createRow(0);
             String[] headers = {
-                    "Team Member Name", "Project", "Sprint", "Task/Issue Count", "Total Assigned Hours",
+                    "Team Member Name", "Resource Email", "Project", "Sprint", "Task/Issue Count", "Total Assigned Hours",
                     "Hours Logged", "Utilization Level", "Status"
             };
             for (int i = 0; i < headers.length; i++) {
@@ -1985,31 +1956,100 @@ public class ReportsService {
                 int c = 0;
                 createCell(r, c++, ind.get("resourceName") != null ? ind.get("resourceName").toString() : "",
                         dataStyle);
+                createCell(r, c++, ind.get("resourceEmailId") != null ? ind.get("resourceEmailId").toString() : "",
+                        dataStyle);
                 createCell(r, c++, ind.get("projects") != null ? ind.get("projects").toString() : "", dataStyle);
                 createCell(r, c++, ind.get("sprints") != null ? ind.get("sprints").toString() : "", dataStyle);
                 createCell(r, c++, ind.get("taskIssueCount") != null ? String.valueOf(ind.get("taskIssueCount")) : "0",
                         dataStyle);
                 createCell(r, c++,
-                        ind.get("allocatedHours") != null
-                                ? String.format("%.1f", ((Number) ind.get("allocatedHours")).doubleValue())
-                                : "0",
+                        String.format("%.1f", safeDouble(ind.get("allocatedHours"))),
                         dataStyle);
                 createCell(r, c++,
-                        ind.get("hoursLogged") != null
-                                ? String.format("%.1f", ((Number) ind.get("hoursLogged")).doubleValue())
-                                : "0",
+                        String.format("%.1f", safeDouble(ind.get("hoursLogged"))),
                         dataStyle);
-                double allocVal = ind.get("allocatedHours") != null ? ((Number) ind.get("allocatedHours")).doubleValue()
-                        : 0;
-                String utilStr = allocVal > 0 && ind.get("utilizationLevel") != null
-                        ? String.format("%.1f%%", ((Number) ind.get("utilizationLevel")).doubleValue())
-                        : "N/A";
+                double allocVal = safeDouble(ind.get("allocatedHours"));
+                double utilVal = safeDouble(ind.get("utilizationLevel"));
+                String utilStr = allocVal > 0 ? String.format("%.1f%%", utilVal) : "N/A";
                 createCell(r, c++, utilStr, dataStyle);
                 createCell(r, c++, ind.get("status") != null ? ind.get("status").toString() : "", dataStyle);
             }
 
             for (int i = 0; i < headers.length; i++) {
                 sheet.autoSizeColumn(i);
+            }
+
+            // Sheet 2: Sprint and Task-Issue Count (expanded report with colors; / invalid in sheet names)
+            Sheet sheetDetails = workbook.createSheet("Sprint and Task-Issue Count");
+            String[] detailHeaders = {
+                    "Resource Email", "Team Member Name", "Project", "Sprint", "Item Type", "Task/Issue Name",
+                    "Task/Issue Id", "Story Name", "Story Id", "Estimation Hours", "Actual Hours", "Utilization %", "Utilization Status",
+                    "Remaining Hours", "Status", "Created Date", "Due Date", "Completed Date", "Reporter", "Work Category",
+                    "Is Bug", "Is Rework"
+            };
+            Row detailHeaderRow = sheetDetails.createRow(0);
+            for (int i = 0; i < detailHeaders.length; i++) {
+                Cell cell = detailHeaderRow.createCell(i);
+                cell.setCellValue(detailHeaders[i]);
+                cell.setCellStyle(headerStyle);
+            }
+
+            int detailRowNum = 1;
+            for (Map<String, Object> row : filteredRows) {
+                Row r = sheetDetails.createRow(detailRowNum++);
+                int c = 0;
+                createCell(r, c++, row.get("resourceEmailId") != null ? row.get("resourceEmailId").toString() : "",
+                        dataStyle);
+                createCell(r, c++, row.get("resourceName") != null ? row.get("resourceName").toString() : "",
+                        dataStyle);
+                createCell(r, c++, row.get("project") != null ? row.get("project").toString() : "", dataStyle);
+                createCell(r, c++, row.get("sprint") != null ? row.get("sprint").toString() : "", dataStyle);
+                createCell(r, c++, row.get("itemType") != null ? row.get("itemType").toString() : "", dataStyle);
+                createCell(r, c++, row.get("taskIssueName") != null ? row.get("taskIssueName").toString() : "",
+                        dataStyle);
+                createCell(r, c++, row.get("taskIssueId") != null ? row.get("taskIssueId").toString() : "",
+                        dataStyle);
+                createCell(r, c++, row.get("storyName") != null ? row.get("storyName").toString() : "",
+                        dataStyle);
+                createCell(r, c++, row.get("storyId") != null ? row.get("storyId").toString() : "",
+                        dataStyle);
+                createCell(r, c++,
+                        row.get("estimationHours") != null ? String.format("%.2f", safeDouble(row.get("estimationHours"))) : "",
+                        dataStyle);
+                createCell(r, c++,
+                        row.get("actualHours") != null ? String.format("%.2f", safeDouble(row.get("actualHours"))) : "",
+                        dataStyle);
+                double estH = safeDouble(row.get("estimationHours"));
+                double actH = safeDouble(row.get("actualHours"));
+                double detailUtil = estH > 0 ? (actH / estH) * 100 : 0;
+                String detailUtilStr = estH > 0 ? String.format("%.1f%%", detailUtil) : "N/A";
+                String detailStatus = estH <= 0 ? "optimal" : actH == 0 ? "idle" : detailUtil < 50 ? "underutilized" : detailUtil > 120 ? "overloaded" : "optimal";
+                createCell(r, c++, detailUtilStr, dataStyle);
+                createCell(r, c++, detailStatus.substring(0, 1).toUpperCase() + detailStatus.substring(1), dataStyle);
+                createCell(r, c++,
+                        row.get("remainingHours") != null ? String.format("%.2f", safeDouble(row.get("remainingHours"))) : "",
+                        dataStyle);
+                createCell(r, c++, row.get("status") != null ? row.get("status").toString() : "", dataStyle);
+                createCell(r, c++, row.get("createdDate") != null ? row.get("createdDate").toString() : "",
+                        dataStyle);
+                createCell(r, c++, row.get("dueDate") != null ? row.get("dueDate").toString() : "",
+                        dataStyle);
+                createCell(r, c++, row.get("completedDate") != null ? row.get("completedDate").toString() : "",
+                        dataStyle);
+                createCell(r, c++, row.get("reporterName") != null ? row.get("reporterName").toString() : "",
+                        dataStyle);
+                createCell(r, c++, row.get("workCategory") != null ? row.get("workCategory").toString() : "",
+                        dataStyle);
+                createCell(r, c++,
+                        row.get("isBug") != null ? String.valueOf(row.get("isBug")) : "",
+                        dataStyle);
+                createCell(r, c++,
+                        row.get("isRework") != null ? String.valueOf(row.get("isRework")) : "",
+                        dataStyle);
+            }
+
+            for (int i = 0; i < detailHeaders.length; i++) {
+                sheetDetails.autoSizeColumn(i);
             }
 
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -2025,5 +2065,18 @@ public class ReportsService {
         Cell cell = row.createCell(column);
         cell.setCellValue(value != null ? value : "");
         cell.setCellStyle(style);
+    }
+
+    /**
+     * Safely extract double from map value (handles Number, String, null)
+     */
+    private double safeDouble(Object val) {
+        if (val == null) return 0;
+        if (val instanceof Number) return ((Number) val).doubleValue();
+        try {
+            return Double.parseDouble(val.toString());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 }

@@ -53,15 +53,19 @@ interface ResourcePerformanceRow {
   project?: string;
   itemType?: string; // "TASK" | "ISSUE"
   isBug?: boolean;
+  isRework?: boolean; // from API: issue moved from QA/done to todo, or due date changed
 }
 
 interface ResourcePerformanceData {
   totalResources?: number;
   activeResources?: number;
   averageUtilization?: number;
+  averageEfficiency?: number;
   totalHours?: number;
   allocatedHours?: number;
   utilizationRate?: number;
+  idleNotAllocatedCount?: number;
+  idleEarlyCompletedHours?: number;
   projectUtilization?: Array<{
     projectId: string;
     projectName: string;
@@ -261,6 +265,7 @@ const ReportsPage: React.FC = () => {
               : typeof row.isBug === 'string'
                 ? row.isBug.toLowerCase() === 'true'
                 : undefined,
+            isRework: typeof row.isRework === 'boolean' ? row.isRework : undefined,
           }));
         } else if (Array.isArray(data)) {
           // If data is directly an array
@@ -288,6 +293,7 @@ const ReportsPage: React.FC = () => {
               : typeof row.isBug === 'string'
                 ? row.isBug.toLowerCase() === 'true'
                 : undefined,
+            isRework: typeof row.isRework === 'boolean' ? row.isRework : undefined,
           }));
         }
 
@@ -374,6 +380,7 @@ const ReportsPage: React.FC = () => {
           project: row.project || null,
           itemType: row.itemType || null,
           isBug: typeof row.isBug === 'boolean' ? row.isBug : typeof row.isBug === 'string' ? row.isBug.toLowerCase() === 'true' : undefined,
+          isRework: typeof row.isRework === 'boolean' ? row.isRework : undefined,
         }));
       }
       setResourceUtilizationRows(rows);
@@ -596,10 +603,21 @@ const ReportsPage: React.FC = () => {
         }).length;
 
         const reworkCountForBugs = rows.filter(r => {
+          if (!isIssueRow(r)) return false;
+          return r.isRework === true;
+        }).length;
+
+        const overdueCount = rows.filter(r => {
           const status = (r.status || '').toLowerCase();
-          const hasCompletedDate = !!r.completedDate;
-          const isNotDone = status !== 'done' && status !== 'completed';
-          return isIssueRow(r) && hasCompletedDate && isNotDone;
+          const isDone = status === 'done' || status === 'completed';
+          if (isDone) return false;
+          if (!r.dueDate) return false;
+          try {
+            const due = new Date(r.dueDate);
+            return !isNaN(due.getTime()) && due < new Date();
+          } catch {
+            return false;
+          }
         }).length;
 
         developers.push({
@@ -609,6 +627,7 @@ const ReportsPage: React.FC = () => {
           toDo,
           onGoing,
           done,
+          overdueCount,
           totalBugResolved,
           reworkCountForBugs,
         });
@@ -837,8 +856,11 @@ const ReportsPage: React.FC = () => {
     if (!filteredResourcePerformanceRows.length) return null;
 
     const resourceSet = new Set<string>();
+    const resourceAllocatedMap = new Map<string, number>();
     let totalEstimated = 0;
     let totalActual = 0;
+    let completedCount = 0;
+    let idleEarlyCompletedHours = 0;
     const projectMap = new Map<string, { allocatedHours: number; actualHours: number }>();
 
     filteredResourcePerformanceRows.forEach(row => {
@@ -850,6 +872,16 @@ const ReportsPage: React.FC = () => {
       totalEstimated += est;
       totalActual += act;
 
+      const resourceAllocated = resourceAllocatedMap.get(key) ?? 0;
+      resourceAllocatedMap.set(key, resourceAllocated + est);
+
+      const status = (row.status || '').toLowerCase();
+      const isDone = status === 'done' || status === 'completed';
+      if (isDone) {
+        completedCount += 1;
+        idleEarlyCompletedHours += row.remainingHours ?? 0;
+      }
+
       const projectKey = row.project || 'Unknown';
       const existing = projectMap.get(projectKey) || { allocatedHours: 0, actualHours: 0 };
       existing.allocatedHours += est;
@@ -858,6 +890,10 @@ const ReportsPage: React.FC = () => {
     });
 
     const avgUtilization = totalEstimated > 0 ? (totalActual / totalEstimated) * 100 : 0;
+    const avgEfficiency = filteredResourcePerformanceRows.length > 0
+      ? (completedCount / filteredResourcePerformanceRows.length) * 100
+      : 0;
+    const idleNotAllocatedCount = Array.from(resourceAllocatedMap.values()).filter(a => a === 0).length;
 
     const projectUtilization = Array.from(projectMap.entries()).map(([projectName, values]) => ({
       projectId: projectName,
@@ -874,6 +910,9 @@ const ReportsPage: React.FC = () => {
       totalHours: totalActual,
       averageUtilization: avgUtilization,
       utilizationRate: avgUtilization,
+      averageEfficiency: avgEfficiency,
+      idleNotAllocatedCount,
+      idleEarlyCompletedHours,
       projectUtilization,
     } as ResourcePerformanceData;
   }, [filteredResourcePerformanceRows]);
@@ -919,23 +958,32 @@ const ReportsPage: React.FC = () => {
         }
       }
 
-      const blob = await reportsApiService.exportIndividualUtilizationToExcel({
+      const filters = {
         projectName: projectNameForExport,
         userKey: userKeyForExport,
         sprint: sprintForExport,
         duration: durationForExport,
         fromDate: fromDateForExport,
         toDate: toDateForExport,
-      });
+      };
+
+      const blob = activeReport === 'resource-performance'
+        ? await reportsApiService.exportResourcePerformanceToExcel(filters)
+        : await reportsApiService.exportResourceUtilizationToExcel(filters);
       if (!blob || blob.size === 0) {
         throw new Error('Received empty file from server');
       }
 
-      const url = window.URL.createObjectURL(blob);
+      // Ensure correct Excel MIME type for proper multi-sheet recognition
+      const excelBlob = blob.type?.includes('spreadsheet') || blob.type?.includes('octet-stream')
+        ? blob
+        : new Blob([blob], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+      const url = window.URL.createObjectURL(excelBlob);
       const link = document.createElement('a');
       link.href = url;
 
-      let filename = 'resource-utilization';
+      let filename = activeReport === 'resource-performance' ? 'resource-performance' : 'resource-utilization';
       if (projectNameForExport) {
         filename += `-project-${projectNameForExport}`;
       }
@@ -950,10 +998,10 @@ const ReportsPage: React.FC = () => {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
       }, 100);
-      toast.success('Resource utilization exported to Excel successfully!');
+      toast.success(activeReport === 'resource-performance' ? 'Resource performance exported to Excel successfully!' : 'Resource utilization exported to Excel successfully!');
     } catch (err: any) {
-      console.error('Error exporting resource utilization:', err);
-      toast.error(err.message || 'Failed to export resource utilization to Excel');
+      console.error('Error exporting resource report:', err);
+      toast.error(err.message || 'Failed to export to Excel');
     } finally {
       setExportingResource(false);
     }
@@ -1196,8 +1244,13 @@ const ReportsPage: React.FC = () => {
         throw new Error('Received empty file from server');
       }
 
+      // Ensure correct Excel MIME type for proper file recognition
+      const excelBlob = blob.type?.includes('spreadsheet') || blob.type?.includes('octet-stream')
+        ? blob
+        : new Blob([blob], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
       // Create download link
-      const url = window.URL.createObjectURL(blob);
+      const url = window.URL.createObjectURL(excelBlob);
       const link = document.createElement('a');
       link.href = url;
 
@@ -1236,7 +1289,7 @@ const ReportsPage: React.FC = () => {
     return (
       <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-slate-50 via-white to-white px-4 sm:px-6 lg:px-10 py-6 lg:py-8 space-y-10">
         {/* Back Button and Header */}
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center justify-between gap-4 mb-8">
           <div className="flex items-center space-x-4">
             <button
               onClick={() => setActiveReport(null)}
@@ -1269,8 +1322,8 @@ const ReportsPage: React.FC = () => {
               )}
               {activeReport === 'resource-utilization' && (
                 <>
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-700 shadow-lg">
-                    <TrendingUp className="h-6 w-6 text-white" strokeWidth={2.5} />
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-r from-teal-500 to-cyan-600 shadow-lg">
+                    <BarChart3 className="h-6 w-6 text-white" strokeWidth={2.5} />
                   </div>
                   <div>
                     <h1 className="text-3xl font-bold text-foreground">Resource Utilization Report</h1>
@@ -1284,16 +1337,19 @@ const ReportsPage: React.FC = () => {
             <button
               type="button"
               onClick={handleExportResourcePerformance}
-              disabled={exportingResource || resourceUtilizationRows.length === 0}
+              disabled={exportingResource || (activeReport === 'resource-performance' ? resourcePerformanceRows.length === 0 : resourceUtilizationRows.length === 0)}
               className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-green-600 to-cyan-600 px-24 py-3 text-l font-bold text-white shadow-2xl hover:from-green-700 hover:to-cyan-700 hover:scale-105 active:shadow-inner transition-all duration-300 disabled:from-green-400 disabled:to-cyan-400 disabled:cursor-not-allowed disabled:scale-100 min-w-[40px] mr-4"
             >
               {exportingResource ? (
                 <>
-                  <Loader2 className="h-2 w-2 animate-spin mr-2" />
-                  <span>Exporting...</span>
+                  <Loader2 className="h-5 w-5 animate-spin mx-2" />
+                  <span className="mx-2">Exporting...</span>
                 </>
               ) : (
-                <span>Export to Excel</span>
+                <>
+                  <Download className="h-5 w-5 mx-2" />
+                  <span className="mx-2">Export to Excel</span>
+                </>
               )}
             </button>
           )}
@@ -1304,10 +1360,12 @@ const ReportsPage: React.FC = () => {
           <div className="flex flex-col gap-10 mt-8">
             {/* Filters and Export */}
             {resourceUtilizationFilterOptions.projects.length > 0 && (
-              <Card className="shadow-sm border">
+              <Card className="shadow-sm border border-teal-100 bg-gradient-to-br from-white to-teal-50/30">
                 <CardHeader>
-                  <CardTitle className="flex items-center space-x-2 text-lg">
-                    <Filter className="h-5 w-5" />
+                  <CardTitle className="flex items-center space-x-2 text-lg text-teal-800">
+                    <div className="rounded-lg bg-teal-100 p-1.5">
+                      <Filter className="h-5 w-5 text-teal-600" />
+                    </div>
                     <span>Filters</span>
                   </CardTitle>
                 </CardHeader>
@@ -1453,14 +1511,14 @@ const ReportsPage: React.FC = () => {
                       <Table className="min-w-[56rem] border-separate border-spacing-0">
                         <TableHeader>
                           <TableRow className="bg-teal-50 border-b shadow-[0_2px_4px_-1px_rgba(0,0,0,0.06)]">
-                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-slate-200 px-4 py-3 min-w-[12rem] bg-teal-50">Team Member Name</TableHead>
-                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-slate-200 px-4 py-3 min-w-[10rem] bg-teal-50">Project</TableHead>
-                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-slate-200 px-4 py-3 min-w-[8rem] bg-teal-50">Sprint</TableHead>
-                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-slate-200 px-4 py-3 text-center min-w-[7rem] bg-teal-50">Task/Issue Count</TableHead>
-                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-slate-200 px-4 py-3 text-center min-w-[6rem] bg-teal-50">Total Assigned Hours</TableHead>
-                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-slate-200 px-4 py-3 text-center min-w-[5rem] bg-teal-50">Hours Logged</TableHead>
-                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-slate-200 px-4 py-3 text-center min-w-[5rem] bg-teal-50">Utilization Level</TableHead>
-                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold text-center px-4 py-3 min-w-[6rem] border-b border-slate-200 bg-teal-50">Status</TableHead>
+                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold text-teal-800 border-r border-b border-slate-200 px-4 py-3 min-w-[12rem] bg-teal-50">Team Member Name</TableHead>
+                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold text-teal-800 border-r border-b border-slate-200 px-4 py-3 min-w-[10rem] bg-teal-50">Project</TableHead>
+                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold text-teal-800 border-r border-b border-slate-200 px-4 py-3 min-w-[8rem] bg-teal-50">Sprint</TableHead>
+                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold text-teal-800 border-r border-b border-slate-200 px-4 py-3 text-center min-w-[7rem] bg-teal-50">Task/Issue Count</TableHead>
+                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold text-teal-800 border-r border-b border-slate-200 px-4 py-3 text-center min-w-[6rem] bg-teal-50">Total Assigned Hours</TableHead>
+                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold text-teal-800 border-r border-b border-slate-200 px-4 py-3 text-center min-w-[5rem] bg-teal-50">Hours Logged</TableHead>
+                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold text-teal-800 border-r border-b border-slate-200 px-4 py-3 text-center min-w-[5rem] bg-teal-50">Utilization Level</TableHead>
+                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold text-teal-800 text-center px-4 py-3 min-w-[6rem] border-b border-slate-200 bg-teal-50">Status</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1492,15 +1550,17 @@ const ReportsPage: React.FC = () => {
                                       ) : (
                                         <span className="inline-block w-6" />
                                       )}
-                                      <span className={`${hasBreakdown ? 'ml-1' : ''} break-words`}>{row.resourceName}</span>
+                                      <span className={`${hasBreakdown ? 'ml-1' : ''} break-words text-teal-800 font-semibold`}>{row.resourceName}</span>
                                     </TableCell>
                                     <TableCell className="border-r border-slate-100 px-4 py-3 text-sm min-w-0">
-                                      <span className="break-words">{Array.from(new Set(row.projects)).join(', ') || '—'}</span>
+                                      <span className="break-words text-teal-700">{Array.from(new Set(row.projects)).join(', ') || '—'}</span>
                                     </TableCell>
                                     <TableCell className="border-r border-slate-100 px-4 py-3 text-sm min-w-0">
-                                      {row.projectSprintBreakdown.length > 0
-                                        ? Array.from(new Set(row.projectSprintBreakdown.map(p => p.sprint))).join(', ')
-                                        : '—'}
+                                      <span className="text-teal-700">
+                                        {row.projectSprintBreakdown.length > 0
+                                          ? Array.from(new Set(row.projectSprintBreakdown.map(p => p.sprint))).join(', ')
+                                          : '—'}
+                                      </span>
                                     </TableCell>
                                     <TableCell className="text-center border-r border-slate-100 px-4 py-3">
                                       <div className="flex flex-col items-center gap-0.5">
@@ -1530,13 +1590,19 @@ const ReportsPage: React.FC = () => {
                                       </div>
                                     </TableCell>
                                     <TableCell className="text-center border-r border-slate-100 px-4 py-3">
-                                      <span className="font-semibold tabular-nums">{row.allocatedHours.toFixed(1)}</span>
+                                      <span className="font-semibold tabular-nums text-indigo-600">{row.allocatedHours.toFixed(1)}</span>
                                     </TableCell>
                                     <TableCell className="text-center border-r border-slate-100 px-4 py-3">
-                                      <span className="font-semibold tabular-nums">{row.hoursLogged.toFixed(1)}</span>
+                                      <span className="font-semibold tabular-nums text-cyan-600">{row.hoursLogged.toFixed(1)}</span>
                                     </TableCell>
                                     <TableCell className="text-center border-r border-slate-100 px-4 py-3">
-                                      <span className="font-semibold tabular-nums">
+                                      <span className={`font-semibold tabular-nums ${
+                                        row.allocatedHours <= 0 ? 'text-slate-500' :
+                                        row.utilizationLevel >= 80 ? 'text-green-600' :
+                                        row.utilizationLevel >= 60 ? 'text-teal-600' :
+                                        row.utilizationLevel >= 40 ? 'text-amber-600' :
+                                        row.utilizationLevel > 100 ? 'text-red-600' : 'text-orange-600'
+                                      }`}>
                                         {row.allocatedHours > 0 ? `${row.utilizationLevel.toFixed(1)}%` : 'N/A'}
                                       </span>
                                     </TableCell>
@@ -1545,12 +1611,12 @@ const ReportsPage: React.FC = () => {
                                         <Badge
                                           className={
                                             row.status === 'idle'
-                                              ? 'bg-slate-200 text-slate-700'
+                                              ? 'bg-slate-200 text-slate-800 font-semibold border border-slate-300'
                                               : row.status === 'underutilized'
-                                                ? 'bg-amber-100 text-amber-800 border-amber-200'
+                                                ? 'bg-amber-100 text-amber-900 font-semibold border border-amber-300'
                                                 : row.status === 'overloaded'
-                                                  ? 'bg-red-100 text-red-800 border-red-200'
-                                                  : 'bg-green-100 text-green-800 border-green-200'
+                                                  ? 'bg-red-100 text-red-900 font-semibold border border-red-300'
+                                                  : 'bg-green-100 text-green-800 font-semibold border border-green-300'
                                           }
                                         >
                                           {row.status.charAt(0).toUpperCase() + row.status.slice(1)}
@@ -1558,7 +1624,11 @@ const ReportsPage: React.FC = () => {
                                       </span>
                                     </TableCell>
                                   </TableRow>
-                                  {expandedCountCells.has(row.resourceKey) && [...row.taskItems, ...row.issueItems].map((item, idx) => (
+                                  {expandedCountCells.has(row.resourceKey) && [...row.taskItems, ...row.issueItems].map((item, idx) => {
+                                    const util = item.estimationHours > 0 ? (item.actualHours / item.estimationHours) * 100 : 0;
+                                    const status = item.estimationHours <= 0 ? 'optimal' : item.actualHours === 0 ? 'idle' : util < 50 ? 'underutilized' : util > 120 ? 'overloaded' : 'optimal';
+                                    const utilColor = item.estimationHours <= 0 ? 'text-slate-500' : util >= 80 ? 'text-green-600' : util >= 60 ? 'text-teal-600' : util >= 40 ? 'text-amber-600' : util > 100 ? 'text-red-600' : 'text-orange-600';
+                                    return (
                                     <TableRow key={`${row.resourceKey}-${item.taskIssueId || idx}`} className="bg-teal-50/25 border-b border-slate-100 hover:bg-teal-50/35 transition-colors duration-150">
                                       <TableCell className="pl-12 py-2 text-sm border-r border-slate-100" />
                                       <TableCell className="py-2 text-sm border-r border-slate-100" />
@@ -1569,24 +1639,43 @@ const ReportsPage: React.FC = () => {
                                         </span>
                                       </TableCell>
                                       <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
-                                        {item.estimationHours.toFixed(1)}
+                                        <span className="text-indigo-600">{item.estimationHours.toFixed(1)}</span>
                                       </TableCell>
                                       <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
-                                        {item.actualHours.toFixed(1)}
+                                        <span className="text-cyan-600">{item.actualHours.toFixed(1)}</span>
                                       </TableCell>
-                                      <TableCell className="py-2 text-sm text-center border-r border-slate-100 px-4">—</TableCell>
-                                      <TableCell className="py-2 text-center px-4">—</TableCell>
+                                      <TableCell className="py-2 text-sm text-center border-r border-slate-100 px-4">
+                                        <span className={`font-medium ${utilColor}`}>
+                                          {item.estimationHours > 0 ? `${util.toFixed(1)}%` : 'N/A'}
+                                        </span>
+                                      </TableCell>
+                                      <TableCell className="py-2 text-center px-4">
+                                        <Badge
+                                          className={
+                                            status === 'idle'
+                                              ? 'bg-slate-200 text-slate-800 font-semibold border border-slate-300 text-xs'
+                                              : status === 'underutilized'
+                                                ? 'bg-amber-100 text-amber-900 font-semibold border border-amber-300 text-xs'
+                                                : status === 'overloaded'
+                                                  ? 'bg-red-100 text-red-900 font-semibold border border-red-300 text-xs'
+                                                  : 'bg-green-100 text-green-800 font-semibold border border-green-300 text-xs'
+                                          }
+                                        >
+                                          {status.charAt(0).toUpperCase() + status.slice(1)}
+                                        </Badge>
+                                      </TableCell>
                                     </TableRow>
-                                  ))}
+                                    );
+                                  })}
                                   {isExpanded && hasBreakdown && row.projectSprintBreakdown.map((psb) => (
                                     <React.Fragment key={`${psb.project}-${psb.sprint}`}>
                                       <TableRow className="bg-teal-50/35 border-b border-slate-100 hover:bg-teal-50/50 transition-colors duration-150">
                                         <TableCell className="pl-12 py-2 text-sm border-r border-slate-100" />
                                         <TableCell className="py-2 text-sm font-medium border-r border-slate-100 px-4 min-w-0">
-                                          <span className="break-words">{psb.project}</span>
+                                          <span className="break-words text-teal-700">{psb.project}</span>
                                         </TableCell>
                                         <TableCell className="py-2 text-sm font-medium border-r border-slate-100 px-4 min-w-0">
-                                          <span className="break-words">{psb.sprint}</span>
+                                          <span className="break-words text-teal-700">{psb.sprint}</span>
                                         </TableCell>
                                         <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4">
                                           <div className="flex flex-col items-center gap-0.5">
@@ -1616,25 +1705,33 @@ const ReportsPage: React.FC = () => {
                                           </div>
                                         </TableCell>
                                         <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
-                                          {psb.allocatedHours.toFixed(1)}
+                                          <span className="text-indigo-600">{psb.allocatedHours.toFixed(1)}</span>
                                         </TableCell>
                                         <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
-                                          {psb.hoursLogged.toFixed(1)}
+                                          <span className="text-cyan-600">{psb.hoursLogged.toFixed(1)}</span>
                                         </TableCell>
                                         <TableCell className="py-2 text-sm text-center border-r border-slate-100 px-4">
-                                          {psb.allocatedHours > 0 ? `${psb.utilizationLevel.toFixed(1)}%` : 'N/A'}
+                                          <span className={`font-medium ${
+                                            psb.allocatedHours <= 0 ? 'text-slate-500' :
+                                            psb.utilizationLevel >= 80 ? 'text-green-600' :
+                                            psb.utilizationLevel >= 60 ? 'text-teal-600' :
+                                            psb.utilizationLevel >= 40 ? 'text-amber-600' :
+                                            psb.utilizationLevel > 100 ? 'text-red-600' : 'text-orange-600'
+                                          }`}>
+                                            {psb.allocatedHours > 0 ? `${psb.utilizationLevel.toFixed(1)}%` : 'N/A'}
+                                          </span>
                                         </TableCell>
                                         <TableCell className="py-2 text-center px-4">
                                           <span className="flex justify-center">
                                             <Badge
                                               className={
                                                 psb.status === 'idle'
-                                                  ? 'bg-slate-200 text-slate-700'
+                                                  ? 'bg-slate-200 text-slate-800 font-semibold border border-slate-300'
                                                   : psb.status === 'underutilized'
-                                                    ? 'bg-amber-100 text-amber-800 border-amber-200'
+                                                    ? 'bg-amber-100 text-amber-900 font-semibold border border-amber-300'
                                                     : psb.status === 'overloaded'
-                                                      ? 'bg-red-100 text-red-800 border-red-200'
-                                                      : 'bg-green-100 text-green-800 border-green-200'
+                                                      ? 'bg-red-100 text-red-900 font-semibold border border-red-300'
+                                                      : 'bg-green-100 text-green-800 font-semibold border border-green-300'
                                               }
                                             >
                                               {psb.status.charAt(0).toUpperCase() + psb.status.slice(1)}
@@ -1642,7 +1739,11 @@ const ReportsPage: React.FC = () => {
                                           </span>
                                         </TableCell>
                                       </TableRow>
-                                      {expandedCountCells.has(`${row.resourceKey}-${psb.project}-${psb.sprint}`) && [...psb.taskItems, ...psb.issueItems].map((item, idx) => (
+                                      {expandedCountCells.has(`${row.resourceKey}-${psb.project}-${psb.sprint}`) && [...psb.taskItems, ...psb.issueItems].map((item, idx) => {
+                                        const util = item.estimationHours > 0 ? (item.actualHours / item.estimationHours) * 100 : 0;
+                                        const status = item.estimationHours <= 0 ? 'optimal' : item.actualHours === 0 ? 'idle' : util < 50 ? 'underutilized' : util > 120 ? 'overloaded' : 'optimal';
+                                        const utilColor = item.estimationHours <= 0 ? 'text-slate-500' : util >= 80 ? 'text-green-600' : util >= 60 ? 'text-teal-600' : util >= 40 ? 'text-amber-600' : util > 100 ? 'text-red-600' : 'text-orange-600';
+                                        return (
                                         <TableRow key={`${row.resourceKey}-${psb.project}-${psb.sprint}-${item.taskIssueId || idx}`} className="bg-teal-50/20 border-b border-slate-100 hover:bg-teal-50/30 transition-colors duration-150">
                                           <TableCell className="pl-16 py-2 text-sm border-r border-slate-100" />
                                           <TableCell className="py-2 text-sm border-r border-slate-100" />
@@ -1653,15 +1754,34 @@ const ReportsPage: React.FC = () => {
                                             </span>
                                           </TableCell>
                                           <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
-                                            {item.estimationHours.toFixed(1)}
+                                            <span className="text-indigo-600">{item.estimationHours.toFixed(1)}</span>
                                           </TableCell>
                                           <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
-                                            {item.actualHours.toFixed(1)}
+                                            <span className="text-cyan-600">{item.actualHours.toFixed(1)}</span>
                                           </TableCell>
-                                          <TableCell className="py-2 text-sm text-center border-r border-slate-100 px-4">—</TableCell>
-                                          <TableCell className="py-2 text-center px-4">—</TableCell>
+                                          <TableCell className="py-2 text-sm text-center border-r border-slate-100 px-4">
+                                            <span className={`font-medium ${utilColor}`}>
+                                              {item.estimationHours > 0 ? `${util.toFixed(1)}%` : 'N/A'}
+                                            </span>
+                                          </TableCell>
+                                          <TableCell className="py-2 text-center px-4">
+                                            <Badge
+                                              className={
+                                                status === 'idle'
+                                                  ? 'bg-slate-200 text-slate-800 font-semibold border border-slate-300 text-xs'
+                                                  : status === 'underutilized'
+                                                    ? 'bg-amber-100 text-amber-900 font-semibold border border-amber-300 text-xs'
+                                                    : status === 'overloaded'
+                                                      ? 'bg-red-100 text-red-900 font-semibold border border-red-300 text-xs'
+                                                      : 'bg-green-100 text-green-800 font-semibold border border-green-300 text-xs'
+                                              }
+                                            >
+                                              {status.charAt(0).toUpperCase() + status.slice(1)}
+                                            </Badge>
+                                          </TableCell>
                                         </TableRow>
-                                      ))}
+                                        );
+                                      })}
                                     </React.Fragment>
                                   ))}
                                 </React.Fragment>
@@ -1675,10 +1795,10 @@ const ReportsPage: React.FC = () => {
                 </CardContent>
               </Card>
             ) : (
-              <Card className="shadow-md border-t-4 border-t-slate-700">
+              <Card className="shadow-md border-t-4 border-t-teal-500 bg-gradient-to-br from-teal-50/50 to-cyan-50/30">
                 <CardContent className="flex flex-col items-center justify-center py-24 text-muted-foreground">
-                  <TrendingUp className="h-16 w-16 mb-4 text-slate-300" strokeWidth={1.5} />
-                  <p className="text-sm">No utilization data available.</p>
+                  <TrendingUp className="h-16 w-16 mb-4 text-teal-300" strokeWidth={1.5} />
+                  <p className="text-sm text-teal-700">No utilization data available.</p>
                 </CardContent>
               </Card>
             )}
@@ -1725,13 +1845,13 @@ const ReportsPage: React.FC = () => {
               >
                 {exporting ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Exporting...
+                    <Loader2 className="h-4 w-4 animate-spin mx-2" />
+                    <span className="mx-2">Exporting...</span>
                   </>
                 ) : (
                   <>
-                    <Download className="h-4 w-4" />
-                    Export to Excel
+                    <Download className="h-4 w-4 mx-2" />
+                    <span className="mx-2">Export to Excel</span>
                   </>
                 )}
               </button>
@@ -1963,11 +2083,11 @@ const ReportsPage: React.FC = () => {
                     <CardDescription>Loading team utilization and allocation metrics...</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-2 gap-4">
-                      {[1, 2, 3, 4].map((i) => (
+                    <div className="flex w-full gap-4">
+                      {[1, 2, 3, 4, 5].map((i) => (
                         <div
                           key={i}
-                          className="p-4 rounded-lg border border-slate-200 bg-slate-50 animate-pulse space-y-2"
+                          className="flex-1 min-w-0 p-4 rounded-lg border border-slate-200 bg-slate-50 animate-pulse space-y-2"
                         >
                           <div className="h-3 w-24 bg-slate-200 rounded" />
                           <div className="h-7 w-20 bg-slate-300 rounded" />
@@ -2161,36 +2281,56 @@ const ReportsPage: React.FC = () => {
                   <CardContent>
                     {summaryData ? (
                       <>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <div className="flex w-full gap-4">
+                          <div className="flex-1 min-w-0 p-4 bg-blue-50 rounded-lg border border-blue-200">
                             <p className="text-xs font-medium text-blue-700 uppercase tracking-wider mb-2">Total Resources</p>
                             <p className="text-3xl font-bold text-blue-600">
                               {summaryData.totalResources || summaryData.activeResources || 0}
                             </p>
                             <p className="text-xs text-blue-600 mt-1">Active team members</p>
                           </div>
-                          <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                            <p className="text-xs font-medium text-purple-700 uppercase tracking-wider mb-2">Avg Utilization</p>
+                          <div className="flex-1 min-w-0 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                            <p className="text-xs font-medium text-purple-700 uppercase tracking-wider mb-2">Utilization</p>
                             <p className="text-3xl font-bold text-purple-600">
-                              {summaryData.averageUtilization
+                              {summaryData.averageUtilization != null
                                 ? `${Math.round(summaryData.averageUtilization)}%`
-                                : summaryData.utilizationRate
+                                : summaryData.utilizationRate != null
                                   ? `${Math.round(summaryData.utilizationRate)}%`
                                   : '0%'}
                             </p>
-                            <p className="text-xs text-purple-600 mt-1">Resource efficiency</p>
+                            <p className="text-xs text-purple-600 mt-1">Actual / Allocated</p>
+                            <div className="mt-2 pt-2 border-t border-purple-200 space-y-1">
+                              <p className="text-xs font-medium text-purple-700">Idle</p>
+                              <p className="text-xs text-purple-600">
+                                Not Allocated: {summaryData.idleNotAllocatedCount ?? 0} resource(s)
+                              </p>
+                              <p className="text-xs text-purple-600">
+                                Early Completed: {(summaryData.idleEarlyCompletedHours ?? 0).toFixed(1)} h
+                              </p>
+                            </div>
                           </div>
-                          <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                          <div className="flex-1 min-w-0 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                            <p className="text-xs font-medium text-emerald-700 uppercase tracking-wider mb-2">Efficiency</p>
+                            <p className="text-3xl font-bold text-emerald-600">
+                              {summaryData.averageEfficiency != null
+                                ? `${Math.round(summaryData.averageEfficiency)}%`
+                                : summaryData.averageUtilization != null
+                                  ? `${Math.round(summaryData.averageUtilization)}%`
+                                  : '0%'}
+                            </p>
+                            <p className="text-xs text-emerald-600 mt-1">Output vs planned</p>
+                          </div>
+                          <div className="flex-1 min-w-0 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
                             <p className="text-xs font-medium text-indigo-700 uppercase tracking-wider mb-2">Allocated Hours</p>
                             <p className="text-3xl font-bold text-indigo-600">
-                              {summaryData.allocatedHours || 0}
+                              {(summaryData.allocatedHours ?? 0).toFixed(1)}
                             </p>
                             <p className="text-xs text-indigo-600 mt-1">Planned allocation</p>
                           </div>
-                          <div className="p-4 bg-cyan-50 rounded-lg border border-cyan-200">
+                          <div className="flex-1 min-w-0 p-4 bg-cyan-50 rounded-lg border border-cyan-200">
                             <p className="text-xs font-medium text-cyan-700 uppercase tracking-wider mb-2">Total Hours</p>
                             <p className="text-3xl font-bold text-cyan-600">
-                              {summaryData.totalHours || 0}
+                              {(summaryData.totalHours ?? 0).toFixed(1)}
                             </p>
                             <p className="text-xs text-cyan-600 mt-1">Actual hours logged</p>
                           </div>
@@ -2444,6 +2584,7 @@ const ReportsPage: React.FC = () => {
                                     <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-blue-50">To Do</TableHead>
                                     <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-blue-50">On Going</TableHead>
                                     <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-blue-50">Done</TableHead>
+                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-blue-50">Over Due</TableHead>
                                     <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-blue-50">Total Bug Resolved</TableHead>
                                     <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-b border-gray-300 bg-blue-50">Rework Count For Bugs</TableHead>
                                   </TableRow>
@@ -2476,6 +2617,11 @@ const ReportsPage: React.FC = () => {
                                       <TableCell className="text-center border-r border-gray-300">
                                         <Badge className="bg-green-100 text-green-800 border-green-200">
                                           {dev.done}
+                                        </Badge>
+                                      </TableCell>
+                                      <TableCell className="text-center border-r border-gray-300">
+                                        <Badge className={dev.overdueCount > 0 ? 'bg-red-100 text-red-800 border-red-200' : 'bg-slate-100 text-slate-600 border-slate-200'}>
+                                          {dev.overdueCount}
                                         </Badge>
                                       </TableCell>
                                       <TableCell className="text-center border-r border-gray-300">
@@ -2574,8 +2720,7 @@ const ReportsPage: React.FC = () => {
                                   <TableRow className="bg-purple-50 border-b shadow-sm">
                                     <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-purple-50">Name (Tester)</TableHead>
                                     <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-purple-50">Issue Created</TableHead>
-                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-purple-50">Task Assigned</TableHead>
-                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-b border-gray-300 bg-purple-50">Total Bug Resolved</TableHead>
+                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-b border-gray-300 bg-purple-50">Task Assigned</TableHead>
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -2693,22 +2838,22 @@ const ReportsPage: React.FC = () => {
 
           {/* Resource Utilization Report Card */}
           <Card
-            className="group cursor-pointer border border-slate-200/80 bg-white/80 shadow-sm hover:shadow-lg hover:border-slate-400 hover:-translate-y-0.5 transition-all duration-200 rounded-xl"
+            className="group cursor-pointer border border-teal-200/80 bg-gradient-to-br from-teal-50/60 to-cyan-50/40 shadow-sm hover:shadow-lg hover:border-teal-400 hover:-translate-y-0.5 transition-all duration-200 rounded-xl"
             onClick={() => setActiveReport('resource-utilization')}
           >
             <CardContent className="p-8 flex flex-col items-start space-y-3 text-left">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 group-hover:bg-slate-200 transition-colors">
-                <TrendingUp className="w-8 h-8 text-slate-600" strokeWidth={2.5} />
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-teal-100 to-cyan-100 group-hover:from-teal-200 group-hover:to-cyan-200 transition-colors border border-teal-200/50">
+                <BarChart3 className="h-7 w-7 text-teal-600" strokeWidth={2.5} />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-foreground mb-1 group-hover:text-slate-700 transition-colors">
+                <h3 className="text-lg font-semibold text-foreground mb-1 group-hover:text-teal-800 transition-colors">
                   Resource Utilization Report
                 </h3>
                 <p className="text-sm text-muted-foreground">
                   Resource utilization analytics.
                 </p>
               </div>
-              <p className="text-xs text-slate-600 font-medium mt-2 group-hover:underline">
+              <p className="text-xs text-teal-600 font-medium mt-2 group-hover:underline group-hover:text-teal-700">
                 Click to view →
               </p>
             </CardContent>

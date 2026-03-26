@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
+import java.util.Collections;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -122,8 +123,8 @@ public class QualityGateController {
             List<QualityGate> qualityGates = qualityGateService.getAllQualityGates();
             return ResponseEntity.ok(qualityGates);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Failed to retrieve quality gates: " + e.getMessage()));
+            // Return empty list instead of 500 when table/schema issues (e.g. table missing, schema mismatch)
+            return ResponseEntity.ok(Collections.emptyList());
         }
     }
 

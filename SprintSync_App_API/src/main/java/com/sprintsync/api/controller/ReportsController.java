@@ -516,7 +516,7 @@ public class ReportsController {
             byte[] excelData = reportsService.exportBugReportToExcel(projectId, sprintId);
 
             HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
             String filename = projectId != null && !projectId.isEmpty()
                     ? String.format("bug-report-project-%s.xlsx", projectId)
                     : "bug-report.xlsx";
@@ -638,8 +638,50 @@ public class ReportsController {
                     projectName, userKey, sprint, duration, fromDate, toDate);
 
             HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
             String filename = "resource-utilization-" + java.time.LocalDate.now() + ".xlsx";
+            headers.setContentDispositionFormData("attachment", filename);
+            headers.setContentLength(excelData.length);
+
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(excelData);
+        } catch (IOException e) {
+            e.printStackTrace();
+            org.slf4j.LoggerFactory.getLogger(ReportsController.class)
+                    .error("Export individual-utilization failed", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception e) {
+            e.printStackTrace();
+            org.slf4j.LoggerFactory.getLogger(ReportsController.class)
+                    .error("Export individual-utilization failed", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Export resource PERFORMANCE report to Excel (Resource Performance page).
+     * Sheet1: detailed rows; Sheet2: developers, managers and testers summary.
+     */
+    @GetMapping(value = "/export/resource-performance/excel", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    public ResponseEntity<byte[]> exportResourcePerformanceToExcel(
+            @RequestParam(required = false) String projectId,
+            @RequestParam(required = false) String period,
+            @RequestParam(required = false) String projectName,
+            @RequestParam(required = false) String userKey,
+            @RequestParam(required = false) String sprint,
+            @RequestParam(required = false) String duration,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate fromDate,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate toDate) {
+        try {
+            byte[] excelData = reportsService.exportResourceUtilizationToExcel(
+                    projectId, period, projectName, userKey, sprint, duration, fromDate, toDate);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+            String filename = projectName != null && !projectName.isEmpty()
+                    ? String.format("resource-performance-project-%s.xlsx", projectName)
+                    : "resource-performance.xlsx";
             headers.setContentDispositionFormData("attachment", filename);
             headers.setContentLength(excelData.length);
 
@@ -656,9 +698,8 @@ public class ReportsController {
     }
 
     /**
-     * Export resource utilization report to Excel
-     * Sheet1: detailed rows
-     * Sheet2: developers, managers and testers summary
+     * Export resource UTILIZATION report to Excel (Resource Utilization page).
+     * Sheet1: detailed rows; Sheet2: developers, managers and testers summary.
      */
     @GetMapping(value = "/export/resource-utilization/excel", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
     public ResponseEntity<byte[]> exportResourceUtilizationToExcel(
@@ -675,7 +716,7 @@ public class ReportsController {
                     projectId, period, projectName, userKey, sprint, duration, fromDate, toDate);
 
             HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
             String filename = projectId != null && !projectId.isEmpty()
                     ? String.format("resource-utilization-project-%s.xlsx", projectId)
                     : "resource-utilization.xlsx";

@@ -45,11 +45,15 @@ import {
   Eye,
   Filter,
   X,
-  UserPlus
+  UserPlus,
+  ListTodo,
+  Bug,
+  Gauge,
+  ShieldCheck
 } from 'lucide-react';
 // Removed mock data imports - using API data only
 import UserTasks from './UserTasks';
-import { useProjects, useUsers, useDepartments, useDomains, useEpics, useReleases, useSprints, useStories, useTasks, useAllSprints, useAllStories, useAllTasks } from '../hooks/api';
+import { useProjects, useUsers, useDepartments, useDomains, useEpics, useReleases, useSprints, useStories, useTasks, useAllSprints, useAllStories, useAllTasks, useIssuesByAssignee } from '../hooks/api';
 import { apiClient } from '../services/api/client';
 import { prefetchProjects } from '../hooks/api/useProjects';
 import { prefetchSprints } from '../hooks/api/useSprints';
@@ -103,6 +107,7 @@ const Dashboard: React.FC = () => {
   const { data: apiSprints, loading: sprintsLoading, error: sprintsError, refetch: refetchSprints } = useAllSprints();
   const { data: apiStories, loading: storiesLoading, error: storiesError, refetch: refetchStories } = useAllStories();
   const { data: apiTasks, loading: tasksLoading, error: tasksError, refetch: refetchTasks } = useAllTasks();
+  const { data: assignedIssuesData } = useIssuesByAssignee(user?.id ?? '', undefined);
 
   // Check if any API is still loading (but consider cached data as loaded)
   const isLoadingAny = (projectsLoading && !apiProjects) ||
@@ -761,6 +766,138 @@ const Dashboard: React.FC = () => {
       .slice(0, 10); // Limit to top 10 for dashboard
   }, [apiUsers, apiTasks, effectiveRole]);
 
+  // Metrics for Tasks, Bugs, Self Performance, Quality (visible to all users)
+  // Quality = derived score from completion + bug resolution (no API)
+  const personalOverviewMetrics = useMemo(() => {
+    const allTasks = normalizeApiData(apiTasks);
+    const allIssues = Array.isArray(assignedIssuesData) ? assignedIssuesData : (assignedIssuesData as any)?.content ?? [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const userId = user?.id;
+    if (!userId) {
+      return {
+        tasks: { assigned: 0, inProgress: 0, done: 0, overdue: 0, todo: 0 },
+        bugs: 0,
+        bugsOpen: 0,
+        bugsResolved: 0,
+        selfPerformance: 0,
+        qualityScore: 0,
+        insights: [] as string[]
+      };
+    }
+
+    const userTasks = allTasks.filter((t: any) => String(t.assigneeId || t.assignee?.id) === String(userId));
+    const tasksAssigned = userTasks.length;
+    const tasksInProgress = userTasks.filter((t: any) => {
+      const s = (t.status || t.taskStatus || '').toString().toLowerCase();
+      return s === 'in_progress' || s === 'in progress' || s === 'qa_review';
+    }).length;
+    const tasksDone = userTasks.filter((t: any) => {
+      const s = (t.status || t.taskStatus || '').toString().toLowerCase();
+      return s === 'done' || s === 'completed';
+    }).length;
+    const tasksTodo = userTasks.filter((t: any) => {
+      const s = (t.status || t.taskStatus || '').toString().toLowerCase();
+      return s === 'to_do' || s === 'todo' || s === 'backlog' || s === '';
+    }).length;
+    const tasksOverdue = userTasks.filter((t: any) => {
+      const due = t.dueDate || t.due_date;
+      if (!due) return false;
+      const d = new Date(due);
+      d.setHours(0, 0, 0, 0);
+      const status = (t.status || t.taskStatus || '').toString().toLowerCase();
+      const isDone = status === 'done' || status === 'completed';
+      return d < today && !isDone;
+    }).length;
+
+    const isBug = (issue: any) => {
+      const labels = issue?.labels ?? [];
+      const labelStr = Array.isArray(labels) ? labels.join(' ').toLowerCase() : '';
+      return labelStr.includes('bug') || labelStr.includes('defect');
+    };
+    const userBugs = allIssues.filter((i: any) => isBug(i));
+    const bugsOpen = userBugs.filter((i: any) => {
+      const s = (i.status || '').toString().toLowerCase();
+      return s !== 'done' && s !== 'completed' && s !== 'closed';
+    }).length;
+    const bugsResolved = userBugs.length - bugsOpen;
+    const bugsCount = userBugs.length;
+
+    const selfPerformancePct = tasksAssigned > 0 ? Math.round((tasksDone / tasksAssigned) * 100) : 0;
+    const bugResolutionPct = bugsCount > 0 ? Math.round((bugsResolved / bugsCount) * 100) : 100;
+    const qualityScore = Math.round((selfPerformancePct * 0.6 + bugResolutionPct * 0.4));
+
+    const insights: string[] = [];
+    if (tasksOverdue > 0) insights.push(`${tasksOverdue} overdue task${tasksOverdue > 1 ? 's' : ''} need${tasksOverdue === 1 ? 's' : ''} attention`);
+    if (tasksTodo > 0 && tasksInProgress === 0) insights.push('Start a task to build momentum');
+    if (tasksInProgress > 2) insights.push('Focus on completing 1–2 tasks before picking up more');
+    if (selfPerformancePct >= 80 && tasksAssigned > 0) insights.push('Great progress — keep it up');
+    else if (tasksAssigned > 0 && selfPerformancePct < 50) insights.push('Complete 1–2 tasks to improve your completion rate');
+    if (bugsOpen > 0) insights.push(`${bugsOpen} bug${bugsOpen > 1 ? 's' : ''} to fix — prioritize by severity`);
+    if (tasksAssigned === 0 && bugsCount === 0) insights.push('No tasks or bugs assigned — check with your team lead');
+
+    return {
+      tasks: { assigned: tasksAssigned, inProgress: tasksInProgress, done: tasksDone, overdue: tasksOverdue, todo: tasksTodo },
+      bugs: bugsCount,
+      bugsOpen,
+      bugsResolved,
+      selfPerformance: selfPerformancePct,
+      qualityScore,
+      insights
+    };
+  }, [user?.id, apiTasks, assignedIssuesData]);
+
+  const CircularProgress: React.FC<{
+    value: number;
+    size?: number;
+    strokeWidth?: number;
+    gradientFrom: string;
+    gradientTo: string;
+    label: string;
+    icon: React.ReactNode;
+    iconBg?: string;
+  }> = ({ value, size = 64, strokeWidth = 6, gradientFrom, gradientTo, label, icon, iconBg = 'bg-slate-100' }) => {
+    const r = (size - strokeWidth) / 2;
+    const circ = 2 * Math.PI * r;
+    const offset = circ - (value / 100) * circ;
+    const id = `grad-${label.replace(/\s/g, '-')}-${value}-${size}`;
+    return (
+      <div className="flex flex-col items-center gap-2">
+        <div className="relative group" style={{ width: size, height: size }}>
+          <svg width={size} height={size} className="rotate-[-90deg] drop-shadow-sm">
+            <defs>
+              <linearGradient id={id} x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor={gradientFrom} />
+                <stop offset="100%" stopColor={gradientTo} />
+              </linearGradient>
+            </defs>
+            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e2e8f0" strokeWidth={strokeWidth} />
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={r}
+              fill="none"
+              stroke={`url(#${id})`}
+              strokeWidth={strokeWidth}
+              strokeDasharray={circ}
+              strokeDashoffset={offset}
+              strokeLinecap="round"
+              style={{ transition: 'stroke-dashoffset 0.5s ease' }}
+            />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-sm font-bold text-slate-800 drop-shadow-sm">{value}%</span>
+          </div>
+        </div>
+        <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg ${iconBg} text-xs font-semibold text-slate-700`}>
+          {icon}
+          {label}
+        </div>
+      </div>
+    );
+  };
+
   const aiInsights = useMemo(() => {
     // TODO: Generate AI insights from data patterns
     return [
@@ -1353,6 +1490,123 @@ const Dashboard: React.FC = () => {
             <Progress value={displayMetrics.sprintProgress} className="mt-2 h-1.5" />
           </CardContent>
         </Card>
+      </div>
+
+      {/* Personal Overview: Tasks, Bugs, Self Performance, Quality — Colorful radial view */}
+      <div
+        className="relative overflow-hidden rounded-2xl border-2 border-indigo-200/60 bg-gradient-to-br from-indigo-50 via-violet-50/50 to-fuchsia-50 shadow-xl shadow-indigo-200/40 animate-fadeInUp"
+        style={{ animationDelay: '0.25s' }}
+      >
+        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-violet-300/30 via-fuchsia-200/20 to-transparent rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-blue-200/25 to-transparent rounded-full translate-y-1/2 -translate-x-1/2" />
+        <div className="relative px-6 py-6">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            {/* Central composite score */}
+            <div className="flex items-center gap-6 shrink-0">
+              <div className="relative">
+                <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-300/50 flex items-center justify-center ring-4 ring-white/50">
+                  <div className="text-center">
+                    <span className="text-3xl font-bold text-white drop-shadow-md">
+                      {personalOverviewMetrics.qualityScore}
+                    </span>
+                    <div className="text-[10px] font-semibold text-indigo-100 uppercase tracking-wider">Health</div>
+                  </div>
+                </div>
+                <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-xl bg-amber-400 flex items-center justify-center shadow-lg ring-2 ring-white">
+                  <Zap className="w-4 h-4 text-amber-900" />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold bg-gradient-to-r from-indigo-700 via-violet-600 to-fuchsia-600 bg-clip-text text-transparent">My Work Overview</h3>
+                <p className="text-sm text-slate-600 mt-0.5 max-w-[200px] font-medium">Tasks · Bugs · Performance · Quality</p>
+              </div>
+            </div>
+
+            {/* 4 radial progress rings with vibrant gradients */}
+            <div className="flex flex-wrap justify-center lg:justify-end gap-6 lg:gap-8">
+              <button type="button" onClick={() => navigate('/todo-list')} className="group p-3 rounded-2xl bg-blue-50/80 hover:bg-blue-100/90 border border-blue-200/50 transition-all duration-300 hover:scale-105">
+                <CircularProgress
+                  value={personalOverviewMetrics.tasks.assigned > 0 ? Math.round((personalOverviewMetrics.tasks.done / personalOverviewMetrics.tasks.assigned) * 100) : 0}
+                  size={76}
+                  strokeWidth={6}
+                  gradientFrom="#3b82f6"
+                  gradientTo="#06b6d4"
+                  label={`${personalOverviewMetrics.tasks.assigned} tasks`}
+                  icon={<ListTodo className="w-4 h-4 text-blue-600" />}
+                  iconBg="bg-blue-100"
+                />
+                {personalOverviewMetrics.tasks.overdue > 0 && (
+                  <div className="text-[10px] text-rose-600 font-semibold mt-1 text-center">{personalOverviewMetrics.tasks.overdue} overdue</div>
+                )}
+              </button>
+
+              <button type="button" onClick={() => navigate('/scrum')} className="group p-3 rounded-2xl bg-rose-50/80 hover:bg-rose-100/90 border border-rose-200/50 transition-all duration-300 hover:scale-105">
+                <CircularProgress
+                  value={personalOverviewMetrics.bugs > 0 ? Math.round((personalOverviewMetrics.bugsResolved / personalOverviewMetrics.bugs) * 100) : 100}
+                  size={76}
+                  strokeWidth={6}
+                  gradientFrom="#f43f5e"
+                  gradientTo="#ec4899"
+                  label={`${personalOverviewMetrics.bugs} bugs`}
+                  icon={<Bug className="w-4 h-4 text-rose-600" />}
+                  iconBg="bg-rose-100"
+                />
+                {personalOverviewMetrics.bugsOpen > 0 && (
+                  <div className="text-[10px] text-amber-600 font-semibold mt-1 text-center">{personalOverviewMetrics.bugsOpen} open</div>
+                )}
+              </button>
+
+              <div className="p-3 rounded-2xl bg-amber-50/80 border border-amber-200/50">
+                <CircularProgress
+                  value={personalOverviewMetrics.selfPerformance}
+                  size={76}
+                  strokeWidth={6}
+                  gradientFrom="#f59e0b"
+                  gradientTo="#eab308"
+                  label="Performance"
+                  icon={<Gauge className="w-4 h-4 text-amber-600" />}
+                  iconBg="bg-amber-100"
+                />
+              </div>
+
+              <div className="p-3 rounded-2xl bg-emerald-50/80 border border-emerald-200/50">
+                <CircularProgress
+                  value={personalOverviewMetrics.qualityScore}
+                  size={76}
+                  strokeWidth={6}
+                  gradientFrom="#10b981"
+                  gradientTo="#14b8a6"
+                  label="Quality"
+                  icon={<ShieldCheck className="w-4 h-4 text-emerald-600" />}
+                  iconBg="bg-emerald-100"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Actionable insights — colorful pills */}
+          {personalOverviewMetrics.insights.length > 0 && (
+            <div className="mt-5 pt-4 border-t-2 border-indigo-200/40">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Tips:</span>
+                {personalOverviewMetrics.insights.map((tip, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium shadow-sm transition-all hover:scale-105"
+                    style={{
+                      background: `linear-gradient(135deg, ${['#c7d2fe', '#fce7f3', '#d1fae5', '#fef3c7'][i % 4]} 0%, ${['#a5b4fc', '#fbcfe8', '#a7f3d0', '#fde68a'][i % 4]} 100%)`,
+                      color: '#374151',
+                      border: '1px solid rgba(99, 102, 241, 0.2)'
+                    }}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                    {tip}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* User Tasks & Pending Work - Hidden for admin users */}

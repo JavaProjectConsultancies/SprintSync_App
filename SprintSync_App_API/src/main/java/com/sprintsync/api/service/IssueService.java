@@ -32,6 +32,9 @@ public class IssueService {
     @Autowired
     private NotificationService notificationService;
 
+    @Autowired(required = false)
+    private com.sprintsync.api.service.ActivityLogService activityLogService;
+
     /**
      * Get all issues with pagination
      */
@@ -221,9 +224,24 @@ public class IssueService {
         Optional<Issue> issueOpt = issueRepository.findById(id);
         if (issueOpt.isPresent()) {
             Issue issue = issueOpt.get();
+            TaskStatus oldStatus = issue.getStatus();
             issue.setStatus(status);
             issue.setUpdatedAt(LocalDateTime.now());
-            return issueRepository.save(issue);
+            Issue saved = issueRepository.save(issue);
+            if (activityLogService != null && oldStatus != status) {
+                try {
+                    java.util.Map<String, Object> oldV = new java.util.HashMap<>();
+                    oldV.put("status", oldStatus != null ? oldStatus.getValue() : "");
+                    java.util.Map<String, Object> newV = new java.util.HashMap<>();
+                    newV.put("status", status != null ? status.getValue() : "");
+                    activityLogService.logActivity("system", "issue", id, "status_updated",
+                            "Issue status changed from " + oldStatus + " to " + status,
+                            oldV, newV, null);
+                } catch (Exception e) {
+                    System.err.println("Failed to log issue status activity: " + e.getMessage());
+                }
+            }
+            return saved;
         }
         return null;
     }
@@ -235,17 +253,45 @@ public class IssueService {
         Optional<Issue> issueOpt = issueRepository.findById(id);
         if (issueOpt.isPresent()) {
             Issue issue = issueOpt.get();
+            String oldStatusStr = issue.getStatus() != null ? issue.getStatus().getValue() : null;
             try {
                 // Try to convert to TaskStatus enum
                 TaskStatus status = TaskStatus.fromValue(statusValue);
                 issue.setStatus(status);
                 issue.setUpdatedAt(LocalDateTime.now());
-                return issueRepository.save(issue);
+                Issue saved = issueRepository.save(issue);
+                if (activityLogService != null && !statusValue.equals(oldStatusStr)) {
+                    try {
+                        java.util.Map<String, Object> oldV = new java.util.HashMap<>();
+                        oldV.put("status", oldStatusStr != null ? oldStatusStr : "");
+                        java.util.Map<String, Object> newV = new java.util.HashMap<>();
+                        newV.put("status", statusValue != null ? statusValue : "");
+                        activityLogService.logActivity("system", "issue", id, "status_updated",
+                                "Issue status changed from " + oldStatusStr + " to " + statusValue,
+                                oldV, newV, null);
+                    } catch (Exception ex) {
+                        System.err.println("Failed to log issue status activity: " + ex.getMessage());
+                    }
+                }
+                return saved;
             } catch (IllegalArgumentException e) {
                 // If it's a custom lane status, update directly in database
                 issueRepository.updateIssueStatusDirectly(id, statusValue);
-                // Return the updated issue
-                return issueRepository.findById(id).orElse(null);
+                Issue updated = issueRepository.findById(id).orElse(null);
+                if (activityLogService != null && updated != null && !statusValue.equals(oldStatusStr)) {
+                    try {
+                        java.util.Map<String, Object> oldV = new java.util.HashMap<>();
+                        oldV.put("status", oldStatusStr != null ? oldStatusStr : "");
+                        java.util.Map<String, Object> newV = new java.util.HashMap<>();
+                        newV.put("status", statusValue != null ? statusValue : "");
+                        activityLogService.logActivity("system", "issue", id, "status_updated",
+                                "Issue status changed from " + oldStatusStr + " to " + statusValue,
+                                oldV, newV, null);
+                    } catch (Exception ex) {
+                        System.err.println("Failed to log issue status activity: " + ex.getMessage());
+                    }
+                }
+                return updated;
             }
         }
         return null;
@@ -319,9 +365,23 @@ public class IssueService {
         Optional<Issue> issueOpt = issueRepository.findById(id);
         if (issueOpt.isPresent()) {
             Issue issue = issueOpt.get();
+            java.time.LocalDate oldDueDate = issue.getDueDate();
             issue.setDueDate(dueDate);
             issue.setUpdatedAt(LocalDateTime.now());
-            return issueRepository.save(issue);
+            Issue saved = issueRepository.save(issue);
+            if (activityLogService != null && (oldDueDate != dueDate || (oldDueDate == null) != (dueDate == null))) {
+                try {
+                    java.util.Map<String, Object> oldV = new java.util.HashMap<>();
+                    oldV.put("dueDate", oldDueDate != null ? oldDueDate.toString() : null);
+                    java.util.Map<String, Object> newV = new java.util.HashMap<>();
+                    newV.put("dueDate", dueDate != null ? dueDate.toString() : null);
+                    activityLogService.logActivity("system", "issue", id, "due_date_updated",
+                            "Issue due date changed", oldV, newV, null);
+                } catch (Exception e) {
+                    System.err.println("Failed to log issue due date activity: " + e.getMessage());
+                }
+            }
+            return saved;
         }
         return null;
     }

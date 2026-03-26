@@ -533,8 +533,8 @@ class ApiClient {
       // Remove JSON content-type for binary downloads
       delete headers['Content-Type'];
       delete headers['content-type'];
-      // VERY IMPORTANT: tell backend we accept Excel/binary
-      headers['Accept'] = 'application/octet-stream';
+      // Request Excel format for proper multi-sheet .xlsx recognition
+      headers['Accept'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/octet-stream';
 
       // Create request with timeout
       const controller = new AbortController();

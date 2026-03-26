@@ -15,6 +15,8 @@ export { useDepartments, createDepartment, updateDepartment, deleteDepartment } 
 export { useDomains, createDomain, updateDomain, deleteDomain } from './useDomains';
 export { useEpics, useCreateEpic, useUpdateEpic, useDeleteEpic, createEpic, updateEpic, deleteEpic } from './useEpics';
 export { useReleases, useCreateRelease, useUpdateRelease, useDeleteRelease, createRelease, updateRelease, deleteRelease } from './useReleases';
+export { useIssuesByAssignee, useAllIssues } from './useIssues';
+export { useQualityGates } from './useQualityGates';
 
 // Re-export API services for convenience
-export { userApiService, projectApiService, sprintApiService, storyApiService, taskApiService, subtaskApiService, departmentApiService, domainApiService, epicApiService, releaseApiService, dashboardApiService, reportsApiService, searchApiService, batchApiService } from '../../services/api';
+export { userApiService, projectApiService, sprintApiService, storyApiService, taskApiService, subtaskApiService, departmentApiService, domainApiService, epicApiService, releaseApiService, dashboardApiService, reportsApiService, searchApiService, batchApiService, issueApiService, qualityGateApiService } from '../../services/api';

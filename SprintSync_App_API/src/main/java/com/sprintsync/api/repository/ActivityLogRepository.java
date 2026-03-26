@@ -26,6 +26,11 @@ public interface ActivityLogRepository extends JpaRepository<ActivityLog, String
     List<ActivityLog> findByEntityTypeAndEntityIdOrderByCreatedAtDesc(String entityType, String entityId);
 
     /**
+     * Find all activity logs by entity type and list of entity IDs (for batch rework detection)
+     */
+    List<ActivityLog> findByEntityTypeAndEntityIdInOrderByCreatedAtDesc(String entityType, java.util.List<String> entityIds);
+
+    /**
      * Find all activity logs by entity type and ID with pagination
      */
     Page<ActivityLog> findByEntityTypeAndEntityIdOrderByCreatedAtDesc(String entityType, String entityId,

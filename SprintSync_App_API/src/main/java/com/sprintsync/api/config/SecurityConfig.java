@@ -43,7 +43,7 @@ public class SecurityConfig {
     @Value("${app.cors.allowed-origins:http://localhost:3000}")
     private String allowedOrigins;
 
-    @Value("${app.cors.allowed-methods:GET,POST,PUT,DELETE,OPTIONS}")
+    @Value("${app.cors.allowed-methods:GET,POST,PUT,PATCH,DELETE,OPTIONS}")
     private String allowedMethods;
 
     @Value("${app.cors.allowed-headers:*}")
