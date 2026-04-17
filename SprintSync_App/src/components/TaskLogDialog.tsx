@@ -398,7 +398,13 @@ const TaskLogDialog: React.FC<TaskLogDialogProps> = ({
                                                         mode="single"
                                                         selected={logFormData.date}
                                                         onSelect={(date) => date && setLogFormData(prev => ({ ...prev, date }))}
-                                                        disabled={(date) => date > new Date()}
+                                                        disabled={(date) => {
+                                                            const today = new Date();
+                                                            today.setHours(0, 0, 0, 0);
+                                                            const minDate = new Date(today);
+                                                            minDate.setDate(today.getDate() - 2);
+                                                            return date > today || date < minDate;
+                                                        }}
                                                         initialFocus
                                                     />
                                                 </PopoverContent>

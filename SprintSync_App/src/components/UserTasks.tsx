@@ -1126,7 +1126,7 @@ const UserTasks: React.FC<UserTasksProps> = ({ userId, userRole, userName }) => 
                           </span>
                           <span className="flex items-center space-x-1">
                             <Clock className="w-3 h-3" />
-                            <span>{task.estimatedHours}h</span>
+                            <span>{Number(task.estimatedHours || 0).toFixed(2)}h</span>
                           </span>
                           <span className="flex items-center space-x-1">
                             <User className="w-3 h-3" />

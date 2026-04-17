@@ -34,15 +34,20 @@ public class TimeEntryService {
 
     private final TaskService taskService;
     private final IssueService issueService;
+    private final SubtaskService subtaskService;
+    private final StoryService storyService;
 
     @Autowired
     public TimeEntryService(TimeEntryRepository timeEntryRepository, IdGenerationService idGenerationService,
-            ActivityLogService activityLogService, TaskService taskService, IssueService issueService) {
+            ActivityLogService activityLogService, TaskService taskService, IssueService issueService,
+            SubtaskService subtaskService, StoryService storyService) {
         this.timeEntryRepository = timeEntryRepository;
         this.idGenerationService = idGenerationService;
         this.activityLogService = activityLogService;
         this.taskService = taskService;
         this.issueService = issueService;
+        this.subtaskService = subtaskService;
+        this.storyService = storyService;
     }
 
     public TimeEntry createTimeEntry(TimeEntry timeEntry) {
@@ -85,11 +90,26 @@ public class TimeEntryService {
         }
 
         // Sync actual hours
+        if (savedEntry.getSubtaskId() != null) {
+            subtaskService.syncActualHours(savedEntry.getSubtaskId());
+            // Sync parent task or issue
+            com.sprintsync.api.entity.Subtask subtask = subtaskService.getSubtaskById(savedEntry.getSubtaskId());
+            if (subtask != null) {
+                if (subtask.getTaskId() != null) {
+                    taskService.syncActualHours(subtask.getTaskId());
+                } else if (subtask.getIssueId() != null) {
+                    issueService.syncActualHours(subtask.getIssueId());
+                }
+            }
+        }
         if (savedEntry.getTaskId() != null) {
             taskService.syncActualHours(savedEntry.getTaskId());
         }
         if (savedEntry.getIssueId() != null) {
             issueService.syncActualHours(savedEntry.getIssueId());
+        }
+        if (savedEntry.getStoryId() != null) {
+            storyService.syncActualHours(savedEntry.getStoryId());
         }
 
         return savedEntry;
@@ -166,17 +186,45 @@ public class TimeEntryService {
         TimeEntry updatedEntry = timeEntryRepository.save(existingTimeEntry);
 
         // Sync actual hours for both old and new (in case IDs changed, though unlikely)
+        if (existingTimeEntry.getSubtaskId() != null) {
+            subtaskService.syncActualHours(existingTimeEntry.getSubtaskId());
+            com.sprintsync.api.entity.Subtask subtask = subtaskService.getSubtaskById(existingTimeEntry.getSubtaskId());
+            if (subtask != null) {
+                if (subtask.getTaskId() != null) {
+                    taskService.syncActualHours(subtask.getTaskId());
+                } else if (subtask.getIssueId() != null) {
+                    issueService.syncActualHours(subtask.getIssueId());
+                }
+            }
+        }
+        if (updatedEntry.getSubtaskId() != null) {
+            subtaskService.syncActualHours(updatedEntry.getSubtaskId());
+            com.sprintsync.api.entity.Subtask subtask = subtaskService.getSubtaskById(updatedEntry.getSubtaskId());
+            if (subtask != null) {
+                if (subtask.getTaskId() != null) {
+                    taskService.syncActualHours(subtask.getTaskId());
+                } else if (subtask.getIssueId() != null) {
+                    issueService.syncActualHours(subtask.getIssueId());
+                }
+            }
+        }
         if (existingTimeEntry.getTaskId() != null) {
             taskService.syncActualHours(existingTimeEntry.getTaskId());
         }
         if (existingTimeEntry.getIssueId() != null) {
             issueService.syncActualHours(existingTimeEntry.getIssueId());
         }
-        if (timeEntry.getTaskId() != null && !timeEntry.getTaskId().equals(existingTimeEntry.getTaskId())) {
-            taskService.syncActualHours(timeEntry.getTaskId());
+        if (existingTimeEntry.getStoryId() != null) {
+            storyService.syncActualHours(existingTimeEntry.getStoryId());
         }
-        if (timeEntry.getIssueId() != null && !timeEntry.getIssueId().equals(existingTimeEntry.getIssueId())) {
-            issueService.syncActualHours(timeEntry.getIssueId());
+        if (updatedEntry.getTaskId() != null && !updatedEntry.getTaskId().equals(existingTimeEntry.getTaskId())) {
+            taskService.syncActualHours(updatedEntry.getTaskId());
+        }
+        if (updatedEntry.getIssueId() != null && !updatedEntry.getIssueId().equals(existingTimeEntry.getIssueId())) {
+            issueService.syncActualHours(updatedEntry.getIssueId());
+        }
+        if (updatedEntry.getStoryId() != null && !updatedEntry.getStoryId().equals(existingTimeEntry.getStoryId())) {
+            storyService.syncActualHours(updatedEntry.getStoryId());
         }
 
         return updatedEntry;
@@ -197,11 +245,25 @@ public class TimeEntryService {
 
         // Sync actual hours if entry existed
         entryOpt.ifPresent(entry -> {
+            if (entry.getSubtaskId() != null) {
+                subtaskService.syncActualHours(entry.getSubtaskId());
+                com.sprintsync.api.entity.Subtask subtask = subtaskService.getSubtaskById(entry.getSubtaskId());
+                if (subtask != null) {
+                    if (subtask.getTaskId() != null) {
+                        taskService.syncActualHours(subtask.getTaskId());
+                    } else if (subtask.getIssueId() != null) {
+                        issueService.syncActualHours(subtask.getIssueId());
+                    }
+                }
+            }
             if (entry.getTaskId() != null) {
                 taskService.syncActualHours(entry.getTaskId());
             }
             if (entry.getIssueId() != null) {
                 issueService.syncActualHours(entry.getIssueId());
+            }
+            if (entry.getStoryId() != null) {
+                storyService.syncActualHours(entry.getStoryId());
             }
         });
     }

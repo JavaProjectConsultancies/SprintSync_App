@@ -30,6 +30,7 @@ const TodoItem: React.FC<TodoItemProps> = ({ item, onUpdate, onDelete, onTaskUpd
 
   // Check if this is a task from the database (not a local todo)
   const isTaskFromDatabase = !item.id.startsWith('local-');
+  const isDueDateExceeded = item.dueDate ? new Date().setHours(0,0,0,0) > new Date(item.dueDate).setHours(0,0,0,0) : false;
 
   const handleViewItem = () => {
     if (isTaskFromDatabase) {
@@ -222,8 +223,10 @@ const TodoItem: React.FC<TodoItemProps> = ({ item, onUpdate, onDelete, onTaskUpd
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setShowLogDialog(true)}
-                  className="h-8 px-3 text-xs hover:bg-blue-100 text-blue-700 border-blue-300"
+                  onClick={() => !isDueDateExceeded && setShowLogDialog(true)}
+                  disabled={isDueDateExceeded}
+                  title={isDueDateExceeded ? 'Due date exceeded' : 'Log time for this item'}
+                  className={`h-8 px-3 text-xs ${isDueDateExceeded ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-100 text-blue-700 border-blue-300'}`}
                 >
                   <Clock className="w-3 h-3 mr-1" />
                   Add Log

@@ -35,6 +35,17 @@ public class TaskService {
     @Autowired
     private ActivityLogService activityLogService;
 
+    @Autowired
+    private com.sprintsync.api.repository.SubtaskRepository subtaskRepository;
+
+    @org.springframework.context.annotation.Lazy
+    private StoryService storyService;
+
+    @Autowired
+    public void setStoryService(StoryService storyService) {
+        this.storyService = storyService;
+    }
+
     /**
      * Get all tasks with pagination
      */
@@ -644,9 +655,14 @@ public class TaskService {
             return;
 
         try {
-            java.math.BigDecimal totalHours = taskRepository.sumHoursWorkedByTaskId(taskId);
-            if (totalHours == null)
-                totalHours = java.math.BigDecimal.ZERO;
+            java.math.BigDecimal directHours = taskRepository.sumHoursWorkedByTaskId(taskId);
+            java.math.BigDecimal subtaskHours = taskRepository.sumSubtaskHoursByTaskId(taskId);
+
+            java.math.BigDecimal totalHours = java.math.BigDecimal.ZERO;
+            if (directHours != null)
+                totalHours = totalHours.add(directHours);
+            if (subtaskHours != null)
+                totalHours = totalHours.add(subtaskHours);
 
             Optional<Task> taskOpt = taskRepository.findById(taskId);
             if (taskOpt.isPresent()) {
@@ -657,6 +673,11 @@ public class TaskService {
                     task.setUpdatedAt(LocalDateTime.now());
                     taskRepository.save(task);
                     System.out.println("Synchronized actual hours for task " + taskId + " to " + totalHours);
+
+                    // Trigger Story sync
+                    if (task.getStoryId() != null && storyService != null) {
+                        storyService.syncActualHours(task.getStoryId());
+                    }
                 }
             }
         } catch (Exception e) {

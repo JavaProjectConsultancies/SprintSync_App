@@ -55,10 +55,10 @@ public class BacklogTask extends BaseEntity {
     @Column(name = "reporter_id")
     private String reporterId;
 
-    @Column(name = "estimated_hours", precision = 5, scale = 2)
+    @Column(name = "estimated_hours", precision = 12, scale = 2)
     private BigDecimal estimatedHours;
 
-    @Column(name = "actual_hours", precision = 5, scale = 2)
+    @Column(name = "actual_hours", precision = 12, scale = 2)
     private BigDecimal actualHours = BigDecimal.ZERO;
 
     @Column(name = "order_index")

@@ -35,7 +35,7 @@ export const taskApiService = {
 
   // Story-specific operations
   getTasksByStory: (storyId: string, params?: any) =>
-    apiClient.get<Task[]>(`${BASE_URL}/story/${storyId}`, { params }),
+    !storyId ? Promise.resolve({ data: [] } as any) : apiClient.get<Task[]>(`${BASE_URL}/story/${storyId}`, { params }),
 
   // Search and filter operations
   searchTasks: (query: string, params?: any) =>

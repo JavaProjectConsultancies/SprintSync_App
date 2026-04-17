@@ -31,6 +31,15 @@ public interface StoryRepository extends JpaRepository<Story, String> {
      * @return list of stories for the specified project
      */
     List<Story> findByProjectId(String projectId);
+ 
+    /**
+     * Find stories for multiple project IDs.
+     * 
+     * @param projectIds the collection of project IDs
+     * @return list of stories for the specified projects
+     */
+    List<Story> findByProjectIdIn(Collection<String> projectIds);
+
 
     /**
      * Find stories by sprint ID.
@@ -309,4 +318,15 @@ public interface StoryRepository extends JpaRepository<Story, String> {
      */
     @Query("SELECT s FROM Story s WHERE s.projectId = :projectId AND s.sprintId IS NULL")
     List<Story> findStoriesWithoutSprint(@Param("projectId") String projectId);
+    /**
+     * Calculate total task actual hours for a story
+     */
+    @Query("SELECT COALESCE(SUM(t.actualHours), 0) FROM Task t WHERE t.storyId = :storyId")
+    BigDecimal sumTaskHoursByStoryId(@Param("storyId") String storyId);
+
+    /**
+     * Calculate total issue actual hours for a story
+     */
+    @Query("SELECT COALESCE(SUM(i.actualHours), 0) FROM Issue i WHERE i.storyId = :storyId")
+    BigDecimal sumIssueHoursByStoryId(@Param("storyId") String storyId);
 }

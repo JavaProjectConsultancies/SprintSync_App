@@ -34,6 +34,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final PendingRegistrationService pendingRegistrationService;
+    private final LoginActivityLogService loginActivityLogService;
 
     @Autowired
     public AuthService(
@@ -41,18 +42,20 @@ public class AuthService {
             JwtUtil jwtUtil,
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            PendingRegistrationService pendingRegistrationService) {
+            PendingRegistrationService pendingRegistrationService,
+            LoginActivityLogService loginActivityLogService) {
         this.userDetailsService = userDetailsService;
         this.jwtUtil = jwtUtil;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.pendingRegistrationService = pendingRegistrationService;
+        this.loginActivityLogService = loginActivityLogService;
     }
 
     /**
      * Authenticate user and generate JWT token
      */
-    public AuthResponse authenticate(AuthRequest authRequest) {
+    public AuthResponse authenticate(AuthRequest authRequest, String ipAddress) {
         try {
             logger.info("Attempting authentication for user: {}", authRequest.getEmail());
 
@@ -109,6 +112,14 @@ public class AuthService {
             claims.put("domain", user.getDomainId());
 
             String token = jwtUtil.generateToken(customUserPrincipal, claims);
+
+            // Record Login Activity
+            try {
+                loginActivityLogService.recordLogin(user, ipAddress);
+            } catch (Exception e) {
+                logger.error("Failed to record login activity: {}", e.getMessage());
+                // Don't fail the login if recording activity fails
+            }
 
             // TEMPORARY: Skip updating last login time to avoid database schema issues
             // TODO: Fix database schema for experience enum and re-enable this

@@ -35,6 +35,16 @@ public class IssueService {
     @Autowired(required = false)
     private com.sprintsync.api.service.ActivityLogService activityLogService;
 
+    @Autowired
+    private com.sprintsync.api.repository.SubtaskRepository subtaskRepository;
+
+    private StoryService storyService;
+
+    @Autowired
+    public void setStoryService(StoryService storyService) {
+        this.storyService = storyService;
+    }
+
     /**
      * Get all issues with pagination
      */
@@ -408,9 +418,14 @@ public class IssueService {
             return;
 
         try {
-            java.math.BigDecimal totalHours = issueRepository.sumHoursWorkedByIssueId(issueId);
-            if (totalHours == null)
-                totalHours = java.math.BigDecimal.ZERO;
+            java.math.BigDecimal directHours = issueRepository.sumHoursWorkedByIssueId(issueId);
+            java.math.BigDecimal subtaskHours = issueRepository.sumSubtaskHoursByIssueId(issueId);
+
+            java.math.BigDecimal totalHours = java.math.BigDecimal.ZERO;
+            if (directHours != null)
+                totalHours = totalHours.add(directHours);
+            if (subtaskHours != null)
+                totalHours = totalHours.add(subtaskHours);
 
             Optional<Issue> issueOpt = issueRepository.findById(issueId);
             if (issueOpt.isPresent()) {
@@ -421,6 +436,11 @@ public class IssueService {
                     issue.setUpdatedAt(LocalDateTime.now());
                     issueRepository.save(issue);
                     System.out.println("Synchronized actual hours for issue " + issueId + " to " + totalHours);
+
+                    // Trigger Story sync
+                    if (issue.getStoryId() != null && storyService != null) {
+                        storyService.syncActualHours(issue.getStoryId());
+                    }
                 }
             }
         } catch (Exception e) {
@@ -455,4 +475,6 @@ public class IssueService {
         }
         return null;
     }
+
 }
+            

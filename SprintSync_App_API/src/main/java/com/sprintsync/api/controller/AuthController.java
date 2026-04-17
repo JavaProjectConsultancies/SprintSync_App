@@ -15,6 +15,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.List;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -48,23 +50,26 @@ public class AuthController {
         this.passwordEncoder = passwordEncoder;
     }
 
-    /**
+     /**
      * Login endpoint
      * POST /api/auth/login
      */
     @PostMapping("/login")
-    public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody AuthRequest authRequest) {
+    public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody AuthRequest authRequest, HttpServletRequest request) {
         try {
             logger.info("Login attempt for email: {}", authRequest.getEmail());
 
-            AuthResponse authResponse = authService.authenticate(authRequest);
+            // Extract client IP address with improved detection
+            String ipAddress = getClientIp(request);
+
+            AuthResponse authResponse = authService.authenticate(authRequest, ipAddress);
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Login successful");
             response.put("data", authResponse);
 
-            logger.info("Login successful for email: {}", authRequest.getEmail());
+            logger.info("Login successful for email: {} from IP: {}", authRequest.getEmail(), ipAddress);
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
@@ -437,6 +442,57 @@ public class AuthController {
     /**
      * Extract JWT token from request header
      */
+    private String getClientIp(HttpServletRequest request) {
+        String[] headers = {
+            "X-Forwarded-For",
+            "X-Real-IP",
+            "Proxy-Client-IP",
+            "WL-Proxy-Client-IP",
+            "HTTP_X_FORWARDED_FOR",
+            "HTTP_X_FORWARDED",
+            "HTTP_X_CLUSTER_CLIENT_IP",
+            "HTTP_CLIENT_IP",
+            "HTTP_FORWARDED_FOR",
+            "HTTP_FORWARDED",
+            "HTTP_VIA",
+            "REMOTE_ADDR"
+        };
+
+        String ip = null;
+        for (String header : headers) {
+            ip = request.getHeader(header);
+            if (ip != null && ip.length() != 0 && !"unknown".equalsIgnoreCase(ip)) {
+                break;
+            }
+        }
+
+        if (ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getRemoteAddr();
+        }
+
+        // If multiple IPs (X-Forwarded-For: client, proxy1, proxy2), take the first one
+        if (ip != null && ip.contains(",")) {
+            ip = ip.split(",")[0].trim();
+        }
+
+        // Handle IPv6 loopback
+        if ("0:0:0:0:0:0:0:1".equals(ip)) {
+            ip = "127.0.0.1";
+        }
+
+        // If loopback, try to get the actual network IP
+        if ("127.0.0.1".equals(ip)) {
+            try {
+                InetAddress inet = InetAddress.getLocalHost();
+                ip = inet.getHostAddress();
+            } catch (UnknownHostException e) {
+                logger.error("Failed to resolve local host address: {}", e.getMessage());
+            }
+        }
+
+        return ip;
+    }
+
     private String extractTokenFromRequest(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
         if (bearerToken != null && bearerToken.startsWith("Bearer ")) {

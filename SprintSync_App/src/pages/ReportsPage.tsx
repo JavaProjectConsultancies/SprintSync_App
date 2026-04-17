@@ -8,7 +8,11 @@ import { Bug, AlertCircle, AlertTriangle, CheckCircle2, XCircle, Clock, Loader2,
 import { Input } from '../components/ui/input';
 import { reportsApiService } from '../services/api/utilities/reportsApi';
 import { toast } from 'sonner';
-import { useUsers } from '../hooks/api';
+import { useUsers, useWorkflowLanes, useProjects } from '../hooks/api';
+import { projectApiService, sprintApiService } from '../services/api';
+import { Project } from '../types/api';
+
+import { getStatusLabel } from '../utils/statusUtils';
 
 interface BugReportRow {
   defectCode: string;
@@ -53,7 +57,10 @@ interface ResourcePerformanceRow {
   project?: string;
   itemType?: string; // "TASK" | "ISSUE"
   isBug?: boolean;
-  isRework?: boolean; // from API: issue moved from QA/done to todo, or due date changed
+  isRework?: boolean;
+  timeEntries?: any[]; // Time entry breakdown
+  subtasks?: any[]; // Subtask breakdown
+  projectId?: string;
 }
 
 interface ResourcePerformanceData {
@@ -82,6 +89,8 @@ interface TaskIssueItem {
   itemType: 'TASK' | 'ISSUE';
   estimationHours: number;
   actualHours: number;
+  dueDate?: string;
+  status?: string;
 }
 
 interface ProjectSprintBreakdown {
@@ -96,6 +105,7 @@ interface ProjectSprintBreakdown {
   hoursLogged: number;
   utilizationLevel: number;
   status: 'idle' | 'underutilized' | 'optimal' | 'overloaded';
+  dueDate?: string;
 }
 
 interface IndividualUtilizationRow {
@@ -115,6 +125,7 @@ interface IndividualUtilizationRow {
   utilizationLevel: number;
   status: 'idle' | 'underutilized' | 'optimal' | 'overloaded';
   concerns: string[];
+  dueDate?: string;
 }
 
 type ReportType = 'bug-report' | 'resource-performance' | 'resource-utilization' | null;
@@ -134,6 +145,11 @@ const ReportsPage: React.FC = () => {
   const [resourcePerformanceRows, setResourcePerformanceRows] = useState<ResourcePerformanceRow[]>([]);
   const [selectedResourceProject, setSelectedResourceProject] = useState<string>('all');
   const [selectedResourceUser, setSelectedResourceUser] = useState<string>('all');
+  const { data: workflowLanesData } = useWorkflowLanes();
+  const workflowLanes = useMemo(() => {
+    if (!workflowLanesData) return [];
+    return Array.isArray(workflowLanesData) ? workflowLanesData : (workflowLanesData as any)?.data || [];
+  }, [workflowLanesData]);
   const [selectedResourceSprint, setSelectedResourceSprint] = useState<string>('all');
   const [selectedResourceDuration, setSelectedResourceDuration] = useState<ResourceDurationFilter>('all');
   const [customDurationFrom, setCustomDurationFrom] = useState<string>('');
@@ -142,6 +158,10 @@ const ReportsPage: React.FC = () => {
   const [exportingResource, setExportingResource] = useState(false);
   const [expandedUtilizationRows, setExpandedUtilizationRows] = useState<Set<string>>(new Set());
   const [expandedCountCells, setExpandedCountCells] = useState<Set<string>>(new Set());
+  const [expandedPerformanceLogs, setExpandedPerformanceLogs] = useState<Set<number>>(new Set());
+  const [masterProjects, setMasterProjects] = useState<Project[]>([]);
+  const [loadingMasterProjects, setLoadingMasterProjects] = useState(false);
+
 
   const toggleUtilizationRow = useCallback((resourceKey: string) => {
     setExpandedUtilizationRows(prev => {
@@ -266,6 +286,8 @@ const ReportsPage: React.FC = () => {
                 ? row.isBug.toLowerCase() === 'true'
                 : undefined,
             isRework: typeof row.isRework === 'boolean' ? row.isRework : undefined,
+            timeEntries: Array.isArray(row.timeEntries) ? row.timeEntries : [],
+            subtasks: Array.isArray(row.subtasks) ? row.subtasks : [],
           }));
         } else if (Array.isArray(data)) {
           // If data is directly an array
@@ -287,6 +309,7 @@ const ReportsPage: React.FC = () => {
             completedDate: row.completedDate ? formatDate(row.completedDate) : null,
             sprint: row.sprint || null,
             project: row.project || null,
+            projectId: row.projectId || null,
             itemType: row.itemType || null,
             isBug: typeof row.isBug === 'boolean'
               ? row.isBug
@@ -294,6 +317,7 @@ const ReportsPage: React.FC = () => {
                 ? row.isBug.toLowerCase() === 'true'
                 : undefined,
             isRework: typeof row.isRework === 'boolean' ? row.isRework : undefined,
+            timeEntries: Array.isArray(row.timeEntries) ? row.timeEntries : [],
           }));
         }
 
@@ -330,18 +354,49 @@ const ReportsPage: React.FC = () => {
     projects: string[];
     sprints: string[];
     users: { id: string; label: string }[];
-  }>({ projects: [], sprints: [], users: [] });
+    projectSprintMap: Record<string, string[]>;
+    projectUserMap: Record<string, string[]>;
+  }>({ projects: [], sprints: [], users: [], projectSprintMap: {}, projectUserMap: {} });
+
+  // Updated to use a single loading effect for all dependencies
+  useEffect(() => {
+    if (activeReport !== null && masterProjects.length === 0) {
+      const initMasterData = async () => {
+        try {
+          setLoadingMasterProjects(true);
+          const response = await projectApiService.getAccessibleProjects();
+          if (response?.success && response.data) {
+            setMasterProjects(response.data);
+            const projectNames = response.data.map(p => p.name).sort();
+            setResourceUtilizationFilterOptions(prev => ({
+              ...prev,
+              projects: projectNames
+            }));
+          }
+        } catch (err) {
+          console.error('Error fetching master projects:', err);
+        } finally {
+          setLoadingMasterProjects(false);
+        }
+      };
+      initMasterData();
+    }
+  }, [activeReport, masterProjects.length]);
+
+
 
   const loadResourceUtilization = useCallback(async () => {
     try {
       setLoadingResourceUtilization(true);
-      const needsFilterOptions = resourceUtilizationFilterOptions.projects.length === 0;
+      const needsFilterOptions = resourceUtilizationFilterOptions.users.length === 0;
+
       const projectName = !needsFilterOptions && selectedResourceProject !== 'all' ? selectedResourceProject : undefined;
       const userKey = !needsFilterOptions && selectedResourceUser !== 'all' ? selectedResourceUser : undefined;
       const sprint = !needsFilterOptions && selectedResourceSprint !== 'all' ? selectedResourceSprint : undefined;
       let duration: string | undefined;
       let fromDate: string | undefined;
       let toDate: string | undefined;
+      
       if (!needsFilterOptions && selectedResourceDuration !== 'all') {
         duration = selectedResourceDuration;
         if (selectedResourceDuration === 'custom') {
@@ -349,15 +404,26 @@ const ReportsPage: React.FC = () => {
           toDate = customDurationTo || undefined;
         }
       }
-      const response = await reportsApiService.getIndividualUtilizationReport({
-        projectName,
-        userKey,
-        sprint,
-        duration,
-        fromDate,
-        toDate,
-      });
-      const data = response?.data;
+
+      // Parallelize report fetch with project-specific sprint fetch if needed
+      const projectForSprintFetch = selectedResourceProject !== 'all' ? masterProjects.find(p => p.name === selectedResourceProject) : null;
+      const hasSprintsForProject = selectedResourceProject === 'all' || (resourceUtilizationFilterOptions.projectSprintMap[selectedResourceProject] || []).length > 0;
+
+      const [reportResponse, sprintsResponse] = await Promise.all([
+        reportsApiService.getIndividualUtilizationReport({
+          projectName,
+          userKey,
+          sprint,
+          duration,
+          fromDate,
+          toDate,
+        }),
+        !hasSprintsForProject && projectForSprintFetch 
+          ? sprintApiService.getSprintsByProject(projectForSprintFetch.id)
+          : Promise.resolve(null)
+      ]);
+
+      const data = reportResponse?.data;
       let rows: ResourcePerformanceRow[] = [];
       if (data?.rows && Array.isArray(data.rows)) {
         rows = data.rows.map((row: any) => ({
@@ -378,27 +444,73 @@ const ReportsPage: React.FC = () => {
           completedDate: row.completedDate ? formatDate(row.completedDate) : null,
           sprint: row.sprint || null,
           project: row.project || null,
+          projectId: row.projectId || null,
           itemType: row.itemType || null,
           isBug: typeof row.isBug === 'boolean' ? row.isBug : typeof row.isBug === 'string' ? row.isBug.toLowerCase() === 'true' : undefined,
           isRework: typeof row.isRework === 'boolean' ? row.isRework : undefined,
         }));
       }
+      
+      // SECURITY: Filter out inaccessible projects immediately
+      if (masterProjects.length > 0) {
+        const accessibleProjectNames = new Set(masterProjects.map(p => p.name));
+        rows = rows.filter(r => r.project && accessibleProjectNames.has(r.project));
+      }
+      
       setResourceUtilizationRows(rows);
-      if (needsFilterOptions) {
+
+      // Process sprint response if we fetched it
+      let newSprintMapping: Record<string, string[]> = {};
+      if (sprintsResponse && sprintsResponse.success && sprintsResponse.data && selectedResourceProject !== 'all') {
+        const sprintNames = sprintsResponse.data.map((s: any) => s.name).filter(Boolean).sort();
+        newSprintMapping[selectedResourceProject] = sprintNames;
+      }
+
+      if (needsFilterOptions || Object.keys(newSprintMapping).length > 0) {
+        const projectSprintMap: Record<string, Set<string>> = {};
+        const projectUserMap: Record<string, Set<string>> = {};
         const projectSet = new Set<string>();
         const sprintSet = new Set<string>();
         const userMap = new Map<string, { id: string; label: string }>();
+
         rows.forEach(r => {
-          if (r.project) projectSet.add(r.project);
-          if (r.sprint) sprintSet.add(r.sprint);
-          const key = r.resourceEmailId || r.resourceName || '';
-          if (key) userMap.set(key, { id: key, label: r.resourceName || r.resourceEmailId || key });
+          if (r.project) {
+            projectSet.add(r.project);
+            if (!projectSprintMap[r.project]) projectSprintMap[r.project] = new Set();
+            if (!projectUserMap[r.project]) projectUserMap[r.project] = new Set();
+            
+            if (r.sprint) {
+              sprintSet.add(r.sprint);
+              projectSprintMap[r.project].add(r.sprint);
+            }
+            
+            const key = r.resourceEmailId || r.resourceName || '';
+            if (key) {
+              userMap.set(key, { id: key, label: r.resourceName || r.resourceEmailId || key });
+              projectUserMap[r.project].add(key);
+            }
+          }
         });
-        setResourceUtilizationFilterOptions({
-          projects: Array.from(projectSet).sort(),
+
+        // Convert Sets back to arrays and merge with prefetched sprints
+        const finalSprintMap: Record<string, string[]> = { ...resourceUtilizationFilterOptions.projectSprintMap };
+        Object.keys(projectSprintMap).forEach(p => {
+          const rowSprints = Array.from(projectSprintMap[p]);
+          const prefetchedSprints = newSprintMapping[p] || [];
+          finalSprintMap[p] = Array.from(new Set([...(finalSprintMap[p] || []), ...rowSprints, ...prefetchedSprints])).sort();
+        });
+
+        const userArrays: Record<string, string[]> = {};
+        Object.keys(projectUserMap).forEach(p => userArrays[p] = Array.from(projectUserMap[p]).sort());
+
+        setResourceUtilizationFilterOptions(prev => ({
+          ...prev,
+          projects: prev.projects.length > 0 ? prev.projects : Array.from(projectSet).sort(),
           sprints: Array.from(sprintSet).sort(),
-          users: Array.from(userMap.values()),
-        });
+          users: userMap.size > 0 ? Array.from(userMap.values()) : prev.users,
+          projectSprintMap: finalSprintMap,
+          projectUserMap: { ...prev.projectUserMap, ...userArrays },
+        }));
       }
     } catch (err: any) {
       console.error('Error fetching resource utilization:', err);
@@ -407,7 +519,7 @@ const ReportsPage: React.FC = () => {
     } finally {
       setLoadingResourceUtilization(false);
     }
-  }, [selectedResourceProject, selectedResourceUser, selectedResourceSprint, selectedResourceDuration, customDurationFrom, customDurationTo, resourceUtilizationFilterOptions.projects.length, formatDate]);
+  }, [selectedResourceProject, selectedResourceUser, selectedResourceSprint, selectedResourceDuration, customDurationFrom, customDurationTo, resourceUtilizationFilterOptions, masterProjects, formatDate]);
 
   useEffect(() => {
     if (activeReport === 'resource-utilization') {
@@ -416,12 +528,24 @@ const ReportsPage: React.FC = () => {
   }, [activeReport, loadResourceUtilization]);
 
   // Get unique projects and sprints for filters
-  const projects = Array.from(new Set(bugReports.map(r => r.board).filter(Boolean)));
-  const sprints = Array.from(new Set(bugReports.map(r => r.sprint).filter(Boolean)));
+  const projects = useMemo(() => {
+    if (masterProjects.length > 0) {
+      return masterProjects.map(p => p.name).sort();
+    }
+    return Array.from(new Set(bugReports.map(r => r.board).filter(Boolean))).sort();
+  }, [masterProjects, bugReports]);
+
+  const sprints = Array.from(new Set(bugReports.map(r => r.sprint).filter(Boolean))).sort();
 
   // Filter resource performance rows based on selected filters
   const filteredResourcePerformanceRows = useMemo(() => {
     let filtered = resourcePerformanceRows;
+
+    // SECURITY: Filter out inaccessible projects immediately
+    if (masterProjects.length > 0) {
+      const accessibleNames = new Set(masterProjects.map(p => p.name));
+      filtered = filtered.filter(row => row.project && accessibleNames.has(row.project));
+    }
 
     // Filter by project
     if (selectedResourceProject !== 'all') {
@@ -448,44 +572,59 @@ const ReportsPage: React.FC = () => {
       filtered = filtered.filter(row => row.sprint === selectedResourceSprint);
     }
 
-    // Filter by duration (relative to createdDate)
+    // Filter by duration (relative to log dates)
     if (selectedResourceDuration !== 'all') {
+      const isWithinDuration = (row: ResourcePerformanceRow, from: Date | null, to: Date | null) => {
+        // 1. Check if any associated time logs fall within the range
+        if (row.timeEntries && row.timeEntries.length > 0) {
+          const hasMatchingLog = row.timeEntries.some(log => {
+            const logDateStr = log.workDate || log.date || log.createdAt;
+            if (!logDateStr) return false;
+            const ld = new Date(logDateStr);
+            if (isNaN(ld.getTime())) return false;
+            
+            if (from && ld < from) return false;
+            if (to) {
+              const endOfTo = new Date(to);
+              endOfTo.setHours(23, 59, 59, 999);
+              if (ld > endOfTo) return false;
+            }
+            return true;
+          });
+          if (hasMatchingLog) return true;
+        }
+
+        // 2. Fallback: Check if the task itself was created in this range
+        if (row.createdDate) {
+          const cd = new Date(row.createdDate);
+          if (!isNaN(cd.getTime())) {
+            if (from && cd < from) return false;
+            if (to) {
+              const endOfTo = new Date(to);
+              endOfTo.setHours(23, 59, 59, 999);
+              if (cd > endOfTo) return false;
+            }
+            return true;
+          }
+        }
+        return false;
+      };
+
       if (selectedResourceDuration === 'custom') {
-        // Custom from/to date range
         const fromDate = customDurationFrom ? new Date(customDurationFrom) : null;
         const toDate = customDurationTo ? new Date(customDurationTo) : null;
-
-        filtered = filtered.filter(row => {
-          if (!row.createdDate) return false;
-          const d = new Date(row.createdDate);
-          if (isNaN(d.getTime())) return false;
-
-          if (fromDate && !isNaN(fromDate.getTime()) && d < fromDate) return false;
-          if (toDate && !isNaN(toDate.getTime())) {
-            // include end date day fully
-            const endOfTo = new Date(toDate);
-            endOfTo.setHours(23, 59, 59, 999);
-            if (d > endOfTo) return false;
-          }
-          return true;
-        });
+        filtered = filtered.filter(row => isWithinDuration(row, fromDate, toDate));
       } else {
         const now = new Date();
         const days = selectedResourceDuration === 'last7' ? 7 : 30;
         const cutoff = new Date(now);
         cutoff.setDate(cutoff.getDate() - days);
-
-        filtered = filtered.filter(row => {
-          if (!row.createdDate) return false;
-          const d = new Date(row.createdDate);
-          if (isNaN(d.getTime())) return false;
-          return d >= cutoff;
-        });
+        filtered = filtered.filter(row => isWithinDuration(row, cutoff, null));
       }
     }
 
     return filtered;
-  }, [resourcePerformanceRows, selectedResourceProject, selectedResourceUser, selectedResourceSprint, selectedResourceDuration, customDurationFrom, customDurationTo]);
+  }, [resourcePerformanceRows, selectedResourceProject, selectedResourceUser, selectedResourceSprint, selectedResourceDuration, customDurationFrom, customDurationTo, masterProjects]);
 
   // Reset pagination when filters change
   useEffect(() => {
@@ -582,20 +721,12 @@ const ReportsPage: React.FC = () => {
         });
       } else {
         // Developer metrics including workflow and bug-related stats
-        const toDo = rows.filter(r => {
-          const status = (r.status || '').toLowerCase();
-          return status === 'to_do' || status === 'todo' || status === 'to do';
-        }).length;
-
-        const onGoing = rows.filter(r => {
-          const status = (r.status || '').toLowerCase();
-          return status === 'in_progress' || status === 'in-progress' || status === 'in progress';
-        }).length;
-
-        const done = rows.filter(r => {
-          const status = (r.status || '').toLowerCase();
-          return status === 'done' || status === 'completed';
-        }).length;
+        const laneCounts: Record<string, number> = {};
+        
+        rows.forEach(r => {
+          const label = getStatusLabel(r.status, workflowLanes);
+          laneCounts[label] = (laneCounts[label] || 0) + 1;
+        });
 
         const totalBugResolved = rows.filter(r => {
           const status = (r.status || '').toLowerCase();
@@ -624,9 +755,7 @@ const ReportsPage: React.FC = () => {
           name: resourceName,
           taskAssigned,
           issueAssigned,
-          toDo,
-          onGoing,
-          done,
+          laneCounts,
           overdueCount,
           totalBugResolved,
           reworkCountForBugs,
@@ -634,8 +763,84 @@ const ReportsPage: React.FC = () => {
       }
     });
 
-    return { developers, testers, managers };
-  }, [filteredResourcePerformanceRows, userRoleMap]);
+    // Identify all unique lanes based on configuration and actual data
+    const allUniqueLanes = new Set<string>();
+
+    // Get all project IDs present in the current filtered data
+    const activeProjectIds = new Set<string>();
+    filteredResourcePerformanceRows.forEach(row => {
+      if (row.projectId) activeProjectIds.add(row.projectId);
+    });
+
+    // 1. Initialize from project-wide workflow configuration - ensures empty lanes from active boards appear
+    if (Array.isArray(workflowLanes) && workflowLanes.length > 0) {
+      workflowLanes.forEach(lane => {
+        if (lane.title && activeProjectIds.has(lane.projectId)) {
+          allUniqueLanes.add(lane.title);
+        }
+      });
+    } else {
+      // 2. Default standard lanes if no project-specific config is available (e.g., 'all' view)
+      ['To Do', 'In Progress', 'QA/Review', 'Done'].forEach(l => allUniqueLanes.add(l));
+    }
+
+    // 3. Merging with data - catches any statuses that aren't in the active configuration
+    developers.forEach(dev => {
+      Object.keys(dev.laneCounts).forEach(lane => {
+        if (lane) allUniqueLanes.add(lane);
+      });
+    });
+
+    // Sort lanes: Priority for standard Scrum lanes, then by displayOrder
+    const lanePriority = ['To Do', 'In Progress', 'QA/Review', 'Done'];
+    const sortedLanes = Array.from(allUniqueLanes).sort((a, b) => {
+      const indexA = lanePriority.findIndex(l => l.toLowerCase() === a.toLowerCase());
+      const indexB = lanePriority.findIndex(l => l.toLowerCase() === b.toLowerCase());
+      
+      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+      if (indexA !== -1) return -1;
+      if (indexB !== -1) return 1;
+
+      // For custom lanes, try to find the earliest displayOrder from the workflow config
+      const laneA = workflowLanes.find(l => l.title === a);
+      const laneB = workflowLanes.find(l => l.title === b);
+      if (laneA && laneB && laneA.displayOrder !== undefined && laneB.displayOrder !== undefined) {
+        return laneA.displayOrder - laneB.displayOrder;
+      }
+
+      return a.localeCompare(b);
+    });
+
+    return { developers, testers, managers, allLanes: sortedLanes };
+  }, [filteredResourcePerformanceRows, userRoleMap, workflowLanes]);
+
+  // Derived filtered options for the Utilization view
+  const availableUtilizationSprints = useMemo(() => {
+    if (selectedResourceProject === 'all') return resourceUtilizationFilterOptions.sprints;
+    return resourceUtilizationFilterOptions.projectSprintMap[selectedResourceProject] || [];
+  }, [selectedResourceProject, resourceUtilizationFilterOptions.sprints, resourceUtilizationFilterOptions.projectSprintMap]);
+
+  const availableUtilizationUsers = useMemo(() => {
+    const allUsers = resourceUtilizationFilterOptions.users;
+    if (selectedResourceProject === 'all') return allUsers;
+    const projectUsers = new Set(resourceUtilizationFilterOptions.projectUserMap[selectedResourceProject] || []);
+    return allUsers.filter(u => projectUsers.has(u.id));
+  }, [selectedResourceProject, resourceUtilizationFilterOptions.users, resourceUtilizationFilterOptions.projectUserMap]);
+
+  // Effect to reset filters if they become invalid for the selected project
+  useEffect(() => {
+    if (selectedResourceProject !== 'all') {
+      const pSprints = resourceUtilizationFilterOptions.projectSprintMap[selectedResourceProject] || [];
+      const pUsers = new Set(resourceUtilizationFilterOptions.projectUserMap[selectedResourceProject] || []);
+
+      if (selectedResourceSprint !== 'all' && !pSprints.includes(selectedResourceSprint)) {
+        setSelectedResourceSprint('all');
+      }
+      if (selectedResourceUser !== 'all' && !pUsers.has(selectedResourceUser)) {
+        setSelectedResourceUser('all');
+      }
+    }
+  }, [selectedResourceProject, resourceUtilizationFilterOptions]);
 
   // Compute individual utilization summary (from resource utilization rows - Resource Utilization page only)
   const individualUtilization = useMemo((): IndividualUtilizationRow[] => {
@@ -683,6 +888,8 @@ const ReportsPage: React.FC = () => {
           itemType: 'TASK' as const,
           estimationHours: r.estimationHours ?? 0,
           actualHours: r.actualHours ?? 0,
+          dueDate: r.dueDate,
+          status: r.status,
         }));
       const issueItems: TaskIssueItem[] = rows
         .filter(r => (r.itemType || '').toUpperCase() === 'ISSUE')
@@ -692,6 +899,8 @@ const ReportsPage: React.FC = () => {
           itemType: 'ISSUE' as const,
           estimationHours: r.estimationHours ?? 0,
           actualHours: r.actualHours ?? 0,
+          dueDate: r.dueDate,
+          status: r.status,
         }));
       const otherAsTasks: TaskIssueItem[] = rows
         .filter(r => (r.itemType || '').toUpperCase() !== 'TASK' && (r.itemType || '').toUpperCase() !== 'ISSUE')
@@ -701,6 +910,8 @@ const ReportsPage: React.FC = () => {
           itemType: 'TASK' as const,
           estimationHours: r.estimationHours ?? 0,
           actualHours: r.actualHours ?? 0,
+          dueDate: r.dueDate,
+          status: r.status,
         }));
       const allTaskItems = [...taskItems, ...otherAsTasks];
 
@@ -717,6 +928,8 @@ const ReportsPage: React.FC = () => {
           itemType: ((r.itemType || '').toUpperCase() === 'ISSUE' ? 'ISSUE' : 'TASK') as 'TASK' | 'ISSUE',
           estimationHours: r.estimationHours ?? 0,
           actualHours: r.actualHours ?? 0,
+          dueDate: r.dueDate,
+          status: r.status,
         };
         if (item.itemType === 'ISSUE') curr.issueItems.push(item);
         else curr.taskItems.push(item);
@@ -744,6 +957,9 @@ const ReportsPage: React.FC = () => {
           hoursLogged: logged,
           utilizationLevel: util,
           status: projStatus,
+          dueDate: [...tItems, ...iItems]
+            .filter(i => i.dueDate)
+            .sort((a, b) => new Date(b.dueDate!).getTime() - new Date(a.dueDate!).getTime())[0]?.dueDate,
         };
       }).sort((a, b) => {
         const cmp = a.project.localeCompare(b.project);
@@ -790,6 +1006,9 @@ const ReportsPage: React.FC = () => {
         utilizationLevel,
         status,
         concerns,
+        dueDate: [...allTaskItems, ...issueItems]
+          .filter(i => i.dueDate)
+          .sort((a, b) => new Date(b.dueDate!).getTime() - new Date(a.dueDate!).getTime())[0]?.dueDate,
       });
     });
 
@@ -800,6 +1019,9 @@ const ReportsPage: React.FC = () => {
 
   // Get unique projects and users from resource performance data
   const resourceProjects = useMemo(() => {
+    if (masterProjects.length > 0) {
+      return masterProjects.map(p => p.name).sort();
+    }
     const projectSet = new Set<string>();
     resourcePerformanceRows.forEach(row => {
       if (row.project) {
@@ -807,15 +1029,23 @@ const ReportsPage: React.FC = () => {
       }
     });
     return Array.from(projectSet).sort();
-  }, [resourcePerformanceRows]);
+  }, [resourcePerformanceRows, masterProjects]);
 
   // Sprints list depends on selected project
   const resourceSprints = useMemo(() => {
     const sprintSet = new Set<string>();
-    const sourceRows =
+    
+    // SECURITY: Pre-filter source rows against accessible projects
+    const accessibleNames = masterProjects.length > 0 ? new Set(masterProjects.map(p => p.name)) : null;
+    let sourceRows = resourcePerformanceRows;
+    if (accessibleNames) {
+      sourceRows = sourceRows.filter(row => row.project && accessibleNames.has(row.project));
+    }
+
+    sourceRows =
       selectedResourceProject === 'all'
-        ? resourcePerformanceRows
-        : resourcePerformanceRows.filter(row => row.project === selectedResourceProject);
+        ? sourceRows
+        : sourceRows.filter(row => row.project === selectedResourceProject);
 
     sourceRows.forEach(row => {
       if (row.sprint) {
@@ -823,15 +1053,23 @@ const ReportsPage: React.FC = () => {
       }
     });
     return Array.from(sprintSet).sort();
-  }, [resourcePerformanceRows, selectedResourceProject]);
+  }, [resourcePerformanceRows, selectedResourceProject, masterProjects]);
 
   // Users list depends on selected project
   const resourceUsers = useMemo(() => {
     const userMap = new Map<string, { id: string; label: string }>();
-    const sourceRows =
+    
+    // SECURITY: Pre-filter source rows against accessible projects
+    const accessibleNames = masterProjects.length > 0 ? new Set(masterProjects.map(p => p.name)) : null;
+    let sourceRows = resourcePerformanceRows;
+    if (accessibleNames) {
+      sourceRows = sourceRows.filter(row => row.project && accessibleNames.has(row.project));
+    }
+    
+    sourceRows =
       selectedResourceProject === 'all'
-        ? resourcePerformanceRows
-        : resourcePerformanceRows.filter(row => row.project === selectedResourceProject);
+        ? sourceRows
+        : sourceRows.filter(row => row.project === selectedResourceProject);
 
     sourceRows.forEach(row => {
       const name = row.resourceName || row.reporterName || '';
@@ -847,7 +1085,7 @@ const ReportsPage: React.FC = () => {
       }
     });
     return Array.from(userMap.values()).sort((a, b) => a.label.localeCompare(b.label));
-  }, [resourcePerformanceRows, selectedResourceProject]);
+  }, [resourcePerformanceRows, selectedResourceProject, masterProjects]);
 
   const resourceSummary = calculateResourceSummary();
 
@@ -858,10 +1096,11 @@ const ReportsPage: React.FC = () => {
     const resourceSet = new Set<string>();
     const resourceAllocatedMap = new Map<string, number>();
     let totalEstimated = 0;
+    let totalCompletedEst = 0;
     let totalActual = 0;
     let completedCount = 0;
     let idleEarlyCompletedHours = 0;
-    const projectMap = new Map<string, { allocatedHours: number; actualHours: number }>();
+    const projectMap = new Map<string, { allocatedHours: number; completedEst: number; actualHours: number }>();
 
     filteredResourcePerformanceRows.forEach(row => {
       const key = row.resourceEmailId || row.resourceName || '';
@@ -883,22 +1122,27 @@ const ReportsPage: React.FC = () => {
       }
 
       const projectKey = row.project || 'Unknown';
-      const existing = projectMap.get(projectKey) || { allocatedHours: 0, actualHours: 0 };
+      const existing = projectMap.get(projectKey) || { allocatedHours: 0, completedEst: 0, actualHours: 0 };
       existing.allocatedHours += est;
       existing.actualHours += act;
+      if (isDone) {
+        totalCompletedEst += est;
+        existing.completedEst += est;
+      }
       projectMap.set(projectKey, existing);
     });
 
+    const performanceResult = totalActual > 0 ? (totalCompletedEst / totalActual) * 100 : 0;
     const avgUtilization = totalEstimated > 0 ? (totalActual / totalEstimated) * 100 : 0;
-    const avgEfficiency = filteredResourcePerformanceRows.length > 0
-      ? (completedCount / filteredResourcePerformanceRows.length) * 100
-      : 0;
+    const rawEfficiency = totalActual > 0 ? (totalEstimated / totalActual) * 100 : 0;
+    const avgEfficiency = Math.min(rawEfficiency, 150);
+    
     const idleNotAllocatedCount = Array.from(resourceAllocatedMap.values()).filter(a => a === 0).length;
 
     const projectUtilization = Array.from(projectMap.entries()).map(([projectName, values]) => ({
       projectId: projectName,
       projectName,
-      utilization: values.allocatedHours > 0 ? (values.actualHours / values.allocatedHours) * 100 : 0,
+      utilization: values.actualHours > 0 ? (values.completedEst / values.actualHours) * 100 : 0,
       allocatedHours: values.allocatedHours,
       actualHours: values.actualHours,
     }));
@@ -1395,7 +1639,7 @@ const ReportsPage: React.FC = () => {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All Users</SelectItem>
-                          {resourceUtilizationFilterOptions.users.map(u => (
+                          {availableUtilizationUsers.map(u => (
                             <SelectItem key={u.id} value={u.id}>
                               {u.label}
                             </SelectItem>
@@ -1411,7 +1655,7 @@ const ReportsPage: React.FC = () => {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All Sprints</SelectItem>
-                          {resourceUtilizationFilterOptions.sprints.map(s => (
+                          {availableUtilizationSprints.map(s => (
                             <SelectItem key={s} value={s}>
                               {s}
                             </SelectItem>
@@ -1514,6 +1758,7 @@ const ReportsPage: React.FC = () => {
                             <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold text-teal-800 border-r border-b border-slate-200 px-4 py-3 min-w-[12rem] bg-teal-50">Team Member Name</TableHead>
                             <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold text-teal-800 border-r border-b border-slate-200 px-4 py-3 min-w-[10rem] bg-teal-50">Project</TableHead>
                             <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold text-teal-800 border-r border-b border-slate-200 px-4 py-3 min-w-[8rem] bg-teal-50">Sprint</TableHead>
+                            <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold text-teal-800 border-r border-b border-slate-200 px-4 py-3 text-center min-w-[8rem] bg-teal-50">Due Date</TableHead>
                             <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold text-teal-800 border-r border-b border-slate-200 px-4 py-3 text-center min-w-[7rem] bg-teal-50">Task/Issue Count</TableHead>
                             <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold text-teal-800 border-r border-b border-slate-200 px-4 py-3 text-center min-w-[6rem] bg-teal-50">Total Assigned Hours</TableHead>
                             <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold text-teal-800 border-r border-b border-slate-200 px-4 py-3 text-center min-w-[5rem] bg-teal-50">Hours Logged</TableHead>
@@ -1562,6 +1807,13 @@ const ReportsPage: React.FC = () => {
                                           : '—'}
                                       </span>
                                     </TableCell>
+                                    <TableCell className="border-r border-slate-100 px-4 py-3 text-sm text-center min-w-0">
+                                      <span className="text-teal-700 font-medium">
+                                         {[...(row.taskItems || []), ...(row.issueItems || [])]
+                                           .filter(i => i.dueDate)
+                                           .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime())[0]?.dueDate || '—'}
+                                      </span>
+                                    </TableCell>
                                     <TableCell className="text-center border-r border-slate-100 px-4 py-3">
                                       <div className="flex flex-col items-center gap-0.5">
                                         <button
@@ -1590,10 +1842,10 @@ const ReportsPage: React.FC = () => {
                                       </div>
                                     </TableCell>
                                     <TableCell className="text-center border-r border-slate-100 px-4 py-3">
-                                      <span className="font-semibold tabular-nums text-indigo-600">{row.allocatedHours.toFixed(1)}</span>
+                                      <span className="font-semibold tabular-nums text-indigo-600">{row.allocatedHours.toFixed(2)}</span>
                                     </TableCell>
                                     <TableCell className="text-center border-r border-slate-100 px-4 py-3">
-                                      <span className="font-semibold tabular-nums text-cyan-600">{row.hoursLogged.toFixed(1)}</span>
+                                      <span className="font-semibold tabular-nums text-cyan-600">{row.hoursLogged.toFixed(2)}</span>
                                     </TableCell>
                                     <TableCell className="text-center border-r border-slate-100 px-4 py-3">
                                       <span className={`font-semibold tabular-nums ${
@@ -1603,7 +1855,7 @@ const ReportsPage: React.FC = () => {
                                         row.utilizationLevel >= 40 ? 'text-amber-600' :
                                         row.utilizationLevel > 100 ? 'text-red-600' : 'text-orange-600'
                                       }`}>
-                                        {row.allocatedHours > 0 ? `${row.utilizationLevel.toFixed(1)}%` : 'N/A'}
+                                        {row.allocatedHours > 0 ? `${row.utilizationLevel.toFixed(2)}%` : 'N/A'}
                                       </span>
                                     </TableCell>
                                     <TableCell className="text-center px-4 py-3">
@@ -1633,20 +1885,25 @@ const ReportsPage: React.FC = () => {
                                       <TableCell className="pl-12 py-2 text-sm border-r border-slate-100" />
                                       <TableCell className="py-2 text-sm border-r border-slate-100" />
                                       <TableCell className="py-2 text-sm border-r border-slate-100" />
+                                      <TableCell className="py-2 text-sm border-r border-slate-100 px-4 text-center">
+                                         <span className={`font-medium ${item.dueDate && new Date(item.dueDate) < new Date() && !['done', 'completed'].includes((item.status || "").toLowerCase()) ? 'text-red-600' : 'text-slate-600'}`}>
+                                           {item.dueDate || '—'}
+                                         </span>
+                                      </TableCell>
                                       <TableCell className="py-2 text-sm font-medium border-r border-slate-100 px-4 min-w-0">
                                         <span className={item.itemType === 'ISSUE' ? 'text-amber-700' : 'text-teal-700'}>
                                           {item.itemType}: <span className="break-words">{item.taskIssueName || '—'}</span>
                                         </span>
                                       </TableCell>
                                       <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
-                                        <span className="text-indigo-600">{item.estimationHours.toFixed(1)}</span>
+                                        <span className="text-indigo-600">{item.estimationHours.toFixed(2)}</span>
                                       </TableCell>
                                       <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
-                                        <span className="text-cyan-600">{item.actualHours.toFixed(1)}</span>
+                                        <span className="text-cyan-600">{item.actualHours.toFixed(2)}</span>
                                       </TableCell>
                                       <TableCell className="py-2 text-sm text-center border-r border-slate-100 px-4">
                                         <span className={`font-medium ${utilColor}`}>
-                                          {item.estimationHours > 0 ? `${util.toFixed(1)}%` : 'N/A'}
+                                          {item.estimationHours > 0 ? `${util.toFixed(2)}%` : 'N/A'}
                                         </span>
                                       </TableCell>
                                       <TableCell className="py-2 text-center px-4">
@@ -1677,6 +1934,9 @@ const ReportsPage: React.FC = () => {
                                         <TableCell className="py-2 text-sm font-medium border-r border-slate-100 px-4 min-w-0">
                                           <span className="break-words text-teal-700">{psb.sprint}</span>
                                         </TableCell>
+                                        <TableCell className="py-2 text-sm text-center border-r border-slate-100 px-4 min-w-0">
+                                          <span className="text-teal-700 font-medium">{psb.dueDate || '—'}</span>
+                                        </TableCell>
                                         <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4">
                                           <div className="flex flex-col items-center gap-0.5">
                                             <button
@@ -1705,10 +1965,10 @@ const ReportsPage: React.FC = () => {
                                           </div>
                                         </TableCell>
                                         <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
-                                          <span className="text-indigo-600">{psb.allocatedHours.toFixed(1)}</span>
+                                          <span className="text-indigo-600">{psb.allocatedHours.toFixed(2)}</span>
                                         </TableCell>
                                         <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
-                                          <span className="text-cyan-600">{psb.hoursLogged.toFixed(1)}</span>
+                                          <span className="text-cyan-600">{psb.hoursLogged.toFixed(2)}</span>
                                         </TableCell>
                                         <TableCell className="py-2 text-sm text-center border-r border-slate-100 px-4">
                                           <span className={`font-medium ${
@@ -1718,7 +1978,7 @@ const ReportsPage: React.FC = () => {
                                             psb.utilizationLevel >= 40 ? 'text-amber-600' :
                                             psb.utilizationLevel > 100 ? 'text-red-600' : 'text-orange-600'
                                           }`}>
-                                            {psb.allocatedHours > 0 ? `${psb.utilizationLevel.toFixed(1)}%` : 'N/A'}
+                                            {psb.allocatedHours > 0 ? `${psb.utilizationLevel.toFixed(2)}%` : 'N/A'}
                                           </span>
                                         </TableCell>
                                         <TableCell className="py-2 text-center px-4">
@@ -1754,14 +2014,14 @@ const ReportsPage: React.FC = () => {
                                             </span>
                                           </TableCell>
                                           <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
-                                            <span className="text-indigo-600">{item.estimationHours.toFixed(1)}</span>
+                                            <span className="text-indigo-600">{item.estimationHours.toFixed(2)}</span>
                                           </TableCell>
                                           <TableCell className="py-2 text-sm text-center font-medium border-r border-slate-100 px-4 tabular-nums">
-                                            <span className="text-cyan-600">{item.actualHours.toFixed(1)}</span>
+                                            <span className="text-cyan-600">{item.actualHours.toFixed(2)}</span>
                                           </TableCell>
                                           <TableCell className="py-2 text-sm text-center border-r border-slate-100 px-4">
                                             <span className={`font-medium ${utilColor}`}>
-                                              {item.estimationHours > 0 ? `${util.toFixed(1)}%` : 'N/A'}
+                                              {item.estimationHours > 0 ? `${util.toFixed(2)}%` : 'N/A'}
                                             </span>
                                           </TableCell>
                                           <TableCell className="py-2 text-center px-4">
@@ -2133,10 +2393,12 @@ const ReportsPage: React.FC = () => {
               <>
                 {/* Filters */}
                 {resourcePerformanceRows.length > 0 && (
-                  <Card className="shadow-sm border">
+                  <Card className="shadow-sm border border-blue-100 bg-gradient-to-br from-white to-blue-50/30">
                     <CardHeader>
-                      <CardTitle className="flex items-center space-x-2 text-lg">
-                        <Filter className="h-5 w-5" />
+                      <CardTitle className="flex items-center space-x-2 text-lg text-blue-800">
+                        <div className="rounded-lg bg-blue-100 p-1.5">
+                          <Filter className="h-5 w-5 text-blue-600" />
+                        </div>
                         <span>Filters</span>
                       </CardTitle>
                     </CardHeader>
@@ -2298,39 +2560,61 @@ const ReportsPage: React.FC = () => {
                                   ? `${Math.round(summaryData.utilizationRate)}%`
                                   : '0%'}
                             </p>
-                            <p className="text-xs text-purple-600 mt-1">Actual / Allocated</p>
+                             <p className="text-xs text-purple-600 mt-1">Total Actual / Total Est.</p>
                             <div className="mt-2 pt-2 border-t border-purple-200 space-y-1">
                               <p className="text-xs font-medium text-purple-700">Idle</p>
                               <p className="text-xs text-purple-600">
                                 Not Allocated: {summaryData.idleNotAllocatedCount ?? 0} resource(s)
                               </p>
                               <p className="text-xs text-purple-600">
-                                Early Completed: {(summaryData.idleEarlyCompletedHours ?? 0).toFixed(1)} h
+                                Early Completed: {(summaryData.idleEarlyCompletedHours ?? 0).toFixed(2)} h
                               </p>
                             </div>
                           </div>
-                          <div className="flex-1 min-w-0 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
-                            <p className="text-xs font-medium text-emerald-700 uppercase tracking-wider mb-2">Efficiency</p>
-                            <p className="text-3xl font-bold text-emerald-600">
+                          <div className={`flex-1 min-w-0 p-4 rounded-lg border transition-all duration-300 ${
+                            (summaryData.totalHours ?? 0) < 15
+                              ? 'bg-red-50 border-red-200 ring-1 ring-red-100 shadow-[0_0_15px_rgba(239,68,68,0.1)]'
+                              : 'bg-emerald-50 border-emerald-200'
+                          }`}>
+                            <p className={`text-xs font-medium uppercase tracking-wider mb-2 ${
+                              (summaryData.totalHours ?? 0) < 15 ? 'text-red-700' : 'text-emerald-700'
+                            }`}>Efficiency</p>
+                            <p className={`text-3xl font-bold ${
+                              (summaryData.totalHours ?? 0) < 15 ? 'text-red-600' : 'text-emerald-600'
+                            }`}>
                               {summaryData.averageEfficiency != null
                                 ? `${Math.round(summaryData.averageEfficiency)}%`
                                 : summaryData.averageUtilization != null
                                   ? `${Math.round(summaryData.averageUtilization)}%`
                                   : '0%'}
                             </p>
-                            <p className="text-xs text-emerald-600 mt-1">Output vs planned</p>
+                            <p className={`text-xs mt-1 ${
+                              (summaryData.totalHours ?? 0) < 15 ? 'text-red-600' : 'text-emerald-600'
+                            }`}>Total Est. / Total Actual</p>
+                            
+                            {(summaryData.totalHours ?? 0) < 15 && (
+                              <div className="mt-2 pt-2 border-t border-red-200">
+                                <p className="text-[10px] font-bold text-red-700 uppercase flex items-center">
+                                  <AlertCircle className="w-3 h-3 mr-1" />
+                                  Unreliable Stat
+                                </p>
+                                <p className="text-[10px] text-red-600 mt-0.5">
+                                  Logged hours ({summaryData.totalHours?.toFixed(2)}h) are under the required 10-15h threshold.
+                                </p>
+                              </div>
+                            )}
                           </div>
                           <div className="flex-1 min-w-0 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
                             <p className="text-xs font-medium text-indigo-700 uppercase tracking-wider mb-2">Allocated Hours</p>
                             <p className="text-3xl font-bold text-indigo-600">
-                              {(summaryData.allocatedHours ?? 0).toFixed(1)}
+                              {(summaryData.allocatedHours ?? 0).toFixed(2)}
                             </p>
                             <p className="text-xs text-indigo-600 mt-1">Planned allocation</p>
                           </div>
                           <div className="flex-1 min-w-0 p-4 bg-cyan-50 rounded-lg border border-cyan-200">
                             <p className="text-xs font-medium text-cyan-700 uppercase tracking-wider mb-2">Total Hours</p>
                             <p className="text-3xl font-bold text-cyan-600">
-                              {(summaryData.totalHours ?? 0).toFixed(1)}
+                              {(summaryData.totalHours ?? 0).toFixed(2)}
                             </p>
                             <p className="text-xs text-cyan-600 mt-1">Actual hours logged</p>
                           </div>
@@ -2372,22 +2656,43 @@ const ReportsPage: React.FC = () => {
 
                 {/* Resource Performance Table */}
                 <Card className="shadow-md border-t-4 border-t-blue-500">
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-3">
-                      <div className="rounded-lg bg-blue-100 p-2">
-                        <Users className="h-6 w-6 text-blue-600" strokeWidth={2.5} />
-                      </div>
-                      <span className="text-xl">Resource Performance Details</span>
-                    </CardTitle>
-                    <CardDescription className="mt-2">
-                      Showing {filteredResourcePerformanceRows.length} of {resourcePerformanceRows.length}{' '}
-                      {resourcePerformanceRows.length === 1 ? 'record' : 'records'}
-                      {(selectedResourceProject !== 'all' || selectedResourceUser !== 'all') && (
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          (filtered)
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <div className="space-y-1">
+                      <CardTitle className="flex items-center space-x-3">
+                        <div className="rounded-lg bg-blue-100 p-2">
+                          <Users className="h-6 w-6 text-blue-600" strokeWidth={2.5} />
+                        </div>
+                        <span className="text-xl">Resource Performance Details</span>
+                      </CardTitle>
+                      <CardDescription className="mt-2 text-sm text-muted-foreground flex items-center flex-wrap gap-x-3">
+                        <span>
+                          Showing {filteredResourcePerformanceRows.length} of {resourcePerformanceRows.length}{' '}
+                          {resourcePerformanceRows.length === 1 ? 'record' : 'records'}
                         </span>
-                      )}
-                    </CardDescription>
+                        {(selectedResourceProject !== 'all' || selectedResourceUser !== 'all' || selectedResourceSprint !== 'all' || selectedResourceDuration !== 'all') && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-800 border border-blue-200 uppercase tracking-tight">
+                            Filtered View
+                          </span>
+                        )}
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <div className="w-[200px]">
+                        <Select value={selectedResourceUser} onValueChange={setSelectedResourceUser}>
+                          <SelectTrigger className="h-9 text-sm">
+                            <SelectValue placeholder="Filter by User" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Resources</SelectItem>
+                            {resourceUsers.map(user => (
+                              <SelectItem key={user.id} value={user.id}>
+                                {user.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="rounded-md border overflow-x-auto">
@@ -2439,86 +2744,254 @@ const ReportsPage: React.FC = () => {
                               </TableCell>
                             </TableRow>
                           ) : (
-                            paginatedResourcePerformanceRows.map((row, index) => (
-                              <TableRow
-                                key={index}
-                                className={`hover:bg-blue-50 transition-colors border-b border-slate-200 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
-                              >
-                                <TableCell className="text-muted-foreground border-r border-gray-300">
-                                  {row.resourceEmailId || '—'}
-                                </TableCell>
-                                <TableCell className="font-medium border-r border-gray-300">
-                                  {row.resourceName || '—'}
-                                </TableCell>
-                                <TableCell className="max-w-xs border-r border-gray-300">
-                                  <div className="font-medium text-foreground">{row.taskIssueName || '—'}</div>
-                                </TableCell>
-                                <TableCell className="font-mono text-xs text-blue-600 border-r border-gray-300">
-                                  {row.taskIssueId || '—'}
-                                </TableCell>
-                                <TableCell className="border-r border-gray-300">
-                                  <span className="text-sm text-foreground">{row.storyName || '—'}</span>
-                                </TableCell>
-                                <TableCell className="font-mono text-xs text-blue-600 border-r border-gray-300">
-                                  {row.storyId || '—'}
-                                </TableCell>
-                                <TableCell className="text-center border-r border-gray-300">
-                                  <span className="font-semibold">
-                                    {row.estimationHours != null ? row.estimationHours.toFixed(2) : '—'}
-                                  </span>
-                                </TableCell>
-                                <TableCell className="text-center border-r border-gray-300">
-                                  <span className="font-semibold text-blue-600">
-                                    {row.actualHours != null ? row.actualHours.toFixed(2) : '—'}
-                                  </span>
-                                </TableCell>
-                                <TableCell className="text-center border-r border-gray-300">
-                                  <span className="font-semibold text-orange-600">
-                                    {row.remainingHours != null ? row.remainingHours.toFixed(2) : '—'}
-                                  </span>
-                                </TableCell>
-                                <TableCell className="text-muted-foreground border-r border-gray-300">
-                                  {row.reporterName || '—'}
-                                </TableCell>
-                                <TableCell className="border-r border-gray-300">
-                                  <Badge variant="outline" className="bg-slate-50">
-                                    {row.workCategory || '—'}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="border-r border-gray-300">
-                                  {row.status ? (
-                                    <Badge
-                                      className={
-                                        row.status.toLowerCase() === 'completed' || row.status.toLowerCase() === 'done'
-                                          ? 'bg-green-100 text-green-800 border-green-200'
-                                          : row.status.toLowerCase() === 'in progress' || row.status.toLowerCase() === 'in-progress'
-                                            ? 'bg-blue-100 text-blue-800 border-blue-200'
-                                            : 'bg-orange-100 text-orange-800 border-orange-200'
-                                      }
-                                    >
-                                      {row.status}
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="outline">—</Badge>
+                            paginatedResourcePerformanceRows.map((row, index) => {
+                              const isExpanded = expandedPerformanceLogs.has(index);
+                              // Show dropdown if there are explicitly mapped entries OR if actual hours > 0
+                              const hasLogs = (row.timeEntries && row.timeEntries.length > 0) || (row.actualHours != null && row.actualHours > 0);
+                              
+                              return (
+                                <React.Fragment key={index}>
+                                  <TableRow
+                                    className={`hover:bg-blue-50 transition-colors border-b border-slate-200 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} ${hasLogs ? 'cursor-pointer' : ''}`}
+                                    onClick={hasLogs ? () => {
+                                      setExpandedPerformanceLogs(prev => {
+                                        const next = new Set(prev);
+                                        if (next.has(index)) next.delete(index);
+                                        else next.add(index);
+                                        return next;
+                                      });
+                                    } : undefined}
+                                  >
+                                    <TableCell className="text-muted-foreground border-r border-gray-300">
+                                      {row.resourceEmailId || '—'}
+                                    </TableCell>
+                                    <TableCell className="font-medium border-r border-gray-300">
+                                      {row.resourceName || '—'}
+                                    </TableCell>
+                                    <TableCell className="border-r border-gray-300">
+                                      {row.taskIssueName || '—'}
+                                    </TableCell>
+                                    <TableCell className="border-r border-gray-300 font-mono text-[10px] text-blue-600">
+                                      {row.taskIssueId || '—'}
+                                    </TableCell>
+                                    <TableCell className="border-r border-gray-300">
+                                      {row.storyName || '—'}
+                                    </TableCell>
+                                    <TableCell className="border-r border-gray-300 font-mono text-[10px] text-blue-600 truncate max-w-[100px]" title={row.storyId}>
+                                      {row.storyId || '—'}
+                                    </TableCell>
+                                    <TableCell className="text-center border-r border-gray-300 tabular-nums font-medium text-indigo-600">
+                                      {row.estimationHours != null ? row.estimationHours.toFixed(2) : '—'}
+                                    </TableCell>
+                                    <TableCell className="text-center font-semibold text-blue-600 border-r border-gray-300 tabular-nums select-none group">
+                                      <div className="flex items-center justify-center space-x-2">
+                                        <span>{row.actualHours != null ? row.actualHours.toFixed(2) : '0.00'}</span>
+                                        {hasLogs && (
+                                          <div className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
+                                            <ChevronDown className="h-4 w-4 text-blue-400 group-hover:text-blue-600" />
+                                          </div>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="text-center border-r border-gray-300 tabular-nums font-medium text-amber-600">
+                                      {row.remainingHours != null ? row.remainingHours.toFixed(2) : '—'}
+                                    </TableCell>
+                                    <TableCell className="border-r border-gray-300">
+                                      {row.reporterName || '—'}
+                                    </TableCell>
+                                    <TableCell className="border-r border-gray-300">
+                                      <Badge variant="outline" className="text-[10px] font-normal border-slate-300 bg-slate-50">
+                                        {row.workCategory || 'Development'}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell className="border-r border-gray-300">
+                                      <Badge
+                                        className={`text-[10px] uppercase font-bold ${
+                                          (row.status || '').toUpperCase() === 'DONE'
+                                            ? 'bg-green-100 text-green-700 border-green-200'
+                                            : (row.status || '').toUpperCase() === 'IN_PROGRESS' || (row.status || '').toUpperCase() === 'IN PROGRESS'
+                                              ? 'bg-blue-100 text-blue-700 border-blue-200'
+                                              : 'bg-slate-100 text-slate-600 border-slate-200'
+                                        }`}
+                                      >
+                                        {(row.status || 'TO DO').replace('_', ' ')}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell className="border-r border-gray-300 text-xs">
+                                      {row.createdDate || '—'}
+                                    </TableCell>
+                                    <TableCell className="border-r border-gray-300 text-xs">
+                                      {row.dueDate || '—'}
+                                    </TableCell>
+                                    <TableCell className="border-r border-gray-300 text-xs">
+                                      {row.completedDate || '—'}
+                                    </TableCell>
+                                    <TableCell className="border-r border-gray-300 text-xs">
+                                      {row.sprint || '—'}
+                                    </TableCell>
+                                    <TableCell className="border-r border-gray-300 text-xs">
+                                      {row.project || '—'}
+                                    </TableCell>
+                                  </TableRow>
+                                  {isExpanded && hasLogs && (
+                                    <TableRow className="bg-blue-50/30 border-b border-blue-100/50 hover:bg-blue-50/30">
+                                      <TableCell colSpan={17} className="px-8 py-6">
+                                        <div className="bg-white rounded-xl border border-blue-200 shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500">
+                                          {/* Header Section */}
+                                          <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-6 py-4 flex items-center justify-between shadow-sm">
+                                            <div className="flex items-center space-x-3 text-white">
+                                              <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                                                <Clock className="h-5 w-5 text-white" />
+                                              </div>
+                                              <div>
+                                                <h3 className="text-sm font-bold uppercase tracking-wider">Detailed Effort Logs Breakdown</h3>
+                                                <p className="text-[10px] text-blue-100 opacity-90 font-medium">Full visibility into task and subtask performance</p>
+                                              </div>
+                                            </div>
+                                            <div className="flex items-center space-x-4">
+                                              <div className="flex flex-col items-end">
+                                                <span className="text-[10px] font-bold text-blue-100 uppercase tracking-tight">Record ID</span>
+                                                <span className="text-xs font-mono font-bold text-white bg-white/10 px-2 py-0.5 rounded leading-none">{row.taskIssueId}</span>
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          <div className="p-6 space-y-8">
+                                            {/* Summary Stats Cards */}
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 transition-all hover:shadow-md hover:border-blue-300 group">
+                                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Estimated Hours</p>
+                                                <p className="text-2xl font-bold text-slate-800 tabular-nums">{row.estimationHours != null ? row.estimationHours.toFixed(2) : '0.00'}<span className="text-xs font-medium text-slate-400 ml-1">h</span></p>
+                                              </div>
+                                              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 transition-all hover:shadow-md hover:border-blue-400 group">
+                                                <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-1">Total Actual Logged</p>
+                                                <p className="text-2xl font-bold text-blue-800 tabular-nums">{row.actualHours != null ? row.actualHours.toFixed(2) : '0.00'}<span className="text-xs font-medium text-blue-400 ml-1">h</span></p>
+                                              </div>
+                                              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 transition-all hover:shadow-md hover:border-amber-400 group">
+                                                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1">Remaining Scope</p>
+                                                <p className="text-2xl font-bold text-amber-800 tabular-nums">{row.remainingHours != null ? row.remainingHours.toFixed(2) : '0.00'}<span className="text-xs font-medium text-amber-400 ml-1">h</span></p>
+                                              </div>
+                                              <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 transition-all hover:shadow-md hover:border-indigo-400 group">
+                                                <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider mb-1">Total Logs Count</p>
+                                                <p className="text-2xl font-bold text-indigo-800 tabular-nums">{(row.timeEntries?.length || 0) + (row.subtasks?.length || 0)}<span className="text-xs font-medium text-indigo-400 ml-1">entries</span></p>
+                                              </div>
+                                            </div>
+
+                                            {/* Subtasks Section */}
+                                            {row.subtasks && row.subtasks.length > 0 && (
+                                              <div className="space-y-3">
+                                                <div className="flex items-center space-x-2 border-b border-slate-100 pb-2">
+                                                  <div className="h-2 w-2 rounded-full bg-indigo-500"></div>
+                                                  <h4 className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Subtasks Performance ({row.subtasks.length})</h4>
+                                                </div>
+                                                <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm bg-slate-50/30">
+                                                  <table className="w-full text-left border-collapse">
+                                                    <thead>
+                                                      <tr className="bg-slate-100/80 border-b border-slate-200">
+                                                        <th className="px-4 py-2.5 text-[10px] font-bold text-slate-600 uppercase tracking-tight">Subtask Title</th>
+                                                        <th className="px-4 py-2.5 text-[10px] font-bold text-slate-600 uppercase tracking-tight">Assignee</th>
+                                                        <th className="px-4 py-2.5 text-[10px] font-bold text-slate-600 uppercase tracking-tight text-center">Status</th>
+                                                        <th className="px-4 py-2.5 text-[10px] font-bold text-slate-600 uppercase tracking-tight text-center">Est.</th>
+                                                        <th className="px-4 py-2.5 text-[10px] font-bold text-slate-600 uppercase tracking-tight text-center">Actual</th>
+                                                      </tr>
+                                                    </thead>
+                                                    <tbody className="bg-white">
+                                                      {row.subtasks.map((sub, sIdx) => (
+                                                        <tr key={sIdx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors last:border-0 text-xs">
+                                                          <td className="px-4 py-3 font-medium text-slate-800">{sub.title}</td>
+                                                          <td className="px-4 py-3 text-slate-500 italic">{sub.assigneeName || 'Unassigned'}</td>
+                                                          <td className="px-4 py-3 text-center">
+                                                            <Badge className={`text-[9px] uppercase font-bold py-0 h-4 ${sub.isCompleted ? 'bg-green-100 text-green-700 border-green-200' : 'bg-blue-100 text-blue-700 border-blue-200'}`}>
+                                                              {sub.isCompleted ? 'COMPLETED' : 'IN PROGRESS'}
+                                                            </Badge>
+                                                          </td>
+                                                          <td className="px-4 py-3 text-center tabular-nums text-slate-500 font-medium">
+                                                            {sub.estimatedHours != null ? Number(sub.estimatedHours).toFixed(2) : '—'}
+                                                          </td>
+                                                          <td className="px-4 py-3 text-center tabular-nums font-bold text-indigo-600">
+                                                            {sub.actualHours != null ? Number(sub.actualHours).toFixed(2) : '0.00'}h
+                                                          </td>
+                                                        </tr>
+                                                      ))}
+                                                    </tbody>
+                                                  </table>
+                                                </div>
+                                              </div>
+                                            )}
+
+                                            {/* Daily Logs Section */}
+                                            <div className="space-y-3">
+                                              <div className="flex items-center space-x-2 border-b border-slate-100 pb-2">
+                                                <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                                                <h4 className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Detailed Daily Log Entries ({row.timeEntries?.length || 0})</h4>
+                                              </div>
+                                              
+                                              {row.timeEntries && row.timeEntries.length > 0 ? (
+                                                <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm bg-slate-50/30">
+                                                  <table className="w-full text-left border-collapse">
+                                                    <thead>
+                                                      <tr className="bg-slate-100/80 border-b border-slate-200">
+                                                        <th className="px-4 py-2.5 text-[10px] font-bold text-slate-600 uppercase tracking-tight w-32">Work Date</th>
+                                                        <th className="px-4 py-2.5 text-[10px] font-bold text-slate-600 uppercase tracking-tight text-center w-24">Hours</th>
+                                                        <th className="px-4 py-2.5 text-[10px] font-bold text-slate-600 uppercase tracking-tight">Log Description</th>
+                                                        <th className="px-4 py-2.5 text-[10px] font-bold text-slate-600 uppercase tracking-tight w-32">Entry Type</th>
+                                                      </tr>
+                                                    </thead>
+                                                    <tbody className="bg-white">
+                                                      {row.timeEntries.sort((a,b) => new Date(b.workDate).getTime() - new Date(a.workDate).getTime()).map((entry, eIdx) => {
+                                                        const isManagerLog = entry.description?.includes('[Logged by');
+                                                        return (
+                                                          <tr key={eIdx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors last:border-0 text-xs">
+                                                            <td className="px-4 py-3 text-slate-600 font-medium whitespace-nowrap">
+                                                              {formatDate(entry.workDate)}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-center border-x border-slate-50">
+                                                              <span className="font-bold text-blue-600 tabular-nums">
+                                                                {Number(entry.hoursWorked || 0).toFixed(2)}h
+                                                              </span>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-slate-700 italic max-w-xl break-words leading-relaxed group relative">
+                                                              <div className="flex items-start">
+                                                                <span>{entry.description || <span className="text-slate-400">No description provided</span>}</span>
+                                                                {isManagerLog && (
+                                                                  <Badge variant="secondary" className="ml-2 bg-indigo-50 text-indigo-700 text-[8px] h-3 px-1 border-indigo-100">MANAGER</Badge>
+                                                                )}
+                                                              </div>
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200 uppercase tracking-tighter shadow-sm">
+                                                                {entry.entryType || 'Development'}
+                                                              </span>
+                                                            </td>
+                                                          </tr>
+                                                        );
+                                                      })}
+                                                    </tbody>
+                                                  </table>
+                                                </div>
+                                              ) : (
+                                                <div className="bg-slate-50 rounded-xl border border-dashed border-slate-300 py-10 flex flex-col items-center justify-center text-center px-4">
+                                                  <div className="p-3 bg-slate-100 rounded-full mb-3">
+                                                    <AlertCircle className="h-6 w-6 text-slate-400" />
+                                                  </div>
+                                                  <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">No direct daily logs found</p>
+                                                  <p className="text-[10px] text-slate-400 mt-1 max-w-xs">Specific effort entries were not found for this record. Hours may be rolled up from subtasks or were bulk added without description logs.</p>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                          
+                                          {/* Footer Branding */}
+                                          <div className="bg-slate-50/80 px-6 py-3 border-t border-slate-100 text-right">
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">SprintSync Internal Analytics Engine © 2026</p>
+                                          </div>
+                                        </div>
+                                      </TableCell>
+                                    </TableRow>
                                   )}
-                                </TableCell>
-                                <TableCell className="text-muted-foreground text-xs border-r border-gray-300">
-                                  {row.createdDate || '—'}
-                                </TableCell>
-                                <TableCell className="text-muted-foreground text-xs border-r border-gray-300">
-                                  {row.dueDate || '—'}
-                                </TableCell>
-                                <TableCell className="text-muted-foreground text-xs border-r border-gray-300">
-                                  {row.completedDate || '—'}
-                                </TableCell>
-                                <TableCell className="text-muted-foreground border-r border-gray-300">
-                                  {row.sprint || '—'}
-                                </TableCell>
-                                <TableCell className="text-muted-foreground">
-                                  {row.project || '—'}
-                                </TableCell>
-                              </TableRow>
-                            ))
+                                </React.Fragment>
+                              );
+                            })
                           )}
                         </TableBody>
                       </Table>
@@ -2574,16 +3047,22 @@ const ReportsPage: React.FC = () => {
                         </CardHeader>
                         <CardContent>
                           <div className="rounded-lg border border-slate-200 shadow-sm bg-white">
-                            <div style={{ maxHeight: '400px', overflowY: 'auto' }} className="scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-50">
+                            <div style={{ maxHeight: '400px', overflowY: 'auto', overflowX: 'auto' }} className="scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-50">
                               <Table className="border-separate border-spacing-0">
                                 <TableHeader>
                                   <TableRow className="bg-blue-50 border-b shadow-sm">
                                     <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-blue-50">Name (Developer)</TableHead>
                                     <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-blue-50">Task Assigned</TableHead>
                                     <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-blue-50">Issue Assigned</TableHead>
-                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-blue-50">To Do</TableHead>
-                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-blue-50">On Going</TableHead>
-                                    <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-blue-50">Done</TableHead>
+                                    {resourceSummary.allLanes.map((laneName) => (
+                                      <TableHead 
+                                        key={laneName} 
+                                        style={{ position: 'sticky', top: 0, zIndex: 30 }} 
+                                        className="font-semibold border-r border-b border-gray-300 bg-blue-50 text-center"
+                                      >
+                                        {laneName}
+                                      </TableHead>
+                                    ))}
                                     <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-blue-50">Over Due</TableHead>
                                     <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-r border-b border-gray-300 bg-blue-50">Total Bug Resolved</TableHead>
                                     <TableHead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="font-semibold border-b border-gray-300 bg-blue-50">Rework Count For Bugs</TableHead>
@@ -2604,21 +3083,21 @@ const ReportsPage: React.FC = () => {
                                       <TableCell className="text-center border-r border-gray-300">
                                         <span className="font-semibold text-purple-600">{dev.issueAssigned}</span>
                                       </TableCell>
-                                      <TableCell className="text-center border-r border-gray-300">
-                                        <Badge className="bg-slate-100 text-slate-800 border-slate-200">
-                                          {dev.toDo}
-                                        </Badge>
-                                      </TableCell>
-                                      <TableCell className="text-center border-r border-gray-300">
-                                        <Badge className="bg-blue-100 text-blue-800 border-blue-200">
-                                          {dev.onGoing}
-                                        </Badge>
-                                      </TableCell>
-                                      <TableCell className="text-center border-r border-gray-300">
-                                        <Badge className="bg-green-100 text-green-800 border-green-200">
-                                          {dev.done}
-                                        </Badge>
-                                      </TableCell>
+                                      {resourceSummary.allLanes.map((laneName) => (
+                                        <TableCell key={laneName} className="text-center border-r border-gray-300">
+                                          <Badge 
+                                            className={`${
+                                              laneName.toLowerCase().includes('done') 
+                                                ? 'bg-green-100 text-green-800 border-green-200' 
+                                                : laneName.toLowerCase().includes('progress') || laneName.toLowerCase().includes('ongoing')
+                                                  ? 'bg-blue-100 text-blue-800 border-blue-200'
+                                                  : 'bg-slate-100 text-slate-800 border-slate-200'
+                                            }`}
+                                          >
+                                            {dev.laneCounts[laneName] || 0}
+                                          </Badge>
+                                        </TableCell>
+                                      ))}
                                       <TableCell className="text-center border-r border-gray-300">
                                         <Badge className={dev.overdueCount > 0 ? 'bg-red-100 text-red-800 border-red-200' : 'bg-slate-100 text-slate-600 border-slate-200'}>
                                           {dev.overdueCount}

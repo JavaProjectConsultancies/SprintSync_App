@@ -400,7 +400,9 @@ class ApiClient {
               }
               break;
             case 500:
-              errorMessage = 'Internal server error. Please try again later.';
+              if (!data.message && !data.error) {
+                errorMessage = 'Internal server error. Please try again later.';
+              }
               break;
           }
 

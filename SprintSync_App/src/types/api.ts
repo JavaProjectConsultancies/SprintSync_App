@@ -63,6 +63,8 @@ export interface Project extends BaseEntity {
   scope?: string;
   successCriteria?: string[];
   objectives?: string[];
+  totalTasks?: number;
+  completedTasks?: number;
   isActive: boolean;
 }
 

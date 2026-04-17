@@ -1,5 +1,6 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { getLocalToday, toDateInputFormat } from "../utils/dateUtils";
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart, ReferenceLine } from 'recharts';
@@ -52,7 +53,7 @@ const BurndownChart: React.FC<BurndownChartProps> = ({
   const remainingStoryPoints = storyPointsCommitted - storyPointsCompleted;
 
   // Calculate current date and day
-  const currentDate = new Date().toISOString().split('T')[0];
+  const currentDate = getLocalToday();
   const start = new Date(startDate);
   const current = new Date();
   const currentDay = Math.max(0, Math.floor((current.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
@@ -88,7 +89,7 @@ const BurndownChart: React.FC<BurndownChartProps> = ({
 
       dataPoints.push({
         day,
-        date: date.toISOString().split('T')[0],
+        date: toDateInputFormat(date),
         remainingStoryPoints: actualRemaining,
         idealRemaining,
         workRemainingPerDay: workRemainingPerDay[day] || undefined

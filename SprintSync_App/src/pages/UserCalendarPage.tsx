@@ -345,7 +345,7 @@ const UserCalendarPage: React.FC = () => {
                                                             <span className="font-bold">{format(day, 'PPPP')}</span>
                                                             <div className="flex items-center gap-2">
                                                                 <span className="opacity-70">Logged:</span>
-                                                                <span className="font-mono font-bold text-green-400">{data.logged.toFixed(1)}h</span>
+                                                                <span className="font-mono font-bold text-green-400">{data.logged.toFixed(2)}h</span>
                                                             </div>
                                                         </div>
                                                         <div className="p-3 space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
@@ -362,7 +362,7 @@ const UserCalendarPage: React.FC = () => {
                                                                         </span>
                                                                     </div>
                                                                     <span className="font-mono font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-                                                                        {(item.hoursWorked || 0).toFixed(1)}h
+                                                                        {(item.hoursWorked || 0).toFixed(2)}h
                                                                     </span>
                                                                 </div>
                                                             ))}
@@ -381,7 +381,7 @@ const UserCalendarPage: React.FC = () => {
                                                     isCompleted ? "bg-green-600 text-white font-bold" : "bg-green-50 border border-green-100 text-green-700 font-medium"
                                                 )}>
                                                     <span>Logged</span>
-                                                    <span>{data.logged.toFixed(1)}h</span>
+                                                    <span>{data.logged.toFixed(2)}h</span>
                                                 </div>
                                             ) : (
                                                 <div className="flex items-center justify-center px-2 py-1 rounded-md text-[10px] bg-red-50 border border-red-100 text-red-600 font-medium shadow-sm">

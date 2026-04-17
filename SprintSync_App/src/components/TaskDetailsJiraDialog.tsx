@@ -54,6 +54,7 @@ import { timeEntryApiService } from "../services/api/entities/timeEntryApi";
 import { attachmentApiService } from "../services/api/entities/attachmentApi";
 import { subtaskApiService } from "../services/api/entities/subtaskApi";
 import { issueApiService } from "../services/api/entities/issueApi";
+import { invalidateTasksCache } from "../hooks/api/useTasks";
 import { useRecentActivityByEntity } from "../hooks/api/useActivityLogs";
 import { toast } from "sonner";
 import AttachmentViewer from './AttachmentViewer';
@@ -61,6 +62,7 @@ import AttachmentViewer from './AttachmentViewer';
 import { useAuth } from "../contexts/AuthContextEnhanced";
 import { userApiService } from "../services/api/entities/userApi";
 import ChatSection from './ChatSection';
+import { getLocalToday, toDateInputFormat } from '../utils/dateUtils';
 
 // Helper component to render description with images and line breaks
 const RenderDescription = ({ description }: { description?: string }) => {
@@ -196,7 +198,7 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
     const [effortLog, setEffortLog] = useState({
         hours: 0,
         description: "",
-        workDate: new Date().toISOString().split('T')[0],
+        workDate: getLocalToday(),
         startTime: "",
         endTime: "",
     });
@@ -236,11 +238,34 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
     // Handle lane change from dropdown
     const handleLaneChange = async (newStatusValue: string) => {
         if (!currentTask || !canChangeLane) return;
+
+        const isMovingFromTodo = currentTask.status === "TO_DO" && newStatusValue !== "TO_DO";
+        const isMovingToDone = newStatusValue === "DONE" && currentTask.status !== "DONE";
+
+        if (isMovingFromTodo || isMovingToDone) {
+            setIsUpdatingLane(true);
+            try {
+                const response = await timeEntryApiService.getTimeEntriesByTask(currentTask.id);
+                const entries = Array.isArray(response.data) ? response.data : (Array.isArray(response) ? response : []);
+                if (entries.length === 0) {
+                    const actionDesc = isMovingToDone ? "to the Done lane" : "from the To Do lane";
+                    toast.error(`Please add at least one effort log before moving ${actionDesc}`);
+                    setIsUpdatingLane(false);
+                    return;
+                }
+            } catch (error) {
+                toast.error("Unable to verify effort logs.");
+                setIsUpdatingLane(false);
+                return;
+            }
+        }
+
         setIsUpdatingLane(true);
         try {
             await taskApiService.updateTaskStatus(currentTask.id, newStatusValue);
             setCurrentTask(prev => prev ? { ...prev, status: newStatusValue as any } : prev);
             toast.success('Lane updated successfully');
+            invalidateTasksCache();
             if (onTaskUpdated) onTaskUpdated();
             if (onLaneChanged) onLaneChanged();
         } catch (error) {
@@ -320,9 +345,9 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
     };
 
     // Check if sprint has ended - block time logging after sprint end
-    const isSprintEnded = sprintEndDate ? new Date() > new Date(sprintEndDate) : false;
-    const isDueDateExceeded = currentTask?.dueDate ? new Date() > new Date(currentTask.dueDate) : false;
-    const canLogTime = !isViewOnly;
+    const isSprintEnded = sprintEndDate ? new Date().setHours(0,0,0,0) > new Date(sprintEndDate).setHours(0,0,0,0) : false;
+    const isDueDateExceeded = currentTask?.dueDate ? new Date().setHours(0,0,0,0) > new Date(currentTask.dueDate).setHours(0,0,0,0) : false;
+    const canLogTime = !isViewOnly && !isDueDateExceeded;
 
     useEffect(() => {
         setCurrentTask(task);
@@ -627,14 +652,15 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
             setEffortLog({
                 hours: 0,
                 description: "",
-                workDate: new Date().toISOString().split('T')[0],
+                workDate: getLocalToday(),
                 startTime: "",
                 endTime: "",
             });
             setEffortLogAttachments([]);
 
             // Refresh data
-            fetchTaskData(currentTask.id, currentTask.storyId);
+            await fetchTaskData(currentTask.id, currentTask.storyId);
+            invalidateTasksCache();
             if (onTaskUpdated) onTaskUpdated();
         } catch (error) {
             console.error("Error logging effort:", error);
@@ -722,7 +748,7 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                                         className={`h-8 px-2 ${!canLogTime ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-100'}`}
                                         onClick={() => canLogTime && setIsLogEffortOpen(true)}
                                         disabled={!canLogTime}
-                                        title={!canLogTime ? 'View-only access' : 'Log time for this task'}
+                                        title={!canLogTime ? (isDueDateExceeded ? 'Due date exceeded' : 'View-only access') : 'Log time for this task'}
                                     >
                                         <Clock className="w-4 h-4 mr-1 text-blue-600" />
                                         Add Log
@@ -776,7 +802,7 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                                     </div>
                                     <div className="flex items-center space-x-1">
                                         <Clock className="w-4 h-4" />
-                                        <span>{currentTask.estimatedHours}h estimated</span>
+                                        <span>{Number(currentTask.estimatedHours || 0).toFixed(2)}h estimated</span>
                                     </div>
                                     <div className="flex items-center space-x-1">
                                         <User className="w-4 h-4" />
@@ -1107,7 +1133,7 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                                                             </div>
                                                             <div className="flex items-center space-x-4">
                                                                 <span className="text-xs text-gray-500">{st.status}</span>
-                                                                <Badge variant="secondary" className="text-xs">{st.actualHours}/{st.estimatedHours}h</Badge>
+                                                                <Badge variant="secondary" className="text-xs">{Number(st.actualHours).toFixed(2)}/{Number(st.estimatedHours).toFixed(2)}h</Badge>
                                                             </div>
                                                         </div>
                                                     ))}
@@ -1384,6 +1410,8 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                             <Input
                                 id="date"
                                 type="date"
+                                onKeyDown={(e) => e.preventDefault()}
+                                min={(() => { const d = new Date(); d.setDate(d.getDate() - 2); return toDateInputFormat(d); })()}
                                 value={effortLog.workDate}
                                 onChange={(e) => setEffortLog(p => ({ ...p, workDate: e.target.value }))}
                             />
@@ -1438,7 +1466,7 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                             </div>
                             <div>
                                 <p className="text-[10px] text-orange-600 uppercase font-bold mb-1">After Log</p>
-                                <p className="text-lg font-bold text-orange-700">{((currentTask?.actualHours || 0) + effortLog.hours).toFixed(1)}h</p>
+                                <p className="text-lg font-bold text-orange-700">{((currentTask?.actualHours || 0) + effortLog.hours).toFixed(2)}h</p>
                             </div>
                         </div>
                     </div>
@@ -1447,9 +1475,9 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                         <Button
                             onClick={handleLogEffort}
                             disabled={isLoggingEffort || !effortLog.hours || effortLog.hours <= 0}
+                            loading={isLoggingEffort}
                         >
-                            {isLoggingEffort ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                            Log {effortLog.hours}h
+                            Log {effortLog.hours > 0 ? `${effortLog.hours.toFixed(2)}h` : "Work"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

@@ -20,10 +20,17 @@ import java.util.List;
 @Repository
 public interface SubtaskRepository extends JpaRepository<Subtask, String> {
 
-    /**
-     * Find subtasks by task ID
-     */
     List<Subtask> findByTaskId(String taskId);
+
+    /**
+     * Find subtasks by task IDs (Batch)
+     */
+    List<Subtask> findByTaskIdIn(java.util.Collection<String> taskIds);
+
+    /**
+     * Find subtasks by issue IDs (Batch)
+     */
+    List<Subtask> findByIssueIdIn(java.util.Collection<String> issueIds);
 
     /**
      * Find subtasks by issue ID
@@ -450,4 +457,9 @@ public interface SubtaskRepository extends JpaRepository<Subtask, String> {
      * Find subtasks by team and priority
      */
     // Note: Subtask entity doesn't have priority field in current database schema
+    /**
+     * Calculate total hours worked for a subtask
+     */
+    @Query("SELECT COALESCE(SUM(t.hoursWorked), 0) FROM TimeEntry t WHERE t.subtaskId = :subtaskId")
+    java.math.BigDecimal sumHoursWorkedBySubtaskId(@Param("subtaskId") String subtaskId);
 }

@@ -16,6 +16,7 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import AppSidebar from './components/AppSidebar';
 import NotificationDropdown from './components/NotificationDropdown';
+import TechRiddleGame from './components/TechRiddleGame';
 import { Toaster } from './components/ui/sonner';
 import PageTransition from './components/PageTransition';
 
@@ -32,6 +33,7 @@ import AdminPanelPage from './pages/AdminPanelPage';
 import TodoListPage from './pages/TodoListPage';
 import RegistrationPage from './pages/RegistrationPage';
 import UserCalendarPage from './pages/UserCalendarPage';
+import LoginActivityLogPage from './pages/LoginActivityLogPage';
 
 // Import API integration components
 // import ApiIntegrationDemo from './components/ApiIntegrationDemo';
@@ -91,7 +93,7 @@ const AppContent: React.FC = () => {
       // If somehow user lands on a non-existent route, redirect to dashboard
       const validRoutes = ['/', '/projects', '/backlog', '/scrum', '/time-tracking',
         '/team-allocation', '/reports', '/profile',
-        '/admin-panel', '/todo-list', '/calendar'];
+        '/admin-panel', '/todo-list', '/calendar', '/login-activity'];
       const isValidRoute = validRoutes.includes(location.pathname) ||
         location.pathname.startsWith('/projects/');
 
@@ -99,12 +101,15 @@ const AppContent: React.FC = () => {
         navigate('/');
       }
 
-      // Prefetch projects when navigating to dashboard for faster loading
+      // Warm up global caches when navigating to dashboard for faster subsequent navigation
       if (location.pathname === '/' && user.id) {
-        import('./hooks/api/useProjects').then(({ prefetchProjects }) => {
-          prefetchProjects(user.id).catch(() => {
-            // Silently fail - projects will be fetched by hook
-          });
+        Promise.all([
+          import('./hooks/api/useProjects').then(m => m.prefetchProjects(user.id)),
+          import('./hooks/api/useUsers').then(m => m.prefetchUsers()),
+          import('./hooks/api/useSprints').then(m => m.prefetchSprints(user.id)),
+          import('./hooks/api/useWorkflowLanes').then(m => m.prefetchWorkflowLanes()),
+        ]).catch(() => {
+          // Silently fail - data will be fetched by hooks on individual pages if prefetch fails
         });
       }
     }
@@ -121,6 +126,7 @@ const AppContent: React.FC = () => {
       '/reports': { title: 'Reports', description: 'Bug reports and analytics', icon: '📊' },
       '/profile': { title: 'Profile', description: 'Your account settings', icon: '👤' },
       '/admin-panel': { title: 'Admin Panel', description: 'System administration', icon: '⚙️' },
+      '/login-activity': { title: 'Login Activity', description: 'Monitor system access and user login events', icon: '🛡️' },
       '/todo-list': { title: 'My Tasks', description: 'Personal task management', icon: '✅' },
       '/calendar': { title: 'Calendar View', description: 'Work allocation and time tracking overview', icon: '📅' },
       // '/api-demo': { title: 'API Demo', description: 'Interactive API integration showcase', icon: '🔌' },
@@ -135,12 +141,12 @@ const AppContent: React.FC = () => {
   // Helper function to check route access based on role
   const hasRouteAccess = (path: string, role: string): boolean => {
     const roleAccess: { [key: string]: string[] } = {
-      admin: ['/', '/projects', '/team-allocation', '/reports', '/profile', '/admin-panel', '/calendar'],
+      admin: ['/', '/projects', '/team-allocation', '/reports', '/profile', '/admin-panel', '/calendar', '/login-activity'],
       manager: ['/', '/projects', '/scrum', '/time-tracking', '/team-allocation', '/reports', '/profile', '/todo-list', '/calendar'],
       developer: ['/', '/projects', '/scrum', '/time-tracking', '/profile', '/todo-list', '/calendar'],
       qa_manager: ['/', '/projects', '/scrum', '/time-tracking', '/team-allocation', '/reports', '/profile', '/todo-list', '/calendar'],
       qa_developer: ['/', '/projects', '/scrum', '/time-tracking', '/reports', '/profile', '/todo-list', '/calendar'],
-      master_admin: ['/', '/projects', '/scrum', '/time-tracking', '/team-allocation', '/reports', '/profile', '/admin-panel', '/todo-list', '/calendar', '/backlog'],
+      master_admin: ['/', '/projects', '/scrum', '/time-tracking', '/team-allocation', '/reports', '/profile', '/admin-panel', '/todo-list', '/calendar', '/backlog', '/login-activity'],
       support_and_implementation: ['/', '/projects', '/scrum', '/time-tracking', '/team-allocation', '/reports', '/profile', '/todo-list', '/calendar'],
     };
 
@@ -724,6 +730,7 @@ const AppContent: React.FC = () => {
 
           {/* Enhanced Header Actions */}
           <div className="flex items-center space-x-3 px-4">
+            <TechRiddleGame />
             <NotificationDropdown />
           </div>
         </header>
@@ -808,6 +815,13 @@ const AppContent: React.FC = () => {
                 <Route path="/admin-panel" element={
                   <ProtectedRoute allowedRoles={['admin', 'master_admin']}>
                     <AdminPanelPage />
+                  </ProtectedRoute>
+                } />
+
+                {/* Login Activity - accessible by admin and master_admin */}
+                <Route path="/login-activity" element={
+                  <ProtectedRoute allowedRoles={['admin', 'master_admin']}>
+                    <LoginActivityLogPage />
                   </ProtectedRoute>
                 } />
 

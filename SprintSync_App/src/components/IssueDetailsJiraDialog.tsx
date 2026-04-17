@@ -59,11 +59,14 @@ import { taskApiService } from "../services/api/entities/taskApi";
 import { useRecentActivityByEntity } from "../hooks/api/useActivityLogs";
 import { toast } from "sonner";
 import AttachmentViewer from './AttachmentViewer';
+import { invalidateTasksCache } from "../hooks/api/useTasks";
 
 import { useAuth } from "../contexts/AuthContextEnhanced";
 import { userApiService } from "../services/api/entities/userApi";
 import { storyApiService } from "../services/api/entities/storyApi";
 import ChatSection from './ChatSection';
+
+import { getLocalToday, toDateInputFormat } from '../utils/dateUtils';
 
 // Helper component to render description with images and line breaks
 const RenderDescription = ({ description }: { description?: string }) => {
@@ -198,7 +201,7 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
     const [effortLog, setEffortLog] = useState({
         hours: 0,
         description: "",
-        workDate: new Date().toISOString().split('T')[0],
+        workDate: getLocalToday(),
         startTime: "",
         endTime: "",
     });
@@ -211,7 +214,7 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
     const [subtaskEffortLog, setSubtaskEffortLog] = useState({
         hours: 0,
         description: "",
-        workDate: new Date().toISOString().split('T')[0],
+        workDate: getLocalToday(),
         startTime: "",
         endTime: "",
     });
@@ -250,9 +253,32 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
     // Handle lane change from dropdown
     const handleLaneChange = async (newStatusValue: string) => {
         if (!currentIssue || !canChangeLane) return;
+
+        const isMovingFromTodo = currentIssue.status === "TO_DO" && newStatusValue !== "TO_DO";
+        const isMovingToDone = newStatusValue === "DONE" && currentIssue.status !== "DONE";
+
+        if (isMovingFromTodo || isMovingToDone) {
+            setIsUpdatingLane(true);
+            try {
+                const response = await timeEntryApiService.getTimeEntriesByIssue(currentIssue.id);
+                const entries = Array.isArray(response.data) ? response.data : (Array.isArray(response) ? response : []);
+                if (entries.length === 0) {
+                    const actionDesc = isMovingToDone ? "to the Done lane" : "from the To Do lane";
+                    toast.error(`Please add at least one effort log before moving ${actionDesc}`);
+                    setIsUpdatingLane(false);
+                    return;
+                }
+            } catch (error) {
+                toast.error("Unable to verify effort logs.");
+                setIsUpdatingLane(false);
+                return;
+            }
+        }
+
         setIsUpdatingLane(true);
         try {
             await issueApiService.updateIssueStatus(currentIssue.id, newStatusValue);
+            invalidateTasksCache(); // Issues affect board totals too
             setCurrentIssue(prev => prev ? { ...prev, status: newStatusValue as any } : prev);
             toast.success('Lane updated successfully');
             if (onIssueUpdated) onIssueUpdated();
@@ -334,9 +360,9 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
     };
 
     // Check if sprint has ended - block time logging after sprint end
-    const isSprintEnded = sprintEndDate ? new Date() > new Date(sprintEndDate) : false;
-    const isDueDateExceeded = currentIssue?.dueDate ? new Date() > new Date(currentIssue.dueDate) : false;
-    const canLogTime = !isViewOnly;
+    const isSprintEnded = sprintEndDate ? new Date().setHours(0,0,0,0) > new Date(sprintEndDate).setHours(0,0,0,0) : false;
+    const isDueDateExceeded = currentIssue?.dueDate ? new Date().setHours(0,0,0,0) > new Date(currentIssue.dueDate).setHours(0,0,0,0) : false;
+    const canLogTime = !isViewOnly && !isDueDateExceeded;
 
     useEffect(() => {
         setCurrentIssue(issue);
@@ -676,14 +702,15 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
             setEffortLog({
                 hours: 0,
                 description: "",
-                workDate: new Date().toISOString().split('T')[0],
+                workDate: getLocalToday(),
                 startTime: "",
                 endTime: "",
             });
             setEffortLogAttachments([]);
 
             // Refresh data
-            fetchIssueData(currentIssue.id, currentIssue.storyId);
+            await fetchIssueData(currentIssue.id, currentIssue.storyId);
+            invalidateTasksCache();
             if (onIssueUpdated) onIssueUpdated();
         } catch (error) {
             console.error("Error logging effort:", error);
@@ -748,14 +775,14 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
             setSubtaskEffortLog({
                 hours: 0,
                 description: "",
-                workDate: new Date().toISOString().split('T')[0],
+                workDate: getLocalToday(),
                 startTime: "",
                 endTime: "",
             });
 
             // Refresh data
             if (currentIssue) {
-                fetchIssueData(currentIssue.id, currentIssue.storyId);
+                await fetchIssueData(currentIssue.id, currentIssue.storyId);
             }
             if (onIssueUpdated) onIssueUpdated();
         } catch (error) {
@@ -844,7 +871,7 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                                         className={`h-8 px-2 ${!canLogTime ? 'opacity-50 cursor-not-allowed' : 'hover:bg-red-100'} text-red-700`}
                                         onClick={() => canLogTime && setIsLogEffortOpen(true)}
                                         disabled={!canLogTime}
-                                        title={!canLogTime ? 'View-only access' : 'Log time for this issue'}
+                                        title={!canLogTime ? (isDueDateExceeded ? 'Due date exceeded' : 'View-only access') : 'Log time for this issue'}
                                     >
                                         <Clock className="w-4 h-4 mr-1 text-red-600" />
                                         Add Log
@@ -898,7 +925,7 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                                     </div>
                                     <div className="flex items-center space-x-1">
                                         <Clock className="w-4 h-4" />
-                                        <span>{currentIssue.estimatedHours || 0}h estimated</span>
+                                        <span>{Number(currentIssue.estimatedHours || 0).toFixed(2)}h estimated</span>
                                     </div>
                                     <div className="flex items-center space-x-1">
                                         <User className="w-4 h-4" />
@@ -947,7 +974,7 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                                                                 <div className="flex-1">
                                                                     <div className="flex items-center space-x-2 mb-1">
                                                                         <Clock className="w-4 h-4 text-red-600" />
-                                                                        <span className="text-sm font-medium text-gray-900">{log.hoursWorked}h logged</span>
+                                                                        <span className="text-sm font-medium text-gray-900">{Number(log.hoursWorked || 0).toFixed(2)}h logged</span>
                                                                         {log.workDate && (
                                                                             <span className="text-xs text-gray-500">
                                                                                 on {new Date(log.workDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
@@ -1227,7 +1254,7 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                                                             </div>
                                                             <div className="flex items-center space-x-3">
                                                                 <span className="text-xs text-gray-500">{st.status}</span>
-                                                                <Badge variant="secondary" className="text-xs bg-red-50 text-red-800 border-red-100">{st.actualHours || 0}/{st.estimatedHours || 0}h</Badge>
+                                                                <Badge variant="secondary" className="text-xs bg-red-50 text-red-800 border-red-100">{Number(st.actualHours || 0).toFixed(2)}/{Number(st.estimatedHours || 0).toFixed(2)}h</Badge>
                                                                 <Button
                                                                     variant="outline"
                                                                     size="sm"
@@ -1240,7 +1267,7 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                                                                         setSubtaskEffortLog({
                                                                             hours: 0,
                                                                             description: "",
-                                                                            workDate: new Date().toISOString().split('T')[0],
+                                                                            workDate: getLocalToday(),
                                                                             startTime: "",
                                                                             endTime: "",
                                                                         });
@@ -1349,14 +1376,14 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                                         <div>
                                             <div className="flex items-center justify-between mb-2">
                                                 <span className="text-xs font-medium text-gray-600">Estimation</span>
-                                                <span className="text-xs font-semibold text-red-600">{currentIssue.estimatedHours || 0}h</span>
+                                                <span className="text-xs font-semibold text-red-600">{Number(currentIssue.estimatedHours || 0).toFixed(2)}h</span>
                                             </div>
                                             <Progress value={100} className="h-2 bg-red-100" />
                                         </div>
                                         <div>
                                             <div className="flex items-center justify-between mb-2">
                                                 <span className="text-xs font-medium text-gray-600">Time Spent</span>
-                                                <span className="text-xs font-semibold text-green-600">{currentIssue.actualHours || 0}h</span>
+                                                <span className="text-xs font-semibold text-green-600">{Number(currentIssue.actualHours || 0).toFixed(2)}h</span>
                                             </div>
                                             <Progress
                                                 value={currentIssue.estimatedHours && currentIssue.estimatedHours > 0 ? Math.min(100, (currentIssue.actualHours || 0) / currentIssue.estimatedHours * 100) : 0}
@@ -1367,7 +1394,7 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                                             <div className="flex items-center justify-between mb-2">
                                                 <span className="text-xs font-medium text-gray-600">Remaining</span>
                                                 <span className="text-xs font-semibold text-gray-600">
-                                                    {Math.max(0, (currentIssue.estimatedHours || 0) - (currentIssue.actualHours || 0))}h
+                                                    {Math.max(0, (Number(currentIssue.estimatedHours || 0)) - (Number(currentIssue.actualHours || 0))).toFixed(2)}h
                                                 </span>
                                             </div>
                                             <Progress
@@ -1531,6 +1558,8 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                             <Input
                                 id="date"
                                 type="date"
+                                onKeyDown={(e) => e.preventDefault()}
+                                min={(() => { const d = new Date(); d.setDate(d.getDate() - 2); return toDateInputFormat(d); })()}
                                 value={effortLog.workDate}
                                 onChange={(e) => setEffortLog(p => ({ ...p, workDate: e.target.value }))}
                             />
@@ -1585,7 +1614,7 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                             </div>
                             <div>
                                 <p className="text-[10px] text-orange-600 uppercase font-bold mb-1">After Log</p>
-                                <p className="text-lg font-bold text-orange-700">{((currentIssue?.actualHours || 0) + effortLog.hours).toFixed(1)}h</p>
+                                <p className="text-lg font-bold text-orange-700">{((currentIssue?.actualHours || 0) + effortLog.hours).toFixed(2)}h</p>
                             </div>
                         </div>
                     </div>
@@ -1596,11 +1625,9 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                         <Button
                             type="button"
                             onClick={handleLogEffort}
-                            className="mt-0 gap-1 pt-1 border-t"
-
                             disabled={isLoggingEffort || effortLog.hours <= 0}
+                            loading={isLoggingEffort}
                         >
-                            {isLoggingEffort && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                             Log {effortLog.hours > 0 ? `${effortLog.hours}h` : 'Work'}
                         </Button>
                     </DialogFooter>
@@ -1662,6 +1689,8 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                             <Input
                                 id="subtask-date"
                                 type="date"
+                                onKeyDown={(e) => e.preventDefault()}
+                                min={(() => { const d = new Date(); d.setDate(d.getDate() - 2); return toDateInputFormat(d); })()}
                                 value={subtaskEffortLog.workDate}
                                 onChange={(e) => setSubtaskEffortLog(p => ({ ...p, workDate: e.target.value }))}
                             />
@@ -1680,7 +1709,7 @@ const IssueDetailsJiraDialog: React.FC<IssueDetailsJiraDialogProps> = ({
                                 </div>
                                 <div>
                                     <p className="text-[10px] text-orange-600 uppercase font-bold mb-1">After Log</p>
-                                    <p className="text-lg font-bold text-orange-700">{((selectedSubtaskForLog.actualHours || 0) + subtaskEffortLog.hours).toFixed(1)}h</p>
+                                    <p className="text-lg font-bold text-orange-700">{((selectedSubtaskForLog.actualHours || 0) + subtaskEffortLog.hours).toFixed(2)}h</p>
                                 </div>
                             </div>
                         )}

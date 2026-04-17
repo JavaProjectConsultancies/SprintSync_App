@@ -39,6 +39,7 @@ export class SprintApiService {
 
   // Get sprints by project
   async getSprintsByProject(projectId: string, params?: PaginationParams): Promise<ApiResponse<Sprint[]>> {
+    if (!projectId) return { data: [], success: true, message: 'Skipped' } as any;
     return apiClient.get<Sprint[]>(`${API_ENDPOINTS.SPRINTS}/project/${projectId}`, params);
   }
 

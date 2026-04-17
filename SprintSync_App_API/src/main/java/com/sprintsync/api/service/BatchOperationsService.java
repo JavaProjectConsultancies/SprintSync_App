@@ -36,7 +36,8 @@ public class BatchOperationsService {
     @Autowired
     private SprintService sprintService;
 
-    // In-memory storage for batch operation status (in production, use Redis or database)
+    // In-memory storage for batch operation status (in production, use Redis or
+    // database)
     private Map<String, Map<String, Object>> batchOperationStatus = new HashMap<>();
 
     /**
@@ -46,11 +47,11 @@ public class BatchOperationsService {
         Map<String, Object> result = new HashMap<>();
         List<Task> updatedTasks = new ArrayList<>();
         List<String> errors = new ArrayList<>();
-        
+
         try {
-            com.sprintsync.api.entity.enums.TaskStatus status = 
-                com.sprintsync.api.entity.enums.TaskStatus.valueOf(newStatus.toUpperCase());
-            
+            com.sprintsync.api.entity.enums.TaskStatus status = com.sprintsync.api.entity.enums.TaskStatus
+                    .valueOf(newStatus.toUpperCase());
+
             for (String taskId : taskIds) {
                 try {
                     Task updatedTask = taskService.updateTaskStatus(taskId, status);
@@ -66,12 +67,12 @@ public class BatchOperationsService {
         } catch (IllegalArgumentException e) {
             errors.add("Invalid status: " + newStatus);
         }
-        
+
         result.put("updatedTasks", updatedTasks);
         result.put("totalUpdated", updatedTasks.size());
         result.put("totalRequested", taskIds.size());
         result.put("errors", errors);
-        
+
         return result;
     }
 
@@ -82,7 +83,7 @@ public class BatchOperationsService {
         Map<String, Object> result = new HashMap<>();
         List<Task> updatedTasks = new ArrayList<>();
         List<String> errors = new ArrayList<>();
-        
+
         for (String taskId : taskIds) {
             try {
                 Task updatedTask = taskService.assignTask(taskId, assigneeId);
@@ -95,12 +96,12 @@ public class BatchOperationsService {
                 errors.add("Error assigning task " + taskId + ": " + e.getMessage());
             }
         }
-        
+
         result.put("updatedTasks", updatedTasks);
         result.put("totalUpdated", updatedTasks.size());
         result.put("totalRequested", taskIds.size());
         result.put("errors", errors);
-        
+
         return result;
     }
 
@@ -111,7 +112,7 @@ public class BatchOperationsService {
         Map<String, Object> result = new HashMap<>();
         List<String> deletedTaskIds = new ArrayList<>();
         List<String> errors = new ArrayList<>();
-        
+
         for (String taskId : taskIds) {
             try {
                 boolean deleted = taskService.deleteTask(taskId);
@@ -124,12 +125,12 @@ public class BatchOperationsService {
                 errors.add("Error deleting task " + taskId + ": " + e.getMessage());
             }
         }
-        
+
         result.put("deletedTaskIds", deletedTaskIds);
         result.put("totalDeleted", deletedTaskIds.size());
         result.put("totalRequested", taskIds.size());
         result.put("errors", errors);
-        
+
         return result;
     }
 
@@ -140,7 +141,7 @@ public class BatchOperationsService {
         Map<String, Object> result = new HashMap<>();
         List<Subtask> updatedSubtasks = new ArrayList<>();
         List<String> errors = new ArrayList<>();
-        
+
         for (String subtaskId : subtaskIds) {
             try {
                 Subtask updatedSubtask = subtaskService.updateSubtaskCompletion(subtaskId, isCompleted);
@@ -153,12 +154,12 @@ public class BatchOperationsService {
                 errors.add("Error updating subtask " + subtaskId + ": " + e.getMessage());
             }
         }
-        
+
         result.put("updatedSubtasks", updatedSubtasks);
         result.put("totalUpdated", updatedSubtasks.size());
         result.put("totalRequested", subtaskIds.size());
         result.put("errors", errors);
-        
+
         return result;
     }
 
@@ -169,7 +170,7 @@ public class BatchOperationsService {
         Map<String, Object> result = new HashMap<>();
         List<Subtask> updatedSubtasks = new ArrayList<>();
         List<String> errors = new ArrayList<>();
-        
+
         for (String subtaskId : subtaskIds) {
             try {
                 Subtask updatedSubtask = subtaskService.assignSubtask(subtaskId, assigneeId);
@@ -182,12 +183,12 @@ public class BatchOperationsService {
                 errors.add("Error assigning subtask " + subtaskId + ": " + e.getMessage());
             }
         }
-        
+
         result.put("updatedSubtasks", updatedSubtasks);
         result.put("totalUpdated", updatedSubtasks.size());
         result.put("totalRequested", subtaskIds.size());
         result.put("errors", errors);
-        
+
         return result;
     }
 
@@ -198,7 +199,7 @@ public class BatchOperationsService {
         Map<String, Object> result = new HashMap<>();
         List<String> deletedSubtaskIds = new ArrayList<>();
         List<String> errors = new ArrayList<>();
-        
+
         for (String subtaskId : subtaskIds) {
             try {
                 boolean deleted = subtaskService.deleteSubtask(subtaskId);
@@ -211,12 +212,12 @@ public class BatchOperationsService {
                 errors.add("Error deleting subtask " + subtaskId + ": " + e.getMessage());
             }
         }
-        
+
         result.put("deletedSubtaskIds", deletedSubtaskIds);
         result.put("totalDeleted", deletedSubtaskIds.size());
         result.put("totalRequested", subtaskIds.size());
         result.put("errors", errors);
-        
+
         return result;
     }
 
@@ -227,11 +228,11 @@ public class BatchOperationsService {
         Map<String, Object> result = new HashMap<>();
         List<Story> updatedStories = new ArrayList<>();
         List<String> errors = new ArrayList<>();
-        
+
         try {
-            com.sprintsync.api.entity.enums.StoryStatus status = 
-                com.sprintsync.api.entity.enums.StoryStatus.valueOf(newStatus.toUpperCase());
-            
+            com.sprintsync.api.entity.enums.StoryStatus status = com.sprintsync.api.entity.enums.StoryStatus
+                    .valueOf(newStatus.toUpperCase());
+
             for (String storyId : storyIds) {
                 try {
                     Story updatedStory = storyService.updateStoryStatus(storyId, status);
@@ -247,12 +248,12 @@ public class BatchOperationsService {
         } catch (IllegalArgumentException e) {
             errors.add("Invalid status: " + newStatus);
         }
-        
+
         result.put("updatedStories", updatedStories);
         result.put("totalUpdated", updatedStories.size());
         result.put("totalRequested", storyIds.size());
         result.put("errors", errors);
-        
+
         return result;
     }
 
@@ -263,7 +264,7 @@ public class BatchOperationsService {
         Map<String, Object> result = new HashMap<>();
         List<Story> updatedStories = new ArrayList<>();
         List<String> errors = new ArrayList<>();
-        
+
         for (String storyId : storyIds) {
             try {
                 Story updatedStory = storyService.assignStory(storyId, assigneeId);
@@ -276,12 +277,12 @@ public class BatchOperationsService {
                 errors.add("Error assigning story " + storyId + ": " + e.getMessage());
             }
         }
-        
+
         result.put("updatedStories", updatedStories);
         result.put("totalUpdated", updatedStories.size());
         result.put("totalRequested", storyIds.size());
         result.put("errors", errors);
-        
+
         return result;
     }
 
@@ -292,7 +293,7 @@ public class BatchOperationsService {
         Map<String, Object> result = new HashMap<>();
         List<String> deletedStoryIds = new ArrayList<>();
         List<String> errors = new ArrayList<>();
-        
+
         for (String storyId : storyIds) {
             try {
                 storyService.deleteStory(storyId);
@@ -301,12 +302,12 @@ public class BatchOperationsService {
                 errors.add("Error deleting story " + storyId + ": " + e.getMessage());
             }
         }
-        
+
         result.put("deletedStoryIds", deletedStoryIds);
         result.put("totalDeleted", deletedStoryIds.size());
         result.put("totalRequested", storyIds.size());
         result.put("errors", errors);
-        
+
         return result;
     }
 
@@ -317,11 +318,11 @@ public class BatchOperationsService {
         Map<String, Object> result = new HashMap<>();
         List<Sprint> updatedSprints = new ArrayList<>();
         List<String> errors = new ArrayList<>();
-        
+
         try {
-            com.sprintsync.api.entity.enums.SprintStatus status = 
-                com.sprintsync.api.entity.enums.SprintStatus.valueOf(newStatus.toUpperCase());
-            
+            com.sprintsync.api.entity.enums.SprintStatus status = com.sprintsync.api.entity.enums.SprintStatus
+                    .valueOf(newStatus.toUpperCase());
+
             for (String sprintId : sprintIds) {
                 try {
                     Sprint updatedSprint = sprintService.updateSprintStatus(sprintId, status);
@@ -337,12 +338,12 @@ public class BatchOperationsService {
         } catch (IllegalArgumentException e) {
             errors.add("Invalid status: " + newStatus);
         }
-        
+
         result.put("updatedSprints", updatedSprints);
         result.put("totalUpdated", updatedSprints.size());
         result.put("totalRequested", sprintIds.size());
         result.put("errors", errors);
-        
+
         return result;
     }
 
@@ -353,7 +354,7 @@ public class BatchOperationsService {
         Map<String, Object> result = new HashMap<>();
         List<String> deletedSprintIds = new ArrayList<>();
         List<String> errors = new ArrayList<>();
-        
+
         for (String sprintId : sprintIds) {
             try {
                 boolean deleted = sprintService.deleteSprint(sprintId);
@@ -366,33 +367,35 @@ public class BatchOperationsService {
                 errors.add("Error deleting sprint " + sprintId + ": " + e.getMessage());
             }
         }
-        
+
         result.put("deletedSprintIds", deletedSprintIds);
         result.put("totalDeleted", deletedSprintIds.size());
         result.put("totalRequested", sprintIds.size());
         result.put("errors", errors);
-        
+
         return result;
     }
 
     /**
-     * Bulk move tasks to sprint (via story relationship - sprintId field not available in Task entity)
+     * Bulk move tasks to sprint (via story relationship - sprintId field not
+     * available in Task entity)
      */
     public Map<String, Object> bulkMoveTasksToSprint(List<String> taskIds, String sprintId) {
         Map<String, Object> result = new HashMap<>();
         List<Task> updatedTasks = new ArrayList<>();
         List<String> errors = new ArrayList<>();
-        
+
         // Note: Task entity doesn't have sprintId field in current database schema
         // Tasks are related to sprints through stories (task -> story -> sprint)
-        // This method would need to be implemented differently based on business requirements
-        
+        // This method would need to be implemented differently based on business
+        // requirements
+
         errors.add("Task entity doesn't have sprintId field - tasks are related to sprints through stories");
         result.put("updatedTasks", updatedTasks);
         result.put("totalUpdated", 0);
         result.put("totalRequested", taskIds.size());
         result.put("errors", errors);
-        
+
         return result;
     }
 
@@ -403,7 +406,7 @@ public class BatchOperationsService {
         Map<String, Object> result = new HashMap<>();
         List<Story> updatedStories = new ArrayList<>();
         List<String> errors = new ArrayList<>();
-        
+
         for (String storyId : storyIds) {
             try {
                 Optional<Story> optionalStory = storyRepository.findById(storyId);
@@ -419,33 +422,35 @@ public class BatchOperationsService {
                 errors.add("Error moving story " + storyId + ": " + e.getMessage());
             }
         }
-        
+
         result.put("updatedStories", updatedStories);
         result.put("totalUpdated", updatedStories.size());
         result.put("totalRequested", storyIds.size());
         result.put("errors", errors);
-        
+
         return result;
     }
 
     /**
-     * Bulk move tasks to project (via story relationship - projectId field not available in Task entity)
+     * Bulk move tasks to project (via story relationship - projectId field not
+     * available in Task entity)
      */
     public Map<String, Object> bulkMoveTasksToProject(List<String> taskIds, String projectId) {
         Map<String, Object> result = new HashMap<>();
         List<Task> updatedTasks = new ArrayList<>();
         List<String> errors = new ArrayList<>();
-        
+
         // Note: Task entity doesn't have projectId field in current database schema
         // Tasks are related to projects through stories (task -> story -> project)
-        // This method would need to be implemented differently based on business requirements
-        
+        // This method would need to be implemented differently based on business
+        // requirements
+
         errors.add("Task entity doesn't have projectId field - tasks are related to projects through stories");
         result.put("updatedTasks", updatedTasks);
         result.put("totalUpdated", 0);
         result.put("totalRequested", taskIds.size());
         result.put("errors", errors);
-        
+
         return result;
     }
 
@@ -456,7 +461,7 @@ public class BatchOperationsService {
         Map<String, Object> result = new HashMap<>();
         List<Story> updatedStories = new ArrayList<>();
         List<String> errors = new ArrayList<>();
-        
+
         for (String storyId : storyIds) {
             try {
                 Optional<Story> optionalStory = storyRepository.findById(storyId);
@@ -472,12 +477,12 @@ public class BatchOperationsService {
                 errors.add("Error moving story " + storyId + ": " + e.getMessage());
             }
         }
-        
+
         result.put("updatedStories", updatedStories);
         result.put("totalUpdated", updatedStories.size());
         result.put("totalRequested", storyIds.size());
         result.put("errors", errors);
-        
+
         return result;
     }
 
@@ -488,7 +493,7 @@ public class BatchOperationsService {
         Map<String, Object> result = new HashMap<>();
         List<Task> updatedTasks = new ArrayList<>();
         List<String> errors = new ArrayList<>();
-        
+
         for (String taskId : taskIds) {
             try {
                 Optional<Task> optionalTask = taskRepository.findById(taskId);
@@ -504,12 +509,12 @@ public class BatchOperationsService {
                 errors.add("Error updating task priority " + taskId + ": " + e.getMessage());
             }
         }
-        
+
         result.put("updatedTasks", updatedTasks);
         result.put("totalUpdated", updatedTasks.size());
         result.put("totalRequested", taskIds.size());
         result.put("errors", errors);
-        
+
         return result;
     }
 
@@ -520,15 +525,15 @@ public class BatchOperationsService {
         Map<String, Object> result = new HashMap<>();
         List<Subtask> updatedSubtasks = new ArrayList<>();
         List<String> errors = new ArrayList<>();
-        
+
         // Note: Subtask entity doesn't have priority field in current database schema
         errors.add("Subtask entity doesn't have priority field in current database schema");
-        
+
         result.put("updatedSubtasks", updatedSubtasks);
         result.put("totalUpdated", 0);
         result.put("totalRequested", subtaskIds.size());
         result.put("errors", errors);
-        
+
         return result;
     }
 
@@ -539,11 +544,11 @@ public class BatchOperationsService {
         Map<String, Object> result = new HashMap<>();
         List<Story> updatedStories = new ArrayList<>();
         List<String> errors = new ArrayList<>();
-        
+
         try {
-            com.sprintsync.api.entity.enums.StoryPriority priority = 
-                com.sprintsync.api.entity.enums.StoryPriority.valueOf(newPriority.toUpperCase());
-            
+            com.sprintsync.api.entity.enums.StoryPriority priority = com.sprintsync.api.entity.enums.StoryPriority
+                    .valueOf(newPriority.toUpperCase());
+
             for (String storyId : storyIds) {
                 try {
                     Optional<Story> optionalStory = storyRepository.findById(storyId);
@@ -562,12 +567,12 @@ public class BatchOperationsService {
         } catch (IllegalArgumentException e) {
             errors.add("Invalid priority: " + newPriority);
         }
-        
+
         result.put("updatedStories", updatedStories);
         result.put("totalUpdated", updatedStories.size());
         result.put("totalRequested", storyIds.size());
         result.put("errors", errors);
-        
+
         return result;
     }
 
@@ -611,8 +616,3 @@ public class BatchOperationsService {
         return result;
     }
 }
-
-
-
-
-

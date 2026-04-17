@@ -49,7 +49,7 @@ public class TimeEntry extends BaseEntity {
     private TimeEntryType entryType;
 
     @NotNull(message = "Hours worked cannot be null")
-    @Column(name = "hours_worked", precision = 5, scale = 2, nullable = false)
+    @Column(name = "hours_worked", precision = 12, scale = 2, nullable = false)
     private BigDecimal hoursWorked;
 
     @NotNull(message = "Work date cannot be null")

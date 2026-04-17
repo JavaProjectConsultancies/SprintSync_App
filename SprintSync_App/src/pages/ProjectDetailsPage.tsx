@@ -18,7 +18,7 @@ import { useRequirements } from '../hooks/api/useRequirements';
 import { useTeamMembers } from '../hooks/api/useTeamMembers';
 import { useUsers } from '../hooks/api/useUsers';
 import { useProjectActivities } from '../hooks/api/useActivityLogs';
-import { useAllStories } from '../hooks/api/useStories';
+import { useStoriesByProject } from '../hooks/api/useStories';
 import EpicManager from '../components/EpicManager';
 import TeamManager from '../components/TeamManager';
 import MilestoneDialog from '../components/MilestoneDialog';
@@ -168,8 +168,8 @@ const ProjectDetailsPage = () => {
     refreshTeamMembers
   } = useTeamMembers(id || '');
 
-  // Fetch all stories to calculate epic progress
-  const { data: allStories, loading: storiesLoading } = useAllStories();
+  // Fetch only stories for this specific project to calculate epic progress
+  const { data: allStories, loading: storiesLoading } = useStoriesByProject(id || '');
 
   // Fetch all users to resolve user names in activity logs
   const { data: allUsers } = useUsers({ page: 0, size: 1000 });
@@ -1023,7 +1023,15 @@ const ProjectDetailsPage = () => {
       <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <Card>
           <CardContent className="p-4 text-center">
-            <div className="text-2xl font-semibold text-green-600">{project.sprints > 0 ? Math.round((project.completedSprints / project.sprints) * 100) : 0}%</div>
+            <div className="text-2xl font-semibold text-green-600">
+              {(() => {
+                const total = project.totalTasks || 0;
+                const completed = project.completedTasks || 0;
+                if (total > 0) return Math.round((completed / total) * 100);
+                if (project.sprints > 0) return Math.round((project.completedSprints / project.sprints) * 100);
+                return 0;
+              })()}%
+            </div>
             <div className="text-sm text-muted-foreground">Complete</div>
           </CardContent>
         </Card>
@@ -1098,7 +1106,15 @@ const ProjectDetailsPage = () => {
                 </div>
               </div>
               <div className="text-right space-y-2">
-                <div className="text-3xl font-bold text-blue-600">{project.sprints > 0 ? Math.round((project.completedSprints / project.sprints) * 100) : 0}%</div>
+                <div className="text-3xl font-bold text-blue-600">
+                  {(() => {
+                    const total = project.totalTasks || 0;
+                    const completed = project.completedTasks || 0;
+                    if (total > 0) return Math.round((completed / total) * 100);
+                    if (project.sprints > 0) return Math.round((project.completedSprints / project.sprints) * 100);
+                    return 0;
+                  })()}%
+                </div>
                 <div className="text-sm text-gray-500">Complete</div>
               </div>
             </div>
@@ -1117,9 +1133,26 @@ const ProjectDetailsPage = () => {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Overall Progress</span>
-                    <span className="font-medium">{project.sprints > 0 ? Math.round((project.completedSprints / project.sprints) * 100) : 0}%</span>
+                    <span className="font-medium">
+                      {(() => {
+                        const total = project.totalTasks || 0;
+                        const completed = project.completedTasks || 0;
+                        if (total > 0) return Math.round((completed / total) * 100);
+                        if (project.sprints > 0) return Math.round((project.completedSprints / project.sprints) * 100);
+                        return 0;
+                      })()}%
+                    </span>
                   </div>
-                  <Progress value={project.sprints > 0 ? (project.completedSprints / project.sprints) * 100 : 0} className="h-3" />
+                  <Progress 
+                    value={(() => {
+                      const total = project.totalTasks || 0;
+                      const completed = project.completedTasks || 0;
+                      if (total > 0) return (completed / total) * 100;
+                      if (project.sprints > 0) return (project.completedSprints / project.sprints) * 100;
+                      return 0;
+                    })()} 
+                    className="h-3" 
+                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 text-sm">

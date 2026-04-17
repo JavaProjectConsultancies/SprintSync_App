@@ -101,7 +101,7 @@ export function usePaginatedApi<T>(
       setError(null);
       const currentParams = { ...params, ...newParams };
       const response = await apiCall(currentParams);
-      
+
       if (currentParams.page === 0 || !currentParams.page) {
         // First page or no pagination
         setData(response.data);
@@ -109,7 +109,7 @@ export function usePaginatedApi<T>(
         // Append to existing data
         setData(prev => [...prev, ...response.data]);
       }
-      
+
       setTotalElements(response.data.length);
       setHasMore(response.data.length === (currentParams.size || 10));
     } catch (err) {
@@ -178,9 +178,9 @@ export function usePollingApi<T>(
 
   useEffect(() => {
     fetchData();
-    
+
     const timer = setInterval(fetchData, interval);
-    
+
     return () => clearInterval(timer);
   }, [fetchData, interval]);
 

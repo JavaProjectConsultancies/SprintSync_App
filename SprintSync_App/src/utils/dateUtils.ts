@@ -5,6 +5,29 @@
  */
 
 /**
+ * Get current date in YYYY-MM-DD format based on local time
+ * @returns Date string in YYYY-MM-DD format
+ */
+export const getLocalToday = (): string => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+/**
+ * Normalizes a date to midnight local time
+ * @param date - Date object to normalize
+ * @returns New Date object set to 00:00:00 local time
+ */
+export const normalizeToLocalMidnight = (date: Date): Date => {
+    const normalized = new Date(date);
+    normalized.setHours(0, 0, 0, 0);
+    return normalized;
+};
+
+/**
  * Format a date to DD-MM-YYYY format
  * @param dateInput - Date object, ISO string, or any parseable date string
  * @returns Formatted date string in DD-MM-YYYY format
@@ -15,9 +38,11 @@ export const formatDateDDMMYYYY = (dateInput: Date | string | null | undefined):
     try {
         let date: Date;
         if (typeof dateInput === 'string') {
-            // If it's a YYYY-MM-DD string (no time), parse it manually to avoid UTC offset
-            if (/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
-                const [year, month, day] = dateInput.split('-').map(Number);
+            // Fix: If it's an ISO string or YYYY-MM-DD, treat the date part as local time
+            // to prevent the "one day earlier" issue in Western timezones
+            if (dateInput.includes('T') || /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+                const datePart = dateInput.split('T')[0];
+                const [year, month, day] = datePart.split('-').map(Number);
                 date = new Date(year, month - 1, day);
             } else {
                 date = new Date(dateInput);
@@ -146,8 +171,9 @@ export const parseDDMMYYYY = (dateString: string): Date | null => {
 
         // Try parsing as ISO string or other formats
         // If it's a YYYY-MM-DD string, parse it as local time
-        if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-            const [year, month, day] = dateString.split('-').map(Number);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateString) || dateString.includes('T')) {
+            const datePart = dateString.split('T')[0];
+            const [year, month, day] = datePart.split('-').map(Number);
             const date = new Date(year, month - 1, day);
             return isNaN(date.getTime()) ? null : date;
         }
@@ -189,7 +215,18 @@ export const toDateInputFormat = (dateInput: Date | string | null | undefined): 
     if (!dateInput) return '';
 
     try {
-        const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+        let date: Date;
+        if (typeof dateInput === 'string') {
+            if (dateInput.includes('T') || /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+                const datePart = dateInput.split('T')[0];
+                const [year, month, day] = datePart.split('-').map(Number);
+                date = new Date(year, month - 1, day);
+            } else {
+                date = new Date(dateInput);
+            }
+        } else {
+            date = dateInput;
+        }
 
         if (isNaN(date.getTime())) {
             return '';

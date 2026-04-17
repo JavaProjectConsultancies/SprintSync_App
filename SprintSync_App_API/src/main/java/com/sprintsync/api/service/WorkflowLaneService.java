@@ -199,7 +199,8 @@ public class WorkflowLaneService {
      */
     @Transactional(readOnly = true)
     public List<WorkflowLane> getWorkflowLanesByProject(String projectId) {
-        return workflowLaneRepository.findByProjectIdAndDefaultBoardOrderByDisplayOrderAsc(projectId);
+        // Return all lanes for the project across all boards to ensure comprehensive reporting
+        return workflowLaneRepository.findByProjectIdOrderByDisplayOrderAsc(projectId);
     }
 
     /**

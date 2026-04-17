@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { CalendarIcon, CheckSquare, User, Flag, Target, Clock, Plus, X, FileText, Database, Code, Palette, Bug, Search, Paperclip, Trash2, Loader2, Link, Eye } from 'lucide-react';
 import { taskTemplates, TaskTemplate, getTemplatesByType } from '../data/taskTemplates';
 import { Priority } from '../types/api';
+import { toDateInputFormat } from '../utils/dateUtils';
 
 // Simple date formatter to replace date-fns
 const format = (date: Date, formatStr: string) => {
@@ -285,8 +286,8 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
       }
     }
 
-    if (formData.estimatedHours < 0.5 || formData.estimatedHours > 40) {
-      newErrors.estimatedHours = 'Estimated hours must be between 0.5 and 40';
+    if (formData.estimatedHours <= 0) {
+      newErrors.estimatedHours = 'Estimated hours must be greater than 0';
     }
 
     setErrors(newErrors);
@@ -295,10 +296,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
 
   // Helper function to format date in local timezone (YYYY-MM-DD)
   const formatDateLocal = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return toDateInputFormat(date);
   };
 
   const handleSubmit = async () => {
@@ -825,20 +823,12 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                           onValueChange={(value) => setFormData(prev => ({ ...prev, estimatedHours: parseFloat(value) }))}
                         >
                           <SelectTrigger>
-                            <SelectValue />
+                            <SelectValue placeholder="Select hours..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {[0.5, 1, 2, 4, 8, 16, 24, 40].map(hours => (
-                              <SelectItem key={hours} value={hours.toString()}>
-                                <div className="flex items-center space-x-2">
-                                  <Clock className="w-4 h-4 text-blue-600" />
-                                  <span className={`font-medium ${getHoursColor(hours)}`}>{hours}h</span>
-                                  <span className="text-muted-foreground">
-                                    {hours <= 4 && '(Quick)'}
-                                    {hours > 4 && hours <= 16 && '(Standard)'}
-                                    {hours > 16 && '(Complex)'}
-                                  </span>
-                                </div>
+                            {[1, 2, 4, 8, 12, 16, 24, 32, 40, 48].map(hour => (
+                              <SelectItem key={hour} value={hour.toString()}>
+                                {hour} {hour === 1 ? 'hour' : 'hours'}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -938,17 +928,16 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                                 }
 
                                 // Normalize date to midnight in local timezone to prevent timezone shifts
-                                const normalizedDate = new Date(date);
-                                normalizedDate.setHours(0, 0, 0, 0);
+                                const normalizedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
                                 // Validate date against story's due date before setting
                                 if (formData.storyId && formData.storyId.trim() !== '') {
                                   const selectedStory = stories.find(s => s.id === formData.storyId);
                                   if (selectedStory && selectedStory.dueDate) {
                                     const storyDueDate = new Date(selectedStory.dueDate);
-                                    storyDueDate.setHours(0, 0, 0, 0);
-                                    if (normalizedDate > storyDueDate) {
-                                      setErrors(prev => ({ ...prev, dueDate: `Task due date cannot be after story's due date (${storyDueDate.toLocaleDateString()})` }));
+                                    const storyDateOnly = new Date(storyDueDate.getFullYear(), storyDueDate.getMonth(), storyDueDate.getDate());
+                                    if (normalizedDate > storyDateOnly) {
+                                      setErrors(prev => ({ ...prev, dueDate: `Task due date cannot be after story's due date (${storyDateOnly.toLocaleDateString()})` }));
                                       return;
                                     }
                                   }
@@ -962,8 +951,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                                 });
                               }}
                               disabled={(date) => {
-                                const dateOnly = new Date(date);
-                                dateOnly.setHours(0, 0, 0, 0);
+                                const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
                                 // First, check sprint date restrictions
                                 if (sprintStartDate && sprintEndDate) {
@@ -983,8 +971,8 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                                   const selectedStory = stories.find(s => s.id === formData.storyId);
                                   if (selectedStory && selectedStory.dueDate) {
                                     const storyDueDate = new Date(selectedStory.dueDate);
-                                    storyDueDate.setHours(23, 59, 59, 999); // End of day
-                                    if (date > storyDueDate) {
+                                    const storyDateOnly = new Date(storyDueDate.getFullYear(), storyDueDate.getMonth(), storyDueDate.getDate());
+                                    if (dateOnly > storyDateOnly) {
                                       return true;
                                     }
                                   }
@@ -1300,7 +1288,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                         })()}
                         <div className="flex items-center space-x-2 text-xs text-muted-foreground">
                           <Clock className="w-3 h-3" />
-                          <span>{formData.estimatedHours}h</span>
+                          <span>{Number(formData.estimatedHours || 0).toFixed(2)}h</span>
                           {formData.dueDate && (
                             <>
                               <span>•</span>
@@ -1323,15 +1311,13 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
               <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
                 Cancel
               </Button>
-              <Button onClick={handleSubmit} className="bg-gradient-primary hover:opacity-90" disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  'Create Task'
-                )}
+              <Button
+                onClick={handleSubmit}
+                className="bg-gradient-primary hover:opacity-90"
+                disabled={isSubmitting}
+                loading={isSubmitting}
+              >
+                Create Task
               </Button>
             </DialogFooter>
           </div>

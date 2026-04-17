@@ -1,6 +1,9 @@
 package com.sprintsync.api.controller;
 
+import com.sprintsync.api.entity.User;
+import com.sprintsync.api.service.AuthService;
 import com.sprintsync.api.service.ReportsService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
@@ -26,14 +29,38 @@ public class ReportsController {
 
     @Autowired
     private ReportsService reportsService;
+ 
+    @Autowired
+    private AuthService authService;
+ 
+    private String extractTokenFromRequest(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+            return bearerToken.substring(7);
+        }
+        return null;
+    }
+ 
+    private User getCurrentUser(HttpServletRequest request) {
+        try {
+            String token = extractTokenFromRequest(request);
+            if (token != null) {
+                return authService.getCurrentUser(token);
+            }
+        } catch (Exception e) {
+            // Log and fall through
+        }
+        return null;
+    }
 
     /**
      * Generate project summary report
      */
     @GetMapping("/project-summary")
-    public ResponseEntity<Map<String, Object>> generateProjectSummaryReport() {
+    public ResponseEntity<Map<String, Object>> generateProjectSummaryReport(HttpServletRequest request) {
         try {
-            Map<String, Object> report = reportsService.generateProjectSummaryReport();
+            User currentUser = getCurrentUser(request);
+            Map<String, Object> report = reportsService.generateProjectSummaryReport(currentUser);
             return ResponseEntity.ok(report);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -44,9 +71,12 @@ public class ReportsController {
      * Generate project summary report for specific project
      */
     @GetMapping("/project-summary/{projectId}")
-    public ResponseEntity<Map<String, Object>> generateProjectSummaryReport(@PathVariable String projectId) {
+    public ResponseEntity<Map<String, Object>> generateProjectSummaryReport(@PathVariable String projectId, HttpServletRequest request) {
         try {
-            Map<String, Object> report = reportsService.generateProjectSummaryReport(projectId);
+            User currentUser = getCurrentUser(request);
+            // Verify access to specific project could be added here if needed,
+            // but for now we'll pass currentUser to the service.
+            Map<String, Object> report = reportsService.generateProjectSummaryReport(projectId, currentUser);
             return ResponseEntity.ok(report);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -57,9 +87,10 @@ public class ReportsController {
      * Generate sprint report
      */
     @GetMapping("/sprint/{sprintId}")
-    public ResponseEntity<Map<String, Object>> generateSprintReport(@PathVariable String sprintId) {
+    public ResponseEntity<Map<String, Object>> generateSprintReport(@PathVariable String sprintId, HttpServletRequest request) {
         try {
-            Map<String, Object> report = reportsService.generateSprintReport(sprintId);
+            User currentUser = getCurrentUser(request);
+            Map<String, Object> report = reportsService.generateSprintReport(sprintId, currentUser);
             return ResponseEntity.ok(report);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -573,9 +604,11 @@ public class ReportsController {
     @GetMapping("/resource-performance")
     public ResponseEntity<Map<String, Object>> generateResourcePerformanceReport(
             @RequestParam(required = false) String projectId,
-            @RequestParam(required = false) String period) {
+            @RequestParam(required = false) String period,
+            HttpServletRequest request) {
         try {
-            Map<String, Object> report = reportsService.generateResourcePerformanceReport(projectId, period);
+            User currentUser = getCurrentUser(request);
+            Map<String, Object> report = reportsService.generateResourcePerformanceReport(projectId, period, currentUser);
             return ResponseEntity.ok(report);
         } catch (Exception e) {
             e.printStackTrace();
@@ -594,10 +627,12 @@ public class ReportsController {
             @RequestParam(required = false) String sprint,
             @RequestParam(required = false) String duration,
             @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate fromDate,
-            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate toDate) {
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate toDate,
+            HttpServletRequest request) {
         try {
+            User currentUser = getCurrentUser(request);
             Map<String, Object> report = reportsService.generateIndividualUtilizationReport(
-                    projectName, userKey, sprint, duration, fromDate, toDate);
+                    projectName, userKey, sprint, duration, fromDate, toDate, currentUser);
             return ResponseEntity.ok(report);
         } catch (Exception e) {
             e.printStackTrace();
@@ -611,9 +646,11 @@ public class ReportsController {
     @GetMapping("/resource-utilization")
     public ResponseEntity<Map<String, Object>> generateResourceUtilizationReport(
             @RequestParam(required = false) String projectId,
-            @RequestParam(required = false) String period) {
+            @RequestParam(required = false) String period,
+            HttpServletRequest request) {
         try {
-            Map<String, Object> report = reportsService.generateResourceUtilizationReport(projectId, period);
+            User currentUser = getCurrentUser(request);
+            Map<String, Object> report = reportsService.generateResourceUtilizationReport(projectId, period, null, null, currentUser);
             return ResponseEntity.ok(report);
         } catch (Exception e) {
             e.printStackTrace();
@@ -632,10 +669,12 @@ public class ReportsController {
             @RequestParam(required = false) String sprint,
             @RequestParam(required = false) String duration,
             @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate fromDate,
-            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate toDate) {
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate toDate,
+            HttpServletRequest request) {
         try {
+            User currentUser = getCurrentUser(request);
             byte[] excelData = reportsService.exportIndividualUtilizationToExcel(
-                    projectName, userKey, sprint, duration, fromDate, toDate);
+                    projectName, userKey, sprint, duration, fromDate, toDate, currentUser);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
@@ -672,10 +711,12 @@ public class ReportsController {
             @RequestParam(required = false) String sprint,
             @RequestParam(required = false) String duration,
             @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate fromDate,
-            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate toDate) {
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate toDate,
+            HttpServletRequest request) {
         try {
+            User currentUser = getCurrentUser(request);
             byte[] excelData = reportsService.exportResourceUtilizationToExcel(
-                    projectId, period, projectName, userKey, sprint, duration, fromDate, toDate);
+                    projectId, period, projectName, userKey, sprint, duration, fromDate, toDate, currentUser);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
@@ -710,10 +751,12 @@ public class ReportsController {
             @RequestParam(required = false) String sprint,
             @RequestParam(required = false) String duration,
             @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate fromDate,
-            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate toDate) {
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate toDate,
+            HttpServletRequest request) {
         try {
+            User currentUser = getCurrentUser(request);
             byte[] excelData = reportsService.exportResourceUtilizationToExcel(
-                    projectId, period, projectName, userKey, sprint, duration, fromDate, toDate);
+                    projectId, period, projectName, userKey, sprint, duration, fromDate, toDate, currentUser);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));

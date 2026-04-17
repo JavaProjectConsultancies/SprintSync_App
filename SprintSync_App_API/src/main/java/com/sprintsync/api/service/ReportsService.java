@@ -1,6 +1,7 @@
 package com.sprintsync.api.service;
 
 import com.sprintsync.api.entity.*;
+import com.sprintsync.api.entity.enums.UserRole;
 import com.sprintsync.api.repository.*;
 import com.sprintsync.api.entity.ActivityLog;
 import org.apache.poi.ss.usermodel.*;
@@ -57,25 +58,44 @@ public class ReportsService {
     /**
      * Generate project summary report
      */
-    public Map<String, Object> generateProjectSummaryReport() {
+    public Map<String, Object> generateProjectSummaryReport(User currentUser) {
         Map<String, Object> report = new HashMap<>();
-
-        List<Project> projects = projectRepository.findAll();
+ 
+        List<Project> projects;
+        if (currentUser != null && currentUser.getRole() != UserRole.admin
+                && currentUser.getRole() != UserRole.master_admin
+                && currentUser.getRole() != UserRole.support_and_implementation) {
+            projects = projectRepository.findProjectsByUserAccess(currentUser.getId());
+        } else {
+            projects = projectRepository.findAll();
+        }
+ 
         report.put("totalProjects", projects.size());
-
+ 
         Map<com.sprintsync.api.entity.enums.ProjectStatus, Long> statusCount = projects.stream()
                 .collect(Collectors.groupingBy(Project::getStatus, Collectors.counting()));
         report.put("statusDistribution", statusCount);
-
+ 
         return report;
     }
 
     /**
      * Generate project summary report for specific project
      */
-    public Map<String, Object> generateProjectSummaryReport(String projectId) {
+    public Map<String, Object> generateProjectSummaryReport(String projectId, User currentUser) {
         Map<String, Object> report = new HashMap<>();
-
+ 
+        // Optional security check: if non-admin and project not accessible, return empty report
+        if (currentUser != null && currentUser.getRole() != UserRole.admin
+                && currentUser.getRole() != UserRole.master_admin
+                && currentUser.getRole() != UserRole.support_and_implementation) {
+            List<Project> accessibleProjects = projectRepository.findProjectsByUserAccess(currentUser.getId());
+            boolean hasAccess = accessibleProjects.stream().anyMatch(p -> p.getId().equals(projectId));
+            if (!hasAccess) {
+                return report;
+            }
+        }
+ 
         Optional<Project> optionalProject = projectRepository.findById(projectId);
         if (optionalProject.isPresent()) {
             Project project = optionalProject.get();
@@ -96,6 +116,14 @@ public class ReportsService {
 
     /**
      * Generate sprint report
+     */
+    public Map<String, Object> generateSprintReport(String sprintId, User currentUser) {
+        // Optional security check could be added here to verify sprint belongs to accessible project
+        return generateSprintReport(sprintId);
+    }
+ 
+    /**
+     * Internal implementation for generateSprintReport
      */
     public Map<String, Object> generateSprintReport(String sprintId) {
         Map<String, Object> report = new HashMap<>();
@@ -803,7 +831,7 @@ public class ReportsService {
      * Uses time_entries table for actual hours and activity_logs for completion
      * dates
      */
-    public Map<String, Object> generateResourceUtilizationReport(String projectId, String period) {
+    public Map<String, Object> generateResourceUtilizationReport(String projectId, String period, LocalDate fromDate, LocalDate toDate, User currentUser) {
         Map<String, Object> report = new HashMap<>();
         List<Map<String, Object>> rows = new ArrayList<>();
 
@@ -821,9 +849,127 @@ public class ReportsService {
                 tasks = taskRepository.findByStoryIdIn(storyIds);
                 issues = issueRepository.findByStoryIdIn(storyIds);
             }
+        } else if (currentUser != null && currentUser.getRole() != UserRole.admin
+                && currentUser.getRole() != UserRole.master_admin
+                && currentUser.getRole() != UserRole.support_and_implementation) {
+            // Non-admin user requesting all projects: restrict to assigned projects
+            List<Project> accessibleProjects = projectRepository.findProjectsByUserAccess(currentUser.getId());
+            List<String> accessibleProjectIds = accessibleProjects.stream()
+                    .map(Project::getId)
+                    .collect(Collectors.toList());
+
+            if (accessibleProjectIds.isEmpty()) {
+                tasks = new ArrayList<>();
+                issues = new ArrayList<>();
+            } else {
+                List<Story> projectStories = storyRepository.findByProjectIdIn(accessibleProjectIds);
+                List<String> storyIds = projectStories.stream().map(Story::getId).collect(Collectors.toList());
+                if (storyIds.isEmpty()) {
+                    tasks = new ArrayList<>();
+                    issues = new ArrayList<>();
+                } else {
+                    tasks = taskRepository.findByStoryIdIn(storyIds);
+                    issues = issueRepository.findByStoryIdIn(storyIds);
+                }
+            }
         } else {
             tasks = taskRepository.findAll();
             issues = issueRepository.findAll();
+        }
+
+        // 1.1. Log-Inclusive Fetching: Ensure all tasks with time entries in the range are included
+        // This is especially important for tasks not linked to stories or projects fetched above
+        LocalDate fromFinalFetch = null;
+        LocalDate toFinalFetch = null;
+
+        if (period != null && !"all".equalsIgnoreCase(period)) {
+            LocalDate now = LocalDate.now();
+            if ("last7".equalsIgnoreCase(period)) {
+                fromFinalFetch = now.minusDays(7);
+                toFinalFetch = now;
+            } else if ("last30".equalsIgnoreCase(period)) {
+                fromFinalFetch = now.minusDays(30);
+                toFinalFetch = now;
+            } 
+        } else if (fromDate != null && toDate != null) {
+            fromFinalFetch = fromDate;
+            toFinalFetch = toDate;
+        }
+
+        if (fromFinalFetch != null && toFinalFetch != null) {
+            List<TimeEntry> entriesInRange = timeEntryRepository.findByWorkDateBetween(fromFinalFetch, toFinalFetch);
+            Set<String> extraTaskIds = entriesInRange.stream().map(TimeEntry::getTaskId).filter(Objects::nonNull).collect(Collectors.toSet());
+            Set<String> extraIssueIds = entriesInRange.stream().map(TimeEntry::getIssueId).filter(Objects::nonNull).collect(Collectors.toSet());
+            Set<String> extraSubtaskIds = entriesInRange.stream().map(TimeEntry::getSubtaskId).filter(Objects::nonNull).collect(Collectors.toSet());
+            
+            // If someone logged on a subtask, we need the parent task or issue
+            if (!extraSubtaskIds.isEmpty()) {
+                 subtaskRepository.findAllById(extraSubtaskIds).forEach(st -> {
+                     if (st.getTaskId() != null) extraTaskIds.add(st.getTaskId());
+                     if (st.getIssueId() != null) extraIssueIds.add(st.getIssueId());
+                 });
+            }
+            
+            Set<String> currentTaskIds = tasks.stream().map(Task::getId).collect(Collectors.toSet());
+            Set<String> currentIssueIds = issues.stream().map(Issue::getId).collect(Collectors.toSet());
+            
+            extraTaskIds.removeAll(currentTaskIds);
+            extraIssueIds.removeAll(currentIssueIds);
+            
+            if (!extraTaskIds.isEmpty()) {
+                tasks.addAll(taskRepository.findAllById(extraTaskIds));
+            }
+            if (!extraIssueIds.isEmpty()) {
+                issues.addAll(issueRepository.findAllById(extraIssueIds));
+            }
+        }
+
+        // 1.5. Batch fetch TimeEntries and Subtasks for all Tasks/Issues
+        List<String> taskIds = tasks.stream().map(Task::getId).collect(Collectors.toList());
+        List<String> issueIds = issues.stream().map(Issue::getId).collect(Collectors.toList());
+
+        Map<String, List<TimeEntry>> taskTimeEntries = new HashMap<>();
+        Map<String, List<TimeEntry>> issueTimeEntries = new HashMap<>();
+        Map<String, List<Subtask>> taskSubtasks = new HashMap<>();
+
+        if (!taskIds.isEmpty()) {
+            taskTimeEntries = timeEntryRepository.findByTaskIdIn(taskIds).stream()
+                    .collect(Collectors.groupingBy(TimeEntry::getTaskId));
+            taskSubtasks = subtaskRepository.findByTaskIdIn(taskIds).stream()
+                    .collect(Collectors.groupingBy(Subtask::getTaskId));
+        }
+        if (!issueIds.isEmpty()) {
+            issueTimeEntries = timeEntryRepository.findByIssueIdIn(issueIds).stream()
+                    .collect(Collectors.groupingBy(TimeEntry::getIssueId));
+        }
+
+        Map<String, List<TimeEntry>> subtaskTimeEntries = new HashMap<>();
+        if (!taskSubtasks.isEmpty()) {
+            List<String> allSubtaskIds = taskSubtasks.values().stream()
+                    .flatMap(List::stream)
+                    .map(Subtask::getId)
+                    .collect(Collectors.toList());
+            if (!allSubtaskIds.isEmpty()) {
+                subtaskTimeEntries = timeEntryRepository.findBySubtaskIdIn(allSubtaskIds).stream()
+                        .collect(Collectors.groupingBy(TimeEntry::getSubtaskId));
+            }
+        }
+        
+        // Also fetch subtasks for Issues (if any)
+        Map<String, List<Subtask>> issueSubtasks = new HashMap<>();
+        if (!issueIds.isEmpty()) {
+            issueSubtasks = subtaskRepository.findByIssueIdIn(issueIds).stream()
+                    .collect(Collectors.groupingBy(Subtask::getIssueId));
+            
+            List<String> allIssueSubIds = issueSubtasks.values().stream()
+                    .flatMap(List::stream)
+                    .map(Subtask::getId)
+                    .collect(Collectors.toList());
+            if (!allIssueSubIds.isEmpty()) {
+                Map<String, List<TimeEntry>> issueStEntries = timeEntryRepository.findBySubtaskIdIn(allIssueSubIds).stream()
+                        .collect(Collectors.groupingBy(TimeEntry::getSubtaskId));
+                subtaskTimeEntries.putAll(issueStEntries);
+            }
         }
 
         // 2. Collect all IDs for batch fetching related entities
@@ -847,6 +993,10 @@ public class ReportsService {
             if (i.getReporterId() != null)
                 userIdsToFetch.add(i.getReporterId());
         });
+
+        // Also fetch users who have logged time (to support work attribution even if not an assignee)
+        taskTimeEntries.values().forEach(list -> list.forEach(te -> userIdsToFetch.add(te.getUserId())));
+        issueTimeEntries.values().forEach(list -> list.forEach(te -> userIdsToFetch.add(te.getUserId())));
 
         // 3. Batch fetch Stories and Users
         Map<String, Story> storyMap = storyRepository.findAllById(storyIdsToFetch).stream()
@@ -875,9 +1025,6 @@ public class ReportsService {
             Story story = task.getStoryId() != null ? storyMap.get(task.getStoryId()) : null;
             User reporter = task.getReporterId() != null ? userMap.get(task.getReporterId()) : null;
 
-            if (assignee == null || story == null)
-                continue;
-
             double actualHours = task.getActualHours() != null ? task.getActualHours().doubleValue() : 0.0;
             String workCategory = task.getLabels() != null && !task.getLabels().isEmpty()
                     ? String.join(", ", task.getLabels())
@@ -886,12 +1033,12 @@ public class ReportsService {
                     && task.getUpdatedAt() != null) ? task.getUpdatedAt().toString() : null;
 
             Map<String, Object> row = new HashMap<>();
-            row.put("resourceEmailId", assignee.getEmail());
-            row.put("resourceName", assignee.getName());
+            row.put("resourceEmailId", assignee != null ? assignee.getEmail() : null);
+            row.put("resourceName", assignee != null ? assignee.getName() : "Unassigned");
             row.put("taskIssueName", task.getTitle());
             row.put("taskIssueId", task.getId());
-            row.put("storyName", story.getTitle());
-            row.put("storyId", story.getId());
+            row.put("storyName", story != null ? story.getTitle() : "Uncategorized");
+            row.put("storyId", story != null ? story.getId() : null);
             row.put("estimationHours",
                     task.getEstimatedHours() != null ? task.getEstimatedHours().doubleValue() : null);
             row.put("actualHours", actualHours);
@@ -906,11 +1053,29 @@ public class ReportsService {
             row.put("dueDate", task.getDueDate() != null ? task.getDueDate().toString() : null);
             row.put("completedDate", completedDate);
 
-            Sprint sprint = story.getSprintId() != null ? sprintMap.get(story.getSprintId()) : null;
+            Sprint sprint = (story != null && story.getSprintId() != null) ? sprintMap.get(story.getSprintId()) : null;
             row.put("sprint", sprint != null ? sprint.getName() : null);
 
-            Project project = story.getProjectId() != null ? projectMap.get(story.getProjectId()) : null;
+            Project project = (story != null && story.getProjectId() != null) ? projectMap.get(story.getProjectId()) : null;
             row.put("project", project != null ? project.getName() : null);
+            row.put("projectId", project != null ? project.getId() : null);
+
+            // Add detailed time entries and subtasks
+            List<TimeEntry> taskEntries = new ArrayList<>(taskTimeEntries.getOrDefault(task.getId(), new ArrayList<>()));
+            List<Subtask> subtasks = taskSubtasks.getOrDefault(task.getId(), new ArrayList<>());
+            
+            // Aggregate time entries from subtasks into the parent task row
+            if (!subtasks.isEmpty()) {
+                for (Subtask st : subtasks) {
+                    List<TimeEntry> stEntries = subtaskTimeEntries.get(st.getId());
+                    if (stEntries != null) {
+                        taskEntries.addAll(stEntries);
+                    }
+                }
+            }
+            
+            row.put("timeEntries", taskEntries);
+            row.put("subtasks", subtasks);
 
             rows.add(row);
         }
@@ -921,9 +1086,6 @@ public class ReportsService {
             Story story = issue.getStoryId() != null ? storyMap.get(issue.getStoryId()) : null;
             User reporter = issue.getReporterId() != null ? userMap.get(issue.getReporterId()) : null;
 
-            if (assignee == null || story == null)
-                continue;
-
             double actualHours = issue.getActualHours() != null ? issue.getActualHours().doubleValue() : 0.0;
             String workCategory = issue.getLabels() != null && !issue.getLabels().isEmpty()
                     ? String.join(", ", issue.getLabels())
@@ -932,12 +1094,12 @@ public class ReportsService {
                     && issue.getUpdatedAt() != null) ? issue.getUpdatedAt().toString() : null;
 
             Map<String, Object> row = new HashMap<>();
-            row.put("resourceEmailId", assignee.getEmail());
-            row.put("resourceName", assignee.getName());
+            row.put("resourceEmailId", assignee != null ? assignee.getEmail() : null);
+            row.put("resourceName", assignee != null ? assignee.getName() : "Unassigned");
             row.put("taskIssueName", issue.getTitle());
             row.put("taskIssueId", issue.getId());
-            row.put("storyName", story.getTitle());
-            row.put("storyId", story.getId());
+            row.put("storyName", story != null ? story.getTitle() : "Uncategorized");
+            row.put("storyId", story != null ? story.getId() : null);
             row.put("estimationHours",
                     issue.getEstimatedHours() != null ? issue.getEstimatedHours().doubleValue() : null);
             row.put("actualHours", actualHours);
@@ -952,17 +1114,36 @@ public class ReportsService {
             row.put("dueDate", issue.getDueDate() != null ? issue.getDueDate().toString() : null);
             row.put("completedDate", completedDate);
 
-            Sprint sprint = story.getSprintId() != null ? sprintMap.get(story.getSprintId()) : null;
+            Sprint sprint = (story != null && story.getSprintId() != null) ? sprintMap.get(story.getSprintId()) : null;
             row.put("sprint", sprint != null ? sprint.getName() : null);
 
-            Project project = story.getProjectId() != null ? projectMap.get(story.getProjectId()) : null;
+            Project project = (story != null && story.getProjectId() != null) ? projectMap.get(story.getProjectId()) : null;
             row.put("project", project != null ? project.getName() : null);
+            row.put("projectId", project != null ? project.getId() : null);
+
+            // Add detailed time entries for issues
+            List<TimeEntry> issueEntries = new ArrayList<>(issueTimeEntries.getOrDefault(issue.getId(), new ArrayList<>()));
+            List<Subtask> subtasks = issueSubtasks.getOrDefault(issue.getId(), new ArrayList<>());
+            
+            // Aggregate time entries from subtasks into the parent issue row
+            if (!subtasks.isEmpty()) {
+                for (Subtask st : subtasks) {
+                    List<TimeEntry> stEntries = subtaskTimeEntries.get(st.getId());
+                    if (stEntries != null) {
+                        issueEntries.addAll(stEntries);
+                    }
+                }
+            }
+            
+            row.put("timeEntries", issueEntries);
+            row.put("subtasks", subtasks);
 
             rows.add(row);
         }
 
-        // Rework detection for issues: status moved from done/QA to todo, or due date changed
-        List<String> issueIds = rows.stream()
+        // Rework detection for issues: status moved from done/QA to todo, or due date
+        // changed
+        List<String> allIssueIds = rows.stream()
                 .filter(r -> "ISSUE".equals(r.get("itemType")))
                 .map(r -> r.get("taskIssueId"))
                 .filter(Objects::nonNull)
@@ -970,9 +1151,10 @@ public class ReportsService {
                 .distinct()
                 .collect(Collectors.toList());
         Set<String> reworkIssueIds = new HashSet<>();
-        if (!issueIds.isEmpty()) {
+        if (!allIssueIds.isEmpty()) {
             try {
-                List<ActivityLog> issueLogs = activityLogRepository.findByEntityTypeAndEntityIdInOrderByCreatedAtDesc("issue", issueIds);
+                List<ActivityLog> issueLogs = activityLogRepository
+                        .findByEntityTypeAndEntityIdInOrderByCreatedAtDesc("issue", allIssueIds);
                 com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
                 for (ActivityLog log : issueLogs) {
                     if (!"status_updated".equals(log.getAction()) && !"due_date_updated".equals(log.getAction()))
@@ -987,10 +1169,14 @@ public class ReportsService {
                         if (oldJson != null && newJson != null) {
                             Map<?, ?> oldV = mapper.readValue(oldJson, Map.class);
                             Map<?, ?> newV = mapper.readValue(newJson, Map.class);
-                            String oldStatus = oldV.get("status") != null ? oldV.get("status").toString().toLowerCase() : "";
-                            String newStatus = newV.get("status") != null ? newV.get("status").toString().toLowerCase() : "";
-                            boolean wasDone = "done".equals(oldStatus) || "completed".equals(oldStatus) || oldStatus.contains("qa");
-                            boolean nowTodo = "to_do".equals(newStatus) || "todo".equals(newStatus) || "in_progress".equals(newStatus) || newStatus.contains("progress");
+                            String oldStatus = oldV.get("status") != null ? oldV.get("status").toString().toLowerCase()
+                                    : "";
+                            String newStatus = newV.get("status") != null ? newV.get("status").toString().toLowerCase()
+                                    : "";
+                            boolean wasDone = "done".equals(oldStatus) || "completed".equals(oldStatus)
+                                    || oldStatus.contains("qa");
+                            boolean nowTodo = "to_do".equals(newStatus) || "todo".equals(newStatus)
+                                    || "in_progress".equals(newStatus) || newStatus.contains("progress");
                             if (wasDone && nowTodo)
                                 reworkIssueIds.add(log.getEntityId());
                         }
@@ -1028,8 +1214,17 @@ public class ReportsService {
                 .mapToDouble(row -> ((Number) row.get("actualHours")).doubleValue())
                 .sum();
 
-        double avgUtilization = totalEstimatedHours > 0
-                ? (totalActualHours / totalEstimatedHours) * 100
+        double totalCompletedEstimatedHours = rows.stream()
+                .filter(row -> {
+                    String s = row.get("status") != null ? row.get("status").toString().toLowerCase() : "";
+                    return "done".equals(s) || "completed".equals(s) || s.contains("qa");
+                })
+                .filter(row -> row.get("estimationHours") != null)
+                .mapToDouble(row -> ((Number) row.get("estimationHours")).doubleValue())
+                .sum();
+
+        double avgUtilization = totalActualHours > 0
+                ? (totalCompletedEstimatedHours / totalActualHours) * 100
                 : 0.0;
 
         // Group by project for project utilization
@@ -1052,30 +1247,59 @@ public class ReportsService {
                             .mapToDouble(row -> ((Number) row.get("actualHours")).doubleValue())
                             .sum();
 
+                    double projCompletedEstimated = entry.getValue().stream()
+                            .filter(row -> {
+                                String s = row.get("status") != null ? row.get("status").toString().toLowerCase() : "";
+                                return "done".equals(s) || "completed".equals(s) || s.contains("qa");
+                            })
+                            .filter(row -> row.get("estimationHours") != null)
+                            .mapToDouble(row -> ((Number) row.get("estimationHours")).doubleValue())
+                            .sum();
+
                     projUtil.put("allocatedHours", projEstimated);
                     projUtil.put("actualHours", projActual);
-                    projUtil.put("utilization", projEstimated > 0
-                            ? (projActual / projEstimated) * 100
+                    projUtil.put("utilization", projActual > 0
+                            ? (projCompletedEstimated / projActual) * 100
                             : 0.0);
 
                     return projUtil;
                 })
                 .collect(Collectors.toList());
 
-        // Build individual utilization summary per resource
-        Map<String, List<Map<String, Object>>> resourceGroups = rows.stream()
-                .filter(row -> {
-                    Object email = row.get("resourceEmailId");
-                    Object name = row.get("resourceName");
-                    return (email != null && !email.toString().isEmpty())
-                            || (name != null && !name.toString().isEmpty());
-                })
-                .collect(Collectors.groupingBy(row -> {
-                    Object email = row.get("resourceEmailId");
-                    Object name = row.get("resourceName");
-                    return email != null && !email.toString().isEmpty() ? email.toString()
-                            : (name != null ? name.toString() : "Unknown");
-                }));
+        // Build individual utilization summary per resource.
+        // NOTE: A resource is anyone who logged time or is an assignee.
+        Map<String, List<Map<String, Object>>> resourceGroups = new HashMap<>();
+        
+        for (Map<String, Object> row : rows) {
+            @SuppressWarnings("unchecked")
+            List<TimeEntry> entries = (List<TimeEntry>) row.get("timeEntries");
+            Set<String> loggedUsers = new HashSet<>();
+            
+            if (entries != null) {
+                for (TimeEntry te : entries) {
+                    User logUser = te.getUserId() != null ? userMap.get(te.getUserId()) : null;
+                    if (logUser != null) {
+                        String userKey = logUser.getEmail() != null ? logUser.getEmail().toLowerCase() : logUser.getName().toLowerCase();
+                        if (userKey != null) {
+                            loggedUsers.add(userKey);
+                            Map<String, Object> resourceRow = new HashMap<>(row);
+                            resourceRow.put("resourceEmailId", logUser.getEmail());
+                            resourceRow.put("resourceName", logUser.getName());
+                            resourceGroups.computeIfAbsent(userKey, k -> new ArrayList<>()).add(resourceRow);
+                        }
+                    }
+                }
+            }
+            
+            // Also include the primary assignee if they haven't logged time but have the task assigned
+            String assigneeEmail = row.get("resourceEmailId") != null ? row.get("resourceEmailId").toString() : null;
+            String assigneeName = row.get("resourceName") != null ? row.get("resourceName").toString() : null;
+            String primaryKey = assigneeEmail != null ? assigneeEmail : assigneeName;
+            
+            if (primaryKey != null && !loggedUsers.contains(primaryKey)) {
+                resourceGroups.computeIfAbsent(primaryKey, k -> new ArrayList<>()).add(new HashMap<>(row));
+            }
+        }
 
         List<Map<String, Object>> individualUtilization = new ArrayList<>();
         for (Map.Entry<String, List<Map<String, Object>>> entry : resourceGroups.entrySet()) {
@@ -1097,8 +1321,15 @@ public class ReportsService {
             double allocated = resourceRows.stream()
                     .mapToDouble(r -> safeDouble(r.get("estimationHours")))
                     .sum();
+            double completedEstimated = resourceRows.stream()
+                    .filter(r -> {
+                        String s = r.get("status") != null ? r.get("status").toString().toLowerCase() : "";
+                        return "done".equals(s) || "completed".equals(s) || s.contains("qa");
+                    })
+                    .mapToDouble(r -> safeDouble(r.get("estimationHours")))
+                    .sum();
 
-            double utilizationLevel = allocated > 0 ? (hoursLogged / allocated) * 100 : 0;
+            double utilizationLevel = hoursLogged > 0 ? (completedEstimated / hoursLogged) * 100 : 0;
 
             long inProgressCount = resourceRows.stream()
                     .filter(r -> {
@@ -1136,7 +1367,8 @@ public class ReportsService {
             ind.put("concerns", String.join(", ", concerns));
             individualUtilization.add(ind);
         }
-        individualUtilization.sort(Comparator.comparing(m -> m.get("resourceName") != null ? m.get("resourceName").toString() : ""));
+        individualUtilization
+                .sort(Comparator.comparing(m -> m.get("resourceName") != null ? m.get("resourceName").toString() : ""));
 
         report.put("rows", rows);
         report.put("totalResources", totalResources);
@@ -1147,6 +1379,7 @@ public class ReportsService {
         report.put("utilizationRate", avgUtilization);
         report.put("projectUtilization", projectUtilization);
         report.put("individualUtilization", individualUtilization);
+        report.put("userMap", userMap);
 
         return report;
     }
@@ -1155,8 +1388,8 @@ public class ReportsService {
      * Generate resource performance report (for Resource Performance page).
      * Same data as resource utilization but excludes individual utilization.
      */
-    public Map<String, Object> generateResourcePerformanceReport(String projectId, String period) {
-        Map<String, Object> report = generateResourceUtilizationReport(projectId, period);
+    public Map<String, Object> generateResourcePerformanceReport(String projectId, String period, User currentUser) {
+        Map<String, Object> report = generateResourceUtilizationReport(projectId, period, null, null, currentUser);
         report.remove("individualUtilization");
         return report;
     }
@@ -1166,11 +1399,13 @@ public class ReportsService {
      * Returns rows and individual utilization with filters applied.
      */
     public Map<String, Object> generateIndividualUtilizationReport(String projectName, String userKey,
-            String sprint, String duration, LocalDate fromDate, LocalDate toDate) {
-        Map<String, Object> report = generateResourceUtilizationReport(null, null);
+            String sprint, String duration, LocalDate fromDate, LocalDate toDate, User currentUser) {
+        Map<String, Object> report = generateResourceUtilizationReport(null, null, fromDate, toDate, currentUser);
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> rows = (List<Map<String, Object>>) report.getOrDefault("rows", new ArrayList<>());
+        @SuppressWarnings("unchecked")
+        Map<String, User> userMap = (Map<String, User>) report.get("userMap");
         List<Map<String, Object>> filteredRows = new ArrayList<>(rows);
 
         if (projectName != null && !projectName.isEmpty()) {
@@ -1206,10 +1441,10 @@ public class ReportsService {
                     })
                     .collect(Collectors.toList());
         }
+        LocalDate now = LocalDate.now();
+        LocalDate from = null;
+        LocalDate to = null;
         if (duration != null && !"all".equalsIgnoreCase(duration)) {
-            LocalDate now = LocalDate.now();
-            LocalDate from = null;
-            LocalDate to = null;
             if ("last7".equalsIgnoreCase(duration)) {
                 from = now.minusDays(7);
                 to = now;
@@ -1220,34 +1455,150 @@ public class ReportsService {
                 from = fromDate;
                 to = toDate;
             }
-            final LocalDate fromFinal = from;
-            final LocalDate toFinal = to;
+        }
+        final LocalDate fromFinal = from;
+        final LocalDate toFinal = to;
             if (fromFinal != null && toFinal != null) {
                 filteredRows = filteredRows.stream()
                         .filter(row -> {
-                            Object created = row.get("createdDate");
-                            if (created == null)
-                                return false;
-                            String createdStr = created.toString();
-                            LocalDate createdDate;
-                            try {
-                                if (createdStr.length() > 10 && createdStr.charAt(10) == 'T') {
-                                    createdDate = LocalDateTime.parse(createdStr).toLocalDate();
-                                } else {
-                                    createdDate = LocalDate
-                                            .parse(createdStr.substring(0, Math.min(10, createdStr.length())));
-                                }
-                            } catch (Exception e) {
-                                return false;
+                            // 1. Check if any associated time logs fall within the range
+                            @SuppressWarnings("unchecked")
+                            List<TimeEntry> entries = (List<TimeEntry>) row.get("timeEntries");
+                            if (entries != null && !entries.isEmpty()) {
+                                boolean hasMatch = entries.stream()
+                                        .anyMatch(entry -> {
+                                            LocalDate workDate = entry.getWorkDate();
+                                            if (workDate != null) {
+                                                return !workDate.isBefore(fromFinal) && !workDate.isAfter(toFinal);
+                                            }
+                                            // Fallback to createdAt if workDate is null
+                                            if (entry.getCreatedAt() != null) {
+                                                LocalDate createdDate = entry.getCreatedAt().toLocalDate();
+                                                return !createdDate.isBefore(fromFinal) && !createdDate.isAfter(toFinal);
+                                            }
+                                            return false;
+                                        });
+                                if (hasMatch)
+                                    return true;
                             }
-                            return !createdDate.isBefore(fromFinal) && !createdDate.isAfter(toFinal);
+
+                            // 2. Fallback: Check if the task itself was created in this range
+                            // (Kept as secondary to ensure newly created tasks with no logs yet are still visible)
+                            Object created = row.get("createdDate");
+                            if (created != null) {
+                                try {
+                                    String createdStr = created.toString();
+                                    LocalDate createdDate;
+                                    if (createdStr.length() > 10 && createdStr.charAt(10) == 'T') {
+                                        createdDate = LocalDateTime.parse(createdStr).toLocalDate();
+                                    } else {
+                                        createdDate = LocalDate
+                                                .parse(createdStr.substring(0, Math.min(10, createdStr.length())));
+                                    }
+                                    return !createdDate.isBefore(fromFinal) && !createdDate.isAfter(toFinal);
+                                } catch (Exception e) {
+                                    // ignore parsing errors
+                                }
+                            }
+
+                            return false;
                         })
                         .collect(Collectors.toList());
             }
+
+        // 4. Recalculate Actual Hours for each row based on logs in the range
+        // and rebuild the individual utilization summary.
+        if (fromFinal != null && toFinal != null) {
+            for (Map<String, Object> row : filteredRows) {
+                @SuppressWarnings("unchecked")
+                List<TimeEntry> entries = (List<TimeEntry>) row.get("timeEntries");
+                double periodicActualHours = 0.0;
+                    String currentResourceEmail = row.get("resourceEmailId") != null ? row.get("resourceEmailId").toString().toLowerCase() : "";
+                    String currentResourceName = row.get("resourceName") != null ? row.get("resourceName").toString().toLowerCase() : "";
+
+                    if (entries != null) {
+                        periodicActualHours = entries.stream()
+                                .filter(entry -> {
+                                    // ONLY count hours logged by THIS resource
+                                    String entryUserId = entry.getUserId();
+                                    User logUser = (userMap != null && entryUserId != null) ? userMap.get(entryUserId) : null;
+                                    if (logUser != null) {
+                                        String logEmail = logUser.getEmail() != null ? logUser.getEmail().toLowerCase() : "";
+                                        String logName = logUser.getName() != null ? logUser.getName().toLowerCase() : "";
+                                        if (!logEmail.equals(currentResourceEmail) && !logName.equals(currentResourceName)) {
+                                            return false;
+                                        }
+                                    }
+                                    
+                                    LocalDate workDate = entry.getWorkDate();
+                                if (workDate != null) {
+                                    return !workDate.isBefore(fromFinal) && !workDate.isAfter(toFinal);
+                                }
+                                if (entry.getCreatedAt() != null) {
+                                    LocalDate createdDate = entry.getCreatedAt().toLocalDate();
+                                    return !createdDate.isBefore(fromFinal) && !createdDate.isAfter(toFinal);
+                                }
+                                return false;
+                            })
+                            .mapToDouble(entry -> entry.getHoursWorked() != null ? entry.getHoursWorked().doubleValue() : 0.0)
+                            .sum();
+                }
+                row.put("actualHours", periodicActualHours);
+                double estimated = safeDouble(row.get("estimationHours"));
+                row.put("remainingHours", Math.max(0, estimated - periodicActualHours));
+            }
+        }
+
+        // 5. Re-calculate summaries based on filteredRows
+        Map<String, List<Map<String, Object>>> resourceGroups = filteredRows.stream()
+                .filter(row -> row.get("resourceEmailId") != null || row.get("resourceName") != null)
+                .collect(Collectors.groupingBy(row -> {
+                    Object email = row.get("resourceEmailId");
+                    Object name = row.get("resourceName");
+                    return email != null && !email.toString().isEmpty() ? email.toString()
+                            : (name != null ? name.toString() : "Unknown");
+                }));
+
+        List<Map<String, Object>> individualUtilization = new ArrayList<>();
+        double totalActualHours = 0;
+        double totalEstimatedHours = 0;
+
+        for (Map.Entry<String, List<Map<String, Object>>> entry : resourceGroups.entrySet()) {
+            List<Map<String, Object>> resourceRows = entry.getValue();
+            Map<String, Object> firstRow = resourceRows.get(0);
+            
+            double hoursLogged = resourceRows.stream().mapToDouble(r -> safeDouble(r.get("actualHours"))).sum();
+            double allocated = resourceRows.stream().mapToDouble(r -> safeDouble(r.get("estimationHours"))).sum();
+            double completedEstimated = resourceRows.stream()
+                .filter(r -> {
+                    String s = r.get("status") != null ? r.get("status").toString().toLowerCase() : "";
+                    return "done".equals(s) || "completed".equals(s) || s.contains("qa");
+                })
+                .mapToDouble(r -> safeDouble(r.get("estimationHours")))
+                .sum();
+            
+            double utilizationLevel = hoursLogged > 0 ? (completedEstimated / hoursLogged) * 100 : 0;
+            
+            Map<String, Object> ind = new LinkedHashMap<>();
+            ind.put("resourceName", firstRow.get("resourceName"));
+            ind.put("resourceEmailId", firstRow.get("resourceEmailId"));
+            ind.put("projects", resourceRows.stream().map(r -> String.valueOf(r.get("project"))).distinct().collect(Collectors.joining(", ")));
+            ind.put("hoursLogged", hoursLogged);
+            ind.put("allocatedHours", allocated);
+            ind.put("utilizationLevel", utilizationLevel);
+            ind.put("status", hoursLogged == 0 ? "idle" : (utilizationLevel < 50 ? "underutilized" : (utilizationLevel > 120 ? "overloaded" : "optimal")));
+            individualUtilization.add(ind);
+            
+            totalActualHours += hoursLogged;
+            totalEstimatedHours += allocated;
         }
 
         Map<String, Object> result = new HashMap<>();
         result.put("rows", filteredRows);
+        result.put("individualUtilization", individualUtilization);
+        result.put("totalHours", totalActualHours);
+        result.put("allocatedHours", totalEstimatedHours);
+        result.put("totalResources", resourceGroups.size());
         return result;
     }
 
@@ -1263,8 +1614,11 @@ public class ReportsService {
             String sprint,
             String duration,
             java.time.LocalDate fromDate,
-            java.time.LocalDate toDate) throws IOException {
-        Map<String, Object> report = generateResourceUtilizationReport(projectId, period);
+            java.time.LocalDate toDate,
+            User currentUser) throws IOException {
+        Map<String, Object> report = generateResourceUtilizationReport(projectId, period, fromDate, toDate, currentUser);
+        @SuppressWarnings("unchecked")
+        Map<String, User> userMap = (Map<String, User>) report.get("userMap");
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> rows = (List<Map<String, Object>>) report.getOrDefault("rows", new ArrayList<>());
@@ -1311,14 +1665,12 @@ public class ReportsService {
                     .collect(Collectors.toList());
         }
 
-        // Duration filter (last7, last30, custom) - applied on createdDate when sprint
-        // is selected
-        if (sprint != null && !sprint.isEmpty()
-                && duration != null
-                && !"all".equalsIgnoreCase(duration)) {
-            java.time.LocalDate now = java.time.LocalDate.now();
-            java.time.LocalDate from = null;
-            java.time.LocalDate to = null;
+        // Duration filter (last7, last30, custom) - applied on log dates
+        java.time.LocalDate now = java.time.LocalDate.now();
+        java.time.LocalDate from = null;
+        java.time.LocalDate to = null;
+
+        if (duration != null && !"all".equalsIgnoreCase(duration)) {
 
             if ("last7".equalsIgnoreCase(duration)) {
                 from = now.minusDays(7);
@@ -1330,38 +1682,98 @@ public class ReportsService {
                 from = fromDate;
                 to = toDate;
             }
-
-            final java.time.LocalDate fromFinal = from;
-            final java.time.LocalDate toFinal = to;
-
-            filteredRows = filteredRows.stream()
-                    .filter(row -> {
-                        Object created = row.get("createdDate");
-                        if (created == null) {
-                            return false;
-                        }
-                        String createdStr = created.toString();
-                        java.time.LocalDate createdDate;
-                        try {
-                            if (createdStr.length() > 10 && createdStr.charAt(10) == 'T') {
-                                createdDate = java.time.LocalDateTime.parse(createdStr).toLocalDate();
-                            } else {
-                                createdDate = java.time.LocalDate.parse(createdStr);
-                            }
-                        } catch (Exception e) {
-                            return false;
-                        }
-
-                        if (fromFinal != null && createdDate.isBefore(fromFinal)) {
-                            return false;
-                        }
-                        if (toFinal != null && createdDate.isAfter(toFinal)) {
-                            return false;
-                        }
-                        return true;
-                    })
-                    .collect(Collectors.toList());
         }
+
+        final java.time.LocalDate fromFinal = from;
+        final java.time.LocalDate toFinal = to;
+
+            if (fromFinal != null && toFinal != null) {
+                filteredRows = filteredRows.stream()
+                        .filter(row -> {
+                            // 1. Check if any associated time logs fall within the range
+                            @SuppressWarnings("unchecked")
+                            List<TimeEntry> entries = (List<TimeEntry>) row.get("timeEntries");
+                            if (entries != null && !entries.isEmpty()) {
+                                boolean hasMatch = entries.stream()
+                                        .anyMatch(entry -> {
+                                            LocalDate workDate = entry.getWorkDate();
+                                            if (workDate != null) {
+                                                return !workDate.isBefore(fromFinal) && !workDate.isAfter(toFinal);
+                                            }
+                                            // Fallback to createdAt if workDate is null
+                                            if (entry.getCreatedAt() != null) {
+                                                LocalDate createdDate = entry.getCreatedAt().toLocalDate();
+                                                return !createdDate.isBefore(fromFinal) && !createdDate.isAfter(toFinal);
+                                            }
+                                            return false;
+                                        });
+                                if (hasMatch)
+                                    return true;
+                            }
+
+                            // 2. Fallback: Check if the task itself was created in this range
+                            Object created = row.get("createdDate");
+                            if (created != null) {
+                                try {
+                                    String createdStr = created.toString();
+                                    LocalDate createdDate;
+                                    if (createdStr.length() > 10 && createdStr.charAt(10) == 'T') {
+                                        createdDate = LocalDateTime.parse(createdStr).toLocalDate();
+                                    } else {
+                                        createdDate = LocalDate
+                                                .parse(createdStr.substring(0, Math.min(10, createdStr.length())));
+                                    }
+                                    return !createdDate.isBefore(fromFinal) && !createdDate.isAfter(toFinal);
+                                } catch (Exception e) {
+                                    // ignore parsing errors
+                                }
+                            }
+
+                            return false;
+                        })
+                        .collect(Collectors.toList());
+        }
+
+        if (fromFinal != null && toFinal != null) {
+                for (Map<String, Object> row : filteredRows) {
+                    @SuppressWarnings("unchecked")
+                    List<TimeEntry> entries = (List<TimeEntry>) row.get("timeEntries");
+                    double periodicActualHours = 0.0;
+                    String currentResourceEmail = row.get("resourceEmailId") != null ? row.get("resourceEmailId").toString().toLowerCase() : "";
+                    String currentResourceName = row.get("resourceName") != null ? row.get("resourceName").toString().toLowerCase() : "";
+
+                    if (entries != null) {
+                        periodicActualHours = entries.stream()
+                                .filter(entry -> {
+                                    // ONLY count hours logged by THIS resource
+                                    String entryUserId = entry.getUserId();
+                                    User logUser = (userMap != null && entryUserId != null) ? userMap.get(entryUserId) : null;
+                                    if (logUser != null) {
+                                        String logEmail = logUser.getEmail() != null ? logUser.getEmail().toLowerCase() : "";
+                                        String logName = logUser.getName() != null ? logUser.getName().toLowerCase() : "";
+                                        if (!logEmail.equals(currentResourceEmail) && !logName.equals(currentResourceName)) {
+                                            return false;
+                                        }
+                                    }
+
+                                    java.time.LocalDate workDate = entry.getWorkDate();
+                                    if (workDate != null) {
+                                        return !workDate.isBefore(fromFinal) && !workDate.isAfter(toFinal);
+                                    }
+                                    if (entry.getCreatedAt() != null) {
+                                        java.time.LocalDate createdDate = entry.getCreatedAt().toLocalDate();
+                                        return !createdDate.isBefore(fromFinal) && !createdDate.isAfter(toFinal);
+                                    }
+                                    return false;
+                                })
+                                .mapToDouble(entry -> entry.getHoursWorked() != null ? entry.getHoursWorked().doubleValue() : 0.0)
+                                .sum();
+                    }
+                    row.put("actualHours", periodicActualHours);
+                    double estimated = safeDouble(row.get("estimationHours"));
+                    row.put("remainingHours", Math.max(0, estimated - periodicActualHours));
+                }
+            }
 
         // Use filtered rows for export and summaries
         rows = filteredRows;
@@ -1501,7 +1913,8 @@ public class ReportsService {
             ind.put("concerns", String.join(", ", concerns));
             individualUtilizationExport.add(ind);
         }
-        individualUtilizationExport.sort(Comparator.comparing(m -> m.get("resourceName") != null ? m.get("resourceName").toString() : ""));
+        individualUtilizationExport
+                .sort(Comparator.comparing(m -> m.get("resourceName") != null ? m.get("resourceName").toString() : ""));
 
         List<Map<String, Object>> developers = new ArrayList<>();
         List<Map<String, Object>> managers = new ArrayList<>();
@@ -1568,7 +1981,8 @@ public class ReportsService {
                 }).count();
 
                 long reworkCountForBugs = resourceRows.stream().filter(r -> {
-                    if (!isIssueRow.test(r)) return false;
+                    if (!isIssueRow.test(r))
+                        return false;
                     Object isRework = r.get("isRework");
                     return Boolean.TRUE.equals(isRework);
                 }).count();
@@ -1772,11 +2186,13 @@ public class ReportsService {
      * Sheet 2 - Sprint and Task/Issue Count (expanded report with colors)
      */
     public byte[] exportIndividualUtilizationToExcel(String projectName, String userKey, String sprint,
-            String duration, LocalDate fromDate, LocalDate toDate) throws IOException {
-        Map<String, Object> report = generateIndividualUtilizationReport(projectName, userKey, sprint, duration, fromDate, toDate);
+            String duration, LocalDate fromDate, LocalDate toDate, User currentUser) throws IOException {
+        Map<String, Object> report = generateIndividualUtilizationReport(projectName, userKey, sprint, duration,
+                fromDate, toDate, currentUser);
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> filteredRows = (List<Map<String, Object>>) report.getOrDefault("rows", new ArrayList<>());
+        List<Map<String, Object>> filteredRows = (List<Map<String, Object>>) report.getOrDefault("rows",
+                new ArrayList<>());
 
         // Build Individual Utilization with project-sprint breakdown (matching UI)
         Map<String, List<Map<String, Object>>> resourceMap = new LinkedHashMap<>();
@@ -1858,7 +2274,8 @@ public class ReportsService {
             ind.put("status", status);
             individualUtilization.add(ind);
         }
-        individualUtilization.sort(Comparator.comparing(m -> m.get("resourceName") != null ? m.get("resourceName").toString() : ""));
+        individualUtilization
+                .sort(Comparator.comparing(m -> m.get("resourceName") != null ? m.get("resourceName").toString() : ""));
 
         // Build project-sprint breakdown (expandable rows in UI)
         List<Map<String, Object>> projectSprintBreakdown = new ArrayList<>();
@@ -1893,10 +2310,14 @@ public class ReportsService {
                 double utilLevel = allocated > 0 ? (hoursLogged / allocated) * 100 : 0;
 
                 String psStatus = "optimal";
-                if (hoursLogged == 0) psStatus = "idle";
-                else if (allocated == 0) psStatus = "optimal";
-                else if (utilLevel < 50) psStatus = "underutilized";
-                else if (utilLevel > 120) psStatus = "overloaded";
+                if (hoursLogged == 0)
+                    psStatus = "idle";
+                else if (allocated == 0)
+                    psStatus = "optimal";
+                else if (utilLevel < 50)
+                    psStatus = "underutilized";
+                else if (utilLevel > 120)
+                    psStatus = "overloaded";
 
                 Map<String, Object> ps = new LinkedHashMap<>();
                 ps.put("resourceName", resourceName);
@@ -1912,7 +2333,8 @@ public class ReportsService {
             }
         }
         projectSprintBreakdown.sort(Comparator
-                .comparing((Map<String, Object> m) -> m.get("resourceName") != null ? m.get("resourceName").toString() : "")
+                .comparing((Map<String, Object> m) -> m.get("resourceName") != null ? m.get("resourceName").toString()
+                        : "")
                 .thenComparing(m -> m.get("project") != null ? m.get("project").toString() : "")
                 .thenComparing(m -> m.get("sprint") != null ? m.get("sprint").toString() : ""));
 
@@ -1941,7 +2363,8 @@ public class ReportsService {
             Sheet sheet = workbook.createSheet("Individual Utilization Summary");
             Row headerRow = sheet.createRow(0);
             String[] headers = {
-                    "Team Member Name", "Resource Email", "Project", "Sprint", "Task/Issue Count", "Total Assigned Hours",
+                    "Team Member Name", "Resource Email", "Project", "Sprint", "Task/Issue Count",
+                    "Total Assigned Hours",
                     "Hours Logged", "Utilization Level", "Status"
             };
             for (int i = 0; i < headers.length; i++) {
@@ -1979,12 +2402,15 @@ public class ReportsService {
                 sheet.autoSizeColumn(i);
             }
 
-            // Sheet 2: Sprint and Task-Issue Count (expanded report with colors; / invalid in sheet names)
+            // Sheet 2: Sprint and Task-Issue Count (expanded report with colors; / invalid
+            // in sheet names)
             Sheet sheetDetails = workbook.createSheet("Sprint and Task-Issue Count");
             String[] detailHeaders = {
                     "Resource Email", "Team Member Name", "Project", "Sprint", "Item Type", "Task/Issue Name",
-                    "Task/Issue Id", "Story Name", "Story Id", "Estimation Hours", "Actual Hours", "Utilization %", "Utilization Status",
-                    "Remaining Hours", "Status", "Created Date", "Due Date", "Completed Date", "Reporter", "Work Category",
+                    "Task/Issue Id", "Story Name", "Story Id", "Estimation Hours", "Actual Hours", "Utilization %",
+                    "Utilization Status",
+                    "Remaining Hours", "Status", "Created Date", "Due Date", "Completed Date", "Reporter",
+                    "Work Category",
                     "Is Bug", "Is Rework"
             };
             Row detailHeaderRow = sheetDetails.createRow(0);
@@ -2014,7 +2440,9 @@ public class ReportsService {
                 createCell(r, c++, row.get("storyId") != null ? row.get("storyId").toString() : "",
                         dataStyle);
                 createCell(r, c++,
-                        row.get("estimationHours") != null ? String.format("%.2f", safeDouble(row.get("estimationHours"))) : "",
+                        row.get("estimationHours") != null
+                                ? String.format("%.2f", safeDouble(row.get("estimationHours")))
+                                : "",
                         dataStyle);
                 createCell(r, c++,
                         row.get("actualHours") != null ? String.format("%.2f", safeDouble(row.get("actualHours"))) : "",
@@ -2023,11 +2451,14 @@ public class ReportsService {
                 double actH = safeDouble(row.get("actualHours"));
                 double detailUtil = estH > 0 ? (actH / estH) * 100 : 0;
                 String detailUtilStr = estH > 0 ? String.format("%.1f%%", detailUtil) : "N/A";
-                String detailStatus = estH <= 0 ? "optimal" : actH == 0 ? "idle" : detailUtil < 50 ? "underutilized" : detailUtil > 120 ? "overloaded" : "optimal";
+                String detailStatus = estH <= 0 ? "optimal"
+                        : actH == 0 ? "idle"
+                                : detailUtil < 50 ? "underutilized" : detailUtil > 120 ? "overloaded" : "optimal";
                 createCell(r, c++, detailUtilStr, dataStyle);
                 createCell(r, c++, detailStatus.substring(0, 1).toUpperCase() + detailStatus.substring(1), dataStyle);
                 createCell(r, c++,
-                        row.get("remainingHours") != null ? String.format("%.2f", safeDouble(row.get("remainingHours"))) : "",
+                        row.get("remainingHours") != null ? String.format("%.2f", safeDouble(row.get("remainingHours")))
+                                : "",
                         dataStyle);
                 createCell(r, c++, row.get("status") != null ? row.get("status").toString() : "", dataStyle);
                 createCell(r, c++, row.get("createdDate") != null ? row.get("createdDate").toString() : "",
@@ -2071,8 +2502,10 @@ public class ReportsService {
      * Safely extract double from map value (handles Number, String, null)
      */
     private double safeDouble(Object val) {
-        if (val == null) return 0;
-        if (val instanceof Number) return ((Number) val).doubleValue();
+        if (val == null)
+            return 0;
+        if (val instanceof Number)
+            return ((Number) val).doubleValue();
         try {
             return Double.parseDouble(val.toString());
         } catch (NumberFormatException e) {

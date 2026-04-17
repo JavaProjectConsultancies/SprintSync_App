@@ -468,31 +468,19 @@ const BacklogPage: React.FC = () => {
 
       const storyItemsPromises = stories.map(async (story: Story) => {
         try {
-          // Fetch tasks
-          let tasks: Task[] = [];
-          try {
-            const tasksResponse = await fetch(`${API_CONFIG.BASE_URL}/tasks/story/${story.id}`, {
+          // Fetch tasks and issues in parallel for this specific story
+          const [tasksRes, issuesRes] = await Promise.all([
+            fetch(`${API_CONFIG.BASE_URL}/tasks/story/${story.id}`, {
               headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
               }
-            });
-            if (tasksResponse.ok) {
-              const data = await tasksResponse.json();
-              tasks = Array.isArray(data) ? data : (data?.data || []);
-            }
-          } catch (e) {
-            console.error(`Error fetching tasks for story ${story.id}:`, e);
-          }
+            }).then(res => res.ok ? res.json() : []),
+            issueApiService.getIssuesByStory(story.id).then(res => res.data || [])
+          ]);
 
-          // Fetch issues
-          let issues: Issue[] = [];
-          try {
-            const issuesResponse = await issueApiService.getIssuesByStory(story.id);
-            issues = Array.isArray(issuesResponse.data) ? issuesResponse.data : ((issuesResponse.data as any)?.data || []);
-          } catch (e) {
-            console.error(`Error fetching issues for story ${story.id}:`, e);
-          }
+          const tasks = Array.isArray(tasksRes) ? tasksRes : (tasksRes?.data || []);
+          const issues = Array.isArray(issuesRes) ? issuesRes : ((issuesRes as any)?.data || []);
 
           return { story, tasks, issues };
         } catch (error) {
@@ -1162,7 +1150,7 @@ const BacklogPage: React.FC = () => {
                                   {item.estimatedHours !== undefined && (
                                     <div className="flex items-center space-x-1">
                                       <Clock className="w-3 h-3" />
-                                      <span>{item.estimatedHours}h</span>
+                                      <span>{Number(item.estimatedHours || 0).toFixed(2)}h</span>
                                     </div>
                                   )}
                                   {assigneeLabel && (
@@ -1176,7 +1164,7 @@ const BacklogPage: React.FC = () => {
                                   {item.actualHours !== undefined && item.actualHours > 0 && (
                                     <div className="flex items-center space-x-1">
                                       <Target className="w-3 h-3" />
-                                      <span>{item.actualHours}h actual</span>
+                                      <span>{Number(item.actualHours || 0).toFixed(2)}h actual</span>
                                     </div>
                                   )}
                                 </div>

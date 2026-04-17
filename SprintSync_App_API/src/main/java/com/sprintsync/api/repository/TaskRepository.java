@@ -469,4 +469,9 @@ public interface TaskRepository extends JpaRepository<Task, String> {
      */
     @Query("SELECT COALESCE(SUM(t.hoursWorked), 0) FROM TimeEntry t WHERE t.taskId = :taskId")
     java.math.BigDecimal sumHoursWorkedByTaskId(@Param("taskId") String taskId);
+    /**
+     * Calculate total subtask actual hours for a task
+     */
+    @Query("SELECT COALESCE(SUM(s.actualHours), 0) FROM Subtask s WHERE s.taskId = :taskId")
+    java.math.BigDecimal sumSubtaskHoursByTaskId(@Param("taskId") String taskId);
 }

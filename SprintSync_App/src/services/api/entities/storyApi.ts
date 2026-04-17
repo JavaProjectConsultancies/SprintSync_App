@@ -74,7 +74,7 @@ export const storyApiService = {
 
   // Sprint-specific operations
   getStoriesBySprint: (sprintId: string, params?: any) =>
-    apiClient.get<Story[]>(`${BASE_URL}/sprint/${sprintId}`, { params }),
+    !sprintId ? Promise.resolve({ data: [] } as any) : apiClient.get<Story[]>(`${BASE_URL}/sprint/${sprintId}`, { params }),
 
   // Epic-specific operations
   getStoriesByEpic: (epicId: string, params?: any) =>

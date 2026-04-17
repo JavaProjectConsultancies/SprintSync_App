@@ -401,6 +401,16 @@ public class SubtaskService {
         // This would need to be implemented by finding stories by releaseId first, then tasks by storyId, then subtasks by taskId
         return Collections.emptyList();
     }
+
+    /**
+     * Synchronize subtask actual hours by summing all time entries
+     * 
+     * @param id the subtask ID
+     */
+    public void syncActualHours(String id) {
+        java.math.BigDecimal totalHours = subtaskRepository.sumHoursWorkedBySubtaskId(id);
+        updateSubtaskActualHours(id, totalHours != null ? totalHours : java.math.BigDecimal.ZERO);
+    }
 }
 
 

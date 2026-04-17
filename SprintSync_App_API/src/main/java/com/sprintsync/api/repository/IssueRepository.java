@@ -325,4 +325,9 @@ public interface IssueRepository extends JpaRepository<Issue, String> {
             """, nativeQuery = true)
     List<Object[]> findBugReportDataByProjectAndSprint(@Param("projectName") String projectName,
             @Param("sprintName") String sprintName);
+    /**
+     * Calculate total subtask actual hours for an issue
+     */
+    @Query("SELECT COALESCE(SUM(s.actualHours), 0) FROM Subtask s WHERE s.issueId = :issueId")
+    java.math.BigDecimal sumSubtaskHoursByIssueId(@Param("issueId") String issueId);
 }

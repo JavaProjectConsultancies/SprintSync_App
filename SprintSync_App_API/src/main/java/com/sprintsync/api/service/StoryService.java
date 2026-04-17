@@ -803,8 +803,30 @@ public class StoryService {
                     oldStoryDetails,
                     storyDetails);
         }
-
         return savedStory;
     }
 
+    /**
+     * Synchronize story actual hours by summing all task and issue actual hours
+     * 
+     * @param id the story ID
+     */
+    public void syncActualHours(String id) {
+        BigDecimal taskHours = storyRepository.sumTaskHoursByStoryId(id);
+        BigDecimal issueHours = storyRepository.sumIssueHoursByStoryId(id);
+
+        BigDecimal totalHours = BigDecimal.ZERO;
+        if (taskHours != null)
+            totalHours = totalHours.add(taskHours);
+        if (issueHours != null)
+            totalHours = totalHours.add(issueHours);
+
+        Optional<Story> storyOpt = storyRepository.findById(id);
+        if (storyOpt.isPresent()) {
+            Story story = storyOpt.get();
+            story.setActualHours(totalHours);
+            story.setUpdatedAt(LocalDateTime.now());
+            storyRepository.save(story);
+        }
+    }
 }

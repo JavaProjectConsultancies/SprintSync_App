@@ -55,6 +55,46 @@ public interface TimeEntryRepository extends JpaRepository<TimeEntry, String> {
     List<TimeEntry> findByTaskId(String taskId);
 
     /**
+     * Check if at least one time entry exists for a given task.
+     *
+     * @param taskId the task ID
+     * @return true if at least one time entry exists
+     */
+    boolean existsByTaskId(String taskId);
+
+    /**
+     * Check if at least one time entry exists for a given issue.
+     *
+     * @param issueId the issue ID
+     * @return true if at least one time entry exists
+     */
+    boolean existsByIssueId(String issueId);
+
+    /**
+     * Find time entries by multiple task IDs.
+     * 
+     * @param taskIds the list of task IDs
+     * @return list of time entries for the specified tasks
+     */
+    List<TimeEntry> findByTaskIdIn(java.util.Collection<String> taskIds);
+
+    /**
+     * Find time entries by multiple issue IDs.
+     * 
+     * @param issueIds the list of issue IDs
+     * @return list of time entries for the specified issues
+     */
+    List<TimeEntry> findByIssueIdIn(java.util.Collection<String> issueIds);
+
+    /**
+     * Find time entries by multiple subtask IDs.
+     * 
+     * @param subtaskIds the list of subtask IDs
+     * @return list of time entries for the specified subtasks
+     */
+    List<TimeEntry> findBySubtaskIdIn(java.util.Collection<String> subtaskIds);
+
+    /**
      * Find time entries by issue ID.
      * 
      * @param issueId the issue ID

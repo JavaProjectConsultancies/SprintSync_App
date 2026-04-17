@@ -10,7 +10,7 @@ const getApiBaseUrl = () => {
     return (window as any).process.env.REACT_APP_API_BASE_URL;
   }
   // Default to server - backend WAR deploys at /sprintsync-1.0/ context path
-  //return 'http://192.168.0.236:8080/sprintsync-1.0/api';
+  //return 'http://sprintsync.microproindia.com/sprintsync-1.0/api';
   return 'http://localhost:8080/api';
 };
 
@@ -25,12 +25,7 @@ export const API_CONFIG = {
   SIGNING_KEY: 'SprintSync_Secure_Auth_Key_2026_@!!',
 };
 
-// Log API configuration on startup (for debugging)
-console.log('API Configuration:', {
-  BASE_URL: API_CONFIG.BASE_URL,
-  TIMEOUT: API_CONFIG.TIMEOUT,
-  ENV_VITE: import.meta.env?.VITE_API_BASE_URL,
-});
+
 
 // API Endpoints
 export const API_ENDPOINTS = {

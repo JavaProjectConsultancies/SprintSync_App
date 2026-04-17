@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
+import { toast } from "sonner";
+import { getLocalToday, toDateInputFormat } from "../utils/dateUtils";
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
@@ -64,6 +66,7 @@ interface Task {
     assignee: string;
     efforts: EffortEntry[];
     totalEffort?: number;
+    dueDate?: string;
 }
 interface Story {
     id: string;
@@ -78,6 +81,7 @@ interface EffortManagerProps {
     story?: Story | null;
     allTasks?: Task[];
     allStories?: Story[];
+    users?: any[];
 }
 const EffortManager: React.FC<EffortManagerProps> = ({
     open,
@@ -86,9 +90,11 @@ const EffortManager: React.FC<EffortManagerProps> = ({
     task = null,
     story = null,
     allTasks = [],
-    allStories = []
+    allStories = [],
+    users = []
 }) => {
     const [activeTab, setActiveTab] = useState('log');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Log Effort State
     const [formData, setFormData] = useState({
@@ -136,14 +142,21 @@ const EffortManager: React.FC<EffortManagerProps> = ({
         { value: 'deployment', label: 'Deployment', icon: '🚀', color: 'text-red-600' }
     ];
     // Team members list
-    const teamMembers = [
-        { name: 'Arjun Patel', avatar: '', role: 'Senior Developer' },
-        { name: 'Priya Sharma', avatar: '', role: 'UI/UX Designer' },
-        { name: 'Sneha Reddy', avatar: '', role: 'QA Engineer' },
-        { name: 'Rahul Kumar', avatar: '', role: 'DevOps Engineer' },
-        { name: 'Vikram Singh', avatar: '', role: 'Full Stack Developer' },
-        { name: 'Ananya Gupta', avatar: '', role: 'Product Manager' }
-    ];
+    // Team members list - mapped from users prop if available
+    const teamMembers = users.length > 0 
+        ? users.map(u => ({
+            name: u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim(),
+            avatar: u.avatarUrl || '',
+            role: u.role || 'Team Member'
+          }))
+        : [
+            { name: 'Arjun Patel', avatar: '', role: 'Senior Developer' },
+            { name: 'Priya Sharma', avatar: '', role: 'UI/UX Designer' },
+            { name: 'Sneha Reddy', avatar: '', role: 'QA Engineer' },
+            { name: 'Rahul Kumar', avatar: '', role: 'DevOps Engineer' },
+            { name: 'Vikram Singh', avatar: '', role: 'Full Stack Developer' },
+            { name: 'Ananya Gupta', avatar: '', role: 'Product Manager' }
+        ];
     // Get category color and icon
     const getCategoryInfo = (category: string) => {
         const categories: { [key: string]: { icon: string; color: string } } = {
@@ -175,25 +188,53 @@ const EffortManager: React.FC<EffortManagerProps> = ({
         if (!formData.description.trim()) {
             newErrors.description = 'Please provide a description of the work done';
         }
+
+        // Date validation: only 2 days back allowed
+        const workDate = formData.date;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const minDate = new Date(today);
+        minDate.setDate(today.getDate() - 2);
+
+        if (workDate < minDate) {
+            newErrors.date = 'Cannot log effort more than 2 days back';
+        }
+
+        // Forward date validation: upto task due date
+        if (task?.dueDate) {
+            const taskDueDate = new Date(task.dueDate);
+            taskDueDate.setHours(23, 59, 59, 999);
+            if (workDate > taskDueDate) {
+                newErrors.date = 'Cannot log effort past task due date';
+            }
+        }
+
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!validateForm()) return;
-        const totalMinutes = formData.hours * 60 + formData.minutes;
+        setIsSubmitting(true);
+        try {
+            const totalMinutes = formData.hours * 60 + formData.minutes;
 
-        const newEffort: Omit<EffortEntry, 'id'> = {
-            date: format(formData.date, 'dd/MM/yy'),
-            timeSpent: totalMinutes,
-            resource: formData.resource,
-            category: formData.category,
-            description: formData.description.trim(),
-            billable: formData.billable
-        };
-        onLogEffort(newEffort);
-        handleReset();
-        // Switch to history tab to show the newly logged effort
-        setActiveTab('history');
+            const newEffort: Omit<EffortEntry, 'id'> = {
+                date: format(formData.date, 'dd/MM/yy'),
+                timeSpent: totalMinutes,
+                resource: formData.resource,
+                category: formData.category,
+                description: formData.description.trim(),
+                billable: formData.billable
+            };
+            await onLogEffort(newEffort);
+            handleReset();
+            // Switch to history tab to show the newly logged effort
+            setActiveTab('history');
+        } catch (error) {
+            console.error('Error logging effort:', error);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
     const handleReset = () => {
         setFormData({
@@ -403,7 +444,18 @@ const EffortManager: React.FC<EffortManagerProps> = ({
                                                                         mode="single"
                                                                         selected={formData.date}
                                                                         onSelect={(date) => date && setFormData(prev => ({ ...prev, date }))}
-                                                                        disabled={(date) => date > new Date()}
+                                                                        disabled={(date) => {
+                                                                            const today = new Date();
+                                                                            today.setHours(0, 0, 0, 0);
+                                                                            const minDate = new Date(today);
+                                                                            minDate.setDate(today.getDate() - 2);
+                                                                            
+                                                                            const taskDueDateStr = task?.dueDate;
+                                                                            const taskDueDate = taskDueDateStr ? new Date(taskDueDateStr) : null;
+                                                                            if (taskDueDate) taskDueDate.setHours(23, 59, 59, 999);
+
+                                                                            return date < minDate || (taskDueDate ? date > taskDueDate : false);
+                                                                        }}
                                                                         initialFocus
                                                                     />
                                                                 </PopoverContent>
@@ -435,8 +487,10 @@ const EffortManager: React.FC<EffortManagerProps> = ({
                                                         </div>
                                                         <Input
                                                             type="date"
-                                                            max={new Date().toISOString().split('T')[0]}
-                                                            value={new Date(formData.date.getTime() - (formData.date.getTimezoneOffset() * 60000)).toISOString().split('T')[0]}
+                                                            min={(() => { const minDate = new Date(); minDate.setDate(minDate.getDate() - 2); return toDateInputFormat(minDate); })()}
+                                                            max={task?.dueDate || undefined}
+                                                            onKeyDown={(e) => e.preventDefault()}
+                                                            value={toDateInputFormat(formData.date)}
                                                             onChange={(e) => {
                                                                 const parts = e.target.value.split('-');
                                                                 if (parts.length === 3) {
@@ -826,8 +880,15 @@ const EffortManager: React.FC<EffortManagerProps> = ({
                                                                                 </div>
 
                                                                                 <p className="text-sm text-muted-foreground mb-2">
-                                                                                    {effort.description || 'No description provided'}
+                                                                                    {effort.description?.replace(/\[Logged by .*?\] /, '') || 'No description provided'}
                                                                                 </p>
+                                                                                {effort.description?.includes('[Logged by') && (
+                                                                                    <div className="flex items-center space-x-1 mb-2">
+                                                                                        <Badge variant="outline" className="px-1 py-0 h-4 text-[10px] border-emerald-200 text-emerald-700 bg-emerald-50">
+                                                                                            {effort.description.match(/\[Logged by (.*?)\]/)?.[0] || 'Logged by Manager'}
+                                                                                        </Badge>
+                                                                                    </div>
+                                                                                )}
 
                                                                                 <div className="flex items-center space-x-4 text-xs text-muted-foreground">
                                                                                     <div className="flex items-center space-x-1">
@@ -874,7 +935,12 @@ const EffortManager: React.FC<EffortManagerProps> = ({
                             Close
                         </Button>
                         {activeTab === 'log' && (
-                            <Button onClick={handleSubmit} className="bg-gradient-primary hover:opacity-90">
+                            <Button
+                                onClick={handleSubmit}
+                                className="bg-gradient-primary hover:opacity-90"
+                                disabled={isSubmitting}
+                                loading={isSubmitting}
+                            >
                                 <Plus className="w-4 h-4 mr-2" />
                                 Log Effort
                             </Button>

@@ -17,6 +17,7 @@ export { useEpics, useCreateEpic, useUpdateEpic, useDeleteEpic, createEpic, upda
 export { useReleases, useCreateRelease, useUpdateRelease, useDeleteRelease, createRelease, updateRelease, deleteRelease } from './useReleases';
 export { useIssuesByAssignee, useAllIssues } from './useIssues';
 export { useQualityGates } from './useQualityGates';
+export { useWorkflowLanes, useWorkflowLane, useWorkflowLanesByProject } from './useWorkflowLanes';
 
 // Re-export API services for convenience
 export { userApiService, projectApiService, sprintApiService, storyApiService, taskApiService, subtaskApiService, departmentApiService, domainApiService, epicApiService, releaseApiService, dashboardApiService, reportsApiService, searchApiService, batchApiService, issueApiService, qualityGateApiService } from '../../services/api';

@@ -12,7 +12,7 @@ import { Separator } from './ui/separator';
 import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { CalendarIcon, CheckSquare, User, Flag, Target, Clock, Plus, X, Paperclip, Trash2, Loader2, AlertCircle, Link, Eye, FileText } from 'lucide-react';
-import { formatDateDDMMYYYY, formatDateWithMonth } from '../utils/dateUtils';
+import { formatDateDDMMYYYY, formatDateWithMonth, toDateInputFormat } from '../utils/dateUtils';
 import { Priority, Task } from '../types/api';
 import { taskApiService } from '../services/api/entities/taskApi';
 
@@ -99,7 +99,7 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
     storyId: requiredStoryId || defaultStoryId || 'none',
     priority: 'MEDIUM' as 'BLOCKER' | 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW',
     assignee: '',
-    estimatedHours: 4,
+    estimatedHours: 0,
     dueDate: undefined as Date | undefined,
     subtasks: [''],
     status: defaultStatus as 'todo' | 'inprogress' | 'qa' | 'done',
@@ -289,9 +289,7 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
       newErrors.assignee = 'Please assign someone to this issue';
     }
 
-    if (!formData.dueDate) {
-      newErrors.dueDate = 'Due date is required';
-    } else if (effectiveStoryId) {
+    if (formData.dueDate && effectiveStoryId) {
       // Validate that issue due date is within story's due date
       const selectedStory = stories.find(s => s.id === effectiveStoryId);
       if (selectedStory && selectedStory.dueDate) {
@@ -305,8 +303,8 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
       }
     }
 
-    if (formData.estimatedHours < 0.5 || formData.estimatedHours > 40) {
-      newErrors.estimatedHours = 'Estimated hours must be between 0.5 and 40';
+    if (formData.estimatedHours < 0) {
+      newErrors.estimatedHours = 'Estimated hours cannot be negative';
     }
 
     setErrors(newErrors);
@@ -362,10 +360,7 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
 
       // Helper function to format date in local timezone (YYYY-MM-DD) for API compatibility
       const formatDateLocal = (date: Date): string => {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
+        return toDateInputFormat(date);
       };
 
       // Determine the storyId to use - prioritize requiredStoryId/defaultStoryId if provided
@@ -414,7 +409,7 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
       storyId: requiredStoryId || defaultStoryId || 'none',
       priority: 'MEDIUM',
       assignee: '',
-      estimatedHours: 4,
+      estimatedHours: 0,
       dueDate: undefined,
       subtasks: [''],
       status: defaultStatus as 'todo' | 'inprogress' | 'qa' | 'done',
@@ -865,20 +860,12 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                           onValueChange={(value) => setFormData(prev => ({ ...prev, estimatedHours: parseFloat(value) }))}
                         >
                           <SelectTrigger>
-                            <SelectValue />
+                            <SelectValue placeholder="Select hours..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {[0.5, 1, 2, 4, 8, 16, 24, 40].map(hours => (
-                              <SelectItem key={hours} value={hours.toString()}>
-                                <div className="flex items-center space-x-2">
-                                  <Clock className="w-4 h-4 text-blue-600" />
-                                  <span className={`font-medium ${getHoursColor(hours)}`}>{hours}h</span>
-                                  <span className="text-muted-foreground">
-                                    {hours <= 4 && '(Quick)'}
-                                    {hours > 4 && hours <= 16 && '(Standard)'}
-                                    {hours > 16 && '(Complex)'}
-                                  </span>
-                                </div>
+                            {[0, 1, 2, 4, 8, 12, 16, 24, 32, 40, 48].map(hour => (
+                              <SelectItem key={hour} value={hour.toString()}>
+                                {hour} {hour === 1 ? 'hour' : 'hours'}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -950,7 +937,6 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                       <div className="space-y-2">
                         <Label className="flex items-center space-x-1">
                           <span>Due Date</span>
-                          <span className="text-red-500">*</span>
                         </Label>
                         <Popover open={isDueDatePopoverOpen} onOpenChange={setIsDueDatePopoverOpen} modal={true}>
                           <PopoverTrigger asChild>
@@ -974,8 +960,7 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                                 }
 
                                 // Normalize date to midnight in local timezone to prevent timezone shifts
-                                const normalizedDate = new Date(date);
-                                normalizedDate.setHours(0, 0, 0, 0);
+                                const normalizedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
                                 setFormData(prev => ({ ...prev, dueDate: normalizedDate }));
                                 setIsDueDatePopoverOpen(false);
@@ -987,8 +972,7 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                                 });
                               }}
                               disabled={(date) => {
-                                const dateOnly = new Date(date);
-                                dateOnly.setHours(0, 0, 0, 0);
+                                const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
                                 // Check sprint date restrictions
                                 if (sprintStartDate && sprintEndDate) {
@@ -1008,9 +992,10 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                                   const selectedStory = stories.find(s => s.id === formData.storyId);
                                   if (selectedStory && selectedStory.dueDate) {
                                     const storyDueDate = new Date(selectedStory.dueDate);
-                                    storyDueDate.setHours(0, 0, 0, 0);
+                                    // Use component-extracted local date for comparison to be safe
+                                    const storyDateOnly = new Date(storyDueDate.getFullYear(), storyDueDate.getMonth(), storyDueDate.getDate());
                                     // Disable dates after story due date
-                                    if (dateOnly > storyDueDate) {
+                                    if (dateOnly > storyDateOnly) {
                                       return true;
                                     }
                                   }
@@ -1326,12 +1311,12 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                         })()}
                         <div className="flex items-center space-x-2 text-xs text-muted-foreground">
                           <Clock className="w-3 h-3" />
-                          <span>{formData.estimatedHours}h</span>
+                          <span>{Number(formData.estimatedHours || 0).toFixed(2)}h</span>
                           {formData.dueDate && (
                             <>
                               <span>•</span>
                               <CalendarIcon className="w-3 h-3" />
-                              <span>{format(formData.dueDate, 'dd/MM/yy')}</span>
+                              <span>{formatDateDDMMYYYY(formData.dueDate)}</span>
                             </>
                           )}
                         </div>
@@ -1353,15 +1338,9 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                 onClick={handleSubmit}
                 className="bg-gradient-primary hover:opacity-90 text-white"
                 disabled={isSubmitting}
+                loading={isSubmitting}
               >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  'Create Issue'
-                )}
+                Create Issue
               </Button>
             </DialogFooter>
           </div>

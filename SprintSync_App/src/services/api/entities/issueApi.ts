@@ -31,7 +31,7 @@ export const issueApiService = {
 
   // Story-specific operations
   getIssuesByStory: (storyId: string, params?: any) =>
-    apiClient.get<Issue[]>(`${BASE_URL}/story/${storyId}`, { params }),
+    !storyId ? Promise.resolve({ data: [] } as any) : apiClient.get<Issue[]>(`${BASE_URL}/story/${storyId}`, { params }),
 
   // Status operations
   updateIssueStatus: (id: string, status: string) => {

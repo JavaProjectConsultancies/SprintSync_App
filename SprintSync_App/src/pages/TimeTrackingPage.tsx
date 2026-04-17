@@ -14,6 +14,8 @@ import { timeEntryApiService } from '../services/api/entities/timeEntryApi';
 import { useUsers, useActiveUsers } from '../hooks/api/useUsers';
 import { useProjects } from '../hooks/api/useProjects';
 import { useStories } from '../hooks/api/useStories';
+import { useReleases } from "../hooks/api/useReleases";
+import { getLocalToday, toDateInputFormat } from "../utils/dateUtils";
 import { useTasks } from '../hooks/api/useTasks';
 import { useSprints } from '../hooks/api/useSprints';
 import { useTeamMembers } from '../hooks/api/useTeamMembers';
@@ -1645,16 +1647,7 @@ const TimeTrackingPage: React.FC = () => {
       return;
     }
 
-    // Filter entries: managers/admins/qa_managers see entries from their accessible projects, others see only their own
-    const userRole = (currentUser?.role as string)?.toLowerCase() || '';
-    const isManagerOrAdmin = currentUser && (
-      userRole === 'admin' ||
-      userRole === 'master_admin' ||
-      userRole === 'manager' ||
-      userRole === 'qa_manager' ||
-      userRole === 'support_and_implementation'
-    );
-
+    // 1. First, apply authorization filters (who can see what)
     let entriesToMap = rawTimeEntries;
 
     if (!isManagerOrAdmin && currentUser && currentUser.id) {
@@ -1748,6 +1741,75 @@ const TimeTrackingPage: React.FC = () => {
         return false;
       });
     }
+
+    // 2. Second, apply UI filters (what the user wants to see)
+    const isWithinRange = (dateStr: string, start: Date, end?: Date) => {
+      const parsedDate = parseEntryDateValue(dateStr);
+      if (!parsedDate) return false;
+      const rangeStart = startOfDay(start);
+      const rangeEnd = end ? endOfDay(end) : endOfDay(new Date());
+      return parsedDate.getTime() >= rangeStart.getTime() && parsedDate.getTime() <= rangeEnd.getTime();
+    };
+
+    const now = new Date();
+    entriesToMap = entriesToMap.filter(entry => {
+      // User Filter
+      if (userFilter !== 'all' && normalizeId(entry.userId) !== userFilter) return false;
+
+      // Reporter Filter
+      const entryReporterId = normalizeId((entry as any).reporterId);
+      if (reporterFilter !== 'all' && entryReporterId !== reporterFilter) return false;
+
+      // Project Filter
+      const entryProjectId = normalizeId((entry as any).projectId);
+      if (projectFilter !== 'all' && entryProjectId !== projectFilter) return false;
+
+      // Sprint Filter
+      const entrySprintId = normalizeId((entry as any).sprintId);
+      if (sprintFilter !== 'all' && entrySprintId !== sprintFilter) return false;
+
+      // Work Type Filter
+      if (workTypeFilter !== 'all') {
+        const normalizedWorkType = normalizeCategory(workTypeFilter);
+        const entryCategory = normalizeCategory((entry as any).entryType || (entry as any).category);
+        if (entryCategory !== normalizedWorkType) return false;
+      }
+
+      // Billable Filter
+      const entryBillable = (entry as any).billable ?? (entry as any).isBillable ?? false;
+      if (billableFilter === 'billable' && !entryBillable) return false;
+      if (billableFilter === 'non-billable' && entryBillable) return false;
+
+      // Date Filter
+      const entryDate = entry.workDate || (entry as any).date || entry.createdAt;
+      if (timeFilter === 'this-week') {
+        const start = startOfDay(now);
+        start.setDate(now.getDate() - now.getDay());
+        if (!isWithinRange(entryDate, start)) return false;
+      } else if (timeFilter === 'last-week') {
+        const startOfThisWeek = startOfDay(now);
+        startOfThisWeek.setDate(now.getDate() - now.getDay());
+        const start = new Date(startOfThisWeek);
+        start.setDate(start.getDate() - 7);
+        const end = new Date(startOfThisWeek.getTime() - 1);
+        if (!isWithinRange(entryDate, start, end)) return false;
+      } else if (timeFilter === 'this-month') {
+        const start = startOfDay(new Date(now.getFullYear(), now.getMonth(), 1));
+        if (!isWithinRange(entryDate, start)) return false;
+      } else if (timeFilter === 'last-month') {
+        const startOfThisMonth = startOfDay(new Date(now.getFullYear(), now.getMonth(), 1));
+        const start = new Date(startOfThisMonth);
+        start.setMonth(start.getMonth() - 1);
+        const end = new Date(startOfThisMonth.getTime() - 1);
+        if (!isWithinRange(entryDate, start, end)) return false;
+      } else if (timeFilter === 'custom') {
+        if (customDateRange?.from && customDateRange?.to) {
+          if (!isWithinRange(entryDate, customDateRange.from, customDateRange.to)) return false;
+        }
+      }
+
+      return true;
+    });
 
     // First, map all entries and resolve subtask entries to their parent tasks
     const processedEntries = entriesToMap.map((entry) => {
@@ -1974,7 +2036,7 @@ const TimeTrackingPage: React.FC = () => {
     rawTimeEntriesRef.current = rawEntriesByTask;
 
     setTimeEntries(aggregatedEntries);
-  }, [rawTimeEntries, usersMap, projectsMap, storiesMap, tasksMap, sprintsMap, projectToSprintMap, subtaskToTaskMap, currentUser?.id, currentUser?.role]);
+  }, [rawTimeEntries, usersMap, projectsMap, storiesMap, tasksMap, sprintsMap, projectToSprintMap, subtaskToTaskMap, currentUser?.id, currentUser?.role, userFilter, reporterFilter, projectFilter, sprintFilter, workTypeFilter, billableFilter, timeFilter, customDateRange]);
 
   // Parse time string to minutes
   const parseTime = (timeStr: string): number => {
@@ -2019,33 +2081,6 @@ const TimeTrackingPage: React.FC = () => {
   const filteredTimeEntries = useMemo(() => {
     let filtered = [...timeEntries];
 
-    if (userFilter !== 'all') {
-      filtered = filtered.filter(entry => entry.userId === userFilter);
-    }
-
-    if (reporterFilter !== 'all') {
-      filtered = filtered.filter(entry => entry.reporterId === reporterFilter);
-    }
-
-    if (projectFilter !== 'all') {
-      filtered = filtered.filter(entry => entry.projectId === projectFilter);
-    }
-
-    if (sprintFilter !== 'all') {
-      filtered = filtered.filter(entry => entry.sprintId === sprintFilter);
-    }
-
-    if (workTypeFilter !== 'all') {
-      const normalizedWorkType = normalizeCategory(workTypeFilter);
-      filtered = filtered.filter(entry => entry.category === normalizedWorkType);
-    }
-
-    if (billableFilter === 'billable') {
-      filtered = filtered.filter(entry => entry.billable);
-    } else if (billableFilter === 'non-billable') {
-      filtered = filtered.filter(entry => !entry.billable);
-    }
-
     if (timeEntrySearch.trim()) {
       const query = timeEntrySearch.trim().toLowerCase();
       filtered = filtered.filter(entry => {
@@ -2063,55 +2098,8 @@ const TimeTrackingPage: React.FC = () => {
       });
     }
 
-    const isWithinRange = (entry: TimeEntry, start: Date, end?: Date) => {
-      const parsedDate = parseEntryDateValue(entry.date);
-      if (!parsedDate) {
-        return false;
-      }
-
-      const rangeStart = startOfDay(start);
-      const rangeEnd = end ? endOfDay(end) : endOfDay(new Date());
-
-      return (
-        parsedDate.getTime() >= rangeStart.getTime() &&
-        parsedDate.getTime() <= rangeEnd.getTime()
-      );
-    };
-
-    const now = new Date();
-
-    if (timeFilter === 'this-week') {
-      const start = startOfDay(now);
-      start.setDate(now.getDate() - now.getDay());
-      filtered = filtered.filter(entry => isWithinRange(entry, start));
-    } else if (timeFilter === 'last-week') {
-      const startOfThisWeek = startOfDay(now);
-      startOfThisWeek.setDate(now.getDate() - now.getDay());
-      const start = new Date(startOfThisWeek);
-      start.setDate(start.getDate() - 7);
-      const end = new Date(startOfThisWeek.getTime() - 1);
-      filtered = filtered.filter(entry => isWithinRange(entry, start, end));
-    } else if (timeFilter === 'this-month') {
-      const start = startOfDay(new Date(now.getFullYear(), now.getMonth(), 1));
-      filtered = filtered.filter(entry => isWithinRange(entry, start));
-    } else if (timeFilter === 'last-month') {
-      const startOfThisMonth = startOfDay(new Date(now.getFullYear(), now.getMonth(), 1));
-      const start = new Date(startOfThisMonth);
-      start.setMonth(start.getMonth() - 1);
-      const end = new Date(startOfThisMonth.getTime() - 1);
-      filtered = filtered.filter(entry => isWithinRange(entry, start, end));
-    } else if (timeFilter === 'custom') {
-      if (customDateRange?.from && customDateRange?.to) {
-        filtered = filtered.filter(entry =>
-          isWithinRange(entry, customDateRange.from, customDateRange.to)
-        );
-      } else {
-        filtered = [];
-      }
-    }
-
     return filtered;
-  }, [timeEntries, userFilter, reporterFilter, projectFilter, sprintFilter, workTypeFilter, billableFilter, timeFilter, customDateRange, timeEntrySearch]);
+  }, [timeEntries, timeEntrySearch]);
 
   // Calculate summary statistics - show all users' data for managers/admins/qa_developers, only current user for others
   // Calculate summary statistics - show all users' data for managers/admins, only current user for others
@@ -2230,7 +2218,7 @@ const TimeTrackingPage: React.FC = () => {
           const parsed = new Date(e.date);
           return Number.isNaN(parsed.getTime())
             ? null
-            : parsed.toISOString().split('T')[0];
+            : toDateInputFormat(parsed);
         })
         .filter((value): value is string => Boolean(value))
     ).size;
@@ -2359,7 +2347,7 @@ const TimeTrackingPage: React.FC = () => {
         return;
       }
 
-      const key = parsedDate.toISOString().split('T')[0];
+      const key = toDateInputFormat(parsedDate);
       const hours = entry.hoursWorked || 0;
       map.set(key, (map.get(key) || 0) + hours);
     });
@@ -3347,7 +3335,7 @@ const TimeTrackingPage: React.FC = () => {
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Total Hours Logged
                 </p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">{totalHoursDecimal.toFixed(1)}</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{totalHoursDecimal.toFixed(2)}</p>
                 <p className="text-xs text-muted-foreground">hours this period</p>
               </div>
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
@@ -3364,7 +3352,7 @@ const TimeTrackingPage: React.FC = () => {
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Billable Hours
                 </p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">{billableHoursDecimal.toFixed(1)}</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{billableHoursDecimal.toFixed(2)}</p>
                 <p className="text-xs text-muted-foreground">{billablePercentage}% of total</p>
               </div>
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
@@ -3421,7 +3409,7 @@ const TimeTrackingPage: React.FC = () => {
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Daily Average
                 </p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">{averageDailyHoursDecimal.toFixed(1)}</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{averageDailyHoursDecimal.toFixed(2)}</p>
                 <p className="text-xs text-muted-foreground">hours per day</p>
               </div>
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-orange-50 text-orange-600">
@@ -3608,7 +3596,7 @@ const TimeTrackingPage: React.FC = () => {
                         <TableCell className="max-w-[160px] truncate">{entry.project}</TableCell>
                         <TableCell>{sprintName}</TableCell>
                         <TableCell>{dueDateDisplay}</TableCell>
-                        <TableCell>{estimatedHours !== undefined ? estimatedHours.toFixed(1) : '—'}</TableCell>
+                        <TableCell>{estimatedHours !== undefined ? estimatedHours.toFixed(2) : '—'}</TableCell>
                         <TableCell>
                           <span
                             className={
@@ -3619,7 +3607,7 @@ const TimeTrackingPage: React.FC = () => {
                                 : ''
                             }
                           >
-                            {actualHoursTotal !== undefined ? actualHoursTotal.toFixed(1) : '—'}
+                            {actualHoursTotal !== undefined ? actualHoursTotal.toFixed(2) : '—'}
                           </span>
                         </TableCell>
                         <TableCell>
@@ -3675,7 +3663,7 @@ const TimeTrackingPage: React.FC = () => {
                                         {log.userName}
                                       </TableCell>
                                       <TableCell className="text-sm font-semibold text-indigo-600">
-                                        {log.hours.toFixed(1)} hrs
+                                        {log.hours.toFixed(2)} hrs
                                       </TableCell>
                                       <TableCell className="text-sm text-slate-600">
                                         {log.description || '—'}
@@ -3687,7 +3675,7 @@ const TimeTrackingPage: React.FC = () => {
                                       Total ({dateWiseLogs.length} {dateWiseLogs.length === 1 ? 'day' : 'days'})
                                     </TableCell>
                                     <TableCell className="text-sm font-bold text-indigo-700">
-                                      {dateWiseLogs.reduce((sum, log) => sum + log.hours, 0).toFixed(1)} hrs
+                                      {dateWiseLogs.reduce((sum, log) => sum + log.hours, 0).toFixed(2)} hrs
                                     </TableCell>
                                     <TableCell></TableCell>
                                   </TableRow>

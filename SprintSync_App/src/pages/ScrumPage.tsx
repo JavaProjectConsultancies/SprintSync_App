@@ -280,6 +280,7 @@ import {
 } from "../types/api";
 
 import AddTaskDialog from "../components/AddTaskDialog";
+import BulkDueDateManager from "../components/BulkDueDateManager";
 
 import AddIssueDialog from "../components/AddIssueDialog";
 
@@ -297,6 +298,8 @@ import AttachmentViewer from "../components/AttachmentViewer";
 // import CreateSprintDialog from "../components/CreateSprintDialog";
 
 import TeamCapacityCalculator from "../components/TeamCapacityCalculator";
+import { getLocalToday, toDateInputFormat, formatDateDDMMYYYY, parseDDMMYYYY } from "../utils/dateUtils";
+
 
 import {
   useWorkflowLanesByProject,
@@ -314,6 +317,8 @@ import {
 } from "../hooks/api/useBoards";
 
 import { Board } from "../services/api/entities/boardApi";
+
+
 
 // Drag item types
 
@@ -386,6 +391,7 @@ const ScrumPage: React.FC = () => {
   const [isCapacityCalculatorOpen, setIsCapacityCalculatorOpen] = useState(false);
 
   const [isAddStoryDialogOpen, setIsAddStoryDialogOpen] = useState(false);
+  const [isBulkDueDateManagerOpen, setIsBulkDueDateManagerOpen] = useState(false);
 
   const [isAddTaskDialogOpen, setIsAddTaskDialogOpen] = useState(false);
 
@@ -418,7 +424,7 @@ const ScrumPage: React.FC = () => {
   const [editLogData, setEditLogData] = useState({
     hoursWorked: 0,
     description: "",
-    workDate: new Date().toISOString().split("T")[0],
+    workDate: getLocalToday(),
     startTime: "",
     endTime: "",
   });
@@ -430,7 +436,7 @@ const ScrumPage: React.FC = () => {
   const [subtaskLogEffort, setSubtaskLogEffort] = useState({
     hours: 0,
     description: "",
-    workDate: new Date().toISOString().split("T")[0],
+    workDate: getLocalToday(),
     startTime: "",
     endTime: "",
   });
@@ -644,6 +650,49 @@ const ScrumPage: React.FC = () => {
 
   // Scrum board search - filters tasks and issues by title or UUID (prefixed with T) or I))
   const [scrumBoardSearch, setScrumBoardSearch] = useState("");
+  const matchesTaskSearch = useCallback(
+    (task: Task) => {
+      if (!scrumBoardSearch) return true;
+      const search = scrumBoardSearch.toLowerCase().trim();
+
+      // If searching for an issue ID exclusively, don't show tasks
+      if (search.startsWith("i)")) return false;
+
+      // Check if searching for task UUID with T) prefix
+      if (search.startsWith("t)")) {
+        const uuidSearch = search.substring(2).trim();
+        return task.id.toLowerCase().includes(uuidSearch);
+      }
+      // Otherwise search by title or ID
+      return (
+        task.title.toLowerCase().includes(search) ||
+        task.id.toLowerCase().includes(search)
+      );
+    },
+    [scrumBoardSearch],
+  );
+
+  const matchesIssueSearch = useCallback(
+    (issue: Issue) => {
+      if (!scrumBoardSearch) return true;
+      const search = scrumBoardSearch.toLowerCase().trim();
+
+      // If searching for a task ID exclusively, don't show issues
+      if (search.startsWith("t)")) return false;
+
+      // Check if searching for issue UUID with I) prefix
+      if (search.startsWith("i)")) {
+        const uuidSearch = search.substring(2).trim();
+        return issue.id.toLowerCase().includes(uuidSearch);
+      }
+      // Otherwise search by title or ID
+      return (
+        issue.title.toLowerCase().includes(search) ||
+        issue.id.toLowerCase().includes(search)
+      );
+    },
+    [scrumBoardSearch],
+  );
 
   const [backlogFilter, setBacklogFilter] = useState("all");
 
@@ -904,42 +953,28 @@ const ScrumPage: React.FC = () => {
 
           console.log(`[ScrumPage] Found ${tasks.length} tasks for story ${selectedStoryForDetails.id}`);
 
-          // Then, fetch attachments for each task
-          const allTaskAttachments: any[] = [];
-
-          for (const task of tasks) {
-            if (!task || !task.id) {
-              console.warn(`[ScrumPage] Skipping invalid task:`, task);
-              continue;
-            }
-
+          // Then, fetch attachments for each task in parallel
+          const attachmentPromises = tasks.map(async (task) => {
+            if (!task || !task.id) return [];
             try {
-              console.log(`[ScrumPage] Fetching attachments for task ${task.id} (${task.title})`);
-              const attachmentsResponse = await attachmentApiService.getAttachmentsByEntity(
-                "task",
-                task.id,
-              );
-
-              console.log(`[ScrumPage] Attachments response for task ${task.id}:`, attachmentsResponse);
-
+              const attachmentsResponse = await attachmentApiService.getAttachmentsByEntity("task", task.id);
               const taskAttachments = Array.isArray(attachmentsResponse.data)
                 ? attachmentsResponse.data
                 : (Array.isArray(attachmentsResponse) ? attachmentsResponse : []);
 
-              console.log(`[ScrumPage] Found ${taskAttachments.length} attachments for task ${task.id}`);
-
-              // Add task title to each attachment for display purposes
-              const attachmentsWithTaskInfo = taskAttachments.map((att: any) => ({
+              return taskAttachments.map((att: any) => ({
                 ...att,
                 taskTitle: task.title,
                 taskId: task.id,
               }));
-
-              allTaskAttachments.push(...attachmentsWithTaskInfo);
             } catch (error) {
               console.error(`[ScrumPage] Error fetching attachments for task ${task.id}:`, error);
+              return [];
             }
-          }
+          });
+
+          const results = await Promise.all(attachmentPromises);
+          const allTaskAttachments = results.flat();
 
           console.log(`[ScrumPage] Total task attachments found: ${allTaskAttachments.length}`);
           setStoryTaskAttachments(allTaskAttachments);
@@ -1050,42 +1085,28 @@ const ScrumPage: React.FC = () => {
 
           console.log(`[ScrumPage] Found ${issues.length} issues for story ${selectedStoryForDetails.id}`);
 
-          // Then, fetch attachments for each issue
-          const allIssueAttachments: any[] = [];
-
-          for (const issue of issues) {
-            if (!issue || !issue.id) {
-              console.warn(`[ScrumPage] Skipping invalid issue:`, issue);
-              continue;
-            }
-
+          // Then, fetch attachments for each issue in parallel
+          const attachmentPromises = issues.map(async (issue) => {
+            if (!issue || !issue.id) return [];
             try {
-              console.log(`[ScrumPage] Fetching attachments for issue ${issue.id} (${issue.title})`);
-              const attachmentsResponse = await attachmentApiService.getAttachmentsByEntity(
-                "issue",
-                issue.id,
-              );
-
-              console.log(`[ScrumPage] Attachments response for issue ${issue.id}:`, attachmentsResponse);
-
+              const attachmentsResponse = await attachmentApiService.getAttachmentsByEntity("issue", issue.id);
               const issueAttachments = Array.isArray(attachmentsResponse.data)
                 ? attachmentsResponse.data
                 : (Array.isArray(attachmentsResponse) ? attachmentsResponse : []);
 
-              console.log(`[ScrumPage] Found ${issueAttachments.length} attachments for issue ${issue.id}`);
-
-              // Add issue title to each attachment for display purposes
-              const attachmentsWithIssueInfo = issueAttachments.map((att: any) => ({
+              return issueAttachments.map((att: any) => ({
                 ...att,
                 issueTitle: issue.title,
                 issueId: issue.id,
               }));
-
-              allIssueAttachments.push(...attachmentsWithIssueInfo);
             } catch (error) {
               console.error(`[ScrumPage] Error fetching attachments for issue ${issue.id}:`, error);
+              return [];
             }
-          }
+          });
+
+          const results = await Promise.all(attachmentPromises);
+          const allIssueAttachments = results.flat();
 
           console.log(`[ScrumPage] Total issue attachments found: ${allIssueAttachments.length}`);
           setStoryIssueAttachments(allIssueAttachments);
@@ -1583,8 +1604,24 @@ const ScrumPage: React.FC = () => {
   // Fetch all issues for all stories in the current sprint
 
   const [allIssues, setAllIssues] = useState<Issue[]>([]);
-
   const [issuesLoading, setIssuesLoading] = useState(false);
+
+  // Sorted tasks and issues for display (newest first)
+  const sortedTasks = useMemo(() => {
+    return [...allTasks].sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
+  }, [allTasks]);
+
+  const sortedIssues = useMemo(() => {
+    return [...allIssues].sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
+  }, [allIssues]);
 
   // Handle taskId and issueId from query params (Deep linking)
   useEffect(() => {
@@ -3105,30 +3142,62 @@ const ScrumPage: React.FC = () => {
   }, [sprintStories, selectedProject, selectedSprint, canManageSprintsAndStories, user, allTasks]);
 
   const boardStories = useMemo(() => {
+    let stories: Story[] = [];
     if (storiesScope === "backlog") {
-      return projectBacklogStories;
-    }
-
-    if (storiesScope === "custom") {
-      return selectedBacklogStories;
-    }
-
-    if (storiesScope === "all") {
-      const sprintStoryIds = new Set(filteredSprintStories.map((story) => story.id));
-
+      stories = projectBacklogStories;
+    } else if (storiesScope === "custom") {
+      stories = selectedBacklogStories;
+    } else if (storiesScope === "all") {
+      const sprintStoryIds = new Set(filteredSprintStories.map((s) => s.id));
       const uniqueBacklogStories = projectBacklogStories.filter(
-        (story) => !sprintStoryIds.has(story.id),
+        (s) => !sprintStoryIds.has(s.id),
       );
-
-      return [...filteredSprintStories, ...uniqueBacklogStories];
+      stories = [...filteredSprintStories, ...uniqueBacklogStories];
+    } else {
+      stories = filteredSprintStories;
     }
 
-    return filteredSprintStories;
+    // Filter by search if active
+    if (scrumBoardSearch) {
+      const search = scrumBoardSearch.toLowerCase().trim();
+      return stories.filter((story) => {
+        // Story itself matches search
+        if (
+          story.title.toLowerCase().includes(search) ||
+          story.id.toLowerCase().includes(search)
+        ) {
+          return true;
+        }
+
+        // Check if any tasks for this story match
+        const hasMatchingTask = sortedTasks.some(
+          (t) => t.storyId === story.id && matchesTaskSearch(t),
+        );
+        if (hasMatchingTask) return true;
+
+        // Check if any issues for this story match
+        const hasMatchingIssue = sortedIssues.some(
+          (i) => i.storyId === story.id && matchesIssueSearch(i),
+        );
+        if (hasMatchingIssue) return true;
+
+        return false;
+      });
+    }
+
+    return stories;
   }, [
     storiesScope,
     filteredSprintStories,
     projectBacklogStories,
     selectedBacklogStories,
+    scrumBoardSearch,
+    allTasks,
+    allIssues,
+    sortedTasks,
+    sortedIssues,
+    matchesTaskSearch,
+    matchesIssueSearch,
   ]);
 
   const storyScopeLabel = useMemo(() => {
@@ -4174,8 +4243,9 @@ const ScrumPage: React.FC = () => {
 
           // === RULE: TO_DO lane to any other Lane requires effort logged ===
           const isMovingFromTodo = oldColumn === "todo" && newStatus !== "todo";
+          const isMovingToDone = newStatus === "done" && oldColumn !== "done";
 
-          if (isMovingFromTodo) {
+          if (isMovingFromTodo || isMovingToDone) {
             // Check if task has any time entries logged
             try {
               const response = await timeEntryApiService.getTimeEntriesByTask(id);
@@ -4184,14 +4254,15 @@ const ScrumPage: React.FC = () => {
                 : (Array.isArray(response) ? response : []);
 
               if (entries.length === 0) {
-                toast.error("Please add at least one effort log before moving from the To Do lane");
+                const actionDesc = isMovingToDone ? "to the Done lane" : "from the To Do lane";
+                toast.error(`Please add at least one effort log before moving ${actionDesc}`);
                 try {
                   await activityLogApiService.createActivityLog({
                     userId: user?.id || "",
                     entityType: "tasks",
                     entityId: id,
                     action: "status_change_blocked",
-                    description: `Attempted to move task from TODO to ${newStatus} (blocked - no effort logged)`,
+                    description: `Attempted to move task from ${oldColumn} to ${newStatus} (blocked - no effort logged)`,
                     oldValues: JSON.stringify({ status: oldStatus }),
                     newValues: JSON.stringify({ status: mappedNewStatus }),
                     ipAddress: undefined,
@@ -4254,8 +4325,9 @@ const ScrumPage: React.FC = () => {
 
           // === RULE: TO_DO lane to any other Lane requires effort logged ===
           const isMovingFromTodo = oldColumn === "todo" && newStatus !== "todo";
+          const isMovingToDone = newStatus === "done" && oldColumn !== "done";
 
-          if (isMovingFromTodo) {
+          if (isMovingFromTodo || isMovingToDone) {
             // Check if issue has any time entries logged
             try {
               const response = await timeEntryApiService.getTimeEntriesByIssue(id);
@@ -4264,14 +4336,15 @@ const ScrumPage: React.FC = () => {
                 : (Array.isArray(response) ? response : []);
 
               if (entries.length === 0) {
-                toast.error("Please add at least one effort log before moving from the To Do lane");
+                const actionDesc = isMovingToDone ? "to the Done lane" : "from the To Do lane";
+                toast.error(`Please add at least one effort log before moving ${actionDesc}`);
                 try {
                   await activityLogApiService.createActivityLog({
                     userId: user?.id || "",
                     entityType: "issues",
                     entityId: id,
                     action: "status_change_blocked",
-                    description: `Attempted to move issue from TODO to ${newStatus} (blocked - no effort logged)`,
+                    description: `Attempted to move issue from ${oldColumn} to ${newStatus} (blocked - no effort logged)`,
                     oldValues: JSON.stringify({ status: oldStatus }),
                     newValues: JSON.stringify({ status: mappedNewStatus }),
                     ipAddress: undefined,
@@ -5665,7 +5738,7 @@ const ScrumPage: React.FC = () => {
 
         if (totalSubtaskHours > taskEstimatedHours) {
           toast.error(
-            `Total subtask hours (${totalSubtaskHours}h) cannot exceed task hours (${taskEstimatedHours}h). Please reduce subtask hours.`
+            `Total subtask hours (${totalSubtaskHours.toFixed(2)}h) cannot exceed task hours (${taskEstimatedHours.toFixed(2)}h). Please reduce subtask hours.`
           );
           return;
         }
@@ -5706,7 +5779,7 @@ const ScrumPage: React.FC = () => {
 
         if (totalSubtaskHours > issueEstimatedHours) {
           toast.error(
-            `Total subtask hours (${totalSubtaskHours}h) cannot exceed issue hours (${issueEstimatedHours}h). Please reduce subtask hours.`
+            `Total subtask hours (${totalSubtaskHours.toFixed(2)}h) cannot exceed issue hours (${issueEstimatedHours.toFixed(2)}h). Please reduce subtask hours.`
           );
           return;
         }
@@ -5930,7 +6003,7 @@ const ScrumPage: React.FC = () => {
 
           if (totalSubtaskHours > taskEstimatedHours) {
             toast.error(
-              `Total subtask hours (${totalSubtaskHours}h) cannot exceed task hours (${taskEstimatedHours}h). Please reduce subtask hours.`
+              `Total subtask hours (${totalSubtaskHours.toFixed(2)}h) cannot exceed task hours (${taskEstimatedHours.toFixed(2)}h). Please reduce subtask hours.`
             );
             return;
           }
@@ -5977,7 +6050,7 @@ const ScrumPage: React.FC = () => {
 
           if (totalSubtaskHours > issueEstimatedHours) {
             toast.error(
-              `Total subtask hours (${totalSubtaskHours}h) cannot exceed issue hours (${issueEstimatedHours}h). Please reduce subtask hours.`
+              `Total subtask hours (${totalSubtaskHours.toFixed(2)}h) cannot exceed issue hours (${issueEstimatedHours.toFixed(2)}h). Please reduce subtask hours.`
             );
             return;
           }
@@ -6899,13 +6972,18 @@ const ScrumPage: React.FC = () => {
             className="p-2 bg-white rounded border border-gray-200 hover:border-green-300 transition-colors"
           >
             <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center space-x-1">
-                <Timer className="w-3 h-3 text-green-600" />
-                <span className="text-xs font-medium text-gray-700">
+              <div className="flex items-center space-x-1 overflow-hidden">
+                <Timer className="w-3 h-3 text-green-600 shrink-0" />
+                <span className="text-[10px] font-medium text-gray-700 truncate" title="Logged by">
                   {log.userId ? getUserName(log.userId) : "Unknown"}
                 </span>
+                {log.description?.includes("[Logged by") && (
+                  <Badge variant="outline" className="px-1 py-0 h-3 text-[9px] border-emerald-200 text-emerald-700 bg-emerald-50">
+                    Manager
+                  </Badge>
+                )}
               </div>
-              <span className="text-xs text-gray-400">
+              <span className="text-[9px] text-gray-400 shrink-0">
                 {formatActivityTime(log.createdAt)}
               </span>
             </div>
@@ -6949,18 +7027,56 @@ const ScrumPage: React.FC = () => {
       return;
     }
 
+    // Date range validation: only 2 days back allowed
+    const workDate = new Date(effortLog.workDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const minDate = new Date(today);
+    minDate.setDate(today.getDate() - 2);
+
+    if (workDate < minDate) {
+      toast.error("Cannot log effort more than 2 days back");
+      return;
+    }
+
+    // Forward date validation: upto task due date or sprint end date
+    const selectedTask = allTasks.find(t => t.id === (selectedSubtaskForEffort?.taskId || selectedTaskForEffort?.id));
+    const taskDueDate = selectedTask?.dueDate ? new Date(selectedTask.dueDate) : null;
+    const currentSprint = (Array.isArray(sprintsData) ? sprintsData : (sprintsData as any)?.data || []).find((s: any) => s.id === selectedSprint);
+    const sprintEndDate = currentSprint?.endDate ? new Date(currentSprint.endDate) : null;
+
+    // We prioritize task due date if it exists, otherwise sprint end date
+    const maxDate = taskDueDate || sprintEndDate;
+
+    if (maxDate) {
+      maxDate.setHours(23, 59, 59, 999);
+      if (workDate > maxDate) {
+        toast.error(`Cannot log effort past ${taskDueDate ? 'task due date' : 'sprint end date'}`);
+        return;
+      }
+    }
+
     try {
       setIsLoggingEffort(true);
-      // Find the parent task
 
+      // Find the parent task
       const parentTask = allTasks.find(
         (t) => t.id === selectedSubtaskForEffort.taskId,
       );
 
-      // Create time entry for the subtask
+      // Determine if a manager is logging on behalf of another user
+      const currentUserName = user?.name || "Unknown";
+      const isLoggingForOther = parentTask?.assigneeId && parentTask.assigneeId !== user?.id;
+
+      // Adjust description to include manager name if applicable
+      const loggingDescription = isLoggingForOther
+        ? `[Logged by ${currentUserName}] ${effortLog.description}`
+        : effortLog.description;
 
       const timeEntryData = {
-        userId: user?.id || "",
+        // Set the userId to the assignee so they get the credit for the work hours
+        // If unassigned, default to the current user
+        userId: isLoggingForOther ? (parentTask?.assigneeId || user?.id || "") : (user?.id || ""),
 
         projectId: selectedProject || undefined,
 
@@ -6970,7 +7086,7 @@ const ScrumPage: React.FC = () => {
 
         subtaskId: selectedSubtaskForEffort.id,
 
-        description: effortLog.description,
+        description: loggingDescription,
 
         entryType: "development" as const,
 
@@ -7072,7 +7188,7 @@ const ScrumPage: React.FC = () => {
 
             action: "effort_logged",
 
-            description: `Logged ${effortLog.hours}h on subtask "${selectedSubtaskForEffort.title}"`,
+            description: `Logged ${Number(effortLog.hours).toFixed(2)}h on subtask "${selectedSubtaskForEffort.title}"`,
 
             newValues: JSON.stringify({
               subtaskId: selectedSubtaskForEffort.id,
@@ -7094,7 +7210,7 @@ const ScrumPage: React.FC = () => {
       }
 
       toast.success(
-        `Logged ${effortLog.hours}h effort on subtask successfully`,
+        `Logged ${Number(effortLog.hours).toFixed(2)}h effort on subtask successfully`,
       );
 
       // Upload any attachments if present
@@ -8164,10 +8280,10 @@ const ScrumPage: React.FC = () => {
                         });
                         setIsLogEffortDialogOpen(true);
                       }}
-                      disabled={isSprintEnded || !canLogEffortOnTasks}
+                      disabled={isSprintEnded || !canLogEffortOnTasks || (task.dueDate ? new Date().setHours(0, 0, 0, 0) > new Date(task.dueDate).setHours(0, 0, 0, 0) : false)}
                     >
                       <Clock className="w-4 h-4 mr-2" />
-                      Log Work{isSprintEnded ? " (Sprint Ended)" : !canLogEffortOnTasks ? " (QA cannot log on tasks)" : ""}
+                      Log Work{isSprintEnded ? " (Sprint Ended)" : !canLogEffortOnTasks ? " (QA cannot log on tasks)" : (task.dueDate && new Date().setHours(0, 0, 0, 0) > new Date(task.dueDate).setHours(0, 0, 0, 0)) ? " (Due Date Exceeded)" : ""}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={(e) => {
@@ -8526,8 +8642,82 @@ const ScrumPage: React.FC = () => {
   };
 
   const handleLogBacklogEffort = async (effortData: any) => {
-    // Handle effort logging if needed
-    setSelectedBacklogTaskForEffort(null);
+    if (!selectedBacklogTaskForEffort) return;
+
+    try {
+      // Calculate total minutes to hours (EffortManager uses minutes/hours separate)
+      const hours = effortData.hours + (effortData.minutes / 60);
+
+      // Date range validation: only 2 days back allowed
+      const workDate = effortData.date instanceof Date ? effortData.date : new Date(effortData.date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const minDate = new Date(today);
+      minDate.setDate(today.getDate() - 2);
+
+      if (workDate < minDate) {
+        toast.error("Cannot log effort more than 2 days back");
+        return;
+      }
+
+      // Forward date validation: upto task due date
+      const taskDueDate = selectedBacklogTaskForEffort.dueDate ? new Date(selectedBacklogTaskForEffort.dueDate) : null;
+      if (taskDueDate) {
+        taskDueDate.setHours(23, 59, 59, 999);
+        if (workDate > taskDueDate) {
+          toast.error("Cannot log effort past task due date");
+          return;
+        }
+      }
+
+      // Determine if a manager is logging on behalf of another user
+      const currentUserName = user?.name || "Unknown";
+      const isLoggingForOther = selectedBacklogTaskForEffort.assigneeId && selectedBacklogTaskForEffort.assigneeId !== user?.id;
+
+      // Adjust description to include manager name if applicable
+      const loggingDescription = isLoggingForOther
+        ? `[Logged by ${currentUserName}] ${effortData.description}`
+        : effortData.description;
+
+      const timeEntryData = {
+        userId: isLoggingForOther ? (selectedBacklogTaskForEffort.assigneeId || user?.id || "") : (user?.id || ""),
+        projectId: selectedProject || undefined,
+        taskId: selectedBacklogTaskForEffort.id,
+        description: loggingDescription,
+        entryType: (effortData.category || "development") as any,
+        hoursWorked: hours,
+        workDate: effortData.date, // EffortManager provides dd/MM/yy or Date
+        isBillable: effortData.billable
+      };
+
+      // Convert date string if needed
+      if (typeof timeEntryData.workDate === 'string' && timeEntryData.workDate.includes('/')) {
+        const [day, month, year] = timeEntryData.workDate.split('/');
+        const fullYear = parseInt(year) < 100 ? 2000 + parseInt(year) : parseInt(year);
+        const d = new Date(fullYear, parseInt(month) - 1, parseInt(day));
+        timeEntryData.workDate = toDateInputFormat(d);
+      } else {
+        timeEntryData.workDate = toDateInputFormat(timeEntryData.workDate);
+      }
+
+      await timeEntryApiService.createTimeEntry(timeEntryData);
+
+      // Update actual hours in task
+      const newActualHours = (selectedBacklogTaskForEffort.actualHours || 0) + hours;
+      await taskApiService.updateTaskActualHours(selectedBacklogTaskForEffort.id, newActualHours);
+
+      // Update local state
+      setAllTasks(prev => prev.map(t => t.id === selectedBacklogTaskForEffort.id ? { ...t, actualHours: newActualHours } : t));
+
+      toast.success("Effort logged for backlog task");
+      notifyProjectBudgetUpdate("backlog-effort-logged");
+    } catch (error) {
+      console.error("Error logging backlog effort:", error);
+      toast.error("Failed to log effort");
+    } finally {
+      setSelectedBacklogTaskForEffort(null);
+      setIsBacklogEffortManagerOpen(false);
+    }
   };
 
   if (projectsLoading) {
@@ -9514,7 +9704,7 @@ const ScrumPage: React.FC = () => {
                                                         {item.estimatedHours && (
                                                           <div className="flex items-center space-x-1">
                                                             <Clock className="w-3 h-3" />
-                                                            <span>{item.estimatedHours}h</span>
+                                                            <span>{Number(item.estimatedHours || 0).toFixed(2)}h</span>
                                                           </div>
                                                         )}
                                                         {assigneeLabel && (
@@ -9528,7 +9718,7 @@ const ScrumPage: React.FC = () => {
                                                         {item.actualHours > 0 && (
                                                           <div className="flex items-center space-x-1">
                                                             <Target className="w-3 h-3" />
-                                                            <span>{item.actualHours}h actual</span>
+                                                            <span>{Number(item.actualHours || 0).toFixed(2)}h actual</span>
                                                           </div>
                                                         )}
                                                       </div>
@@ -9629,12 +9819,23 @@ const ScrumPage: React.FC = () => {
             } as any : null}
             allTasks={backlogTasks as any[]}
             allStories={[]}
+            users={users}
           />
         </TabsContent>
 
         {/* Add Story Button - Positioned above scrum board, below sprint section, on the right */}
         {activeView === "scrum-board" && (isManager || isQAManager) && (
-          <div className="flex justify-end mb-4">
+          <div className="flex justify-end gap-2 mb-4">
+            <Button
+              onClick={() => setIsBulkDueDateManagerOpen(true)}
+              variant="outline"
+              className="bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+              size="default"
+              title="Bulk manage due dates"
+            >
+              <CalendarDays className="w-4 h-4 mr-2" />
+              Manage Due Dates
+            </Button>
             <Button
               onClick={() => setIsAddStoryDialogOpen(true)}
               className="bg-green-600 hover:bg-green-700 text-white"
@@ -9651,7 +9852,7 @@ const ScrumPage: React.FC = () => {
         <TabsContent value="scrum-board" className="mt-0 flex-1">
           {/* Story-Row Aligned Grid Scrum Board */}
 
-          {sprintStoriesLoading || tasksLoading || issuesLoading ? (
+          {(sprintStoriesLoading || tasksLoading || issuesLoading) && boardStories.length === 0 ? (
             <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] bg-gradient-to-br from-white via-green-50/30 to-cyan-50/30">
               <div className="text-center space-y-6">
                 <div
@@ -10386,36 +10587,9 @@ const ScrumPage: React.FC = () => {
                         boardStories.map((story, storyIndex) => {
                           // Get tasks for this story by status
 
-                          // Search filter helper - checks title and UUID with T)/I) prefix support
-                          const matchesTaskSearch = (task: Task) => {
-                            if (!scrumBoardSearch) return true;
-                            const search = scrumBoardSearch.toLowerCase().trim();
-                            // Check if searching for task UUID with T) prefix
-                            if (search.startsWith('t)')) {
-                              const uuidSearch = search.substring(2).trim();
-                              return task.id.toLowerCase().includes(uuidSearch);
-                            }
-                            // Otherwise search by title or ID
-                            return task.title.toLowerCase().includes(search) ||
-                              task.id.toLowerCase().includes(search);
-                          };
-
-                          const matchesIssueSearch = (issue: Issue) => {
-                            if (!scrumBoardSearch) return true;
-                            const search = scrumBoardSearch.toLowerCase().trim();
-                            // Check if searching for issue UUID with I) prefix
-                            if (search.startsWith('i)')) {
-                              const uuidSearch = search.substring(2).trim();
-                              return issue.id.toLowerCase().includes(uuidSearch);
-                            }
-                            // Otherwise search by title or ID
-                            return issue.title.toLowerCase().includes(search) ||
-                              issue.id.toLowerCase().includes(search);
-                          };
-
                           // Backend returns: to_do, in_progress, qa_review, done, blocked, cancelled
 
-                          const todoTasks = allTasks.filter(
+                          const todoTasks = sortedTasks.filter(
                             (task) =>
                               task.storyId === story.id &&
                               matchesTaskSearch(task) &&
@@ -10425,7 +10599,7 @@ const ScrumPage: React.FC = () => {
                                 (task.status as any) === "TODO"),
                           );
 
-                          const inProgressTasks = allTasks.filter(
+                          const inProgressTasks = sortedTasks.filter(
                             (task) =>
                               task.storyId === story.id &&
                               matchesTaskSearch(task) &&
@@ -10435,7 +10609,7 @@ const ScrumPage: React.FC = () => {
                                 (task.status as any) === "INPROGRESS"),
                           );
 
-                          const qaTasks = allTasks.filter(
+                          const qaTasks = sortedTasks.filter(
                             (task) =>
                               task.storyId === story.id &&
                               matchesTaskSearch(task) &&
@@ -10445,7 +10619,7 @@ const ScrumPage: React.FC = () => {
                                 (task.status as any) === "QA"),
                           );
 
-                          const doneTasks = allTasks.filter(
+                          const doneTasks = sortedTasks.filter(
                             (task) =>
                               task.storyId === story.id &&
                               matchesTaskSearch(task) &&
@@ -10454,7 +10628,7 @@ const ScrumPage: React.FC = () => {
 
                           // Get issues for this story by status (same status mapping as tasks)
 
-                          const todoIssues = allIssues.filter(
+                          const todoIssues = sortedIssues.filter(
                             (issue) =>
                               issue.storyId === story.id &&
                               matchesIssueSearch(issue) &&
@@ -10464,7 +10638,7 @@ const ScrumPage: React.FC = () => {
                                 (issue.status as any) === "TODO"),
                           );
 
-                          const inProgressIssues = allIssues.filter(
+                          const inProgressIssues = sortedIssues.filter(
                             (issue) =>
                               issue.storyId === story.id &&
                               matchesIssueSearch(issue) &&
@@ -10474,7 +10648,7 @@ const ScrumPage: React.FC = () => {
                                 (issue.status as any) === "INPROGRESS"),
                           );
 
-                          const qaIssues = allIssues.filter(
+                          const qaIssues = sortedIssues.filter(
                             (issue) =>
                               issue.storyId === story.id &&
                               matchesIssueSearch(issue) &&
@@ -10484,7 +10658,7 @@ const ScrumPage: React.FC = () => {
                                 (issue.status as any) === "QA"),
                           );
 
-                          const doneIssues = allIssues.filter(
+                          const doneIssues = sortedIssues.filter(
                             (issue) =>
                               issue.storyId === story.id &&
                               matchesIssueSearch(issue) &&
@@ -10664,17 +10838,15 @@ const ScrumPage: React.FC = () => {
                           // Helper to get tasks for a custom lane
 
                           const getTasksForLane = (statusValue: string) => {
-                            return allTasks.filter((task) => {
-                              if (task.storyId !== story.id) return false;
+                            return sortedTasks.filter((task) => {
+                              if (task.storyId !== story.id || !matchesTaskSearch(task))
+                                return false;
 
                               // Check if task status directly matches the lane's statusValue
-
                               if (task.status === statusValue) return true;
 
                               // Also check mapped status
-
                               const mappedColumn = mapTaskStatusToColumn(task.status);
-
                               return mappedColumn === statusValue;
                             });
                           };
@@ -10682,19 +10854,15 @@ const ScrumPage: React.FC = () => {
                           // Helper to get issues for a custom lane
 
                           const getIssuesForLane = (statusValue: string) => {
-                            return allIssues.filter((issue) => {
-                              if (issue.storyId !== story.id) return false;
+                            return sortedIssues.filter((issue) => {
+                              if (issue.storyId !== story.id || !matchesIssueSearch(issue))
+                                return false;
 
                               // Check if issue status directly matches the lane's statusValue
-
                               if (issue.status === statusValue) return true;
 
                               // Also check mapped status
-
-                              const mappedColumn = mapTaskStatusToColumn(
-                                issue.status,
-                              );
-
+                              const mappedColumn = mapTaskStatusToColumn(issue.status);
                               return mappedColumn === statusValue;
                             });
                           };
@@ -12187,9 +12355,7 @@ const ScrumPage: React.FC = () => {
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {newStory.dueDate ? (
-                          typeof newStory.dueDate === 'string'
-                            ? new Date(newStory.dueDate).toLocaleDateString()
-                            : (newStory.dueDate as any).toLocaleDateString()
+                          formatDateDDMMYYYY(newStory.dueDate)
                         ) : (
                           <span>Pick a date</span>
                         )}
@@ -12198,12 +12364,13 @@ const ScrumPage: React.FC = () => {
                     <PopoverContent className="w-auto p-0 z-[9999]" align="start" side="top" sideOffset={5}>
                       <Calendar
                         mode="single"
-                        selected={typeof newStory.dueDate === 'string' ? new Date(newStory.dueDate) : newStory.dueDate}
+                        selected={newStory.dueDate ? (typeof newStory.dueDate === 'string' ? parseDDMMYYYY(newStory.dueDate) || undefined : newStory.dueDate) : undefined}
                         onSelect={(date) => {
                           if (date) {
+                            // Normalize to local YYYY-MM-DD instead of toISOString() to avoid timezone offsets
                             setNewStory((prev) => ({
                               ...prev,
-                              dueDate: date.toISOString().split('T')[0],
+                              dueDate: toDateInputFormat(date),
                             }));
                             setIsDueDatePopoverOpen(false);
                           }
@@ -12908,7 +13075,7 @@ const ScrumPage: React.FC = () => {
                       <h4 className="font-medium mb-2">Estimated Hours</h4>
 
                       <p className="text-lg font-semibold text-blue-600">
-                        {selectedTaskForDetails.estimatedHours || 0}h
+                        {Number(selectedTaskForDetails.estimatedHours || 0).toFixed(2)}h
                       </p>
                     </div>
 
@@ -12916,7 +13083,7 @@ const ScrumPage: React.FC = () => {
                       <h4 className="font-medium mb-2">Actual Hours</h4>
 
                       <p className="text-lg font-semibold text-green-600">
-                        {selectedTaskForDetails.actualHours || 0}h
+                        {Number(selectedTaskForDetails.actualHours || 0).toFixed(2)}h
                       </p>
                     </div>
 
@@ -13454,6 +13621,8 @@ const ScrumPage: React.FC = () => {
                 <Input
                   id="edit-log-date"
                   type="date"
+                  onKeyDown={(e) => e.preventDefault()}
+                  min={(() => { const d = new Date(); d.setDate(d.getDate() - 2); return toDateInputFormat(d); })()}
                   value={editLogData.workDate}
                   onChange={(e) =>
                     setEditLogData((prev) => ({
@@ -13519,6 +13688,7 @@ const ScrumPage: React.FC = () => {
               <Button
                 onClick={handleEditTimeEntry}
                 disabled={!editLogData.hoursWorked || editLogData.hoursWorked <= 0}
+              // loading={isLoadingUpdate} // Need to check if there is a loading state for this
               >
                 Update Entry
               </Button>
@@ -13623,6 +13793,8 @@ const ScrumPage: React.FC = () => {
                 <Input
                   id="subtask-log-date"
                   type="date"
+                  onKeyDown={(e) => e.preventDefault()}
+                  min={(() => { const d = new Date(); d.setDate(d.getDate() - 2); return toDateInputFormat(d); })()}
                   value={subtaskLogEffort.workDate}
                   onChange={(e) =>
                     setSubtaskLogEffort((prev) => ({
@@ -13676,15 +13848,15 @@ const ScrumPage: React.FC = () => {
                 <div className="bg-red-50 p-4 rounded-lg border border-red-100 flex items-center justify-between">
                   <div>
                     <p className="text-[10px] text-red-600 uppercase font-bold mb-1">Estimated</p>
-                    <p className="text-lg font-bold text-red-700">{(selectedSubtaskForLog.estimatedHours || 0)}h</p>
+                    <p className="text-lg font-bold text-red-700">{Number(selectedSubtaskForLog.estimatedHours || 0).toFixed(2)}h</p>
                   </div>
                   <div>
                     <p className="text-[10px] text-green-600 uppercase font-bold mb-1">Logged</p>
-                    <p className="text-lg font-bold text-green-700">{(selectedSubtaskForLog.actualHours || 0)}h</p>
+                    <p className="text-lg font-bold text-green-700">{Number(selectedSubtaskForLog.actualHours || 0).toFixed(2)}h</p>
                   </div>
                   <div>
                     <p className="text-[10px] text-orange-600 uppercase font-bold mb-1">After Log</p>
-                    <p className="text-lg font-bold text-orange-700">{((selectedSubtaskForLog.actualHours || 0) + subtaskLogEffort.hours).toFixed(1)}h</p>
+                    <p className="text-lg font-bold text-orange-700">{((selectedSubtaskForLog.actualHours || 0) + subtaskLogEffort.hours).toFixed(2)}h</p>
                   </div>
                 </div>
               )}
@@ -13702,9 +13874,9 @@ const ScrumPage: React.FC = () => {
               </Button>
               <Button
                 onClick={handleLogSubtaskEffort}
-                disabled={isLoggingSubtaskEffort || !subtaskLogEffort.hours || subtaskLogEffort.hours <= 0}
+                disabled={!subtaskLogEffort.hours || subtaskLogEffort.hours <= 0}
+                loading={isLoggingSubtaskEffort}
               >
-                {isLoggingSubtaskEffort && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                 Log {subtaskLogEffort.hours > 0 ? `${subtaskLogEffort.hours}h` : 'Work'}
               </Button>
             </DialogFooter>
@@ -13777,23 +13949,36 @@ const ScrumPage: React.FC = () => {
                 <Input
                   id="effort-date"
                   type="date"
+                  onKeyDown={(e) => e.preventDefault()}
                   required
-                  min={
-                    (Array.isArray(sprintsData)
+                  min={(() => {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const minDate = new Date(today);
+                    minDate.setDate(today.getDate() - 2);
+
+                    const sprintStart = (Array.isArray(sprintsData)
                       ? sprintsData
                       : (sprintsData as any)?.data || []
-                    )
-                      .find((s: any) => s.id === selectedSprint)
-                      ?.startDate?.split("T")[0]
-                  }
-                  max={
-                    (Array.isArray(sprintsData)
+                    ).find((s: any) => s.id === selectedSprint)?.startDate?.split("T")[0];
+
+                    // The 2-day back rule is a hard constraint
+                    const minDateStr = minDate.toISOString().split("T")[0];
+                    return sprintStart && sprintStart > minDateStr ? sprintStart : minDateStr;
+                  })()}
+                  max={(() => {
+                    const currentTask = allTasks.find(t => t.id === (selectedSubtaskForEffort?.taskId || selectedTaskForEffort?.id || selectedIssueForEffort?.id));
+                    const taskDueDate = currentTask?.dueDate;
+                    const sprintEnd = (Array.isArray(sprintsData)
                       ? sprintsData
                       : (sprintsData as any)?.data || []
-                    )
-                      .find((s: any) => s.id === selectedSprint)
-                      ?.endDate?.split("T")[0]
-                  }
+                    ).find((s: any) => s.id === selectedSprint)?.endDate?.split("T")[0];
+
+                    if (taskDueDate && sprintEnd) {
+                      return taskDueDate < sprintEnd ? taskDueDate : sprintEnd;
+                    }
+                    return taskDueDate || sprintEnd;
+                  })()}
                   value={effortLog.workDate}
                   onChange={(e) =>
                     setEffortLog((prev) => ({
@@ -13917,7 +14102,7 @@ const ScrumPage: React.FC = () => {
                         {(
                           (selectedSubtaskForEffort.actualHours || 0) +
                           effortLog.hours
-                        ).toFixed(1)}
+                        ).toFixed(2)}
                         h
                       </div>
                     </div>
@@ -13960,7 +14145,7 @@ const ScrumPage: React.FC = () => {
                         {(
                           (selectedTaskForEffort.actualHours || 0) +
                           effortLog.hours
-                        ).toFixed(1)}
+                        ).toFixed(2)}
                         h
                       </div>
                     </div>
@@ -13979,7 +14164,7 @@ const ScrumPage: React.FC = () => {
                       <div className="text-gray-600">Logged</div>
 
                       <div className="font-semibold text-green-700">
-                        {effortLog.hours}h
+                        {Number(effortLog.hours).toFixed(2)}h
                       </div>
                     </div>
 
@@ -13987,7 +14172,7 @@ const ScrumPage: React.FC = () => {
                       <div className="text-gray-600">After Log</div>
 
                       <div className="font-semibold text-orange-700">
-                        {effortLog.hours.toFixed(1)}h
+                        {effortLog.hours.toFixed(2)}h
                       </div>
                     </div>
                   </div>
@@ -14039,13 +14224,10 @@ const ScrumPage: React.FC = () => {
                   !effortLog.description.trim() ||
                   isLoggingEffort
                 }
+                loading={isLoggingEffort}
               >
-                {isLoggingEffort ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Clock className="w-4 h-4 mr-2" />
-                )}
-                Log {effortLog.hours}h
+                {!isLoggingEffort && <Clock className="w-4 h-4 mr-2" />}
+                Log {Number(effortLog.hours).toFixed(2)}h
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -14081,6 +14263,35 @@ const ScrumPage: React.FC = () => {
                           value={selectedTaskForDetails.status}
                           onValueChange={async (newStatus) => {
                             if (!canManageSprintsAndStories) return;
+
+                            const mappedNewStatus = mapColumnToTaskStatus(newStatus);
+                            if (mappedNewStatus === "DONE" && !canDragToDone) {
+                              toast.error("Only QA Developer, QA Manager, Manager, Implementation, and Support roles can move items to the Done lane");
+                              return;
+                            }
+
+                            const oldColumn = mapTaskStatusToColumn(selectedTaskForDetails.status || "");
+                            const isMovingFromTodo = oldColumn === "todo" && newStatus !== "todo";
+                            const isMovingToDone = newStatus === "done" && oldColumn !== "done";
+
+                            if (isMovingFromTodo || isMovingToDone) {
+                              setIsUpdatingTaskLane(true);
+                              try {
+                                const response = await timeEntryApiService.getTimeEntriesByTask(selectedTaskForDetails.id);
+                                const entries = Array.isArray(response.data) ? response.data : (Array.isArray(response) ? response : []);
+                                if (entries.length === 0) {
+                                  const actionDesc = isMovingToDone ? "to the Done lane" : "from the To Do lane";
+                                  toast.error(`Please add at least one effort log before moving ${actionDesc}`);
+                                  setIsUpdatingTaskLane(false);
+                                  return;
+                                }
+                              } catch (error) {
+                                toast.error("Unable to verify effort logs. Please try again.");
+                                setIsUpdatingTaskLane(false);
+                                return;
+                              }
+                            }
+
                             setIsUpdatingTaskLane(true);
                             try {
                               await taskApiService.updateTaskStatus(selectedTaskForDetails.id, newStatus);
@@ -14226,7 +14437,7 @@ const ScrumPage: React.FC = () => {
                         <Clock className="w-4 h-4" />
 
                         <span>
-                          {selectedTaskForDetails.estimatedHours}h estimated
+                          {Number(selectedTaskForDetails.estimatedHours || 0).toFixed(2)}h estimated
                         </span>
                       </div>
 
@@ -14308,7 +14519,7 @@ const ScrumPage: React.FC = () => {
                                       <div className="flex items-center space-x-2 mb-1">
                                         <Clock className="w-4 h-4 text-blue-600" />
                                         <span className="text-sm font-medium text-gray-900">
-                                          {log.hoursWorked}h logged
+                                          {Number(log.hoursWorked || 0).toFixed(2)}h logged
                                         </span>
                                         {log.workDate && (
                                           <span className="text-xs text-gray-500">
@@ -14991,7 +15202,7 @@ const ScrumPage: React.FC = () => {
                                                 /
                                                 {(
                                                   subtask.actualHours || 0
-                                                ).toFixed(1)}
+                                                ).toFixed(2)}
                                                 h
                                               </span>
                                             )}
@@ -15284,7 +15495,7 @@ const ScrumPage: React.FC = () => {
                             </span>
 
                             <span className="text-xs font-semibold text-blue-600">
-                              {selectedTaskForDetails.estimatedHours || 0}h
+                              {Number(selectedTaskForDetails.estimatedHours || 0).toFixed(2)}h
                             </span>
                           </div>
 
@@ -15300,7 +15511,7 @@ const ScrumPage: React.FC = () => {
                             </span>
 
                             <span className="text-xs font-semibold text-green-600">
-                              {selectedTaskForDetails.actualHours || 0}h
+                              {Number(selectedTaskForDetails.actualHours || 0).toFixed(2)}h
                             </span>
                           </div>
 
@@ -15404,7 +15615,7 @@ const ScrumPage: React.FC = () => {
                                           description: "Assigned to task",
                                           entryType: "development",
                                           hoursWorked: 0,
-                                          workDate: new Date().toISOString().split('T')[0], // Today's date
+                                          workDate: getLocalToday(), // Today's date
                                           isBillable: true
                                         });
                                         console.log("Created 0h time entry for new assignee");
@@ -15726,6 +15937,35 @@ const ScrumPage: React.FC = () => {
                         value={selectedIssueForDetails.status}
                         onValueChange={async (newStatus) => {
                           if (!canManageSprintsAndStories) return;
+
+                          const mappedNewStatus = mapColumnToTaskStatus(newStatus);
+                          if (mappedNewStatus === "DONE" && !canDragToDone) {
+                            toast.error("Only QA Developer, QA Manager, Manager, Implementation, and Support roles can move items to the Done lane");
+                            return;
+                          }
+
+                          const oldColumn = mapTaskStatusToColumn(selectedIssueForDetails.status || "");
+                          const isMovingFromTodo = oldColumn === "todo" && newStatus !== "todo";
+                          const isMovingToDone = newStatus === "done" && oldColumn !== "done";
+
+                          if (isMovingFromTodo || isMovingToDone) {
+                            setIsUpdatingIssueLane(true);
+                            try {
+                              const response = await timeEntryApiService.getTimeEntriesByIssue(selectedIssueForDetails.id);
+                              const entries = Array.isArray(response.data) ? response.data : (Array.isArray(response) ? response : []);
+                              if (entries.length === 0) {
+                                const actionDesc = isMovingToDone ? "to the Done lane" : "from the To Do lane";
+                                toast.error(`Please add at least one effort log before moving ${actionDesc}`);
+                                setIsUpdatingIssueLane(false);
+                                return;
+                              }
+                            } catch (error) {
+                              toast.error("Unable to verify effort logs. Please try again.");
+                              setIsUpdatingIssueLane(false);
+                              return;
+                            }
+                          }
+
                           setIsUpdatingIssueLane(true);
                           try {
                             await issueApiService.updateIssueStatus(selectedIssueForDetails.id, newStatus);
@@ -15799,9 +16039,10 @@ const ScrumPage: React.FC = () => {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-8 px-2 hover:bg-red-100"
+                      className={`h-8 px-2 ${(selectedIssueForDetails.dueDate && new Date().setHours(0, 0, 0, 0) > new Date(selectedIssueForDetails.dueDate).setHours(0, 0, 0, 0)) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-red-100'}`}
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (selectedIssueForDetails.dueDate && new Date().setHours(0, 0, 0, 0) > new Date(selectedIssueForDetails.dueDate).setHours(0, 0, 0, 0)) return;
                         setSelectedIssueForEffort(selectedIssueForDetails);
                         setEffortLog({
                           hours: 0,
@@ -15812,7 +16053,8 @@ const ScrumPage: React.FC = () => {
                         });
                         setIsLogEffortDialogOpen(true);
                       }}
-                      title="Log work on this issue"
+                      disabled={selectedIssueForDetails.dueDate && !!(selectedIssueForDetails.dueDate && new Date().setHours(0, 0, 0, 0) > new Date(selectedIssueForDetails.dueDate).setHours(0, 0, 0, 0))}
+                      title={selectedIssueForDetails.dueDate && new Date().setHours(0, 0, 0, 0) > new Date(selectedIssueForDetails.dueDate).setHours(0, 0, 0, 0) ? "Due date exceeded" : "Log work on this issue"}
                     >
                       <Clock className="w-4 h-4 mr-1 text-red-600" />
                       Add Log
@@ -16650,7 +16892,7 @@ const ScrumPage: React.FC = () => {
                                       <div className="flex items-center space-x-1">
                                         <Clock className="w-3 h-3" />
 
-                                        <span>{subtask.estimatedHours}h</span>
+                                        <span>{Number(subtask.estimatedHours || 0).toFixed(2)}h</span>
                                       </div>
                                     )}
 
@@ -16951,7 +17193,7 @@ const ScrumPage: React.FC = () => {
                                         description: "Assigned to issue",
                                         entryType: "development",
                                         hoursWorked: 0,
-                                        workDate: new Date().toISOString().split('T')[0],
+                                        workDate: getLocalToday(),
                                         isBillable: true
                                       });
                                       console.log("Created 0h time entry for new issue assignee");
@@ -17103,7 +17345,7 @@ const ScrumPage: React.FC = () => {
                               >
                                 <CalendarIcon className="mr-2 h-3 w-3" />
                                 {selectedIssueForDetails.dueDate ? (
-                                  new Date(selectedIssueForDetails.dueDate).toLocaleDateString()
+                                  formatDateDDMMYYYY(selectedIssueForDetails.dueDate)
                                 ) : (
                                   <span>Pick a date</span>
                                 )}
@@ -17112,14 +17354,11 @@ const ScrumPage: React.FC = () => {
                             <PopoverContent className="w-auto p-0 z-[9999]" align="start" side="top" sideOffset={5}>
                               <Calendar
                                 mode="single"
-                                selected={selectedIssueForDetails.dueDate ? new Date(selectedIssueForDetails.dueDate) : undefined}
+                                selected={selectedIssueForDetails.dueDate ? (typeof selectedIssueForDetails.dueDate === 'string' ? parseDDMMYYYY(selectedIssueForDetails.dueDate) || undefined : selectedIssueForDetails.dueDate) : undefined}
                                 onSelect={async (date) => {
                                   if (date) {
-                                    // Use local date string YYYY-MM-DD instead of toISOString() to avoid timezone offsets
-                                    const year = date.getFullYear();
-                                    const month = String(date.getMonth() + 1).padStart(2, '0');
-                                    const day = String(date.getDate()).padStart(2, '0');
-                                    const formattedDate = `${year}-${month}-${day}`;
+                                    // Normalize to local YYYY-MM-DD instead of toISOString() to avoid timezone offsets
+                                    const formattedDate = toDateInputFormat(date);
 
                                     try {
                                       await issueApiService.updateIssueDueDate(selectedIssueForDetails.id, formattedDate);
@@ -18009,6 +18248,16 @@ const ScrumPage: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <BulkDueDateManager
+        isOpen={isBulkDueDateManagerOpen}
+        onClose={() => setIsBulkDueDateManagerOpen(false)}
+        onSuccess={() => {
+          if (sprintStories && sprintStories.length > 0) {
+            fetchAllTasks(sprintStories, true);
+          }
+        }}
+      />
 
       {/* Add Task Dialog */}
       <AddTaskDialog

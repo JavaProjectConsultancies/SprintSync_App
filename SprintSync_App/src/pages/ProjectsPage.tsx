@@ -140,6 +140,8 @@ interface Project {
   teamMembers: TeamMember[]; // Add team members to form
   sprints: number;
   completedSprints: number;
+  totalTasks: number;
+  completedTasks: number;
   budget: string;
   spent: string;
   scope?: string;
@@ -602,6 +604,8 @@ const ProjectsPage: React.FC = () => {
     progress: (project as any).progressPercentage ?? (project as any).progress ?? 0,
     completedSprints: (project as any).completedSprints ?? 0,
     sprints: (project as any).totalSprints ?? 0,
+    totalTasks: (project as any).totalTasks ?? 0,
+    completedTasks: (project as any).completedTasks ?? 0,
     department: (project as any).departmentId ?? (project as any).department ?? ''
   }));
 
@@ -1625,24 +1629,67 @@ const ProjectsPage: React.FC = () => {
     return (project.status || 'planning').toString().toLowerCase();
   };
 
-  // Sprints cache and loader for card view
+  // Sprints cache and loader for card view - state for total/completed counts per project
   const [projectSprintsState, setProjectSprintsState] = useState<Record<string, { total: number; completed: number; loading: boolean }>>({});
-  const ensureProjectSprintsLoaded = async (projectId: string) => {
-    if (projectSprintsState[projectId]?.loading || projectSprintsState[projectId]?.total !== undefined) return;
-    setProjectSprintsState((prev: typeof projectSprintsState) => ({ ...prev, [projectId]: { total: 0, completed: 0, loading: true } }));
-    try {
-      const resp = await sprintApiService.getSprintsByProject(projectId);
-      const sprints = resp.data || [];
-      const total = sprints.length;
-      const completed = sprints.filter((s: any) => {
-        const st = (s.status || '').toString().toLowerCase();
-        return st === 'completed' || st === 'closed' || st === 'done';
-      }).length;
-      setProjectSprintsState((prev: typeof projectSprintsState) => ({ ...prev, [projectId]: { total, completed, loading: false } }));
-    } catch (e) {
-      setProjectSprintsState((prev: typeof projectSprintsState) => ({ ...prev, [projectId]: { total: 0, completed: 0, loading: false } }));
-    }
-  };
+  
+  // Parallelized batch loader for project sprint counts to avoid waterfalls and illegal render-time calls
+  useEffect(() => {
+    if (projectsLoading || !apiProjects || apiProjects.length === 0) return;
+
+    const loadAllProjectSprints = async () => {
+      // Find projects that haven't been loaded yet
+      const projectsToFetch = apiProjects.filter(p => {
+        const idStr = String(p.id);
+        return !projectSprintsState[idStr] || (!projectSprintsState[idStr].loading && projectSprintsState[idStr].total === undefined);
+      });
+
+      if (projectsToFetch.length === 0) return;
+
+      // Mark all targeted projects as loading in one state update
+      setProjectSprintsState(prev => {
+        const next = { ...prev };
+        projectsToFetch.forEach(p => {
+          next[String(p.id)] = { total: 0, completed: 0, loading: true };
+        });
+        return next;
+      });
+
+      try {
+        // Fetch all in parallel
+        const sprintResults = await Promise.all(
+          projectsToFetch.map(async (p) => {
+            const idStr = String(p.id);
+            try {
+              const resp = await sprintApiService.getSprintsByProject(idStr);
+              const sprints = resp.data || [];
+              const total = sprints.length;
+              const completed = sprints.filter((s: any) => {
+                const st = (s.status || '').toString().toLowerCase();
+                return st === 'completed' || st === 'closed' || st === 'done';
+              }).length;
+              return { idStr, total, completed };
+            } catch (err) {
+              console.error(`Error fetching sprints for project ${idStr}:`, err);
+              return { idStr, total: 0, completed: 0 };
+            }
+          })
+        );
+
+        // Update state with all results at once
+        setProjectSprintsState(prev => {
+          const next = { ...prev };
+          sprintResults.forEach(res => {
+            next[res.idStr] = { total: res.total, completed: res.completed, loading: false };
+          });
+          return next;
+        });
+      } catch (err) {
+        console.error('Batch sprint loading failed:', err);
+      }
+    };
+
+    loadAllProjectSprints();
+  }, [apiProjects, projectsLoading]);
 
   // Handle delete project
   const handleDeleteClick = (project: any, e: React.MouseEvent) => {
@@ -2309,15 +2356,21 @@ const ProjectsPage: React.FC = () => {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {/* Progress */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-muted-foreground">Progress</span>
                         {(() => {
                           const pid = project.id?.toString?.() || String(project.id);
                           const s = projectSprintsState?.[pid];
-                          let progressValue = project.progress;
-                          if (s && s.total > 0) {
+                          let progressValue = Math.round(project.progress || 0);
+                          
+                          // override with accurate live progress
+                          // Priority 1: Task completion (most granular)
+                          if (project.totalTasks > 0) {
+                            progressValue = Math.round((project.completedTasks / project.totalTasks) * 100);
+                          } 
+                          // Priority 2: Sprint completion
+                          else if (s && s.total > 0) {
                             progressValue = Math.round((s.completed / s.total) * 100);
                           }
                           return <span className="text-sm font-medium">{progressValue}%</span>;
@@ -2326,7 +2379,7 @@ const ProjectsPage: React.FC = () => {
                       {(() => {
                         const pid = project.id?.toString?.() || String(project.id);
                         const s = projectSprintsState?.[pid];
-                        let progressValue = project.progress;
+                        let progressValue = Math.round(project.progress || 0);
                         if (s && s.total > 0) {
                           progressValue = Math.round((s.completed / s.total) * 100);
                         }
@@ -2334,7 +2387,6 @@ const ProjectsPage: React.FC = () => {
                       })()}
                     </div>
 
-                    {/* Stats */}
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div className="flex items-center space-x-2">
                         <Calendar className="w-4 h-4 text-muted-foreground" />
@@ -2354,7 +2406,6 @@ const ProjectsPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Priority and Methodology */}
                     <div className="flex items-center justify-between">
                       <Badge variant="outline" className={getPriorityColor(project.priority)}>
                         {project.priority.charAt(0).toUpperCase() + project.priority.slice(1)}
@@ -2367,7 +2418,6 @@ const ProjectsPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Team Avatars */}
                     <div className="flex items-center justify-between">
                       <div className="flex -space-x-2 overflow-hidden">
                         {(project.teamMembers || []).slice(0, 4).map((member, index) => (
@@ -2389,11 +2439,9 @@ const ProjectsPage: React.FC = () => {
                         {(() => {
                           const pid = project.id?.toString?.() || String(project.id);
                           const s = projectSprintsState?.[pid];
-                          if (!s) {
-                            ensureProjectSprintsLoaded(pid);
+                          if (!s || s.loading) {
                             return '—/— sprints';
                           }
-                          if (s.loading) return '—/— sprints';
                           return `${s.completed}/${s.total} sprints`;
                         })()}
                       </div>
@@ -2449,7 +2497,11 @@ const ProjectsPage: React.FC = () => {
                           const pid = project.id?.toString?.() || String(project.id);
                           const s = projectSprintsState?.[pid];
                           let progressValue = project.progress;
-                          if (s && s.total > 0) {
+                          
+                          // use accurate task progress if available
+                          if (project.totalTasks > 0) {
+                            progressValue = Math.round((project.completedTasks / project.totalTasks) * 100);
+                          } else if (s && s.total > 0) {
                             progressValue = Math.round((s.completed / s.total) * 100);
                           }
                           return <>
@@ -3041,15 +3093,9 @@ const ProjectsPage: React.FC = () => {
                 onClick={handleCreateProject}
                 disabled={!newProject.name || !newProject.description || !newProject.priority || isCreatingProject}
                 className="bg-gradient-to-r from-green-600 to-cyan-600 hover:from-green-700 hover:to-cyan-700"
+                loading={isCreatingProject}
               >
-                {isCreatingProject ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Creating...
-                  </>
-                ) : (
-                  'Create Project'
-                )}
+                Create Project
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -3798,20 +3844,11 @@ const ProjectsPage: React.FC = () => {
             <Button
               variant="outline"
               onClick={handleConfirmDelete}
-              disabled={isDeleting}
+              loading={isDeleting}
               className="bg-white hover:bg-red-50 text-black hover:text-black border-2 border-red-300 hover:border-red-400 font-medium"
             >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                <>
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete Project
-                </>
-              )}
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete Project
             </Button>
           </DialogFooter>
         </DialogContent>

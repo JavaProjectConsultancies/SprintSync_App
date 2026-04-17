@@ -22,6 +22,7 @@ import { useTeamMembers as useProjectTeamMembers } from '../hooks/api/useTeamMem
 import { useAuth } from '../contexts/AuthContextEnhanced';
 import { useRoleSwitcher } from '../contexts/RoleSwitcherContext';
 import { toast } from 'sonner';
+import { reportsApiService } from '../services/api/utilities/reportsApi';
 import {
   Users,
   Plus,
@@ -134,6 +135,9 @@ const TeamAllocationPage: React.FC = () => {
     experience: false
   });
 
+  const [reportSummary, setReportSummary] = useState<any>(null);
+  const [loadingReport, setLoadingReport] = useState(false);
+
   const clearAllFilters = () => {
     setSearchTerm('');
     setDepartmentFilter('all');
@@ -161,6 +165,24 @@ const TeamAllocationPage: React.FC = () => {
   const [projectRefreshing, setProjectRefreshing] = useState<Record<string, boolean>>({});
   const [removingMember, setRemovingMember] = useState<Record<string, boolean>>({});
   const [membersLoading, setMembersLoading] = useState<boolean>(false);
+
+  // Fetch report summary data once on mount
+  useEffect(() => {
+    const fetchReport = async () => {
+      try {
+        setLoadingReport(true);
+        const response = await reportsApiService.getResourcePerformanceReports();
+        if (response && response.success && response.data) {
+          setReportSummary(response.data);
+        }
+      } catch (err) {
+        console.error('Error fetching report for Team Allocation:', err);
+      } finally {
+        setLoadingReport(false);
+      }
+    };
+    fetchReport();
+  }, []);
 
   const refreshMembersForProject = useMemo(() => {
     return async (projectId: string) => {
@@ -541,8 +563,80 @@ const TeamAllocationPage: React.FC = () => {
 
       // Generate realistic data based on resolved values
       const baseCapacity = (normalizedRole === 'admin' || normalizedRole === 'manager' || normalizedRole === 'qa_manager' || normalizedRole === 'support_and_implementation') ? 35 : 40;
-      const utilization = Math.floor(Math.random() * 30) + 70; // 70-100%
-      const allocated = Math.floor((utilization / 100) * baseCapacity);
+
+      const getRoleInProject = (userRole: string, domain: string) => {
+        if (userRole === 'admin') return 'System Administrator';
+        if (userRole === 'manager' || userRole === 'qa_manager' || userRole === 'support_and_implementation') return 'Project Manager';
+
+        const devRoles: { [key: string]: string } = {
+          'Angular': 'Frontend Developer',
+          'Java': 'Backend Developer',
+          'Maui': 'Mobile Developer',
+          'Testing': 'QA Engineer',
+          'Implementation': 'DevOps Engineer',
+          'Database': 'Database Developer'
+        };
+
+        return devRoles[domain || ''] || 'Full Stack Developer';
+      };
+
+      // Generate project assignments based on assigned projects
+      const getProjectAssignments = (): Array<{ name: string; allocation: number; role: string }> => {
+        const projectNames = [
+          'FinTech Mobile App', 'E-Commerce Platform', 'Banking Dashboard',
+          'Healthcare Portal', 'Education Management', 'Supply Chain System',
+          'CRM Solution', 'Analytics Platform', 'AI Chat Support', 'IoT Dashboard',
+          'Data Analytics Platform', 'Customer Portal', 'Inventory Management',
+          'Payment Gateway', 'User Authentication System', 'Reporting Dashboard'
+        ];
+
+        const assignments: Array<{ name: string; allocation: number; role: string }> = [];
+
+        // Create more realistic project distribution
+        const projectDistribution = [
+          { name: 'FinTech Mobile App', teamSize: 6, hasManager: true },
+          { name: 'E-Commerce Platform', teamSize: 8, hasManager: true },
+          { name: 'Banking Dashboard', teamSize: 5, hasManager: true },
+          { name: 'Healthcare Portal', teamSize: 7, hasManager: true },
+          { name: 'Education Management', teamSize: 4, hasManager: false },
+          { name: 'Supply Chain System', teamSize: 9, hasManager: true },
+          { name: 'CRM Solution', teamSize: 6, hasManager: true },
+          { name: 'Analytics Platform', teamSize: 5, hasManager: false },
+          { name: 'AI Chat Support', teamSize: 3, hasManager: false },
+          { name: 'IoT Dashboard', teamSize: 4, hasManager: false }
+        ];
+
+        // Assign user to 1-2 projects based on their role and availability
+        const numProjects = (normalizedRole === 'manager' || normalizedRole === 'qa_manager' || normalizedRole === 'support_and_implementation') ? 1 : Math.floor(Math.random() * 2) + 1;
+        const availableProjects = projectDistribution.filter(p =>
+          (normalizedRole === 'manager' || normalizedRole === 'qa_manager' || normalizedRole === 'support_and_implementation') ? !p.hasManager : true
+        );
+
+        for (let i = 0; i < Math.min(numProjects, availableProjects.length); i++) {
+          const project = availableProjects[i];
+          const allocation = (normalizedRole === 'manager' || normalizedRole === 'qa_manager' || normalizedRole === 'support_and_implementation') ?
+            Math.floor(Math.random() * 30) + 50 : // Managers get 50-80% allocation
+            Math.floor(Math.random() * 40) + 30;  // Others get 30-70% allocation
+
+          assignments.push({
+            name: project.name,
+            allocation,
+            role: getRoleInProject(normalizedRole || 'developer', resolvedDomain || '')
+          });
+        }
+
+        return assignments;
+      };
+      
+      // Calculate allocation-based utilization instead of random data
+      // This is (Allocated / Capacity)
+      const allocated = 0; // Will be updated if we had real project hours here, 
+      // but for now let's make it deterministic based on projects.
+      // Since project assignments in this useMemo are also random-ish, 
+      // let's at least make the "utilization" field consistent with the projects.
+      const projectsList = getProjectAssignments();
+      const totalAllocated = projectsList.reduce((sum, p) => sum + p.allocation, 0);
+      const utilization = baseCapacity > 0 ? Math.round((totalAllocated / baseCapacity) * 100) : 0;
 
       // Generate skills based on domain (fallback if no API skills)
       const getSkillsByDomain = (domain: string) => {
@@ -595,68 +689,7 @@ const TeamAllocationPage: React.FC = () => {
       const memberSkills = userApiSkills.length > 0 ? userApiSkills : getSkillsByDomain(resolvedDomain || '');
 
       // Generate project assignments based on assigned projects
-      const getProjectAssignments = (): Array<{ name: string; allocation: number; role: string }> => {
-        const projectNames = [
-          'FinTech Mobile App', 'E-Commerce Platform', 'Banking Dashboard',
-          'Healthcare Portal', 'Education Management', 'Supply Chain System',
-          'CRM Solution', 'Analytics Platform', 'AI Chat Support', 'IoT Dashboard',
-          'Data Analytics Platform', 'Customer Portal', 'Inventory Management',
-          'Payment Gateway', 'User Authentication System', 'Reporting Dashboard'
-        ];
-
-        const assignments: Array<{ name: string; allocation: number; role: string }> = [];
-
-        // Create more realistic project distribution
-        const projectDistribution = [
-          { name: 'FinTech Mobile App', teamSize: 6, hasManager: true },
-          { name: 'E-Commerce Platform', teamSize: 8, hasManager: true },
-          { name: 'Banking Dashboard', teamSize: 5, hasManager: true },
-          { name: 'Healthcare Portal', teamSize: 7, hasManager: true },
-          { name: 'Education Management', teamSize: 4, hasManager: false },
-          { name: 'Supply Chain System', teamSize: 9, hasManager: true },
-          { name: 'CRM Solution', teamSize: 6, hasManager: true },
-          { name: 'Analytics Platform', teamSize: 5, hasManager: false },
-          { name: 'AI Chat Support', teamSize: 3, hasManager: false },
-          { name: 'IoT Dashboard', teamSize: 4, hasManager: false }
-        ];
-
-        // Assign user to 1-2 projects based on their role and availability
-        const numProjects = (normalizedRole === 'manager' || normalizedRole === 'qa_manager' || normalizedRole === 'support_and_implementation') ? 1 : Math.floor(Math.random() * 2) + 1;
-        const availableProjects = projectDistribution.filter(p =>
-          (normalizedRole === 'manager' || normalizedRole === 'qa_manager' || normalizedRole === 'support_and_implementation') ? !p.hasManager : true
-        );
-
-        for (let i = 0; i < Math.min(numProjects, availableProjects.length); i++) {
-          const project = availableProjects[i];
-          const allocation = (normalizedRole === 'manager' || normalizedRole === 'qa_manager' || normalizedRole === 'support_and_implementation') ?
-            Math.floor(Math.random() * 30) + 50 : // Managers get 50-80% allocation
-            Math.floor(Math.random() * 40) + 30;  // Others get 30-70% allocation
-
-          assignments.push({
-            name: project.name,
-            allocation,
-            role: getRoleInProject(normalizedRole || 'developer', resolvedDomain || '')
-          });
-        }
-
-        return assignments;
-      };
-
-      const getRoleInProject = (userRole: string, domain: string) => {
-        if (userRole === 'admin') return 'System Administrator';
-        if (userRole === 'manager' || userRole === 'qa_manager' || userRole === 'support_and_implementation') return 'Project Manager';
-
-        const devRoles: { [key: string]: string } = {
-          'Angular': 'Frontend Developer',
-          'Java': 'Backend Developer',
-          'Maui': 'Mobile Developer',
-          'Testing': 'QA Engineer',
-          'Implementation': 'DevOps Engineer',
-          'Database': 'Database Developer'
-        };
-
-        return devRoles[domain || ''] || 'Full Stack Developer';
-      };
+      // and other helper functions removed to top of scope
 
       // Generate status based on utilization
       const getStatus = (util: number) => {
@@ -696,9 +729,9 @@ const TeamAllocationPage: React.FC = () => {
         currentSprint: 'Sprint 15',
         utilization,
         capacity: baseCapacity,
-        allocated,
+        allocated: totalAllocated,
         skills: memberSkills,
-        projects: getProjectAssignments(),
+        projects: projectsList,
         performance,
         availability,
         hourlyRate,
@@ -747,13 +780,20 @@ const TeamAllocationPage: React.FC = () => {
     // For admin, use total teamMembers count; for others, use filtered count
     const totalMembers = isAdmin ? teamMembers.length : filteredMembers.length;
     const membersForStats = isAdmin ? teamMembers : filteredMembers;
-    const totalUtilization = membersForStats.reduce((sum, member) => sum + member.utilization, 0);
-    const avgUtilization = membersForStats.length > 0 ? Math.round(totalUtilization / membersForStats.length) : 0;
+    
+    // Performance Utilization from report if available, fallback to allocation average
+    const performanceUtilization = reportSummary ? Math.round(reportSummary.averageUtilization || reportSummary.utilizationRate || 0) : null;
+    
+    const totalAllocationUtilization = membersForStats.reduce((sum, member) => sum + member.utilization, 0);
+    const avgAllocationUtilization = membersForStats.length > 0 ? Math.round(totalAllocationUtilization / membersForStats.length) : 0;
+    
+    const avgUtilization = performanceUtilization !== null ? performanceUtilization : avgAllocationUtilization;
+    
     const availableHours = membersForStats.reduce((sum, member) => sum + (member.capacity - member.allocated), 0);
     const overloadedCount = membersForStats.filter(member => member.utilization > 100).length;
 
-    return { totalMembers, avgUtilization, availableHours, overloadedCount };
-  }, [filteredMembers, teamMembers, effectiveRole]);
+    return { totalMembers, avgUtilization, availableHours, overloadedCount, performanceUtilization };
+  }, [filteredMembers, teamMembers, effectiveRole, reportSummary]);
 
   // Get unique values for filters (prefer API, fallback to team data)
   const departments = useMemo(() => {
@@ -1329,16 +1369,19 @@ const TeamAllocationPage: React.FC = () => {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="border-purple-100 bg-purple-50/30">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Avg Utilization</p>
-                  <p className={`text-2xl font-semibold ${getUtilizationColor(stats.avgUtilization)}`}>
+                  <p className="text-sm font-medium text-purple-700 uppercase tracking-wider mb-1">Avg Utilization</p>
+                  <p className="text-3xl font-bold text-purple-600">
                     {stats.avgUtilization}%
                   </p>
+                  <p className="text-xs text-purple-600 mt-1">Total Actual / Total Est.</p>
                 </div>
-                <Target className="w-8 h-8 text-green-600" />
+                <div className="rounded-full bg-purple-100 p-3">
+                  <Target className="w-8 h-8 text-purple-600" />
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -1347,7 +1390,7 @@ const TeamAllocationPage: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Available Hours</p>
-                  <p className="text-2xl font-semibold">{stats.availableHours}h</p>
+                  <p className="text-2xl font-semibold">{Number(stats.availableHours || 0).toFixed(2)}h</p>
                   <p className="text-xs text-muted-foreground">This week</p>
                 </div>
                 <Clock className="w-8 h-8 text-purple-600" />

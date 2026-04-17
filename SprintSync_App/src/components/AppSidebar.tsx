@@ -207,6 +207,7 @@ const AppSidebar: React.FC = () => {
       permission: 'manage_system',
       children: [
         { title: 'Admin Panel', icon: Shield, permission: 'manage_system', id: 'admin-panel' },
+        { title: 'Login Activity', icon: Activity, permission: 'manage_system', id: 'login-activity' },
       ]
     },
   ];
@@ -256,6 +257,7 @@ const AppSidebar: React.FC = () => {
           icon: UserCog,
           children: [
             { title: 'Admin Panel', icon: Shield, id: 'admin-panel' },
+            { title: 'Login Activity', icon: Activity, id: 'login-activity' },
           ]
         },
       ];
@@ -294,6 +296,7 @@ const AppSidebar: React.FC = () => {
           icon: UserCog,
           children: [
             { title: 'Admin Panel', icon: Shield, id: 'admin-panel' },
+            { title: 'Login Activity', icon: Activity, id: 'login-activity' },
           ]
         },
       ];

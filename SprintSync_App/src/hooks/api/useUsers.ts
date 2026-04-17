@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import { useApi, useApiMutation, usePaginatedApi, useSearchApi } from './useApi';
 import { 
   userApiService, 
@@ -10,14 +11,86 @@ import {
   PaginationParams 
 } from '../../services/api';
 
+// Cache for users to support prefetching
+interface UsersCache {
+  data: User[] | null;
+  timestamp: number;
+  promise: Promise<User[]> | null;
+}
+
+let usersCache: UsersCache = {
+  data: null,
+  timestamp: 0,
+  promise: null,
+};
+
+const USERS_CACHE_TTL = 300000; // 5 minutes
+
+// Prefetch users function
+export const prefetchUsers = async (params?: PaginationParams): Promise<User[]> => {
+  const now = Date.now();
+  const paginationParams = params || { page: 0, size: 10000 };
+
+  // Return cached data if still valid
+  if (usersCache.data && (now - usersCache.timestamp) < USERS_CACHE_TTL) {
+    return usersCache.data;
+  }
+
+  // Return existing promise if fetch is in progress
+  if (usersCache.promise) {
+    return usersCache.promise;
+  }
+
+  const fetchPromise = (async () => {
+    try {
+      const response = await userApiService.getUsers(paginationParams);
+      const users = Array.isArray(response.data) ? response.data : ((response.data as any)?.content || []);
+      
+      usersCache = {
+        data: users,
+        timestamp: Date.now(),
+        promise: null,
+      };
+      return users;
+    } catch (err) {
+      usersCache.promise = null;
+      throw err;
+    }
+  })();
+
+  usersCache.promise = fetchPromise;
+  return fetchPromise;
+};
+
 // User Hooks
 export function useUsers(params?: PaginationParams) {
-  // Default to large page size if params not provided to fetch all users
-  const paginationParams = params || { page: 0, size: 1000 };
-  return useApi(
-    () => userApiService.getUsers(paginationParams),
-    [JSON.stringify(paginationParams)]
-  );
+  const [data, setData] = useState<User[] | null>(usersCache.data);
+  const [loading, setLoading] = useState(!usersCache.data);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        if (!usersCache.data || (Date.now() - usersCache.timestamp) > USERS_CACHE_TTL) {
+          setLoading(true);
+        }
+        const users = await prefetchUsers(params);
+        setData(users);
+      } catch (err: any) {
+        setError(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUsers();
+  }, [JSON.stringify(params)]);
+
+  return { data, loading, error, refetch: () => {
+    usersCache.data = null;
+    usersCache.timestamp = 0;
+    prefetchUsers(params);
+  }};
 }
 
 export function useUser(id: string) {

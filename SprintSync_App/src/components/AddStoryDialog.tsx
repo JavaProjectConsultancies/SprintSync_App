@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Plus, X, Target, User, Flag, BookOpen, CheckCircle2, FileText, Star, Bug, Code, Search, Paperclip, Link, Upload, Trash2, Eye, CalendarIcon, Clock } from 'lucide-react';
 import { storyTemplates, StoryTemplate, getStoriesByType } from '../data/storyTemplates';
 import { Epic, Priority } from '../types/api';
+import { toDateInputFormat } from '../utils/dateUtils';
 
 interface Story {
   id: string;
@@ -38,6 +39,7 @@ interface AddStoryDialogProps {
 }
 
 const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onAddStory, availableEpics = [], sprintStartDate, sprintEndDate }) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -113,35 +115,39 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validateForm()) return;
 
-    const validCriteria = formData.acceptanceCriteria.filter(criteria => criteria.trim());
+    setIsSubmitting(true);
+    try {
+      const validCriteria = formData.acceptanceCriteria.filter(criteria => criteria.trim());
 
-    // Helper function to format date in local timezone (YYYY-MM-DD)
-    const formatDateLocal = (date: Date): string => {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
+      // Helper function to format date in local timezone (YYYY-MM-DD)
+      const formatDateLocal = (date: Date): string => {
+        return toDateInputFormat(date);
+      };
 
-    const newStory: Omit<Story, 'id'> & { attachments?: File[]; attachmentUrls?: Array<{ url: string; name: string }> } = {
-      title: formData.title.trim(),
-      description: formData.description.trim(),
-      priority: formData.priority,
-      points: formData.points,
-      status: 'stories',
-      assignee: formData.assignee,
-      acceptanceCriteria: validCriteria,
-      dueDate: formData.dueDate ? formatDateLocal(formData.dueDate) : undefined,
-      attachments: attachments.length > 0 ? attachments : undefined,
-      attachmentUrls: attachmentUrls.length > 0 ? attachmentUrls : undefined
-    };
+      const newStory: Omit<Story, 'id'> & { attachments?: File[]; attachmentUrls?: Array<{ url: string; name: string }> } = {
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        priority: formData.priority,
+        points: formData.points,
+        status: 'stories',
+        assignee: formData.assignee,
+        acceptanceCriteria: validCriteria,
+        dueDate: formData.dueDate ? formatDateLocal(formData.dueDate) : undefined,
+        attachments: attachments.length > 0 ? attachments : undefined,
+        attachmentUrls: attachmentUrls.length > 0 ? attachmentUrls : undefined
+      };
 
-    onAddStory(newStory);
-    handleReset();
-    onOpenChange(false);
+      await onAddStory(newStory);
+      handleReset();
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error creating story:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleReset = () => {
@@ -530,9 +536,8 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
                               return;
                             }
 
-                            // Normalize date to midnight in local timezone
-                            const normalizedDate = new Date(date);
-                            normalizedDate.setHours(0, 0, 0, 0);
+                            // Create new local date at 00:00:00 from the selected calendar day
+                            const normalizedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
                             setFormData(prev => ({ ...prev, dueDate: normalizedDate }));
                             setIsDueDatePopoverOpen(false);
@@ -544,8 +549,7 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
                             });
                           }}
                           disabled={(date) => {
-                            const dateOnly = new Date(date);
-                            dateOnly.setHours(0, 0, 0, 0);
+                            const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
                             // Check sprint date restrictions
                             if (sprintStartDate && sprintEndDate) {
@@ -977,7 +981,12 @@ const AddStoryDialog: React.FC<AddStoryDialogProps> = ({ open, onOpenChange, onA
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} className="bg-gradient-primary hover:opacity-90">
+            <Button
+              onClick={handleSubmit}
+              className="bg-gradient-primary hover:opacity-90"
+              disabled={isSubmitting}
+              loading={isSubmitting}
+            >
               Create Story
             </Button>
           </DialogFooter>
