@@ -1753,34 +1753,62 @@ const TimeTrackingPage: React.FC = () => {
 
     const now = new Date();
     entriesToMap = entriesToMap.filter(entry => {
-      // User Filter
-      if (userFilter !== 'all' && normalizeId(entry.userId) !== userFilter) return false;
+      const entryTaskId = normalizeId(entry.taskId);
+      const entryIssueId = normalizeId((entry as any).issueId);
+      const entryStoryId = normalizeId(entry.storyId);
+      const entryUserId = normalizeId(entry.userId);
 
-      // Reporter Filter
-      const entryReporterId = normalizeId((entry as any).reporterId);
-      if (reporterFilter !== 'all' && entryReporterId !== reporterFilter) return false;
+      // Resolve Task/Issue and Story for deeper property lookup
+      const task = entryTaskId ? tasksMap.get(entryTaskId) : null;
+      const issue = entryIssueId ? issuesMap.get(entryIssueId) : null;
+      const storyIdFromWorkItem = task?.storyId || issue?.storyId;
+      const derivedStoryId = entryStoryId || storyIdFromWorkItem;
+      const story = derivedStoryId ? storiesMap.get(derivedStoryId) : null;
 
-      // Project Filter
-      const entryProjectId = normalizeId((entry as any).projectId);
-      if (projectFilter !== 'all' && entryProjectId !== projectFilter) return false;
+      // 1. User Filter (Assignee who worked)
+      if (userFilter !== 'all' && entryUserId !== userFilter) return false;
 
-      // Sprint Filter
-      const entrySprintId = normalizeId((entry as any).sprintId);
-      if (sprintFilter !== 'all' && entrySprintId !== sprintFilter) return false;
+      // 2. Reporter Filter (Original creator of the work item)
+      const resolvedReporterId = normalizeId(
+        (task?.reporterId) ||
+        (issue?.reporterId) ||
+        (story?.reporterId) ||
+        ((entry as any).reporterId)
+      );
+      if (reporterFilter !== 'all' && resolvedReporterId !== reporterFilter) return false;
 
-      // Work Type Filter
+      // 3. Project Filter
+      const resolvedProjectId = normalizeId(
+        ((entry as any).projectId) ||
+        (story?.projectId) ||
+        (task ? storiesMap.get(normalizeId(task.storyId) || '')?.projectId : undefined) ||
+        (issue ? storiesMap.get(normalizeId(issue.storyId) || '')?.projectId : undefined)
+      );
+      if (projectFilter !== 'all' && resolvedProjectId !== projectFilter) return false;
+
+      // 4. Sprint Filter
+      const resolvedSprintId = normalizeId(
+        ((entry as any).sprintId) ||
+        (story?.sprintId) ||
+        (task ? storiesMap.get(normalizeId(task.storyId) || '')?.sprintId : undefined) ||
+        (issue ? storiesMap.get(normalizeId(issue.storyId) || '')?.sprintId : undefined)
+      );
+      if (sprintFilter !== 'all' && resolvedSprintId !== sprintFilter) return false;
+
+      // 5. Work Type Filter
       if (workTypeFilter !== 'all') {
         const normalizedWorkType = normalizeCategory(workTypeFilter);
-        const entryCategory = normalizeCategory((entry as any).entryType || (entry as any).category);
+        const rawCategory = (entry as any).entryType || (entry as any).category || (task as any)?.category || (issue as any)?.category;
+        const entryCategory = normalizeCategory(rawCategory);
         if (entryCategory !== normalizedWorkType) return false;
       }
 
-      // Billable Filter
-      const entryBillable = (entry as any).billable ?? (entry as any).isBillable ?? false;
+      // 6. Billable Filter
+      const entryBillable = (entry as any).isBillable ?? (entry as any).billable ?? true;
       if (billableFilter === 'billable' && !entryBillable) return false;
       if (billableFilter === 'non-billable' && entryBillable) return false;
 
-      // Date Filter
+      // 7. Date Filter
       const entryDate = entry.workDate || (entry as any).date || entry.createdAt;
       if (timeFilter === 'this-week') {
         const start = startOfDay(now);

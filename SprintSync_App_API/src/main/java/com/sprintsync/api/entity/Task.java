@@ -27,8 +27,7 @@ import java.util.List;
 @Table(name = "tasks")
 public class Task extends BaseEntity {
 
-    @NotNull(message = "Story ID cannot be null")
-    @Column(name = "story_id", nullable = false)
+    @Column(name = "story_id", nullable = true)
     private String storyId;
 
     @NotBlank(message = "Task title cannot be blank")

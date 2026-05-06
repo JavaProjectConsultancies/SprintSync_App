@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Repository interface for User entity operations.
@@ -160,4 +161,13 @@ public interface UserRepository extends JpaRepository<User, String> {
      */
     @Query("SELECT MAX(u.id) FROM User u")
     Optional<String> findMaxId();
+
+    /**
+     * Fetch only user id + email with native query to avoid enum-mapping failures on malformed role values.
+     *
+     * @param emails normalized lowercase email set
+     * @return rows of [id, email]
+     */
+    @Query(value = "SELECT id, email FROM sprintsync.users WHERE lower(email) IN (:emails)", nativeQuery = true)
+    List<Object[]> findIdAndEmailByLowercaseEmailIn(@Param("emails") Set<String> emails);
 }

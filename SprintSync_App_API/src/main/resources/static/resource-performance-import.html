@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resource Performance Import Utility</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 24px;
+      max-width: 760px;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      margin-top: 12px;
+      font-weight: 600;
+    }
+    input, button {
+      margin-top: 8px;
+      padding: 8px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    button {
+      cursor: pointer;
+      background: #0b5cff;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    button:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+    pre {
+      background: #f6f8fa;
+      border: 1px solid #ddd;
+      padding: 12px;
+      border-radius: 6px;
+      overflow: auto;
+    }
+  </style>
+</head>
+<body>
+  <h2>Resource Performance Excel Import</h2>
+  <div class="card">
+    <p>Upload the Excel and import data into <code>sprints</code>, <code>stories</code>, <code>tasks</code>, and <code>time_entries</code>.</p>
+    <label for="apiBase">API Base URL</label>
+    <input id="apiBase" type="text" value="http://sprintsync.microproindia.com" placeholder="http://sprintsync.microproindia.com">
+
+    <label for="projectId">Project ID</label>
+    <input id="projectId" type="text" value="PROJ000000000013" placeholder="PROJ000000000013">
+
+    <label for="fileInput">Excel File (.xlsx)</label>
+    <input id="fileInput" type="file" accept=".xlsx,.xls">
+
+    <button id="importBtn" type="button">Import File</button>
+  </div>
+
+  <div class="card">
+    <h3>Response</h3>
+    <pre id="output">No request sent yet.</pre>
+  </div>
+
+  <script>
+    const importBtn = document.getElementById("importBtn");
+    const output = document.getElementById("output");
+
+    importBtn.addEventListener("click", async () => {
+      const apiBase = document.getElementById("apiBase").value.trim();
+      const projectId = document.getElementById("projectId").value.trim();
+      const fileInput = document.getElementById("fileInput");
+      const file = fileInput.files[0];
+
+      if (!apiBase) {
+        output.textContent = "Please provide API base URL.";
+        return;
+      }
+      if (!projectId) {
+        output.textContent = "Please provide projectId.";
+        return;
+      }
+      if (!file) {
+        output.textContent = "Please choose an Excel file.";
+        return;
+      }
+
+      const url = `${apiBase}/api/import/resource-performance`;
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("projectId", projectId);
+
+      importBtn.disabled = true;
+      output.textContent = "Import in progress...";
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          body: formData
+        });
+        const body = await response.json().catch(() => ({}));
+        output.textContent = JSON.stringify({
+          status: response.status,
+          ok: response.ok,
+          body
+        }, null, 2);
+      } catch (error) {
+        output.textContent = `Request failed: ${error.message}`;
+      } finally {
+        importBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

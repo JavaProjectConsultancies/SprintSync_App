@@ -280,7 +280,7 @@ export class SubtaskApiService {
 
   // Update subtask
   async updateSubtask(id: string, subtask: Partial<Subtask>): Promise<ApiResponse<Subtask>> {
-    return apiClient.patch<Subtask>(`${API_ENDPOINTS.SUBTASKS}/${id}`, subtask);
+    return apiClient.put<Subtask>(`${API_ENDPOINTS.SUBTASKS}/${id}`, subtask);
   }
 
   // Delete subtask

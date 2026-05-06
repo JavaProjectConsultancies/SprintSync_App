@@ -98,7 +98,7 @@ import { useUsers } from '../hooks/api/useUsers';
 
 import { Story, Task, Issue } from '../types/api';
 
-import { formatDateDDMMYYYY } from '../utils/dateUtils';
+import { formatDateDDMMYYYY, toDateInputFormat, parseDDMMYYYY } from '../utils/dateUtils';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 import { useAuth } from '../contexts/AuthContextEnhanced';
@@ -110,6 +110,8 @@ import { API_CONFIG } from '../services/api/config';
 import { useWorkflowLanesByProject } from '../hooks/api/useWorkflowLanes';
 import { getStatusLabel as getStatusLabelUtil, isCustomLaneStatus } from '../utils/statusUtils';
 import { issueApiService } from '../services/api/entities/issueApi';
+import { timeEntryApiService } from '../services/api/entities/timeEntryApi';
+import { toast } from 'sonner';
 
 
 
@@ -813,12 +815,57 @@ const BacklogPage: React.FC = () => {
 
   // Handle effort logging
 
-  const handleLogEffort = (effortData: Omit<EffortEntry, 'id'>) => {
+  const handleLogEffort = async (effortData: Omit<EffortEntry, 'id'>) => {
+    if (!selectedTaskForEffort) return;
+    try {
+      const timeEntryData = {
+        userId: user?.id || "",
+        projectId: selectedProject || undefined,
+        taskId: selectedTaskForEffort.id,
+        description: effortData.description,
+        entryType: (effortData.category || "development") as any,
+        hoursWorked: effortData.timeSpent / 60,
+        workDate: toDateInputFormat(parseDDMMYYYY(effortData.date)),
+        isBillable: effortData.billable
+      };
+      await timeEntryApiService.createTimeEntry(timeEntryData);
+      toast.success("Effort logged successfully");
+      refetchStories(); // Refresh data
+    } catch (error) {
+      console.error("Error logging effort:", error);
+      toast.error("Failed to log effort");
+    } finally {
+      setSelectedTaskForEffort(null);
+    }
+  };
 
-    // Handle effort logging if needed
+  const handleUpdateEffort = async (id: string, effortData: any) => {
+    if (!selectedTaskForEffort) return;
+    try {
+      await timeEntryApiService.updateTimeEntry(id, {
+        description: effortData.description,
+        entryType: effortData.category as any,
+        hoursWorked: effortData.timeSpent / 60,
+        workDate: toDateInputFormat(parseDDMMYYYY(effortData.date)),
+        isBillable: effortData.billable
+      });
+      toast.success("Effort log updated");
+      refetchStories();
+    } catch (error) {
+      console.error("Error updating effort:", error);
+      toast.error("Failed to update effort");
+    }
+  };
 
-    setSelectedTaskForEffort(null);
-
+  const handleDeleteEffort = async (id: string) => {
+    try {
+      await timeEntryApiService.deleteTimeEntry(id);
+      toast.success("Effort log deleted");
+      refetchStories();
+    } catch (error) {
+      console.error("Error deleting effort:", error);
+      toast.error("Failed to delete effort");
+    }
   };
 
 
@@ -1727,19 +1774,14 @@ const BacklogPage: React.FC = () => {
       {/* Effort Manager */}
 
       <EffortManager
-
         open={isEffortManagerOpen}
-
         onOpenChange={setIsEffortManagerOpen}
-
         onLogEffort={handleLogEffort}
-
+        onUpdateEffort={handleUpdateEffort}
+        onDeleteEffort={handleDeleteEffort}
         task={selectedTaskForEffort as any}
-
         allTasks={tasks as any}
-
         allStories={[]}
-
       />
 
     </div>

@@ -19,7 +19,7 @@ export const subtaskApiService = {
     apiClient.get<Page<Subtask>>(BASE_URL, { params: { page: 0, size: 10000 } }),
 
   updateSubtask: (id: string, subtask: Partial<Subtask>) =>
-    apiClient.patch<Subtask>(`${BASE_URL}/${id}`, subtask),
+    apiClient.put<Subtask>(`${BASE_URL}/${id}`, subtask),
 
   updateSubtaskActualHours: (id: string, actualHours: number) =>
     apiClient.patch<Subtask>(`${BASE_URL}/${id}/actual-hours`, { actualHours }),

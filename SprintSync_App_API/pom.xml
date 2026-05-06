@@ -12,7 +12,7 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.sprintsync</groupId>       
+    <groupId>com.sprintsync</groupId>
     <artifactId>sprintsync-1.0</artifactId>
     <version>1.0.0</version>
     <name>SprintSync API</name>
@@ -60,16 +60,6 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Database Migrations -->
-        <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-core</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-database-postgresql</artifactId>
-        </dependency>
-
         <!-- JSON Processing -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
@@ -79,6 +69,12 @@
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>5.2.5</version>
         </dependency>
 
         <!-- JWT Support -->
@@ -158,18 +154,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-tomcat</artifactId>
             <!-- scope removed to include embedded tomcat for java -jar execution -->
-        </dependency>
-        
-        <!-- Apache POI for Excel export -->
-        <dependency>
-            <groupId>org.apache.poi</groupId>
-            <artifactId>poi</artifactId>
-            <version>5.2.5</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.poi</groupId>
-            <artifactId>poi-ooxml</artifactId>
-            <version>5.2.5</version>
         </dependency>
     </dependencies>
 

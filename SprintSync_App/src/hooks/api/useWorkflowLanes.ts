@@ -23,7 +23,7 @@ export const prefetchWorkflowLanes = async (projectId?: string): Promise<Workflo
 
   // If projectId is provided, we might want to skip the global cache or have a per-project cache.
   // For now, let's focus on the global lanes (or simple global prefetch).
-  
+
   if (!projectId && workflowLanesCache.data && (now - workflowLanesCache.timestamp) < LANES_CACHE_TTL) {
     return workflowLanesCache.data;
   }
@@ -34,12 +34,12 @@ export const prefetchWorkflowLanes = async (projectId?: string): Promise<Workflo
 
   const fetchPromise = (async () => {
     try {
-      const response = projectId 
+      const response = projectId
         ? await workflowLaneApiService.getLanesByProject(projectId)
         : await workflowLaneApiService.getAllLanes();
-      
+
       const lanes = Array.isArray(response.data) ? response.data : [];
-      
+
       if (!projectId) {
         workflowLanesCache = {
           data: lanes,
@@ -82,11 +82,13 @@ export function useWorkflowLanes() {
     loadLanes();
   }, []);
 
-  return { data, loading, error, refetch: () => {
-    workflowLanesCache.data = null;
-    workflowLanesCache.timestamp = 0;
-    prefetchWorkflowLanes();
-  }};
+  return {
+    data, loading, error, refetch: () => {
+      workflowLanesCache.data = null;
+      workflowLanesCache.timestamp = 0;
+      prefetchWorkflowLanes();
+    }
+  };
 }
 
 // Hook for fetching a single workflow lane
@@ -101,8 +103,8 @@ export function useWorkflowLane(id: string) {
 // Hook for fetching workflow lanes by project
 export function useWorkflowLanesByProject(projectId: string) {
   return useApi(
-    () => projectId && projectId !== 'SKIP' 
-      ? workflowLaneApiService.getLanesByProject(projectId) 
+    () => projectId && projectId !== 'SKIP'
+      ? workflowLaneApiService.getLanesByProject(projectId)
       : Promise.resolve({ data: [] as WorkflowLane[], success: true, message: '', status: 200 }),
     [projectId],
     !!(projectId && projectId !== 'SKIP')

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { toast } from "sonner";
@@ -16,6 +16,7 @@ import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { ScrollArea } from './ui/scroll-area';
+import { timeEntryApiService } from '../services/api/entities/timeEntryApi';
 import {
     Clock,
     History,
@@ -30,7 +31,9 @@ import {
     BarChart3,
     CheckSquare,
     TrendingUp,
-    Search
+    Search,
+    Edit3,
+    Trash2
 } from 'lucide-react';
 // Simple date formatter
 const format = (date: Date, formatStr: string) => {
@@ -56,8 +59,11 @@ interface EffortEntry {
     timeSpent: number; // in minutes
     resource: string;
     category: string;
-    description?: string;
+    description: string;
     billable: boolean;
+    taskId?: string;
+    taskTitle?: string;
+    storyId?: string;
 }
 interface Task {
     id: string;
@@ -76,7 +82,9 @@ interface Story {
 interface EffortManagerProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onLogEffort: (effort: Omit<EffortEntry, 'id'>) => void;
+    onLogEffort: (effort: Omit<EffortEntry, 'id'>) => void | Promise<void>;
+    onUpdateEffort?: (id: string, effort: Partial<EffortEntry>) => void | Promise<void>;
+    onDeleteEffort?: (id: string) => void | Promise<void>;
     task?: Task | null;
     story?: Story | null;
     allTasks?: Task[];
@@ -87,6 +95,8 @@ const EffortManager: React.FC<EffortManagerProps> = ({
     open,
     onOpenChange,
     onLogEffort,
+    onUpdateEffort,
+    onDeleteEffort,
     task = null,
     story = null,
     allTasks = [],
@@ -95,6 +105,8 @@ const EffortManager: React.FC<EffortManagerProps> = ({
 }) => {
     const [activeTab, setActiveTab] = useState('log');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [efforts, setEfforts] = useState<EffortEntry[]>([]);
+    const [loadingEfforts, setLoadingEfforts] = useState(false);
 
     // Log Effort State
     const [formData, setFormData] = useState({
@@ -108,12 +120,61 @@ const EffortManager: React.FC<EffortManagerProps> = ({
         selectedTaskId: task?.id || '',
         selectedStoryId: story?.id || ''
     });
+    const [isEditing, setIsEditing] = useState(false);
+    const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
     const [errors, setErrors] = useState<{ [key: string]: string }>({});
+    
     // History View State
     const [historyTab, setHistoryTab] = useState('task');
     const [filterBy, setFilterBy] = useState('all');
     const [searchTerm, setSearchTerm] = useState('');
     const [dateFilter, setDateFilter] = useState('all');
+
+    const fetchEfforts = useCallback(async () => {
+        if (!open) return;
+        
+        setLoadingEfforts(true);
+        try {
+            let response;
+            if (task?.id) {
+                response = await timeEntryApiService.getTimeEntriesByTask(task.id);
+            } else if (story?.id) {
+                response = await timeEntryApiService.getTimeEntriesByStory(story.id);
+            } else {
+                setEfforts([]);
+                setLoadingEfforts(false);
+                return;
+            }
+
+            if (response && response.data) {
+                // Map TimeEntry to EffortEntry
+                const mappedEfforts: EffortEntry[] = response.data.map((te: any) => ({
+                    id: te.id,
+                    date: te.workDate ? new Date(te.workDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '',
+                    timeSpent: (te.hoursWorked || 0) * 60,
+                    resource: users.find(u => u.id === te.userId)?.name || te.userId || 'Unknown',
+                    category: te.entryType || 'development',
+                    description: te.description || '',
+                    billable: te.isBillable !== false,
+                    taskId: te.taskId,
+                    taskTitle: allTasks.find(t => t.id === te.taskId)?.title,
+                    storyId: te.storyId
+                }));
+                setEfforts(mappedEfforts);
+            }
+        } catch (error) {
+            console.error("Error fetching efforts:", error);
+        } finally {
+            setLoadingEfforts(false);
+        }
+    }, [open, task?.id, story?.id, users, allTasks]);
+
+    useEffect(() => {
+        if (open) {
+            fetchEfforts();
+        }
+    }, [open, fetchEfforts]);
+
     // Auto-select team member based on the incoming task's assignee
     useEffect(() => {
         if (task?.assignee) {
@@ -178,6 +239,11 @@ const EffortManager: React.FC<EffortManagerProps> = ({
         if (!formData.resource) {
             newErrors.resource = 'Please select a team member';
         }
+        
+        if (!formData.category) {
+            newErrors.category = 'Please select a work category';
+        }
+
         const totalMinutes = formData.hours * 60 + formData.minutes;
         if (totalMinutes <= 0) {
             newErrors.time = 'Time must be greater than 0 minutes';
@@ -218,24 +284,102 @@ const EffortManager: React.FC<EffortManagerProps> = ({
         try {
             const totalMinutes = formData.hours * 60 + formData.minutes;
 
-            const newEffort: Omit<EffortEntry, 'id'> = {
-                date: format(formData.date, 'dd/MM/yy'),
-                timeSpent: totalMinutes,
-                resource: formData.resource,
-                category: formData.category,
-                description: formData.description.trim(),
-                billable: formData.billable
-            };
-            await onLogEffort(newEffort);
+            if (isEditing && editingEntryId) {
+                const updatedEffort: Partial<EffortEntry> = {
+                    date: format(formData.date, 'dd/MM/yy'),
+                    timeSpent: totalMinutes,
+                    resource: formData.resource,
+                    category: formData.category,
+                    description: formData.description.trim(),
+                    billable: formData.billable
+                };
+                
+                // Since onLogEffort is usually used for creation, we might need a separate callback or handle it here
+                // However, based on the user request, I should probably ensure the backend is called.
+                // Assuming onLogEffort handles creation, I'll check if EffortManager should call API directly for updates
+                // or if I should add onUpdateEffort prop.
+                // Given the instructions, I'll assume I should update the existing callback or add a new one.
+                // Let's add onUpdateEffort and onDeleteEffort to props if they don't exist.
+                
+                if (onUpdateEffort) {
+                    await onUpdateEffort(editingEntryId, updatedEffort);
+                } else if ((onLogEffort as any).update) {
+                    await (onLogEffort as any).update(editingEntryId, updatedEffort);
+                } else {
+                    // Fallback to calling the API directly if props don't support it yet
+                    await timeEntryApiService.updateTimeEntry(editingEntryId, {
+                        description: updatedEffort.description,
+                        entryType: updatedEffort.category as any,
+                        hoursWorked: (updatedEffort.timeSpent || 0) / 60,
+                        workDate: toDateInputFormat(formData.date),
+                        isBillable: updatedEffort.billable
+                    });
+                }
+                toast.success("Effort log updated successfully");
+                await fetchEfforts(); // Refresh local list after update
+            } else {
+                const newEffort: Omit<EffortEntry, 'id'> = {
+                    date: format(formData.date, 'dd/MM/yy'),
+                    timeSpent: totalMinutes,
+                    resource: formData.resource,
+                    category: formData.category,
+                    description: formData.description.trim(),
+                    billable: formData.billable
+                };
+                await onLogEffort(newEffort);
+                toast.success("Effort logged successfully");
+            }
+            
             handleReset();
             // Switch to history tab to show the newly logged effort
             setActiveTab('history');
         } catch (error) {
-            console.error('Error logging effort:', error);
+            console.error('Error saving effort:', error);
+            toast.error("Failed to save effort log");
         } finally {
             setIsSubmitting(false);
         }
     };
+    
+    const handleEdit = (effort: any) => {
+        const [day, month, year] = effort.date.split('/');
+        const fullYear = parseInt(year) < 70 ? 2000 + parseInt(year) : 1900 + parseInt(year);
+        const date = new Date(fullYear, parseInt(month) - 1, parseInt(day));
+        
+        setFormData({
+            date: date,
+            hours: Math.floor(effort.timeSpent / 60),
+            minutes: effort.timeSpent % 60,
+            resource: effort.resource,
+            category: effort.category,
+            description: effort.description?.replace(/\[Logged by .*?\] /, '') || '',
+            billable: effort.billable,
+            selectedTaskId: effort.taskId || task?.id || '',
+            selectedStoryId: effort.storyId || story?.id || ''
+        });
+        
+        setIsEditing(true);
+        setEditingEntryId(effort.id);
+        setActiveTab('log');
+    };
+
+    const handleDelete = async (id: string) => {
+        if (!window.confirm("Are you sure you want to delete this effort log?")) return;
+        
+        try {
+            if (onDeleteEffort) {
+                await onDeleteEffort(id);
+            } else {
+                await timeEntryApiService.deleteTimeEntry(id);
+            }
+            toast.success("Effort log deleted successfully");
+            await fetchEfforts(); // Refresh local list after deletion
+        } catch (error) {
+            console.error('Error deleting effort:', error);
+            toast.error("Failed to delete effort log");
+        }
+    };
+
     const handleReset = () => {
         setFormData({
             date: new Date(),
@@ -248,6 +392,8 @@ const EffortManager: React.FC<EffortManagerProps> = ({
             selectedTaskId: task?.id || '',
             selectedStoryId: story?.id || ''
         });
+        setIsEditing(false);
+        setEditingEntryId(null);
         setErrors({});
     };
     const formatTimePreview = () => {
@@ -908,10 +1054,20 @@ const EffortManager: React.FC<EffortManagerProps> = ({
                                                                                 </div>
                                                                             </div>
 
-                                                                            <div className="text-right ml-4">
+                                                                            <div className="text-right ml-4 flex flex-col items-end space-y-2">
                                                                                 <div className="flex items-center space-x-1 text-lg font-semibold text-green-600">
                                                                                     <Timer className="w-4 h-4" />
                                                                                     <span>{formatTime(effort.timeSpent)}</span>
+                                                                                </div>
+                                                                                <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                                    <Button 
+                                                                                        variant="ghost" 
+                                                                                        size="sm" 
+                                                                                        className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                                                                        onClick={() => handleEdit(effort)}
+                                                                                    >
+                                                                                        <Edit3 className="w-3.5 h-3.5" />
+                                                                                    </Button>
                                                                                 </div>
                                                                             </div>
                                                                         </div>
@@ -941,8 +1097,8 @@ const EffortManager: React.FC<EffortManagerProps> = ({
                                 disabled={isSubmitting}
                                 loading={isSubmitting}
                             >
-                                <Plus className="w-4 h-4 mr-2" />
-                                Log Effort
+                                {isEditing ? <Edit3 className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+                                {isEditing ? 'Update Effort' : 'Log Effort'}
                             </Button>
                         )}
                         {activeTab === 'history' && (

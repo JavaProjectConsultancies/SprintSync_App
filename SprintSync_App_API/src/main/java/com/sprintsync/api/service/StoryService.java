@@ -2,10 +2,13 @@ package com.sprintsync.api.service;
 
 import com.sprintsync.api.entity.Story;
 import com.sprintsync.api.entity.Task;
+import com.sprintsync.api.entity.Issue;
 import com.sprintsync.api.entity.enums.StoryPriority;
 import com.sprintsync.api.entity.enums.StoryStatus;
 import com.sprintsync.api.entity.enums.TaskStatus;
 import com.sprintsync.api.repository.StoryRepository;
+import com.sprintsync.api.repository.TaskRepository;
+import com.sprintsync.api.repository.IssueRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -42,6 +45,8 @@ public class StoryService {
     private ActivityLogService activityLogService;
     private IssueService issueService;
     private com.sprintsync.api.repository.SprintRepository sprintRepository;
+    private TaskRepository taskRepository;
+    private IssueRepository issueRepository;
 
     @Autowired
     public StoryService(StoryRepository storyRepository, IdGenerationService idGenerationService) {
@@ -67,6 +72,16 @@ public class StoryService {
     @Autowired
     public void setIssueService(IssueService issueService) {
         this.issueService = issueService;
+    }
+
+    @Autowired
+    public void setTaskRepository(TaskRepository taskRepository) {
+        this.taskRepository = taskRepository;
+    }
+
+    @Autowired
+    public void setIssueRepository(IssueRepository issueRepository) {
+        this.issueRepository = issueRepository;
     }
 
     @Autowired
@@ -476,6 +491,14 @@ public class StoryService {
         Story story = storyOptional.get();
         String oldSprintId = story.getSprintId();
 
+        // Filter out completed tasks and issues before moving the story
+        // This ensures that when a story is pulled into a sprint, completed work is left behind
+        try {
+            unlinkDoneTasksAndIssues(id);
+        } catch (Exception e) {
+            System.err.println("Failed to unlink done tasks/issues: " + e.getMessage());
+        }
+
         if (sprintId == null || sprintId.isBlank()) {
             throw new IllegalArgumentException("Sprint ID cannot be null or blank");
         }
@@ -530,6 +553,82 @@ public class StoryService {
         // are still updated correctly.
 
         return savedStory;
+    }
+
+    /**
+     * Move tasks and issues that are in the "DONE" lane to a persistent bucket story in the backlog.
+     * This is used when moving a story to a new sprint (pulling from backlog)
+     * to ensure completed work items are not transferred to the sprint.
+     * 
+     * @param storyId the story ID
+     */
+    private void unlinkDoneTasksAndIssues(String storyId) {
+        Optional<Story> originalStoryOpt = storyRepository.findById(storyId);
+        if (originalStoryOpt.isEmpty()) return;
+        Story originalStory = originalStoryOpt.get();
+        String projectId = originalStory.getProjectId();
+        
+        // Find DONE tasks and issues first to see if we even need to do anything
+        List<Task> allTasks = taskRepository != null ? taskRepository.findByStoryId(storyId) : new ArrayList<>();
+        List<Issue> allIssues = issueRepository != null ? issueRepository.findByStoryId(storyId) : new ArrayList<>();
+        
+        List<Task> doneTasks = new ArrayList<>();
+        for (Task t : allTasks) { if (t.getStatus() == TaskStatus.DONE) doneTasks.add(t); }
+        
+        List<Issue> doneIssues = new ArrayList<>();
+        for (Issue i : allIssues) { if (i.getStatus() == TaskStatus.DONE) doneIssues.add(i); }
+        
+        if (doneTasks.isEmpty() && doneIssues.isEmpty()) {
+            return;
+        }
+
+        // Find or create a "Completed Items" story bucket in the backlog
+        String bucketStoryTitle = originalStory.getTitle() + " (Completed Items)";
+        Story bucketStory = null;
+        
+        List<Story> projectStories = storyRepository.findByProjectId(projectId);
+        for (Story s : projectStories) {
+            if (s.getSprintId() == null && bucketStoryTitle.equals(s.getTitle())) {
+                bucketStory = s;
+                break;
+            }
+        }
+        
+        if (bucketStory == null) {
+            bucketStory = new Story();
+            bucketStory.setId(idGenerationService.generateStoryId());
+            bucketStory.setProjectId(projectId);
+            bucketStory.setTitle(bucketStoryTitle);
+            bucketStory.setStatus(StoryStatus.DONE);
+            bucketStory.setPriority(originalStory.getPriority());
+            bucketStory.setReporterId(originalStory.getReporterId());
+            bucketStory.setAssigneeId(originalStory.getAssigneeId());
+            bucketStory.setDescription("Persistent backlog story for completed tasks and issues from pulled story: " + originalStory.getTitle());
+            bucketStory = storyRepository.save(bucketStory);
+            System.out.println("Created persistent bucket story: " + bucketStory.getId() + " for done items.");
+        }
+        
+        String bucketId = bucketStory.getId();
+
+        // Move Tasks
+        for (Task task : doneTasks) {
+            try {
+                taskRepository.updateStoryId(task.getId(), bucketId);
+                System.out.println("Moved DONE task: " + task.getId() + " to bucket story: " + bucketId + " from story: " + storyId);
+            } catch (Exception e) {
+                System.err.println("Error moving done task " + task.getId() + " to bucket: " + e.getMessage());
+            }
+        }
+
+        // Move Issues
+        for (Issue issue : doneIssues) {
+            try {
+                issueRepository.updateStoryId(issue.getId(), bucketId);
+                System.out.println("Moved DONE issue: " + issue.getId() + " to bucket story: " + bucketId + " from story: " + storyId);
+            } catch (Exception e) {
+                System.err.println("Error moving done issue " + issue.getId() + " to bucket: " + e.getMessage());
+            }
+        }
     }
 
     /**

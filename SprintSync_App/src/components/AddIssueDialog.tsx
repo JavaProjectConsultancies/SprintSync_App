@@ -128,6 +128,13 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
   // Track previous project ID to detect project changes
   const prevProjectIdRef = React.useRef<string | undefined>(undefined);
 
+  // Sync formData.storyId when requiredStoryId or defaultStoryId changes
+  // This ensures that when the dialog opens for a specific story, the storyId is always current
+  useEffect(() => {
+    const newStoryId = requiredStoryId || defaultStoryId || 'none';
+    setFormData(prev => ({ ...prev, storyId: newStoryId }));
+  }, [requiredStoryId, defaultStoryId]);
+
   // Calculate effectiveProjectId - derive from selected story if not provided directly
   const effectiveProjectId = useMemo(() => {
     // First, try the projectId prop
@@ -278,16 +285,10 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
       newErrors.description = 'Issue description is required';
     }
 
-    // Validate storyId is required
-    // Check if requiredStoryId or defaultStoryId is provided first, then check formData
+    // Story ID is now optional
     const effectiveStoryId = requiredStoryId || defaultStoryId || (formData.storyId && formData.storyId !== 'none' ? formData.storyId : null);
-    if (!effectiveStoryId) {
-      newErrors.storyId = 'Issue must be linked to a story. Please select a story.';
-    }
 
-    if (!formData.assignee) {
-      newErrors.assignee = 'Please assign someone to this issue';
-    }
+    // Assignee is optional - allow creating issues without assignment
 
     if (formData.dueDate && effectiveStoryId) {
       // Validate that issue due date is within story's due date
@@ -300,6 +301,14 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
         if (issueDueDate > storyDueDate) {
           newErrors.dueDate = `Issue due date cannot be after story's due date (${storyDueDate.toLocaleDateString()})`;
         }
+      }
+    }
+
+    if (formData.dueDate && sprintEndDate) {
+      const issueDateStr = toDateInputFormat(formData.dueDate);
+      const sprintEndDateStr = sprintEndDate.split('T')[0];
+      if (issueDateStr > sprintEndDateStr) {
+        newErrors.dueDate = 'Issues cannot be created after the sprint due date';
       }
     }
 
@@ -676,7 +685,6 @@ const AddIssueDialog: React.FC<AddIssueDialogProps> = ({
                       <div className="space-y-2">
                         <Label htmlFor="storyId" className="flex items-center space-x-1">
                           <span>Link to User Story</span>
-                          <span className="text-red-500">*</span>
                           {requiredStoryId && <span className="text-xs text-gray-500">(Required)</span>}
                         </Label>
                         <Select

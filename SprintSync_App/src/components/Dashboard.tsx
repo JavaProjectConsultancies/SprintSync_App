@@ -53,7 +53,7 @@ import {
 } from 'lucide-react';
 // Removed mock data imports - using API data only
 import UserTasks from './UserTasks';
-import { useProjects, useUsers, useDepartments, useDomains, useEpics, useReleases, useSprints, useStories, useTasks, useAllSprints, useAllStories, useAllTasks, useIssuesByAssignee } from '../hooks/api';
+import { useProjects, useUsers, useDepartments, useDomains, useEpics, useReleases, useSprints, useStories, useTasks, useAllSprints, useAllStories, useAllTasks, useIssuesByAssignee, useAllIssues } from '../hooks/api';
 import { apiClient } from '../services/api/client';
 import { prefetchProjects } from '../hooks/api/useProjects';
 import { prefetchSprints } from '../hooks/api/useSprints';
@@ -107,6 +107,7 @@ const Dashboard: React.FC = () => {
   const { data: apiSprints, loading: sprintsLoading, error: sprintsError, refetch: refetchSprints } = useAllSprints();
   const { data: apiStories, loading: storiesLoading, error: storiesError, refetch: refetchStories } = useAllStories();
   const { data: apiTasks, loading: tasksLoading, error: tasksError, refetch: refetchTasks } = useAllTasks();
+  const { data: apiIssues, loading: issuesLoading, error: issuesError, refetch: refetchIssues } = useAllIssues();
   const { data: assignedIssuesData } = useIssuesByAssignee(user?.id ?? '', undefined);
 
   // Check if any API is still loading (but consider cached data as loaded)
@@ -118,7 +119,8 @@ const Dashboard: React.FC = () => {
     (releasesLoading && !apiReleases) ||
     (sprintsLoading && !apiSprints) ||
     (storiesLoading && !apiStories) ||
-    (tasksLoading && !apiTasks);
+    (tasksLoading && !apiTasks) ||
+    (issuesLoading && !apiIssues);
 
   // Safety timeout to prevent infinite loading
   const [forceShowDashboard, setForceShowDashboard] = useState(false);
@@ -149,6 +151,7 @@ const Dashboard: React.FC = () => {
       { loading: sprintsLoading, data: apiSprints, error: sprintsError, name: 'Sprints' },
       { loading: storiesLoading, data: apiStories, error: storiesError, name: 'Stories' },
       { loading: tasksLoading, data: apiTasks, error: tasksError, name: 'Tasks' },
+      { loading: issuesLoading, data: apiIssues, error: issuesError, name: 'Issues' },
     ];
 
     const loadedApis = apiStatuses.filter(api =>
@@ -158,9 +161,9 @@ const Dashboard: React.FC = () => {
     return Math.round((loadedApis / totalApis) * 100);
   }, [
     projectsLoading, usersLoading, departmentsLoading, domainsLoading,
-    epicsLoading, releasesLoading, sprintsLoading, storiesLoading, tasksLoading,
-    apiProjects, apiUsers, apiDepartments, apiDomains, apiEpics, apiReleases, apiSprints, apiStories, apiTasks,
-    projectsError, usersError, departmentsError, domainsError, epicsError, releasesError, sprintsError, storiesError, tasksError
+    epicsLoading, releasesLoading, sprintsLoading, storiesLoading, tasksLoading, issuesLoading,
+    apiProjects, apiUsers, apiDepartments, apiDomains, apiEpics, apiReleases, apiSprints, apiStories, apiTasks, apiIssues,
+    projectsError, usersError, departmentsError, domainsError, epicsError, releasesError, sprintsError, storiesError, tasksError, issuesError
   ]);
 
   // Filter states
@@ -171,16 +174,18 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     const sprints = Array.isArray(apiSprints) ? apiSprints.length : ((apiSprints as any)?.content?.length || 0);
     const tasks = Array.isArray(apiTasks) ? apiTasks.length : ((apiTasks as any)?.content?.length || 0);
+    const issues = Array.isArray(apiIssues) ? apiIssues.length : ((apiIssues as any)?.content?.length || 0);
     const stories = Array.isArray(apiStories) ? apiStories.length : ((apiStories as any)?.content?.length || 0);
     const projects = Array.isArray(apiProjects) ? apiProjects.length : ((apiProjects as any)?.content?.length || 0);
 
     console.log('[Dashboard] API Data Availability:', {
       sprints: { count: sprints, loading: sprintsLoading, error: sprintsError ? String(sprintsError) : 'NO' },
       tasks: { count: tasks, loading: tasksLoading, error: tasksError ? String(tasksError) : 'NO' },
+      issues: { count: issues, loading: issuesLoading, error: issuesError ? String(issuesError) : 'NO' },
       stories: { count: stories, loading: storiesLoading, error: storiesError ? String(storiesError) : 'NO' },
       projects: { count: projects, loading: projectsLoading, error: projectsError ? String(projectsError) : 'NO' }
     });
-  }, [apiSprints, apiTasks, apiStories, apiProjects, sprintsLoading, tasksLoading, storiesLoading, projectsLoading]);
+  }, [apiSprints, apiTasks, apiIssues, apiStories, apiProjects, sprintsLoading, tasksLoading, issuesLoading, storiesLoading, projectsLoading]);
 
   // Helper function to normalize paginated API responses
   const normalizeApiData = (data: any): any[] => {
@@ -301,12 +306,13 @@ const Dashboard: React.FC = () => {
     const projects = normalizeApiData(apiProjects);
     const users = normalizeApiData(apiUsers);
     const allTasks = normalizeApiData(apiTasks);
+    const allIssues = normalizeApiData(apiIssues);
     const allSprints = normalizeApiData(apiSprints);
     const allStories = normalizeApiData(apiStories);
 
     // Early validation - ensure we have tasks data
-    if (allTasks.length === 0 && !tasksLoading) {
-      console.warn('[Dashboard] No tasks found in API data. Tasks loading:', tasksLoading, 'Tasks data:', apiTasks);
+    if (allTasks.length === 0 && allIssues.length === 0 && !tasksLoading && !issuesLoading) {
+      console.warn('[Dashboard] No tasks or issues found in API data.');
     }
 
     // Check if current view is manager/admin/master_admin based on effectiveRole
@@ -315,8 +321,11 @@ const Dashboard: React.FC = () => {
     // Get project IDs where user is a manager (from projectRoles API - reliable source)
     const projectsWhereUserIsManager = new Set<string>(
       projectRoles
-        .filter(pr => pr.role?.toLowerCase() === 'manager' || pr.role?.toLowerCase() === 'qa_manager' || pr.role?.toLowerCase() === 'support_and_implementation')
-        .map(pr => pr.projectId)
+        .filter(pr => {
+          const role = pr.role?.toLowerCase();
+          return role === 'manager' || role === 'qa_manager' || role === 'support_and_implementation' || role === 'admin' || role === 'master_admin';
+        })
+        .map(pr => String(pr.projectId))
     );
     const isProjectLevelManager = projectsWhereUserIsManager.size > 0;
 
@@ -329,30 +338,10 @@ const Dashboard: React.FC = () => {
     }
 
     // Get user's project IDs first (needed for both sprint filtering and fallback)
-    // Using projectRoles from API for reliable project assignment data
-    const userProjectIdsForFiltering = (effectiveRole === 'admin' || effectiveRole === 'master_admin')
-      ? new Set(projects.map(p => p.id))  // Admins and master_admins see all projects
-      : (effectiveRole === 'manager' || effectiveRole === 'qa_manager' || effectiveRole === 'support_and_implementation')
-        ? new Set(
-          projects
-            .filter(project => {
-              // Check 1: User is the project owner (managerId)
-              const managerId = (project as any).managerId || (project as any).manager?.id || (project as any).manager_id;
-              const managerIdStr = managerId ? String(managerId) : null;
-              const userIdStr = user.id ? String(user.id) : null;
-              if (managerIdStr === userIdStr) return true;
-
-              // Check 2: User has role='manager' in projectRoles (from API)
-              if (projectsWhereUserIsManager.has(project.id)) return true;
-
-              return false;
-            })
-            .map(project => project.id)
-        )
-        : new Set(
-          // For developers: use projectRoles API to get all assigned projects
-          projectRoles.map(pr => pr.projectId)
-        );
+    // Simplify: use userAssignedProjects which is already correctly filtered based on effectiveRole
+    const userProjectIdsForFiltering = new Set(
+      userAssignedProjects.map(project => String(project.id))
+    );
 
     // Debug logging for manager project filtering
     if (effectiveRole === 'manager' || effectiveRole === 'support_and_implementation' || effectiveRole === 'qa_manager') {
@@ -380,32 +369,34 @@ const Dashboard: React.FC = () => {
     }
 
     // Filter sprints based on effectiveRole - get sprints from user's accessible projects
-    // For managers: filter sprints from their projects
-    // For admins: show all sprints
-    // For developers: only show sprints from projects they're assigned to
     let userSprints = allSprints;
-    if (effectiveRole === 'manager' || effectiveRole === 'support_and_implementation' || effectiveRole === 'qa_manager') {
-      // For managers, only show sprints from projects they manage
-      userSprints = allSprints.filter(sprint => {
-        const sprintProjectId = (sprint as any).projectId || (sprint as any).project?.id;
-        return sprintProjectId && userProjectIdsForFiltering.has(sprintProjectId);
+    
+    // For managers/developers: filter sprints from their projects
+    if (!isManagerOrAdmin || effectiveRole === 'manager' || effectiveRole === 'support_and_implementation' || effectiveRole === 'qa_manager') {
+      const filteredSprints = allSprints.filter(sprint => {
+        const sprintProjectId = (sprint as any).projectId || (sprint as any).project?.id || (sprint as any).project_id;
+        return sprintProjectId && userProjectIdsForFiltering.has(String(sprintProjectId));
       });
-    } else if (!isManagerOrAdmin) {
-      // For developers, only show sprints from projects they're assigned to
-      userSprints = allSprints.filter(sprint => {
-        const sprintProjectId = (sprint as any).projectId || (sprint as any).project?.id;
-        return sprintProjectId && userProjectIdsForFiltering.has(sprintProjectId);
-      });
+      
+      // If we found sprints, use them. Otherwise, if the user is a manager/admin, 
+      // fallback to allSprints as a safety measure for the dashboard metrics
+      if (filteredSprints.length > 0) {
+        userSprints = filteredSprints;
+      } else if (isManagerOrAdmin && allSprints.length > 0) {
+        console.log('[Dashboard] No project-specific sprints found for manager, falling back to all available sprints');
+        userSprints = allSprints;
+      } else {
+        userSprints = [];
+      }
     }
-    // For admins, keep all sprints (userSprints = allSprints)
 
     // Get sprint IDs from user's accessible sprints
     const userSprintIds = new Set(userSprints.map(sprint => sprint.id));
 
     // Filter stories that belong to user's sprints
     const userStories = allStories.filter(story => {
-      const storySprintId = (story as any).sprintId || (story as any).sprint?.id || (story as any).sprintId;
-      return storySprintId && userSprintIds.has(storySprintId);
+      const storySprintId = (story as any).sprintId || (story as any).sprint?.id || (story as any).sprint_id;
+      return storySprintId && userSprintIds.has(String(storySprintId));
     });
 
     // Get story IDs from user's stories
@@ -413,8 +404,8 @@ const Dashboard: React.FC = () => {
 
     // Also get all stories from user's projects (for fallback)
     const projectStories = allStories.filter(story => {
-      const storyProjectId = (story as any).projectId || (story as any).project?.id || (story as any).projectId;
-      return storyProjectId && userProjectIdsForFiltering.has(storyProjectId);
+      const storyProjectId = (story as any).projectId || (story as any).project?.id || (story as any).project_id;
+      return storyProjectId && userProjectIdsForFiltering.has(String(storyProjectId));
     });
     const projectStoryIds = new Set(projectStories.map(story => story.id));
 
@@ -465,27 +456,30 @@ const Dashboard: React.FC = () => {
         totalTasks: sprintTasks.length
       });
     } else {
-      // Regular users: Get tasks directly assigned to them
-      sprintTasks = allTasks.filter(task => {
-        if (!task || !task.id) return false;
-        const assigneeId = (task as any).assigneeId || (task as any).assignee?.id || (task as any).assignee?.userId;
+      // Combine tasks and issues for general metrics
+      const combinedWorkItems = [...allTasks, ...allIssues];
+
+      // Regular users: Get items directly assigned to them
+      sprintTasks = combinedWorkItems.filter(item => {
+        if (!item || !item.id) return false;
+        const assigneeId = (item as any).assigneeId || (item as any).assignee?.id || (item as any).assignee?.userId;
         return assigneeId === user.id;
       });
 
       // Fallback: If no direct assignments, try through projects/stories
       if (sprintTasks.length === 0 && projectStoryIds.size > 0) {
-        sprintTasks = allTasks.filter(task => {
-          if (!task || !task.id) return false;
-          const taskStoryId = (task as any).storyId || (task as any).story?.id;
+        sprintTasks = combinedWorkItems.filter(item => {
+          if (!item || !item.id) return false;
+          const taskStoryId = (item as any).storyId || (item as any).story?.id;
           return taskStoryId && projectStoryIds.has(taskStoryId);
         });
       }
 
       // Final fallback: Try through sprints
       if (sprintTasks.length === 0 && userStoryIds.size > 0) {
-        sprintTasks = allTasks.filter(task => {
-          if (!task || !task.id) return false;
-          const taskStoryId = (task as any).storyId || (task as any).story?.id;
+        sprintTasks = combinedWorkItems.filter(item => {
+          if (!item || !item.id) return false;
+          const taskStoryId = (item as any).storyId || (item as any).story?.id;
           return taskStoryId && userStoryIds.has(taskStoryId);
         });
       }
@@ -610,6 +604,8 @@ const Dashboard: React.FC = () => {
         normalizedStatus === 'd' ||
         normalizedStatus === 'finished' ||
         normalizedStatus === 'closed' ||
+        normalizedStatus === 'qa_review' ||
+        normalizedStatus === 'qa' ||
         normalizedStatus.includes('done') ||
         normalizedStatus.includes('complete') ||
         normalizedStatus.includes('finish');
@@ -658,27 +654,111 @@ const Dashboard: React.FC = () => {
       }))
     });
 
-    // Calculate sprint progress based on user's sprints
-    let completedSprints = 0;
-    for (const sprint of userSprints) {
-      const sprintStatus = (sprint as any).status || (sprint as any).sprintStatus;
-      const normalizedSprintStatus = sprintStatus?.toString().toLowerCase().trim() || '';
-      if (normalizedSprintStatus === 'completed' || normalizedSprintStatus === 'done') {
-        completedSprints++;
+
+
+    // Calculate sprint progress: prioritize active sprint task completion for "dynamic" feel
+    const sprintsToUse = userSprints.length > 0 ? userSprints : (isManagerOrAdmin ? allSprints : []);
+    
+    const activeSprints = sprintsToUse.filter(s => {
+      const status = (s.status || s.sprintStatus || s.sprint_status || '').toString().toLowerCase().trim();
+      
+      let isEndedByDate = false;
+      if (s.endDate) {
+        const endDateObj = new Date(s.endDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        endDateObj.setHours(0, 0, 0, 0);
+        if (endDateObj < today) {
+          isEndedByDate = true;
+        }
+      }
+      
+      // If it's ended by date, it is NOT active
+      if (isEndedByDate) return false;
+      
+      return status === 'active' || status === 'started' || status === 'in_progress';
+    });
+
+    // Calculate completed sprints for the fallback value
+    let completedSprintsCount = 0;
+    for (const sprint of sprintsToUse) {
+      const sprintStatus = (sprint.status || sprint.sprintStatus || sprint.sprint_status || '').toString().toLowerCase().trim();
+      
+      let isEndedByDate = false;
+      if (sprint.endDate) {
+        const endDateObj = new Date(sprint.endDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        endDateObj.setHours(0, 0, 0, 0);
+        if (endDateObj < today) {
+          isEndedByDate = true;
+        }
+      }
+      
+      // If a sprint has passed its due date, consider it completed regardless of DB status
+      if (isEndedByDate || sprintStatus === 'completed' || sprintStatus === 'done' || sprintStatus === 'closed') {
+        completedSprintsCount++;
       }
     }
-    const sprintProgressValue = userSprints.length > 0 ? Math.round((completedSprints / userSprints.length) * 100) : 0;
+
+    let sprintProgressValue = 0;
+    let sprintProgressLabel = 'Completed sprints';
+
+    if (activeSprints.length > 0) {
+      const activeSprintIds = new Set(activeSprints.map(s => String(s.id)));
+      
+      // Find stories in active sprints
+      const storiesInActiveSprints = allStories.filter(story => {
+        const storySprintId = story.sprintId || story.sprint?.id || story.sprint_id;
+        return storySprintId && activeSprintIds.has(String(storySprintId));
+      });
+      const activeStoryIds = new Set(storiesInActiveSprints.map(s => String(s.id)));
+      
+      // Find tasks and issues in those stories (or directly in sprints if standalone)
+      const itemsInActiveSprints = [...allTasks, ...allIssues].filter(item => {
+        // First check if the item is directly associated with the active sprint (standalone task/issue)
+        const tSprintId = (item as any).sprintId || (item as any).sprint?.id || (item as any).sprint_id;
+        if (tSprintId && activeSprintIds.has(String(tSprintId))) {
+          return true;
+        }
+        
+        // Then fallback to checking via story association
+        const tStoryId = (item as any).storyId || (item as any).story?.id || (item as any).story_id;
+        return tStoryId && activeStoryIds.has(String(tStoryId));
+      });
+      
+      if (itemsInActiveSprints.length > 0) {
+        let completedActiveItems = 0;
+        for (const item of itemsInActiveSprints) {
+           const status = (item.status || item.taskStatus || '').toString().toLowerCase().trim();
+           if (status === 'done' || status === 'completed' || status === 'closed' || status === 'qa_review' || status === 'finished') {
+             completedActiveItems++;
+           }
+        }
+        sprintProgressValue = Math.round((completedActiveItems / itemsInActiveSprints.length) * 100);
+        sprintProgressLabel = 'Active sprint progress';
+      } else {
+        // Fallback to sprint completion if no tasks in active sprints
+        sprintProgressValue = sprintsToUse.length > 0 ? Math.round((completedSprintsCount / sprintsToUse.length) * 100) : 0;
+        sprintProgressLabel = 'Overall sprint completion';
+      }
+    } else {
+      // Fallback to sprint completion if no active sprints
+      sprintProgressValue = sprintsToUse.length > 0 ? Math.round((completedSprintsCount / sprintsToUse.length) * 100) : 0;
+      sprintProgressLabel = 'Overall sprint completion';
+    }
 
     // Ensure we return valid numbers
     return {
       projectCount: totalProjects || 0,
       teamMembers: totalUsers || 0,
       sprintProgress: sprintProgressValue || 0,
+      sprintProgressLabel: sprintProgressLabel,
       taskCompletion: taskCompletionPercentage || 0,
       criticalItems: criticalItems || 0,
       upcomingDeadlines: upcomingDeadlines || 0
     };
-  }, [user, apiProjects, apiUsers, apiTasks, apiSprints, apiStories, userAssignedProjects, tasksLoading, effectiveRole, projectRoles]);
+  }, [user, apiProjects, apiUsers, apiTasks, apiIssues, apiSprints, apiStories, userAssignedProjects, tasksLoading, issuesLoading, effectiveRole, projectRoles]);
 
   // Helpers to normalize API Project fields for charts/UI
   const getProjectProgress = (project: any): number => {
@@ -950,11 +1030,15 @@ const Dashboard: React.FC = () => {
     if (projectId === 'all') {
       // Get all sprints from all accessible projects
       sprints = normalizedSprints.filter(sprint => {
-        return userAssignedProjects.some(p => p.id === sprint.projectId);
+        const sProjectId = sprint.projectId || sprint.project?.id || sprint.project_id;
+        return userAssignedProjects.some(p => String(p.id) === String(sProjectId));
       });
     } else {
       // Get sprints for specific project
-      sprints = normalizedSprints.filter(sprint => sprint.projectId === projectId);
+      sprints = normalizedSprints.filter(sprint => {
+        const sProjectId = sprint.projectId || sprint.project?.id || sprint.project_id;
+        return String(sProjectId) === String(projectId);
+      });
     }
 
     console.log('[getSprintPerformanceData] Filtered sprints:', {
@@ -988,13 +1072,19 @@ const Dashboard: React.FC = () => {
     // Map sprint data to chart format
     return sortedSprints.map((sprint, index) => {
       // Get stories for this sprint
-      const sprintStories = normalizedStories.filter(story => story.sprintId === sprint.id);
+      const sprintStories = normalizedStories.filter(story => {
+        const storySprintId = story.sprintId || story.sprint?.id || story.sprint_id;
+        return String(storySprintId) === String(sprint.id);
+      });
 
       // Calculate planned vs done based on STORY POINTS
       const plannedPoints = sprintStories.reduce((sum, story) => sum + (story.storyPoints || 0), 0);
 
       const donePoints = sprintStories
-        .filter(story => (story.status || '').toString().toUpperCase() === 'DONE')
+        .filter(story => {
+          const status = (story.status || '').toString().toLowerCase();
+          return status === 'done' || status === 'completed' || status === 'closed';
+        })
         .reduce((sum, story) => sum + (story.storyPoints || 0), 0);
 
       // Default to some visually visible value if 0 (optional, but requested graph "properly" might imply not flatlining if data is missing but planned exists)
@@ -1053,15 +1143,19 @@ const Dashboard: React.FC = () => {
     if (projectId === 'all') {
       // Get all tasks from accessible projects
       projectTasks = normalizedTasks.filter(task => {
-        const story = normalizedStories.find(s => s.id === task.storyId);
-        const project = normalizedProjects.find(p => p.id === story?.projectId);
-        return userAssignedProjects.some(up => up.id === project?.id);
+        const tStoryId = task.storyId || task.story?.id || task.story_id;
+        const story = normalizedStories.find(s => String(s.id) === String(tStoryId));
+        const sProjectId = story?.projectId || story?.project?.id || story?.project_id;
+        const project = normalizedProjects.find(p => String(p.id) === String(sProjectId));
+        return userAssignedProjects.some(up => String(up.id) === String(project?.id));
       });
     } else {
       // Get tasks for specific project
       projectTasks = normalizedTasks.filter(task => {
-        const story = normalizedStories.find(s => s.id === task.storyId);
-        return story?.projectId === projectId;
+        const tStoryId = task.storyId || task.story?.id || task.story_id;
+        const story = normalizedStories.find(s => String(s.id) === String(tStoryId));
+        const sProjectId = story?.projectId || story?.project?.id || story?.project_id;
+        return String(sProjectId) === String(projectId);
       });
     }
 
@@ -1367,6 +1461,7 @@ const Dashboard: React.FC = () => {
     projectCount: 0,
     teamMembers: 0,
     sprintProgress: 0,
+    sprintProgressLabel: 'Completed sprints',
     taskCompletion: 0,
     criticalItems: 0,
     upcomingDeadlines: 0
@@ -1485,7 +1580,7 @@ const Dashboard: React.FC = () => {
             <div className="text-2xl font-bold text-orange-900">{displayMetrics.sprintProgress}%</div>
             <div className="flex items-center text-xs text-orange-700">
               <TrendingUp className="w-3 h-3 mr-1" />
-              Completed sprints
+              {displayMetrics.sprintProgressLabel}
             </div>
             <Progress value={displayMetrics.sprintProgress} className="mt-2 h-1.5" />
           </CardContent>

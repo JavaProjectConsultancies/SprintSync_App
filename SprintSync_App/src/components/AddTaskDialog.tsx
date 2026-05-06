@@ -260,9 +260,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
       newErrors.description = 'Task description is required';
     }
 
-    if (!formData.storyId || formData.storyId.trim() === '') {
-      newErrors.storyId = 'Please select a user story for this task';
-    }
+    // Story ID is now optional
 
     if (!formData.assignee) {
       newErrors.assignee = 'Please assign someone to this task';
@@ -283,6 +281,14 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
         }
         // Task due date cannot be before story's due date (optional - you can remove this if tasks can be before)
         // For now, we'll allow tasks to be before the story due date, but not after
+      }
+    }
+
+    if (formData.dueDate && sprintEndDate) {
+      const taskDateStr = toDateInputFormat(formData.dueDate);
+      const sprintEndDateStr = sprintEndDate.split('T')[0];
+      if (taskDateStr > sprintEndDateStr) {
+        newErrors.dueDate = 'Tasks cannot be created after the sprint due date';
       }
     }
 
@@ -309,7 +315,7 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
       const newTask: Omit<Task, 'id'> & { attachments?: File[]; attachmentUrls?: Array<{ url: string; name: string }> } = {
         title: formData.title.trim(),
         description: formData.description.trim(),
-        storyId: formData.storyId && formData.storyId.trim() !== '' ? formData.storyId : undefined,
+        storyId: formData.storyId && formData.storyId.trim() !== '' && formData.storyId !== 'none' ? formData.storyId : undefined,
         priority: formData.priority,
         assignee: formData.assignee,
         status: formData.status,
@@ -713,7 +719,6 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                       <div className="space-y-2">
                         <Label htmlFor="storyId" className="flex items-center space-x-1">
                           <span>Link to User Story</span>
-                          <span className="text-red-500">*</span>
                         </Label>
                         <Select
                           value={formData.storyId}
@@ -731,13 +736,15 @@ const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
                         >
                           <SelectTrigger className={errors.storyId ? 'border-red-300' : ''}>
                             <SelectValue placeholder="Select a user story...">
-                              {formData.storyId && formData.storyId.trim() !== '' && (() => {
+                              {formData.storyId && formData.storyId.trim() !== '' && formData.storyId !== 'none' && (() => {
                                 const selected = stories.find(s => s.id === formData.storyId);
                                 return selected ? selected.title : 'Select a user story...';
                               })()}
+                              {(!formData.storyId || formData.storyId === 'none') && 'Select a user story...'}
                             </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="none">No story (Standalone task)</SelectItem>
                             {stories.map(story => (
                               <SelectItem key={story.id} value={story.id}>
                                 <div className="flex items-center space-x-2">

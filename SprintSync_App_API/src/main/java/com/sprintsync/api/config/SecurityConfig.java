@@ -40,7 +40,7 @@ public class SecurityConfig {
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    @Value("${app.cors.allowed-origins:http://localhost:3000}")
+    @Value("${app.cors.allowed-origins:http://localhost:3000},http://192.168.0.123:3000},http://192.168.1.114:8080},/resource-performance-import.html")
     private String allowedOrigins;
 
     @Value("${app.cors.allowed-methods:GET,POST,PUT,PATCH,DELETE,OPTIONS}")
@@ -120,7 +120,8 @@ public class SecurityConfig {
         String[] methods = allowedMethods.split(",");
         configuration.setAllowedMethods(Arrays.asList(methods));
 
-        // Explicit headers - required when allowCredentials is true (wildcard * doesn't work)
+        // Explicit headers - required when allowCredentials is true (wildcard * doesn't
+        // work)
         configuration.setAllowedHeaders(Arrays.asList(
                 "Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With",
                 "Access-Control-Request-Method", "Access-Control-Request-Headers"));

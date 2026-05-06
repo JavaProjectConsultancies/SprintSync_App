@@ -57,6 +57,9 @@ export const API_ENDPOINTS = {
 
   // Attachments
   ATTACHMENTS: '/attachments',
+
+  // Scrum Board
+  SCRUM_BOARD: '/scrum-boards',
 } as const;
 
 // HTTP Methods

@@ -441,6 +441,14 @@ public interface TaskRepository extends JpaRepository<Task, String> {
     void updateTaskStatusDirectly(@Param("taskId") String taskId, @Param("statusValue") String statusValue);
 
     /**
+     * Update story association for a task
+     */
+    @Query(value = "UPDATE tasks SET story_id = :storyId WHERE id = :taskId", nativeQuery = true)
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional
+    void updateStoryId(@Param("taskId") String taskId, @Param("storyId") String storyId);
+
+    /**
      * Find task with raw status value (for custom lane statuses)
      * This query returns the raw status string from the database
      */
@@ -467,7 +475,7 @@ public interface TaskRepository extends JpaRepository<Task, String> {
      * @param taskId the task ID
      * @return sum of hours worked on the task
      */
-    @Query("SELECT COALESCE(SUM(t.hoursWorked), 0) FROM TimeEntry t WHERE t.taskId = :taskId")
+    @Query("SELECT COALESCE(SUM(t.hoursWorked), 0) FROM TimeEntry t WHERE t.taskId = :taskId AND t.subtaskId IS NULL")
     java.math.BigDecimal sumHoursWorkedByTaskId(@Param("taskId") String taskId);
     /**
      * Calculate total subtask actual hours for a task

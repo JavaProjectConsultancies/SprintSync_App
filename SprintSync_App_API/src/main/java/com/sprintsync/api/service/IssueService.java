@@ -92,10 +92,7 @@ public class IssueService {
      * Create a new issue
      */
     public Issue createIssue(Issue issue) {
-        // Validate that storyId is provided and not empty
-        if (issue.getStoryId() == null || issue.getStoryId().trim().isEmpty()) {
-            throw new IllegalArgumentException("Issue must be linked to a story. Story ID is required.");
-        }
+        // Validation removed to allow standalone issues
 
         if (issue.getId() == null) {
             // Generate issue ID similar to task ID

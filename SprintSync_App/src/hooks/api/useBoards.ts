@@ -21,8 +21,8 @@ export function useBoard(id: string) {
 // Hook for fetching boards by project
 export function useBoardsByProject(projectId: string) {
   return useApi(
-    () => projectId && projectId !== 'SKIP' 
-      ? boardApiService.getBoardsByProject(projectId) 
+    () => projectId && projectId !== 'SKIP'
+      ? boardApiService.getBoardsByProject(projectId)
       : Promise.resolve({ data: [] as Board[], success: true, message: '', status: 200 }),
     [projectId],
     !!(projectId && projectId !== 'SKIP')
@@ -32,8 +32,8 @@ export function useBoardsByProject(projectId: string) {
 // Hook for fetching default board
 export function useDefaultBoard(projectId: string) {
   return useApi(
-    () => projectId && projectId !== 'SKIP' 
-      ? boardApiService.getDefaultBoard(projectId) 
+    () => projectId && projectId !== 'SKIP'
+      ? boardApiService.getDefaultBoard(projectId)
       : Promise.resolve({ data: null as Board | null, success: true, message: '', status: 200 }),
     [projectId],
     !!(projectId && projectId !== 'SKIP')

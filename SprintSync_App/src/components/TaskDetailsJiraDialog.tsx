@@ -64,6 +64,21 @@ import { userApiService } from "../services/api/entities/userApi";
 import ChatSection from './ChatSection';
 import { getLocalToday, toDateInputFormat } from '../utils/dateUtils';
 
+// Work categories
+const workCategories = [
+    { value: 'development', label: 'Development', icon: '' },
+    { value: 'design', label: 'Design', icon: '' },
+    { value: 'testing', label: 'Testing', icon: '' },
+    { value: 'documentation', label: 'Documentation', icon: '' },
+    { value: 'meeting', label: 'Meeting', icon: '' },
+    { value: 'research', label: 'Research', icon: '' },
+    { value: 'review', label: 'Code Review', icon: '' },
+    { value: 'deployment', label: 'Deployment', icon: '' },
+    { value: 'onsite', label: 'On-site', icon: '' },
+    { value: 'implementation', label: 'Implementation', icon: '' },
+    { value: 'support', label: 'Support', icon: '' }
+];
+
 // Helper component to render description with images and line breaks
 const RenderDescription = ({ description }: { description?: string }) => {
     if (!description) return <p className="text-sm text-gray-500 italic">No description provided.</p>;
@@ -188,6 +203,7 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
     // Effort logging state
     const [isLogEffortOpen, setIsLogEffortOpen] = useState(false);
     const [isLoggingEffort, setIsLoggingEffort] = useState(false);
+    const [selectedLogForEdit, setSelectedLogForEdit] = useState<TimeEntry | null>(null);
 
     useEffect(() => {
         if (open) {
@@ -201,6 +217,7 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
         workDate: getLocalToday(),
         startTime: "",
         endTime: "",
+        category: "development"
     });
     const [effortLogAttachments, setEffortLogAttachments] = useState<File[]>([]);
 
@@ -345,8 +362,8 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
     };
 
     // Check if sprint has ended - block time logging after sprint end
-    const isSprintEnded = sprintEndDate ? new Date().setHours(0,0,0,0) > new Date(sprintEndDate).setHours(0,0,0,0) : false;
-    const isDueDateExceeded = currentTask?.dueDate ? new Date().setHours(0,0,0,0) > new Date(currentTask.dueDate).setHours(0,0,0,0) : false;
+    const isSprintEnded = sprintEndDate ? new Date().setHours(0, 0, 0, 0) > new Date(sprintEndDate).setHours(0, 0, 0, 0) : false;
+    const isDueDateExceeded = currentTask?.dueDate ? new Date().setHours(0, 0, 0, 0) > new Date(currentTask.dueDate).setHours(0, 0, 0, 0) : false;
     const canLogTime = !isViewOnly && !isDueDateExceeded;
 
     useEffect(() => {
@@ -613,60 +630,91 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
             toast.error("Please enter valid hours");
             return;
         }
+        if (!effortLog.category) {
+            toast.error("Please select a work category");
+            return;
+        }
         if (!effortLog.description.trim()) {
             toast.error("Please enter a description");
             return;
         }
 
+        setIsLoggingEffort(true);
         try {
-            setIsLoggingEffort(true);
-            const timeEntryData = {
-                userId: user?.id || "",
-                taskId: currentTask.id,
-                storyId: currentTask.storyId?.trim() || undefined,
-                description: effortLog.description,
-                entryType: "development" as const,
-                hoursWorked: effortLog.hours,
-                workDate: effortLog.workDate,
-                startTime: effortLog.startTime && effortLog.startTime.trim() ? effortLog.startTime : undefined,
-                endTime: effortLog.endTime && effortLog.endTime.trim() ? effortLog.endTime : undefined,
-                isBillable: true,
-            };
+            if (selectedLogForEdit) {
+                // Update existing log
+                await timeEntryApiService.updateTimeEntry(selectedLogForEdit.id, {
+                    hoursWorked: effortLog.hours,
+                    description: effortLog.description,
+                    workDate: effortLog.workDate,
+                    startTime: effortLog.startTime || undefined,
+                    endTime: effortLog.endTime || undefined,
+                });
+                toast.success("Time log updated successfully");
+            } else {
+                // Create new log
+                const timeEntryData: any = {
+                    userId: user?.id || "",
+                    taskId: currentTask.id,
+                    storyId: currentTask.storyId?.trim() || undefined,
+                    hoursWorked: effortLog.hours,
+                    description: effortLog.description,
+                    workDate: effortLog.workDate,
+                    entryType: effortLog.category || 'development',
+                    isBillable: true,
+                    startTime: effortLog.startTime && effortLog.startTime.trim() ? effortLog.startTime : undefined,
+                    endTime: effortLog.endTime && effortLog.endTime.trim() ? effortLog.endTime : undefined,
+                };
 
-            await timeEntryApiService.createTimeEntry(timeEntryData);
+                await timeEntryApiService.createTimeEntry(timeEntryData);
 
-            // Upload any attachments if present
-            if (effortLogAttachments.length > 0) {
-                try {
-                    for (const file of effortLogAttachments) {
-                        await uploadFileAndCreateAttachment(file, 'task', currentTask.id);
+                // Upload any attachments if present
+                if (effortLogAttachments.length > 0) {
+                    try {
+                        for (const file of effortLogAttachments) {
+                            await uploadFileAndCreateAttachment(file, 'task', currentTask.id);
+                        }
+                    } catch (attachError) {
+                        console.error("Error uploading attachments:", attachError);
+                        toast.error("Effort logged, but some attachments failed to upload");
                     }
-                } catch (attachError) {
-                    console.error("Error uploading attachments:", attachError);
-                    toast.error("Effort logged, but some attachments failed to upload");
                 }
+                toast.success("Time logged successfully");
             }
 
-            toast.success("Effort logged successfully");
             setIsLogEffortOpen(false);
+            setSelectedLogForEdit(null);
             setEffortLog({
                 hours: 0,
                 description: "",
                 workDate: getLocalToday(),
                 startTime: "",
                 endTime: "",
+                category: "development"
             });
             setEffortLogAttachments([]);
-
-            // Refresh data
-            await fetchTaskData(currentTask.id, currentTask.storyId);
+            fetchTaskData(currentTask.id, currentTask.storyId);
             invalidateTasksCache();
             if (onTaskUpdated) onTaskUpdated();
         } catch (error) {
-            console.error("Error logging effort:", error);
-            toast.error("Failed to log effort");
+            console.error("Error saving time log:", error);
+            toast.error("Failed to save time log");
         } finally {
             setIsLoggingEffort(false);
+        }
+    };
+
+    const handleDeleteLog = async (logId: string) => {
+        if (!currentTask || !window.confirm("Are you sure you want to delete this time log?")) return;
+        try {
+            await timeEntryApiService.deleteTimeEntry(logId);
+            toast.success("Time log deleted successfully");
+            fetchTaskData(currentTask.id, currentTask.storyId);
+            invalidateTasksCache();
+            if (onTaskUpdated) onTaskUpdated();
+        } catch (error) {
+            console.error("Error deleting time log:", error);
+            toast.error("Failed to delete time log");
         }
     };
 
@@ -866,6 +914,18 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
                                                                         </div>
                                                                         <Badge variant="outline" className="text-xs">{log.entryType}</Badge>
                                                                     </div>
+                                                                </div>
+                                                                <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => {
+                                                                        setSelectedLogForEdit(log);
+                                                                        setEffortLog({ hours: log.hoursWorked, description: log.description || "", workDate: log.workDate, startTime: log.startTime || "", endTime: log.endTime || "", category: (log as any).category || "development" });
+                                                                        setIsLogEffortOpen(true);
+                                                                    }}>
+                                                                        <Edit3 className="w-3 h-3" />
+                                                                    </Button>
+                                                                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-600" onClick={() => handleDeleteLog(log.id)}>
+                                                                        <Trash2 className="w-3 h-3" />
+                                                                    </Button>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -1359,115 +1419,159 @@ const TaskDetailsJiraDialog: React.FC<TaskDetailsJiraDialogProps> = ({
             <Dialog open={isLogEffortOpen} onOpenChange={setIsLogEffortOpen}>
                 <DialogContent className="max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Log Work</DialogTitle>
+                        <DialogTitle>{selectedLogForEdit ? 'Edit Time Log' : 'Log Time'}</DialogTitle>
                         <DialogDescription>
-                            Log time spent on task: {currentTask.title}
+                            {selectedLogForEdit ? 'Update your existing time entry' : 'Record the time you spent on this task'}
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
-                        <div>
-                            <Label htmlFor="hours">Hours Worked *</Label>
+                        <div className="space-y-2">
+                            <Label htmlFor="hours">
+                                Hours Worked *
+                            </Label>
                             <Input
                                 id="hours"
                                 type="number"
-                                step="0.5"
+                                step="0.1"
+                                className="w-full"
                                 value={effortLog.hours}
-                                onChange={(e) => setEffortLog(p => ({ ...p, hours: parseFloat(e.target.value) || 0 }))}
+                                onChange={(e) => setEffortLog(prev => ({ ...prev, hours: parseFloat(e.target.value) || 0 }))}
+                                placeholder="e.g. 2.5"
                             />
                         </div>
-                        <div>
-                            <Label htmlFor="description">Work Description *</Label>
+                        <div className="space-y-2">
+                            <Label htmlFor="workDate">
+                                Date *
+                            </Label>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        className="w-full justify-start text-left font-normal"
+                                    >
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {effortLog.workDate || "Select date"}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                    <Calendar
+                                        mode="single"
+                                        selected={new Date(effortLog.workDate)}
+                                        onSelect={(date) => date && setEffortLog(prev => ({ ...prev, workDate: toDateInputFormat(date) }))}
+                                        initialFocus
+                                    />
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="log-category">
+                                Category <span className="text-red-500">*</span>
+                            </Label>
+                            <Select
+                                value={effortLog.category}
+                                onValueChange={(val) => setEffortLog(prev => ({ ...prev, category: val }))}
+                            >
+                                <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Select category" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {workCategories.map((cat) => (
+                                        <SelectItem key={cat.value} value={cat.value}>
+                                            <span className="flex items-center">
+                                                <span className="mr-2">{cat.icon}</span>
+                                                {cat.label}
+                                            </span>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="description">
+                                Description <span className="text-red-500">*</span>
+                            </Label>
                             <Textarea
                                 id="description"
+                                className="w-full min-h-[80px]"
                                 value={effortLog.description}
-                                onChange={(e) => setEffortLog(p => ({ ...p, description: e.target.value }))}
                                 placeholder="What did you work on?"
-                                className="whitespace-pre-wrap"
                             />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <Label htmlFor="startTime">Start Time (Optional)</Label>
-                                <Input
-                                    id="startTime"
-                                    type="time"
-                                    value={effortLog.startTime}
-                                    onChange={(e) => setEffortLog(p => ({ ...p, startTime: e.target.value }))}
-                                />
-                            </div>
-                            <div>
-                                <Label htmlFor="endTime">End Time (Optional)</Label>
-                                <Input
-                                    id="endTime"
-                                    type="time"
-                                    value={effortLog.endTime}
-                                    onChange={(e) => setEffortLog(p => ({ ...p, endTime: e.target.value }))}
-                                />
-                            </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="startTime">Start Time (Optional)</Label>
+                            <Input
+                                id="startTime"
+                                type="time"
+                                className="w-full"
+                                value={effortLog.startTime}
+                                onChange={(e) => setEffortLog(p => ({ ...p, startTime: e.target.value }))}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="endTime">End Time (Optional)</Label>
+                            <Input
+                                id="endTime"
+                                type="time"
+                                className="w-full"
+                                value={effortLog.endTime}
+                                onChange={(e) => setEffortLog(p => ({ ...p, endTime: e.target.value }))}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Attachments Section */}
+                    <div className="border rounded-lg p-3 bg-gray-50/50">
+                        <Label className="flex items-center gap-2 mb-2">
+                            <Paperclip className="w-4 h-4" />
+                            Attachments (Optional)
+                        </Label>
+                        <div className="space-y-2">
+                            <Input
+                                type="file"
+                                multiple
+                                onChange={(e) => {
+                                    const files = Array.from(e.target.files || []);
+                                    setEffortLogAttachments((prev) => [...prev, ...files]);
+                                    e.target.value = '';
+                                }}
+                                className="cursor-pointer bg-white"
+                            />
+                            {effortLogAttachments.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                    {effortLogAttachments.map((file, index) => (
+                                        <div key={index} className="flex items-center gap-1 bg-white border rounded px-2 py-1 text-xs">
+                                            <Paperclip className="w-3 h-3 text-gray-500" />
+                                            <span className="max-w-[120px] truncate">{file.name}</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setEffortLogAttachments(prev => prev.filter((_, i) => i !== index))}
+                                                className="ml-1 text-red-500 hover:text-red-700"
+                                            >
+                                                ×
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Task Time Stats */}
+                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 flex items-center justify-between">
+                        <div>
+                            <p className="text-[10px] text-blue-600 uppercase font-bold mb-1">Estimated</p>
+                            <p className="text-lg font-bold text-blue-700">{(currentTask?.estimatedHours || 0)}h</p>
                         </div>
                         <div>
-                            <Label htmlFor="date">Work Date</Label>
-                            <Input
-                                id="date"
-                                type="date"
-                                onKeyDown={(e) => e.preventDefault()}
-                                min={(() => { const d = new Date(); d.setDate(d.getDate() - 2); return toDateInputFormat(d); })()}
-                                value={effortLog.workDate}
-                                onChange={(e) => setEffortLog(p => ({ ...p, workDate: e.target.value }))}
-                            />
+                            <p className="text-[10px] text-green-600 uppercase font-bold mb-1">Logged</p>
+                            <p className="text-lg font-bold text-green-700">{(currentTask?.actualHours || 0)}h</p>
                         </div>
-
-                        {/* Attachments Section */}
-                        <div className="border rounded-lg p-3 bg-gray-50/50">
-                            <Label className="flex items-center gap-2 mb-2">
-                                <Paperclip className="w-4 h-4" />
-                                Attachments (Optional)
-                            </Label>
-                            <div className="space-y-2">
-                                <Input
-                                    type="file"
-                                    multiple
-                                    onChange={(e) => {
-                                        const files = Array.from(e.target.files || []);
-                                        setEffortLogAttachments((prev) => [...prev, ...files]);
-                                        e.target.value = '';
-                                    }}
-                                    className="cursor-pointer bg-white"
-                                />
-                                {effortLogAttachments.length > 0 && (
-                                    <div className="flex flex-wrap gap-2 mt-2">
-                                        {effortLogAttachments.map((file, index) => (
-                                            <div key={index} className="flex items-center gap-1 bg-white border rounded px-2 py-1 text-xs">
-                                                <Paperclip className="w-3 h-3 text-gray-500" />
-                                                <span className="max-w-[120px] truncate">{file.name}</span>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setEffortLogAttachments(prev => prev.filter((_, i) => i !== index))}
-                                                    className="ml-1 text-red-500 hover:text-red-700"
-                                                >
-                                                    ×
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Task Time Stats */}
-                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 flex items-center justify-between">
-                            <div>
-                                <p className="text-[10px] text-blue-600 uppercase font-bold mb-1">Estimated</p>
-                                <p className="text-lg font-bold text-blue-700">{(currentTask?.estimatedHours || 0)}h</p>
-                            </div>
-                            <div>
-                                <p className="text-[10px] text-green-600 uppercase font-bold mb-1">Logged</p>
-                                <p className="text-lg font-bold text-green-700">{(currentTask?.actualHours || 0)}h</p>
-                            </div>
-                            <div>
-                                <p className="text-[10px] text-orange-600 uppercase font-bold mb-1">After Log</p>
-                                <p className="text-lg font-bold text-orange-700">{((currentTask?.actualHours || 0) + effortLog.hours).toFixed(2)}h</p>
-                            </div>
+                        <div>
+                            <p className="text-[10px] text-orange-600 uppercase font-bold mb-1">After Log</p>
+                            <p className="text-lg font-bold text-orange-700">{((currentTask?.actualHours || 0) + effortLog.hours).toFixed(2)}h</p>
                         </div>
                     </div>
                     <DialogFooter>

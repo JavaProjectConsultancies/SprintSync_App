@@ -106,6 +106,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  ChevronUp,
   Layers3,
   BookOpen,
   CalendarDays,
@@ -330,9 +331,34 @@ const ItemTypes = {
   ISSUE: "issue",
 };
 
+// Work categories for effort logging
+const workCategories = [
+  { value: 'development', label: 'Development' },
+  { value: 'design', label: 'Design' },
+  { value: 'testing', label: 'Testing' },
+  { value: 'documentation', label: 'Documentation' },
+  { value: 'meeting', label: 'Meeting' },
+  { value: 'research', label: 'Research' },
+  { value: 'review', label: 'Code Review' },
+  { value: 'deployment', label: 'Deployment' },
+  { value: 'onsite', label: 'On-site' },
+  { value: 'implementation', label: 'Implementation' },
+  { value: 'support', label: 'Support' }
+];
+
 const ScrumPage: React.FC = () => {
   const { user } = useAuth();
   const { activeRole, resetToOriginalRole, getRoleForProject, switchRole } = useRoleSwitcher();
+
+  // Helper function to convert file to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (error) => reject(error);
+    });
+  };
 
   // Reset to original role when navigating away from this page
   useEffect(() => {
@@ -356,15 +382,18 @@ const ScrumPage: React.FC = () => {
 
   const [selectedProject, setSelectedProject] = useState("");
 
-  // Auto-switch role to user's role for the selected project
+  const lastProjectRef = useRef<string>("");
+
+  // Auto-switch role to user's role for the selected project - ONLY when project changes
   useEffect(() => {
-    if (selectedProject) {
+    if (selectedProject && selectedProject !== lastProjectRef.current) {
+      lastProjectRef.current = selectedProject;
       const projectRole = getRoleForProject(selectedProject);
-      if (projectRole && projectRole !== activeRole) {
+      if (projectRole) {
         switchRole(projectRole);
       }
     }
-  }, [selectedProject, getRoleForProject, switchRole, activeRole]);
+  }, [selectedProject, getRoleForProject, switchRole]);
 
   const notifyProjectBudgetUpdate = useCallback(
     (reason?: string) => {
@@ -424,7 +453,8 @@ const ScrumPage: React.FC = () => {
   const [editLogData, setEditLogData] = useState({
     hoursWorked: 0,
     description: "",
-    workDate: getLocalToday(),
+    category: "",
+    workDate: new Date().toISOString().split('T')[0],
     startTime: "",
     endTime: "",
   });
@@ -436,7 +466,8 @@ const ScrumPage: React.FC = () => {
   const [subtaskLogEffort, setSubtaskLogEffort] = useState({
     hours: 0,
     description: "",
-    workDate: getLocalToday(),
+    category: "",
+    workDate: new Date().toISOString().split('T')[0],
     startTime: "",
     endTime: "",
   });
@@ -628,6 +659,8 @@ const ScrumPage: React.FC = () => {
 
     description: "",
 
+    category: "",
+
     workDate: "",
 
     startTime: "",
@@ -648,7 +681,21 @@ const ScrumPage: React.FC = () => {
 
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Scrum board search - filters tasks and issues by title or UUID (prefixed with T) or I))
+  // State to track expanded lanes (storyId-status)
+  const [expandedLanes, setExpandedLanes] = useState<Set<string>>(new Set());
+
+  const toggleLaneExpansion = useCallback((storyId: string, status: string) => {
+    const key = `${storyId}-${status}`;
+    setExpandedLanes(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
   const [scrumBoardSearch, setScrumBoardSearch] = useState("");
   const matchesTaskSearch = useCallback(
     (task: Task) => {
@@ -769,6 +816,66 @@ const ScrumPage: React.FC = () => {
     }
   }, [user?.id]);
 
+  // API Hooks - Sprints (only fetch if project is selected)
+  const {
+    data: sprintsData,
+    loading: sprintsLoading,
+    refetch: refetchSprints,
+  } = useSprintsByProject(selectedProject || "SKIP");
+
+  const { data: burndownData, loading: burndownLoading } = useSprintBurndown(
+    selectedSprint || "SKIP",
+  );
+
+  const sprints = useMemo(() => {
+    if (!selectedProject || !sprintsData) return [];
+
+    const sprintsArray = Array.isArray(sprintsData)
+      ? sprintsData
+      : (sprintsData as any)?.data
+        ? (sprintsData as any).data
+        : (sprintsData as any)?.content
+          ? (sprintsData as any).content
+          : [];
+
+    // Sort sprints by startDate in descending order (newest first)
+    return sprintsArray.sort((a: any, b: any) => {
+      const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
+      const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
+      return dateB - dateA; // Descending order (newest first)
+    });
+  }, [selectedProject, sprintsData]);
+
+  const currentSprint = useMemo(() => {
+    if (!selectedSprint || !selectedProject) return undefined;
+
+    const sprint = sprints.find((s: Sprint) => s.id === selectedSprint);
+
+    // Validate that the sprint belongs to the selected project
+    if (sprint && sprint.projectId !== selectedProject) {
+      console.warn(
+        `Sprint ${sprint.id} does not belong to project ${selectedProject}`,
+      );
+      return undefined;
+    }
+
+    return sprint;
+  }, [sprints, selectedSprint, selectedProject]);
+
+  // Check if sprint has ended
+  const isSprintEnded = useMemo(() => {
+    if (!currentSprint || !currentSprint.endDate) {
+      return false;
+    }
+
+    const endDate = new Date(currentSprint.endDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time to start of day for accurate comparison
+    endDate.setHours(0, 0, 0, 0);
+
+    return endDate < today;
+  }, [currentSprint]);
+
   // Role-based permissions - using effectiveRole for dynamic role switching
 
   // Role checks for different user types - using effectiveRole to support role switching
@@ -787,38 +894,53 @@ const ScrumPage: React.FC = () => {
   const isOriginalQAManager = user?.role?.toUpperCase() === "QA_MANAGER";
   const isOriginalQADeveloper = user?.role?.toUpperCase() === "QA_DEVELOPER";
 
-  const canEditContent = !isViewOnly && (isManager || isSupport || isQAManager || isQADeveloper || isOriginalQAManager || isOriginalQADeveloper);
+  const canEditContent = !isSprintEnded && !isViewOnly && (isManager || isSupport || isQAManager || isQADeveloper || isOriginalQAManager || isOriginalQADeveloper);
   const canEditAttachments = canEditContent;
 
   // QA Developers should be treated like developers but with extra permissions (view all, drag to Done)
   const isDeveloper = isRegularDeveloper || isQADeveloper;
 
-  // Managers, QA (deprecated), and QA Managers can manage sprints, stories, and boards
-  // Master Admin has view-only access, so excluded from management permissions
+  // User's requested management roles: Manager, QA Manager, QA Developer, Support & Implementation
+  const isAuthorizedManager = effectiveRole?.toUpperCase() === "MANAGER";
+  const isAuthorizedQAManager = effectiveRole?.toUpperCase() === "QA_MANAGER";
+  const isAuthorizedQADeveloper = effectiveRole?.toUpperCase() === "QA_DEVELOPER";
+  const isAuthorizedSupport = effectiveRole?.toUpperCase() === "SUPPORT_AND_IMPLEMENTATION";
+
+  // Base permission for management actions - role-based and not view-only
   const canManageSprintsAndStories =
     !isViewOnly && (
-      isManager ||
-      isSupport ||
-      isQAManager ||
-      isQADeveloper ||
-      effectiveRole?.toUpperCase() === "QA"
+      isAuthorizedManager ||
+      isAuthorizedQAManager ||
+      isAuthorizedQADeveloper ||
+      isAuthorizedSupport ||
+      effectiveRole?.toUpperCase() === "QA" // Keep legacy QA role support
     );
 
-  // Managers and QA Managers can create tasks (Master Admin cannot - view only)
-  const canAddTasks = !isViewOnly && (isManager || isSupport || isOriginalQAManager || isOriginalQADeveloper || isQADeveloper);
+  // Managers, QA Managers, and QA Developers can create tasks (Master Admin cannot - view only)
+  const canAddTasks = !isViewOnly && (
+    isAuthorizedManager ||
+    isAuthorizedQAManager ||
+    isAuthorizedQADeveloper ||
+    isAuthorizedSupport
+  );
 
   // Managers, QA Managers, and QA Developers can create issues (Master Admin cannot - view only)
-  const canAddIssues = !isViewOnly && (isManager || isSupport || isQADeveloper || isOriginalQAManager || isOriginalQADeveloper);
+  const canAddIssues = !isViewOnly && (
+    isAuthorizedManager ||
+    isAuthorizedQAManager ||
+    isAuthorizedQADeveloper ||
+    isAuthorizedSupport
+  );
 
   // Managers, QA (deprecated), and QA Managers can create boards (Master Admin cannot - view only)
   const canCreateBoards = canManageSprintsAndStories;
 
   // Master Admin cannot log effort (view only)
-  const canLogEffort = !isViewOnly;
+  const canLogEffort = !isSprintEnded && !isViewOnly;
   // All non-admin roles can log effort on tasks
-  const canLogEffortOnTasks = !isViewOnly;
+  const canLogEffortOnTasks = !isSprintEnded && !isViewOnly;
   // QA Manager and QA Developer can log effort on OTHER users' tasks (like managers)
-  const canLogEffortForOthers = !isViewOnly && (canManageSprintsAndStories || isQADeveloper || isSupport);
+  const canLogEffortForOthers = !isSprintEnded && !isViewOnly && (canManageSprintsAndStories || isQADeveloper || isSupport);
 
   // Master Admin cannot drag items (view only), but QA Developer and QA Manager can
   const canDragToDone = !isViewOnly && (isManager || isSupport || isQADeveloper || isOriginalQAManager || isOriginalQADeveloper);
@@ -1536,17 +1658,7 @@ const ScrumPage: React.FC = () => {
     (release: any) => release.projectId === selectedProject,
   );
 
-  // API Hooks - Sprints (only fetch if project is selected)
-
-  const {
-    data: sprintsData,
-    loading: sprintsLoading,
-    refetch: refetchSprints,
-  } = useSprintsByProject(selectedProject || "SKIP");
-
-  const { data: burndownData, loading: burndownLoading } = useSprintBurndown(
-    selectedSprint || "SKIP",
-  );
+  // Sprints are now fetched and calculated at the top for permission checks
 
   const { mutate: createSprintMutate, loading: createSprintLoading } =
     useCreateSprint();
@@ -1608,20 +1720,34 @@ const ScrumPage: React.FC = () => {
 
   // Sorted tasks and issues for display (newest first)
   const sortedTasks = useMemo(() => {
-    return [...allTasks].sort((a, b) => {
+    let tasks = [...allTasks];
+
+    // Role-based filtering: Regular developers see only their own tasks
+    if (!canViewAllTasks && user) {
+      tasks = tasks.filter((task) => task.assigneeId === user.id);
+    }
+
+    return tasks.sort((a, b) => {
       const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       return dateB - dateA;
     });
-  }, [allTasks]);
+  }, [allTasks, canViewAllTasks, user]);
 
   const sortedIssues = useMemo(() => {
-    return [...allIssues].sort((a, b) => {
+    let issues = [...allIssues];
+
+    // Role-based filtering: Regular developers see only their own issues
+    if (!canViewAllIssues && user) {
+      issues = issues.filter((issue) => issue.assigneeId === user.id);
+    }
+
+    return issues.sort((a, b) => {
       const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       return dateB - dateA;
     });
-  }, [allIssues]);
+  }, [allIssues, canViewAllIssues, user]);
 
   // Handle taskId and issueId from query params (Deep linking)
   useEffect(() => {
@@ -1903,7 +2029,7 @@ const ScrumPage: React.FC = () => {
 
     try {
       const file = files[0];
-      await uploadFileAndCreateAttachment(file, selectedTaskForDetails.id, "task");
+      await uploadFileAndCreateAttachment(file, "task", selectedTaskForDetails.id, user?.id || "");
       toast.success("Attachment uploaded successfully");
 
       // Refresh attachments
@@ -1926,7 +2052,7 @@ const ScrumPage: React.FC = () => {
 
     try {
       const file = files[0];
-      await uploadFileAndCreateAttachment(file, selectedIssueForDetails.id, "issue");
+      await uploadFileAndCreateAttachment(file, "issue", selectedIssueForDetails.id, user?.id || "");
       toast.success("Attachment uploaded successfully");
 
       // Refresh attachments
@@ -2324,52 +2450,7 @@ const ScrumPage: React.FC = () => {
 
   // Memoize arrays to prevent infinite loops from new references on every render
 
-  const sprints = useMemo(() => {
-    const sprintsArray = selectedProject
-      ? Array.isArray(sprintsData)
-        ? sprintsData
-        : (sprintsData as any)?.data || []
-      : [];
-
-    // Sort sprints by startDate in descending order (newest first)
-    return sprintsArray.sort((a: any, b: any) => {
-      const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
-      const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
-      return dateB - dateA; // Descending order (newest first)
-    });
-  }, [selectedProject, sprintsData]);
-
-  const currentSprint = useMemo(() => {
-    if (!selectedSprint || !selectedProject) return undefined;
-
-    const sprint = sprints.find((s: Sprint) => s.id === selectedSprint);
-
-    // Validate that the sprint belongs to the selected project
-
-    if (sprint && sprint.projectId !== selectedProject) {
-      console.warn(
-        `Sprint ${sprint.id} does not belong to project ${selectedProject}`,
-      );
-
-      return undefined;
-    }
-
-    return sprint;
-  }, [sprints, selectedSprint, selectedProject]);
-
-  // Check if sprint has ended
-  const isSprintEnded = useMemo(() => {
-    if (!currentSprint || !currentSprint.endDate) {
-      return false;
-    }
-
-    const endDate = new Date(currentSprint.endDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Reset time to start of day for accurate comparison
-    endDate.setHours(0, 0, 0, 0);
-
-    return endDate < today;
-  }, [currentSprint]);
+  // Sprint memos moved up to support permission checks
 
   const sprintStories = useMemo(() => {
     // If no sprint is selected or no sprint exists for the project, return empty array
@@ -2628,7 +2709,7 @@ const ScrumPage: React.FC = () => {
     }
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSprint, selectedProject, sprintStories, backlogStories]); // Depend on sprint/project and stories
+  }, [selectedSprint, selectedProject, sprintStories, backlogStories, fetchAllTasks]); // Depend on sprint/project and stories
 
   // Fetch users when component mounts
 
@@ -3292,6 +3373,43 @@ const ScrumPage: React.FC = () => {
             movedStories.push(movedStory);
 
             console.log(`Successfully moved backlog story "${story.title}" (${story.id}) to sprint ${selectedSprint}. Verified sprintId: ${movedStory.sprintId}`);
+
+            // Refine story items: Exclude DONE items and set others to TODO
+            try {
+              const [tasksRes, issuesRes] = await Promise.all([
+                taskApiService.getTasksByStory(story.id),
+                issueApiService.getIssuesByStory(story.id)
+              ]);
+
+              const tasks = Array.isArray(tasksRes.data) ? tasksRes.data : ((tasksRes.data as any)?.data || []);
+              const issues = Array.isArray(issuesRes.data) ? issuesRes.data : ((issuesRes.data as any)?.data || []);
+
+              // Process tasks
+              for (const t of tasks) {
+                const status = (t.status || "").toUpperCase();
+                if (status === "DONE" || status === "CANCELLED") {
+                  // Exclude DONE/CANCELLED items by unlinking them from the story
+                  await taskApiService.updateTask(t.id, { storyId: null as any });
+                } else {
+                  // Reset other items to TODO for correct lane selection
+                  await taskApiService.updateTaskStatus(t.id, "TO_DO");
+                }
+              }
+
+              // Process issues
+              for (const i of issues) {
+                const status = (i.status || "").toUpperCase();
+                if (status === "DONE" || status === "CANCELLED") {
+                  // Exclude DONE/CANCELLED items
+                  await issueApiService.updateIssue(i.id, { storyId: null as any });
+                } else {
+                  // Reset other items to TODO
+                  await issueApiService.updateIssueStatus(i.id, "TO_DO");
+                }
+              }
+            } catch (err) {
+              console.error(`Error refining items for story ${story.id}:`, err);
+            }
           } else {
             console.error(`No data returned when moving story ${story.id} to sprint ${selectedSprint}`);
             toast.error(`Failed to move story "${story.title}" to sprint. No data returned.`);
@@ -3454,8 +3572,7 @@ const ScrumPage: React.FC = () => {
   // Get tasks for a specific story
 
   const getTasksForStory = (storyId: string) => {
-    return allTasks
-
+    return sortedTasks
       .filter(
         (task) =>
           task.storyId === storyId &&
@@ -3483,8 +3600,7 @@ const ScrumPage: React.FC = () => {
   // Get issues for a specific story
 
   const getIssuesForStory = (storyId: string) => {
-    return allIssues
-
+    return sortedIssues
       .filter(
         (issue) =>
           issue.storyId === storyId &&
@@ -3544,10 +3660,8 @@ const ScrumPage: React.FC = () => {
       }
 
       // Filter tasks to include those whose parent stories are in the current sprint OR backlog
-
-      const filteredTasks = allTasks.filter((task) => {
+      const filteredTasks = sortedTasks.filter((task) => {
         // Check if the task's parent story is in the current sprint or backlog
-
         const parentStoryOnBoard = boardStories.some(
           (story) => story.id === task.storyId,
         );
@@ -3586,7 +3700,7 @@ const ScrumPage: React.FC = () => {
 
       return filteredTasks;
     },
-    [allTasks, boardStories, workflowLanes, mapTaskStatusToColumn, user],
+    [sortedTasks, boardStories, workflowLanes, mapTaskStatusToColumn, user],
   );
 
   // Get issues by column status (issues from stories in the current sprint or backlog)
@@ -3595,7 +3709,7 @@ const ScrumPage: React.FC = () => {
       if (status === "stories") return []; // No issues in Stories column
 
       // Filter issues to include those whose parent stories are on the board
-      const filteredIssues = allIssues.filter((issue) => {
+      const filteredIssues = sortedIssues.filter((issue) => {
         // Check if issue's parent story is on the board
         const parentStoryOnBoard = boardStories.some(
           (story) => story.id === issue.storyId
@@ -3612,7 +3726,7 @@ const ScrumPage: React.FC = () => {
 
       return filteredIssues;
     },
-    [allIssues, boardStories, mapTaskStatusToColumn]
+    [sortedIssues, boardStories, mapTaskStatusToColumn]
   );
 
   // Group tasks by their parent story (only from stories in current sprint)
@@ -3980,65 +4094,7 @@ const ScrumPage: React.FC = () => {
   // Note: allBacklogStoriesForDisplay is declared later and used for backlog display
 
 
-  // Helper function to convert file to base64
-
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-
-      reader.readAsDataURL(file);
-
-      reader.onload = () => resolve(reader.result as string);
-
-      reader.onerror = (error) => reject(error);
-    });
-  };
-
-  // Helper function to create attachment with file
-  const uploadFileAndCreateAttachment = async (
-    file: File,
-    entityType: string,
-    entityId: string,
-  ): Promise<void> => {
-    try {
-      // Convert file to base64 data URL
-      const fileDataUrl = await fileToBase64(file);
-      const fileType = file.type || "application/octet-stream";
-
-      // Create attachment record directly with base64 data URL
-      console.log(`[uploadFileAndCreateAttachment] Creating attachment for ${entityType} ${entityId}:`, {
-        fileName: file.name,
-        fileSize: file.size,
-        fileType,
-        entityType,
-        entityId,
-        uploadedBy: user?.id
-      });
-
-      const response = await attachmentApiService.createAttachment({
-        uploadedBy: user?.id,
-        entityType,
-        entityId,
-        fileName: file.name,
-        fileSize: file.size,
-        fileType,
-        fileUrl: fileDataUrl, // Store as base64 data URL
-        thumbnailUrl: undefined,
-        attachmentType: 'file' as const,
-        isPublic: true,
-      });
-
-      if (!response.success) {
-        console.error("[uploadFileAndCreateAttachment] Attachment creation failed:", response);
-        throw new Error(response.message || "Failed to create attachment");
-      }
-
-      console.log(`[uploadFileAndCreateAttachment] Attachment created successfully:`, response.data);
-    } catch (error) {
-      console.error("Error creating attachment:", error);
-      throw error;
-    }
-  };
+  // Helper functions moved up or using imported versions
 
   // Helper function to create URL attachment
   const createUrlAttachment = async (
@@ -4083,9 +4139,9 @@ const ScrumPage: React.FC = () => {
   // Story creation handler
 
   const handleCreateStory = async () => {
-    // Only managers can create stories
-    if (!isManager) {
-      toast.error("Only managers can create stories");
+    // Check for appropriate permissions
+    if (!canManageSprintsAndStories) {
+      toast.error("You do not have permission to create stories");
       return;
     }
 
@@ -4152,7 +4208,7 @@ const ScrumPage: React.FC = () => {
 
       try {
         const uploadPromises = storyAttachments.map((file) =>
-          uploadFileAndCreateAttachment(file, "story", createdStory.data.id),
+          uploadFileAndCreateAttachment(file, "story", createdStory.data.id, user?.id || ""),
         );
 
         await Promise.all(uploadPromises);
@@ -4221,13 +4277,11 @@ const ScrumPage: React.FC = () => {
 
   const moveItem = useCallback(
     async (id: string, newStatus: string, itemType: string) => {
-      const mappedNewStatus = mapColumnToTaskStatus(newStatus);
-
-      // === RULE 1: Only QA Developer, QA Manager, Manager, Implementation, and Support roles can move items TO DONE lane ===
-      if (mappedNewStatus === "DONE" && !canDragToDone) {
-        toast.error("Only QA Developer, QA Manager, Manager, Implementation, and Support roles can move items to the Done lane");
+      if (isSprintEnded) {
+        toast.error("Scrum board is frozen because the sprint has ended.");
         return;
       }
+      const mappedNewStatus = mapColumnToTaskStatus(newStatus);
 
       if (itemType === ItemTypes.TASK) {
         // Check if newStatus is a valid default status or a custom lane statusValue
@@ -4554,86 +4608,7 @@ const ScrumPage: React.FC = () => {
     }
   };
 
-  // Add Story Handler
 
-  const handleAddStory = async () => {
-    // Only managers can create stories
-    if (!isManager) {
-      toast.error("Only managers can create stories");
-      return;
-    }
-
-    // Convert acceptanceCriteria string to array (backend expects List<String>)
-    const acceptanceCriteriaArray = newStory.acceptanceCriteria
-      ? newStory.acceptanceCriteria.split('\n').filter((line: string) => line.trim() !== '')
-      : [];
-
-    const createdStory = await createStoryMutate({
-      projectId: selectedProject,
-      title: newStory.title,
-      description: newStory.description || null,
-      acceptanceCriteria: acceptanceCriteriaArray,
-      storyPoints: newStory.storyPoints || null,
-      priority: newStory.priority || "MEDIUM",
-      epicId: newStory.epicId || null,
-      releaseId: newStory.releaseId || null,
-      sprintId: activeView === "backlog" ? null : (selectedSprint || null),
-      assigneeId: newStory.assigneeId || null,
-      reporterId: user?.id || null,
-      status: activeView === "backlog" ? "BACKLOG" : "TODO",
-      labels: newStory.labels || [],
-      dueDate: newStory.dueDate || null,
-    } as any);
-
-    // Upload attachments if any
-
-    if (storyAttachments.length > 0 && createdStory?.data?.id) {
-      setUploadingAttachments(true);
-
-      try {
-        const uploadPromises = storyAttachments.map((file) =>
-          uploadFileAndCreateAttachment(file, "story", createdStory.data.id),
-        );
-
-        await Promise.all(uploadPromises);
-
-        toast.success(
-          `Story created with ${storyAttachments.length} attachment(s)`,
-        );
-      } catch (error) {
-        console.error("Error uploading attachments:", error);
-
-        toast.error("Story created but some attachments failed to upload");
-      } finally {
-        setUploadingAttachments(false);
-      }
-    } else {
-      toast.success("Story created successfully");
-    }
-
-    refetchSprintStories();
-
-    refetchBacklogStories();
-
-    setNewStory({
-      title: "",
-      description: "",
-      acceptanceCriteria: "",
-      storyPoints: 0,
-      priority: "MEDIUM",
-      epicId: "",
-      releaseId: "",
-      sprintId: selectedSprint || "",
-      assigneeId: "",
-      reporterId: user?.id || "",
-      dueDate: undefined,
-      labels: [],
-    });
-
-    setStoryAttachments([]);
-
-    setIsAddStoryDialogOpen(false);
-  };
 
   // Add Task Handler - Updated to accept AddTaskDialog format
 
@@ -5183,7 +5158,7 @@ const ScrumPage: React.FC = () => {
       // Create task data in API format
 
       const taskData = {
-        storyId: taskDataFromDialog.storyId || "",
+        storyId: taskDataFromDialog.storyId && taskDataFromDialog.storyId !== "none" ? taskDataFromDialog.storyId : undefined,
 
         title: taskDataFromDialog.title,
 
@@ -5225,7 +5200,7 @@ const ScrumPage: React.FC = () => {
             if (hasFiles) {
               uploadPromises.push(...taskDataFromDialog.attachments.map(
                 (file: File) =>
-                  uploadFileAndCreateAttachment(file, "task", response.data.id),
+                  uploadFileAndCreateAttachment(file, "task", response.data.id, user?.id || ""),
               ));
             }
 
@@ -5270,15 +5245,11 @@ const ScrumPage: React.FC = () => {
       return;
     }
 
-    // Validate that storyId is provided
-
-    const storyId = issueDataFromDialog.storyId || selectedStoryForIssue;
-
-    if (!storyId || storyId === "none" || storyId === "") {
-      toast.error("Issue must be linked to a story. Please select a story.");
-
-      return;
-    }
+    // Story ID validation removed to allow standalone issues
+    // dialog sends 'none' string when no story selected, treat that as empty
+    const dialogStoryId = issueDataFromDialog.storyId && issueDataFromDialog.storyId !== 'none' && issueDataFromDialog.storyId !== '' ? issueDataFromDialog.storyId : null;
+    const storyId = dialogStoryId || selectedStoryForIssue;
+    console.log('[handleAddIssue] storyId resolution:', { dialogStoryId, selectedStoryForIssue, finalStoryId: storyId });
 
     try {
       // The dialog now sends assignee as user ID directly
@@ -5392,7 +5363,7 @@ const ScrumPage: React.FC = () => {
       // Create issue data in API format
 
       const issueData = {
-        storyId: storyId,
+        storyId: storyId && storyId !== "none" ? storyId : undefined,
 
         title: issueDataFromDialog.title,
 
@@ -5424,6 +5395,7 @@ const ScrumPage: React.FC = () => {
       const issueDataForCreate = { ...issueData };
       delete (issueDataForCreate as any).linkedTaskIds;
 
+      console.log('[handleAddIssue] Sending to backend:', JSON.stringify(issueDataForCreate, null, 2));
       const response = await createIssueMutate(issueDataForCreate);
 
       if (response && response.data) {
@@ -5577,7 +5549,7 @@ const ScrumPage: React.FC = () => {
             if (hasFiles) {
               uploadPromises.push(...issueDataFromDialog.attachments.map(
                 (file: File) =>
-                  uploadFileAndCreateAttachment(file, "issue", createdIssueId),
+                  uploadFileAndCreateAttachment(file, "issue", createdIssueId, user?.id || ""),
               ));
             }
 
@@ -5637,18 +5609,24 @@ const ScrumPage: React.FC = () => {
 
         refetchBacklogStories();
 
-        // Refetch tasks after a short delay to ensure stories are updated
+        // Immediately add the new issue to allIssues state (optimistic update)
+        if (response.data) {
+          setAllIssues(prev => [...prev, response.data]);
+        }
+
+        // Refetch tasks and issues after a short delay to ensure stories are updated
 
         setTimeout(() => {
           fetchAllTasks(sprintStories, true);
         }, 500);
       } else {
-        throw new Error("Failed to create task");
+        throw new Error("Failed to create issue");
       }
     } catch (error: any) {
-      console.error("Error creating task:", error);
-
-      toast.error(error?.message || "Failed to create task. Please try again.");
+      console.error("Error creating issue:", error);
+      const serverMsg = error?.response?.data?.message || error?.response?.data || error?.message;
+      console.error("Server error details:", serverMsg);
+      toast.error(typeof serverMsg === 'string' ? serverMsg : "Failed to create issue. Please try again.");
     }
   };
 
@@ -6212,6 +6190,10 @@ const ScrumPage: React.FC = () => {
       toast.error("Please enter valid hours");
       return;
     }
+    if (!subtaskLogEffort.category) {
+      toast.error("Please select a work category");
+      return;
+    }
     if (!subtaskLogEffort.description.trim()) {
       toast.error("Please enter a description");
       return;
@@ -6229,7 +6211,7 @@ const ScrumPage: React.FC = () => {
         taskId: selectedSubtaskForLog.taskId || undefined,
         issueId: selectedSubtaskForLog.issueId || undefined,
         description: subtaskLogEffort.description,
-        entryType: "development" as const,
+        entryType: subtaskLogEffort.category as any,
         hoursWorked: subtaskLogEffort.hours,
         workDate: subtaskLogEffort.workDate,
         startTime: subtaskLogEffort.startTime?.trim() || undefined,
@@ -6463,6 +6445,7 @@ const ScrumPage: React.FC = () => {
       setSubtaskLogEffort({
         hours: 0,
         description: "",
+        category: "",
         workDate: new Date().toISOString().split("T")[0],
         startTime: "",
         endTime: "",
@@ -6482,6 +6465,10 @@ const ScrumPage: React.FC = () => {
       toast.error("Please enter valid hours");
       return;
     }
+    if (!editLogData.category) {
+      toast.error("Please select a work category");
+      return;
+    }
 
     try {
       // Ensure description is not empty (required field)
@@ -6490,31 +6477,22 @@ const ScrumPage: React.FC = () => {
         return;
       }
 
-      // Build update data with all required fields from the original entry
-      // The backend expects the full TimeEntry object, so we need to preserve all required fields
+
       const updateData: Partial<TimeEntry> = {
-        // Preserve all required fields from the original entry
         userId: selectedLogForEdit.userId,
-        entryType: selectedLogForEdit.entryType || 'development',
+        entryType: (editLogData.category as any) || selectedLogForEdit.entryType || 'development',
         isBillable: selectedLogForEdit.isBillable !== undefined ? selectedLogForEdit.isBillable : true,
-        // Update fields
         hoursWorked: editLogData.hoursWorked,
         description: editLogData.description.trim(),
         workDate: editLogData.workDate,
-        // Optional fields - preserve if they exist, or set to undefined if empty
         startTime: editLogData.startTime && editLogData.startTime.trim() !== "" ? editLogData.startTime : undefined,
         endTime: editLogData.endTime && editLogData.endTime.trim() !== "" ? editLogData.endTime : undefined,
-        // Preserve optional IDs if they exist
         projectId: selectedLogForEdit.projectId || undefined,
         storyId: selectedLogForEdit.storyId || undefined,
         taskId: selectedLogForEdit.taskId || undefined,
         subtaskId: selectedLogForEdit.subtaskId || undefined,
+        issueId: selectedLogForEdit.issueId || undefined,
       };
-
-      console.log("Updating time entry in database:", {
-        id: selectedLogForEdit.id,
-        data: updateData
-      });
 
       const updateResponse = await timeEntryApiService.updateTimeEntry(selectedLogForEdit.id, updateData);
 
@@ -6524,53 +6502,98 @@ const ScrumPage: React.FC = () => {
         throw new Error(updateResponse?.message || "Failed to update time entry in database");
       }
 
-      console.log("Time entry updated successfully in database:", updateResponse.data);
-
-      // Update local state
+      // Update local logs state
       setTaskLogs((prev) =>
-        prev.map((log) =>
-          log.id === selectedLogForEdit.id
-            ? { ...log, ...updateResponse.data }
-            : log
-        )
+        prev.map((log) => log.id === selectedLogForEdit.id ? { ...log, ...updateResponse.data } : log)
+      );
+      setIssueLogs((prev) =>
+        prev.map((log) => log.id === selectedLogForEdit.id ? { ...log, ...updateResponse.data } : log)
       );
 
-      // Log activity
-      try {
-        if (selectedLogForEdit.taskId) {
-          await activityLogApiService.createActivityLog({
-            userId: user?.id || "",
-            entityType: "tasks",
-            entityId: selectedLogForEdit.taskId,
-            action: "time_entry_updated",
-            description: `Updated time entry: ${editLogData.hoursWorked}h`,
-            oldValues: JSON.stringify(selectedLogForEdit),
-            newValues: JSON.stringify(updateData),
-            ipAddress: undefined,
-            userAgent: undefined,
-          });
+      // Re-fetch parent item to sync actual hours
+      if (selectedLogForEdit.taskId) {
+        const taskRes = await taskApiService.getTaskById(selectedLogForEdit.taskId);
+        if (taskRes.data) {
+          setAllTasks(prev => prev.map(t => t.id === selectedLogForEdit.taskId ? taskRes.data : t));
+          if (selectedTaskForDetails?.id === selectedLogForEdit.taskId) {
+            setSelectedTaskForDetails(taskRes.data);
+          }
         }
-      } catch (error) {
-        console.error("Failed to log activity:", error);
+      } else if (selectedLogForEdit.issueId) {
+        const issueRes = await issueApiService.getIssueById(selectedLogForEdit.issueId);
+        if (issueRes.data) {
+          setAllIssues(prev => prev.map(i => i.id === selectedLogForEdit.issueId ? issueRes.data : i));
+          if (selectedIssueForDetails?.id === selectedLogForEdit.issueId) {
+            setSelectedIssueForDetails(issueRes.data);
+          }
+        }
+      }
+
+      // If it's a subtask log, refresh subtask state
+      if (selectedLogForEdit.subtaskId) {
+          try {
+              const subtaskRes = await subtaskApiService.getSubtaskById(selectedLogForEdit.subtaskId);
+              if (subtaskRes.data) {
+                  setAllSubtasks(prev => prev.map(st => st.id === selectedLogForEdit.subtaskId ? subtaskRes.data : st));
+              }
+          } catch (stErr) {
+              console.error("Failed to refresh subtask after log update:", stErr);
+          }
       }
 
       toast.success("Time entry updated successfully");
-
-      // Reset form and close dialog
-      setEditLogData({
-        hoursWorked: 0,
-        description: "",
-        workDate: new Date().toISOString().split("T")[0],
-        startTime: "",
-        endTime: "",
-      });
       setIsEditLogDialogOpen(false);
       setSelectedLogForEdit(null);
     } catch (error: any) {
       console.error("Error updating time entry:", error);
-      toast.error(
-        error?.message || "Failed to update time entry. Please try again.",
-      );
+      toast.error(error?.message || "Failed to update time entry. Please try again.");
+    }
+  };
+
+  const handleDeleteTimeEntry = async (log: TimeEntry) => {
+    if (!window.confirm("Are you sure you want to delete this time entry?")) return;
+    try {
+      await timeEntryApiService.deleteTimeEntry(log.id);
+      toast.success("Time entry deleted");
+      notifyProjectBudgetUpdate("time-entry-deleted");
+
+      // Update logs state
+      setTaskLogs(prev => prev.filter(l => l.id !== log.id));
+      setIssueLogs(prev => prev.filter(l => l.id !== log.id));
+
+      // Re-fetch parent item to sync actual hours
+      if (log.taskId) {
+        const taskRes = await taskApiService.getTaskById(log.taskId);
+        if (taskRes.data) {
+          setAllTasks(prev => prev.map(t => t.id === log.taskId ? taskRes.data : t));
+          if (selectedTaskForDetails?.id === log.taskId) {
+            setSelectedTaskForDetails(taskRes.data);
+          }
+        }
+      } else if (log.issueId) {
+        const issueRes = await issueApiService.getIssueById(log.issueId);
+        if (issueRes.data) {
+          setAllIssues(prev => prev.map(i => i.id === log.issueId ? issueRes.data : i));
+          if (selectedIssueForDetails?.id === log.issueId) {
+            setSelectedIssueForDetails(issueRes.data);
+          }
+        }
+      }
+
+      // If it's a subtask log, we might want to refresh subtasks list too
+      if (log.subtaskId) {
+          try {
+              const subtaskRes = await subtaskApiService.getSubtaskById(log.subtaskId);
+              if (subtaskRes.data) {
+                  setAllSubtasks(prev => prev.map(st => st.id === log.subtaskId ? subtaskRes.data : st));
+              }
+          } catch (stErr) {
+              console.error("Failed to refresh subtask after log deletion:", stErr);
+          }
+      }
+    } catch (error) {
+      console.error("Error deleting time entry:", error);
+      toast.error("Failed to delete time entry");
     }
   };
 
@@ -7015,11 +7038,18 @@ const ScrumPage: React.FC = () => {
       return;
     }
 
+    if (!effortLog.category) {
+      toast.error("Please select a work category");
+
+      return;
+    }
+
     if (!effortLog.description.trim()) {
       toast.error("Please enter a description");
 
       return;
     }
+
 
     if (!user?.id) {
       toast.error("User not authenticated");
@@ -7088,7 +7118,7 @@ const ScrumPage: React.FC = () => {
 
         description: loggingDescription,
 
-        entryType: "development" as const,
+        entryType: effortLog.category as any,
 
         hoursWorked: effortLog.hours,
 
@@ -7217,7 +7247,7 @@ const ScrumPage: React.FC = () => {
       if (effortLogAttachments.length > 0 && selectedSubtaskForEffort?.id) {
         try {
           for (const file of effortLogAttachments) {
-            await uploadFileAndCreateAttachment(file, 'subtask', selectedSubtaskForEffort.id);
+            await uploadFileAndCreateAttachment(file, 'subtask', selectedSubtaskForEffort.id, user?.id || "");
           }
           toast.success(`${effortLogAttachments.length} attachment(s) uploaded`);
         } catch (attachError) {
@@ -7236,6 +7266,8 @@ const ScrumPage: React.FC = () => {
         hours: 0,
 
         description: "",
+
+        category: "",
 
         workDate: new Date().toISOString().split("T")[0],
 
@@ -7271,6 +7303,11 @@ const ScrumPage: React.FC = () => {
       return;
     }
 
+    if (!effortLog.category) {
+      toast.error("Please select a work category");
+      return;
+    }
+
     if (!effortLog.description.trim()) {
       toast.error("Please enter a description");
       return;
@@ -7281,6 +7318,7 @@ const ScrumPage: React.FC = () => {
       return;
     }
 
+
     try {
       setIsLoggingEffort(true);
       // Create time entry for the task
@@ -7290,7 +7328,7 @@ const ScrumPage: React.FC = () => {
         storyId: selectedTaskForEffort.storyId || undefined,
         taskId: selectedTaskForEffort.id,
         description: effortLog.description,
-        entryType: "development" as const,
+        entryType: effortLog.category as any,
         hoursWorked: effortLog.hours,
         workDate: effortLog.workDate,
         startTime: effortLog.startTime && effortLog.startTime.trim() ? effortLog.startTime : undefined,
@@ -7393,6 +7431,7 @@ const ScrumPage: React.FC = () => {
       setEffortLog({
         hours: 0,
         description: "",
+        category: "",
         workDate: new Date().toISOString().split("T")[0],
         startTime: "",
         endTime: "",
@@ -7420,6 +7459,11 @@ const ScrumPage: React.FC = () => {
       return;
     }
 
+    if (!effortLog.category) {
+      toast.error("Please select a work category");
+      return;
+    }
+
     if (!effortLog.description.trim()) {
       toast.error("Please enter a description");
       return;
@@ -7430,6 +7474,7 @@ const ScrumPage: React.FC = () => {
       return;
     }
 
+
     try {
       setIsLoggingEffort(true);
       // Create time entry for the issue
@@ -7439,7 +7484,7 @@ const ScrumPage: React.FC = () => {
         storyId: selectedIssueForEffort.storyId || undefined,
         issueId: selectedIssueForEffort.id,
         description: effortLog.description,
-        entryType: "development" as const,
+        entryType: effortLog.category as any,
         hoursWorked: effortLog.hours,
         workDate: effortLog.workDate,
         startTime: effortLog.startTime && effortLog.startTime.trim() ? effortLog.startTime : undefined,
@@ -7549,6 +7594,7 @@ const ScrumPage: React.FC = () => {
       setEffortLog({
         hours: 0,
         description: "",
+        category: "",
         workDate: new Date().toISOString().split("T")[0],
         startTime: "",
         endTime: "",
@@ -7723,21 +7769,42 @@ const ScrumPage: React.FC = () => {
 
               {/* Story Footer */}
 
-              <div className="flex items-center justify-between pt-2 border-t border-gray-100 gap-2">
-                <div className="flex items-center space-x-2 flex-wrap gap-1">
-                  <Badge
-                    variant="secondary"
-                    className="text-xs font-medium bg-gray-100 text-gray-700"
-                  >
-                    {story.storyPoints} pts
-                  </Badge>
+              <div className="flex items-start justify-between pt-2 border-t border-gray-100 gap-2">
+                <div className="flex flex-col space-y-2">
+                  <div className="flex items-center space-x-2 flex-wrap gap-1">
+                    <Badge
+                      variant="secondary"
+                      className="text-xs font-medium bg-gray-100 text-gray-700"
+                    >
+                      {story.storyPoints} pts
+                    </Badge>
 
-                  <Badge
-                    variant="outline"
-                    className={`text-xs ${getStatusColor(
-                      (() => {
+                    <Badge
+                      variant="outline"
+                      className={`text-xs ${getStatusColor(
+                        (() => {
+                          const tasks = allTasks.filter((t) => t.storyId === story.id);
+                          if (tasks.length === 0) return story.status;
+
+                          const allDone = tasks.every((t) => {
+                            const s = t.status?.toUpperCase();
+                            return s === "DONE";
+                          });
+                          if (allDone) return "DONE";
+
+                          const allTodo = tasks.every((t) => {
+                            const s = t.status?.toUpperCase();
+                            return s === "TO_DO";
+                          });
+                          if (allTodo) return "TODO";
+
+                          return "IN_PROGRESS";
+                        })()
+                      )} font-medium`}
+                    >
+                      {(() => {
                         const tasks = allTasks.filter((t) => t.storyId === story.id);
-                        if (tasks.length === 0) return story.status;
+                        if (tasks.length === 0) return story.status.replace("_", " ");
 
                         const allDone = tasks.every((t) => {
                           const s = t.status?.toUpperCase();
@@ -7751,119 +7818,68 @@ const ScrumPage: React.FC = () => {
                         });
                         if (allTodo) return "TODO";
 
-                        return "IN_PROGRESS";
-                      })()
-                    )} font-medium`}
-                  >
-                    {(() => {
-                      const tasks = allTasks.filter((t) => t.storyId === story.id);
-                      if (tasks.length === 0) return story.status.replace("_", " ");
-
-                      const allDone = tasks.every((t) => {
-                        const s = t.status?.toUpperCase();
-                        return s === "DONE";
-                      });
-                      if (allDone) return "DONE";
-
-                      const allTodo = tasks.every((t) => {
-                        const s = t.status?.toUpperCase();
-                        return s === "TO_DO";
-                      });
-                      if (allTodo) return "TODO";
-
-                      return "IN PROGRESS";
-                    })()}
-                  </Badge>
-
-                  {storyTasks.length > 0 && (
-                    <Badge
-                      variant="outline"
-                      className="text-xs px-2 py-1 bg-blue-50 text-blue-700"
-                    >
-                      {storyTasks.length} task
-                      {storyTasks.length !== 1 ? "s" : ""}
+                        return "IN PROGRESS";
+                      })()}
                     </Badge>
-                  )}
 
-                  {storyIssues.length > 0 && (
-                    <Badge
-                      variant="outline"
-                      className="text-xs px-2 py-1 bg-red-50 text-red-700"
-                    >
-                      {storyIssues.length} issue
-                      {storyIssues.length !== 1 ? "s" : ""}
-                    </Badge>
-                  )}
-
-                  {assigneeName && (
-                    <div className="flex items-center space-x-1">
-                      <Avatar className="h-5 w-5">
-                        <AvatarFallback className="text-xs bg-green-200 text-green-800">
-                          {getInitials(assigneeName)}
-                        </AvatarFallback>
-                      </Avatar>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center space-x-2 flex-shrink-0">
-                  {/* Add Task and Issue Buttons */}
-
-                  <div className="flex flex-col space-y-1">
-                    {/* Add Task Button - Only for Managers */}
-                    {canAddTasks && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-6 px-2 text-xs border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 whitespace-nowrap"
-                        onClick={(e) => {
-                          e.stopPropagation();
-
-                          setNewTask((prev) => ({
-                            ...prev,
-                            storyId: story.id,
-                          }));
-
-                          setIsAddTaskDialogOpen(true);
-                        }}
-                        disabled={isSprintEnded}
-                        title={isSprintEnded ? "Cannot add tasks - Sprint has ended" : `Add task to ${story.title}`}
-                      >
-                        <Plus className="w-3 h-3 mr-1" />
-                        Add Task
-                      </Button>
-                    )}
-
-                    {/* Add Issue Button - For Managers and QA Managers */}
-                    {canAddIssues && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-6 px-2 text-xs border-dashed border-red-300 hover:border-red-400 hover:bg-red-50 whitespace-nowrap text-red-700"
-                        onClick={(e) => {
-                          e.stopPropagation();
-
-                          setSelectedStoryForIssue(story.id);
-
-                          setIsAddIssueDialogOpen(true);
-                        }}
-                        disabled={isSprintEnded}
-                        title={isSprintEnded ? "Cannot add issues - Sprint has ended" : `Add issue to ${story.title}`}
-                      >
-                        <Plus className="w-3 h-3 mr-1" />
-                        Add Issue
-                      </Button>
+                    {assigneeName && (
+                      <div className="flex items-center space-x-1">
+                        <Avatar className="h-5 w-5">
+                          <AvatarFallback className="text-xs bg-green-200 text-green-800">
+                            {getInitials(assigneeName)}
+                          </AvatarFallback>
+                        </Avatar>
+                      </div>
                     )}
                   </div>
 
-                  {storyTasks.length > 0 && (
-                    <div className="text-xs text-gray-500 whitespace-nowrap">
-                      <span className="flex items-center">
-                        <div className="w-1 h-1 bg-blue-400 rounded-full mr-1"></div>
+                  <div className="flex items-center space-x-2 flex-wrap gap-1">
+                    <Badge
+                      variant="outline"
+                      className="text-xs px-2 py-1 bg-blue-50 text-blue-700 border-blue-200"
+                    >
+                      {storyTasks.length} task{storyTasks.length !== 1 ? "s" : ""}
+                    </Badge>
 
-                        {storyTasks.length}
-                      </span>
-                    </div>
+                    <Badge
+                      variant="outline"
+                      className="text-xs px-2 py-1 bg-red-50 text-red-700 border-red-200"
+                    >
+                      {storyIssues.length} issue{storyIssues.length !== 1 ? "s" : ""}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="flex flex-col space-y-1 flex-shrink-0">
+                  {canAddTasks && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] border-dashed border-gray-300 text-gray-700 hover:text-blue-700 hover:border-blue-400 hover:bg-blue-50"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setNewTask((prev: any) => ({ ...prev, storyId: story.id }));
+                        setIsAddTaskDialogOpen(true);
+                      }}
+                    >
+                      <Plus className="w-3 h-3 mr-1" />
+                      Add Task
+                    </Button>
+                  )}
+                  {canAddIssues && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] border-dashed border-red-300 text-red-600 hover:text-red-700 hover:border-red-400 hover:bg-red-50"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedStoryForIssue(story.id);
+                        setIsAddIssueDialogOpen(true);
+                      }}
+                    >
+                      <Plus className="w-3 h-3 mr-1" />
+                      Add Issue
+                    </Button>
                   )}
                 </div>
               </div>
@@ -8048,6 +8064,7 @@ const ScrumPage: React.FC = () => {
                         setEffortLog({
                           hours: 0,
                           description: "",
+                          category: "",
                           workDate: new Date().toISOString().split("T")[0],
                           startTime: "",
                           endTime: "",
@@ -8274,6 +8291,7 @@ const ScrumPage: React.FC = () => {
                         setEffortLog({
                           hours: 0,
                           description: "",
+                          category: "",
                           workDate: new Date().toISOString().split("T")[0],
                           startTime: "",
                           endTime: "",
@@ -8641,84 +8659,85 @@ const ScrumPage: React.FC = () => {
     setIsBacklogEffortManagerOpen(true);
   };
 
-  const handleLogBacklogEffort = async (effortData: any) => {
-    if (!selectedBacklogTaskForEffort) return;
+    const handleLogBacklogEffort = async (effortData: any) => {
+        if (!selectedBacklogTaskForEffort) return;
 
-    try {
-      // Calculate total minutes to hours (EffortManager uses minutes/hours separate)
-      const hours = effortData.hours + (effortData.minutes / 60);
+        try {
+            const hours = effortData.hours + (effortData.minutes / 60);
+            const workDate = effortData.date instanceof Date ? effortData.date : new Date(effortData.date);
+            const timeEntryData = {
+                userId: selectedBacklogTaskForEffort.assigneeId || user?.id || "",
+                projectId: selectedProject || undefined,
+                taskId: selectedBacklogTaskForEffort.id,
+                description: effortData.description,
+                entryType: (effortData.category || "development") as any,
+                hoursWorked: hours,
+                workDate: toDateInputFormat(workDate),
+                isBillable: effortData.billable
+            };
 
-      // Date range validation: only 2 days back allowed
-      const workDate = effortData.date instanceof Date ? effortData.date : new Date(effortData.date);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const minDate = new Date(today);
-      minDate.setDate(today.getDate() - 2);
-
-      if (workDate < minDate) {
-        toast.error("Cannot log effort more than 2 days back");
-        return;
-      }
-
-      // Forward date validation: upto task due date
-      const taskDueDate = selectedBacklogTaskForEffort.dueDate ? new Date(selectedBacklogTaskForEffort.dueDate) : null;
-      if (taskDueDate) {
-        taskDueDate.setHours(23, 59, 59, 999);
-        if (workDate > taskDueDate) {
-          toast.error("Cannot log effort past task due date");
-          return;
+            await timeEntryApiService.createTimeEntry(timeEntryData);
+            
+            // Sync and refresh
+            const taskRes = await taskApiService.getTaskById(selectedBacklogTaskForEffort.id);
+            if (taskRes.data) {
+                setAllTasks(prev => prev.map(t => t.id === selectedBacklogTaskForEffort.id ? taskRes.data : t));
+            }
+            
+            toast.success("Effort logged for backlog task");
+            notifyProjectBudgetUpdate("backlog-effort-logged");
+        } catch (error) {
+            console.error("Error logging backlog effort:", error);
+            toast.error("Failed to log effort");
+        } finally {
+            setSelectedBacklogTaskForEffort(null);
+            setIsBacklogEffortManagerOpen(false);
         }
-      }
+    };
 
-      // Determine if a manager is logging on behalf of another user
-      const currentUserName = user?.name || "Unknown";
-      const isLoggingForOther = selectedBacklogTaskForEffort.assigneeId && selectedBacklogTaskForEffort.assigneeId !== user?.id;
+    const handleUpdateBacklogEffort = async (id: string, effortData: any) => {
+        if (!selectedBacklogTaskForEffort) return;
+        try {
+            const hours = effortData.timeSpent / 60;
+            const [day, month, year] = effortData.date.split('/');
+            const fullYear = parseInt(year) < 70 ? 2000 + parseInt(year) : 1900 + parseInt(year);
+            const d = new Date(fullYear, parseInt(month) - 1, parseInt(day));
 
-      // Adjust description to include manager name if applicable
-      const loggingDescription = isLoggingForOther
-        ? `[Logged by ${currentUserName}] ${effortData.description}`
-        : effortData.description;
+            await timeEntryApiService.updateTimeEntry(id, {
+                description: effortData.description,
+                entryType: effortData.category as any,
+                hoursWorked: hours,
+                workDate: toDateInputFormat(d),
+                isBillable: effortData.billable
+            });
 
-      const timeEntryData = {
-        userId: isLoggingForOther ? (selectedBacklogTaskForEffort.assigneeId || user?.id || "") : (user?.id || ""),
-        projectId: selectedProject || undefined,
-        taskId: selectedBacklogTaskForEffort.id,
-        description: loggingDescription,
-        entryType: (effortData.category || "development") as any,
-        hoursWorked: hours,
-        workDate: effortData.date, // EffortManager provides dd/MM/yy or Date
-        isBillable: effortData.billable
-      };
+            const taskRes = await taskApiService.getTaskById(selectedBacklogTaskForEffort.id);
+            if (taskRes.data) {
+                setAllTasks(prev => prev.map(t => t.id === selectedBacklogTaskForEffort.id ? taskRes.data : t));
+            }
+            toast.success("Effort log updated");
+            notifyProjectBudgetUpdate("backlog-effort-updated");
+        } catch (error) {
+            console.error("Error updating backlog effort:", error);
+            toast.error("Failed to update effort");
+        }
+    };
 
-      // Convert date string if needed
-      if (typeof timeEntryData.workDate === 'string' && timeEntryData.workDate.includes('/')) {
-        const [day, month, year] = timeEntryData.workDate.split('/');
-        const fullYear = parseInt(year) < 100 ? 2000 + parseInt(year) : parseInt(year);
-        const d = new Date(fullYear, parseInt(month) - 1, parseInt(day));
-        timeEntryData.workDate = toDateInputFormat(d);
-      } else {
-        timeEntryData.workDate = toDateInputFormat(timeEntryData.workDate);
-      }
-
-      await timeEntryApiService.createTimeEntry(timeEntryData);
-
-      // Update actual hours in task
-      const newActualHours = (selectedBacklogTaskForEffort.actualHours || 0) + hours;
-      await taskApiService.updateTaskActualHours(selectedBacklogTaskForEffort.id, newActualHours);
-
-      // Update local state
-      setAllTasks(prev => prev.map(t => t.id === selectedBacklogTaskForEffort.id ? { ...t, actualHours: newActualHours } : t));
-
-      toast.success("Effort logged for backlog task");
-      notifyProjectBudgetUpdate("backlog-effort-logged");
-    } catch (error) {
-      console.error("Error logging backlog effort:", error);
-      toast.error("Failed to log effort");
-    } finally {
-      setSelectedBacklogTaskForEffort(null);
-      setIsBacklogEffortManagerOpen(false);
-    }
-  };
+    const handleDeleteBacklogEffort = async (id: string) => {
+        if (!selectedBacklogTaskForEffort) return;
+        try {
+            await timeEntryApiService.deleteTimeEntry(id);
+            const taskRes = await taskApiService.getTaskById(selectedBacklogTaskForEffort.id);
+            if (taskRes.data) {
+                setAllTasks(prev => prev.map(t => t.id === selectedBacklogTaskForEffort.id ? taskRes.data : t));
+            }
+            toast.success("Effort log deleted");
+            notifyProjectBudgetUpdate("backlog-effort-deleted");
+        } catch (error) {
+            console.error("Error deleting backlog effort:", error);
+            toast.error("Failed to delete effort");
+        }
+    };
 
   if (projectsLoading) {
     return (
@@ -9206,6 +9225,17 @@ const ScrumPage: React.FC = () => {
               </div>
 
               <div className="flex items-center space-x-3">
+                {/* Add Story Button */}
+                {canManageSprintsAndStories && (
+                  <Button
+                    onClick={() => setIsAddStoryDialogOpen(true)}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Story
+                  </Button>
+                )}
+
                 {/* Project Selector */}
                 <Select value={selectedProject || "all"} onValueChange={(value) => setSelectedProject(value === "all" ? "" : value)}>
                   <SelectTrigger className="w-[200px]">
@@ -9812,6 +9842,8 @@ const ScrumPage: React.FC = () => {
             open={isBacklogEffortManagerOpen}
             onOpenChange={setIsBacklogEffortManagerOpen}
             onLogEffort={handleLogBacklogEffort}
+            onUpdateEffort={handleUpdateBacklogEffort}
+            onDeleteEffort={handleDeleteBacklogEffort}
             task={selectedBacklogTaskForEffort ? {
               ...selectedBacklogTaskForEffort,
               assignee: selectedBacklogTaskForEffort.assigneeId ? getUserName(selectedBacklogTaskForEffort.assigneeId) : 'Unassigned',
@@ -9823,9 +9855,16 @@ const ScrumPage: React.FC = () => {
           />
         </TabsContent>
 
-        {/* Add Story Button - Positioned above scrum board, below sprint section, on the right */}
-        {activeView === "scrum-board" && (isManager || isQAManager) && (
+        {activeView === "scrum-board" && canManageSprintsAndStories && (
           <div className="flex justify-end gap-2 mb-4">
+            <Button
+              onClick={() => setIsAddStoryDialogOpen(true)}
+              className="bg-green-600 hover:bg-green-700 text-white"
+              size="default"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Story
+            </Button>
             <Button
               onClick={() => setIsBulkDueDateManagerOpen(true)}
               variant="outline"
@@ -9835,16 +9874,6 @@ const ScrumPage: React.FC = () => {
             >
               <CalendarDays className="w-4 h-4 mr-2" />
               Manage Due Dates
-            </Button>
-            <Button
-              onClick={() => setIsAddStoryDialogOpen(true)}
-              className="bg-green-600 hover:bg-green-700 text-white"
-              size="default"
-              disabled={isSprintEnded}
-              title={isSprintEnded ? "Cannot add stories - Sprint has ended" : "Add a new story"}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Story
             </Button>
           </div>
         )}
@@ -10019,6 +10048,18 @@ const ScrumPage: React.FC = () => {
                           </Badge>
 
                           {canManageSprintsAndStories && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
+                              onClick={() => setIsAddStoryDialogOpen(true)}
+                              title="Add new story"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </Button>
+                          )}
+
+                          {canManageSprintsAndStories && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button
@@ -10045,6 +10086,16 @@ const ScrumPage: React.FC = () => {
                                 <DropdownMenuLabel className="text-xs text-muted-foreground">
                                   Current: {storyScopeLabel}
                                 </DropdownMenuLabel>
+
+                                <DropdownMenuSeparator />
+
+                                <DropdownMenuItem
+                                  onClick={() => setIsAddStoryDialogOpen(true)}
+                                  className="text-green-600 focus:text-green-700 focus:bg-green-50"
+                                >
+                                  <Plus className="w-4 h-4 mr-2" />
+                                  Add New Story...
+                                </DropdownMenuItem>
 
                                 <DropdownMenuSeparator />
 
@@ -10791,10 +10842,20 @@ const ScrumPage: React.FC = () => {
                               }),
                             }));
 
+                            // Show More/Less Logic
+                            const allItems = [
+                              ...tasks.map(t => ({ type: 'task', data: t })),
+                              ...issues.map(i => ({ type: 'issue', data: i }))
+                            ];
+                            const laneKey = `${story.id}-${status}`;
+                            const isExpanded = expandedLanes.has(laneKey);
+                            const hasMore = allItems.length > 5;
+                            const visibleItems = isExpanded ? allItems : allItems.slice(0, 5);
+
                             return (
                               <div
                                 ref={drop as unknown as React.Ref<HTMLDivElement>}
-                                className={`p-3 border-r border-gray-200 ${bgClass} ${isOver ? "bg-blue-100 ring-2 ring-blue-400 ring-inset" : ""} transition-all`}
+                                className={`p-3 border-r border-gray-200 ${bgClass} ${isOver ? "bg-blue-100 ring-2 ring-blue-400 ring-inset" : ""} transition-all flex flex-col`}
                                 style={style}
                                 title={
                                   !canDropForDeveloper
@@ -10806,31 +10867,55 @@ const ScrumPage: React.FC = () => {
                                         : undefined
                                 }
                               >
-                                <div className="grid grid-cols-2 gap-2 min-h-[80px]">
-                                  {tasks.map((task, taskIndex) => (
-                                    <DraggableTask
-                                      key={task.id}
-                                      task={task}
-                                      index={taskIndex}
-                                    />
+                                <div className="grid grid-cols-2 gap-2 min-h-[80px] flex-1">
+                                  {visibleItems.map((item, index) => (
+                                    item.type === 'task' ? (
+                                      <DraggableTask
+                                        key={item.data.id}
+                                        task={item.data as Task}
+                                        index={index}
+                                      />
+                                    ) : (
+                                      <DraggableIssue
+                                        key={item.data.id}
+                                        issue={item.data as Issue}
+                                        index={index}
+                                      />
+                                    )
                                   ))}
 
-                                  {issues.map((issue, issueIndex) => (
-                                    <DraggableIssue
-                                      key={issue.id}
-                                      issue={issue}
-                                      index={issueIndex}
-                                    />
-                                  ))}
-
-                                  {tasks.length === 0 &&
-                                    issues.length === 0 &&
-                                    !isOver && (
-                                      <div className="col-span-2 text-center py-6 text-gray-300 text-xs">
-                                        Drop here
-                                      </div>
-                                    )}
+                                  {allItems.length === 0 && !isOver && (
+                                    <div className="col-span-2 text-center py-6 text-gray-300 text-xs">
+                                      Drop here
+                                    </div>
+                                  )}
                                 </div>
+
+                                {hasMore && (
+                                  <div className="mt-2 text-center">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 text-[10px] text-blue-600 hover:text-blue-700 hover:bg-blue-50 w-full flex items-center justify-center gap-1"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleLaneExpansion(story.id, status);
+                                      }}
+                                    >
+                                      {isExpanded ? (
+                                        <>
+                                          <ChevronUp className="w-3 h-3" />
+                                          Show Less
+                                        </>
+                                      ) : (
+                                        <>
+                                          <ChevronDown className="w-3 h-3" />
+                                          Show {allItems.length - 5} More
+                                        </>
+                                      )}
+                                    </Button>
+                                  </div>
+                                )}
                               </div>
                             );
                           };
@@ -11633,138 +11718,7 @@ const ScrumPage: React.FC = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Add Story Dialog */}
 
-        <Dialog
-          open={isAddStoryDialogOpen}
-          onOpenChange={setIsAddStoryDialogOpen}
-        >
-          <DialogContent className="w-[75%] max-w-4xl">
-            <DialogHeader>
-              <DialogTitle>Add User Story</DialogTitle>
-
-              <DialogDescription>
-                Create a new user story for your project
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-6 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="story-title">Title</Label>
-
-                <Input
-                  id="story-title"
-                  value={newStory.title}
-                  onChange={(e) =>
-                    setNewStory((prev) => ({ ...prev, title: e.target.value }))
-                  }
-                  placeholder="As a user, I want to..."
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="story-description">Description</Label>
-
-                <Textarea
-                  id="story-description"
-                  value={newStory.description}
-                  onChange={(e) =>
-                    setNewStory((prev) => ({
-                      ...prev,
-                      description: e.target.value,
-                    }))
-                  }
-                  placeholder="Detailed description..."
-                  rows={3}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="story-acceptance">Acceptance Criteria</Label>
-
-                <Textarea
-                  id="story-acceptance"
-                  value={newStory.acceptanceCriteria}
-                  onChange={(e) =>
-                    setNewStory((prev) => ({
-                      ...prev,
-                      acceptanceCriteria: e.target.value,
-                    }))
-                  }
-                  placeholder="Given... When... Then..."
-                  rows={3}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="story-points">Story Points</Label>
-
-                  <Input
-                    id="story-points"
-                    type="number"
-                    value={newStory.storyPoints}
-                    onChange={(e) =>
-                      setNewStory((prev) => ({
-                        ...prev,
-                        storyPoints: parseInt(e.target.value) || 0,
-                      }))
-                    }
-                    placeholder="5"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="story-priority">Priority</Label>
-
-                  <Select
-                    value={newStory.priority}
-                    onValueChange={(value) =>
-                      setNewStory((prev) => ({
-                        ...prev,
-                        priority: value as Priority,
-                      }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-
-                    <SelectContent>
-                      <SelectItem value="LOW">Low</SelectItem>
-
-                      <SelectItem value="MEDIUM">Medium</SelectItem>
-
-                      <SelectItem value="HIGH">High</SelectItem>
-
-                      <SelectItem value="CRITICAL">Critical</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-
-            <DialogFooter className="flex space-x-2">
-              <Button
-                variant="outline"
-                onClick={() => setIsAddStoryDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-
-              <Button onClick={handleAddStory} disabled={createStoryLoading}>
-                {createStoryLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  "Create Story"
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
 
         {/* Story Details Dialog */}
 
@@ -13566,6 +13520,7 @@ const ScrumPage: React.FC = () => {
               setEditLogData({
                 hoursWorked: 0,
                 description: "",
+                category: "",
                 workDate: new Date().toISOString().split("T")[0],
                 startTime: "",
                 endTime: "",
@@ -13616,21 +13571,49 @@ const ScrumPage: React.FC = () => {
                 />
               </div>
 
-              <div>
-                <Label htmlFor="edit-log-date">Work Date <span className="text-red-500">*</span></Label>
-                <Input
-                  id="edit-log-date"
-                  type="date"
-                  onKeyDown={(e) => e.preventDefault()}
-                  min={(() => { const d = new Date(); d.setDate(d.getDate() - 2); return toDateInputFormat(d); })()}
-                  value={editLogData.workDate}
-                  onChange={(e) =>
-                    setEditLogData((prev) => ({
-                      ...prev,
-                      workDate: e.target.value,
-                    }))
-                  }
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-log-date">Work Date <span className="text-red-500">*</span></Label>
+                  <Input
+                    id="edit-log-date"
+                    type="date"
+                    onKeyDown={(e) => e.preventDefault()}
+                    min={(() => { const d = new Date(); d.setDate(d.getDate() - 2); return toDateInputFormat(d); })()}
+                    value={editLogData.workDate}
+                    onChange={(e) =>
+                      setEditLogData((prev) => ({
+                        ...prev,
+                        workDate: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="edit-log-category">Work Category <span className="text-red-500">*</span></Label>
+                  <Select
+                    value={editLogData.category}
+                    onValueChange={(value) =>
+                      setEditLogData((prev) => ({
+                        ...prev,
+                        category: value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="edit-log-category">
+                      <SelectValue placeholder="Select a category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {workCategories.map((cat) => (
+                        <SelectItem key={cat.value} value={cat.value}>
+                          <div className="flex items-center gap-2">
+                            <span>{cat.label}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -13677,6 +13660,7 @@ const ScrumPage: React.FC = () => {
                   setEditLogData({
                     hoursWorked: 0,
                     description: "",
+                    category: "",
                     workDate: new Date().toISOString().split("T")[0],
                     startTime: "",
                     endTime: "",
@@ -13688,7 +13672,6 @@ const ScrumPage: React.FC = () => {
               <Button
                 onClick={handleEditTimeEntry}
                 disabled={!editLogData.hoursWorked || editLogData.hoursWorked <= 0}
-              // loading={isLoadingUpdate} // Need to check if there is a loading state for this
               >
                 Update Entry
               </Button>
@@ -13706,6 +13689,7 @@ const ScrumPage: React.FC = () => {
               setSubtaskLogEffort({
                 hours: 0,
                 description: "",
+                category: "",
                 workDate: new Date().toISOString().split("T")[0],
                 startTime: "",
                 endTime: "",
@@ -13740,7 +13724,6 @@ const ScrumPage: React.FC = () => {
                   placeholder="2.5"
                 />
               </div>
-
               <div>
                 <Label htmlFor="subtask-log-description">Work Description *</Label>
                 <Textarea
@@ -13755,6 +13738,32 @@ const ScrumPage: React.FC = () => {
                   placeholder="What did you work on?"
                   rows={3}
                 />
+              </div>
+
+              <div>
+                <Label htmlFor="subtask-log-category">Work Category <span className="text-red-500">*</span></Label>
+                <Select
+                  value={subtaskLogEffort.category}
+                  onValueChange={(value) =>
+                    setSubtaskLogEffort((prev) => ({
+                      ...prev,
+                      category: value,
+                    }))
+                  }
+                >
+                  <SelectTrigger id="subtask-log-category">
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {workCategories.map((cat) => (
+                      <SelectItem key={cat.value} value={cat.value}>
+                        <div className="flex items-center gap-2">
+                          <span>{cat.label}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -13922,8 +13931,6 @@ const ScrumPage: React.FC = () => {
                 />
               </div>
 
-              {/* Description */}
-
               <div>
                 <Label htmlFor="effort-description">Work Description *</Label>
 
@@ -13939,6 +13946,34 @@ const ScrumPage: React.FC = () => {
                   placeholder="What did you work on?"
                   rows={3}
                 />
+              </div>
+
+              {/* Category */}
+
+              <div>
+                <Label htmlFor="effort-category">Work Category <span className="text-red-500">*</span></Label>
+                <Select
+                  value={effortLog.category}
+                  onValueChange={(value) =>
+                    setEffortLog((prev) => ({
+                      ...prev,
+                      category: value,
+                    }))
+                  }
+                >
+                  <SelectTrigger id="effort-category">
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {workCategories.map((cat) => (
+                      <SelectItem key={cat.value} value={cat.value}>
+                        <div className="flex items-center gap-2">
+                          <span>{cat.label}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Work Date */}
@@ -13967,6 +14002,7 @@ const ScrumPage: React.FC = () => {
                     return sprintStart && sprintStart > minDateStr ? sprintStart : minDateStr;
                   })()}
                   max={(() => {
+                    const today = new Date().toISOString().split("T")[0];
                     const currentTask = allTasks.find(t => t.id === (selectedSubtaskForEffort?.taskId || selectedTaskForEffort?.id || selectedIssueForEffort?.id));
                     const taskDueDate = currentTask?.dueDate;
                     const sprintEnd = (Array.isArray(sprintsData)
@@ -13974,10 +14010,11 @@ const ScrumPage: React.FC = () => {
                       : (sprintsData as any)?.data || []
                     ).find((s: any) => s.id === selectedSprint)?.endDate?.split("T")[0];
 
-                    if (taskDueDate && sprintEnd) {
-                      return taskDueDate < sprintEnd ? taskDueDate : sprintEnd;
-                    }
-                    return taskDueDate || sprintEnd;
+                    let limits = [today];
+                    if (taskDueDate) limits.push(taskDueDate);
+                    if (sprintEnd) limits.push(sprintEnd);
+
+                    return limits.sort()[0];
                   })()}
                   value={effortLog.workDate}
                   onChange={(e) =>
@@ -14196,6 +14233,8 @@ const ScrumPage: React.FC = () => {
 
                     description: "",
 
+                    category: "",
+
                     workDate: "",
 
                     startTime: "",
@@ -14372,6 +14411,7 @@ const ScrumPage: React.FC = () => {
                           setEffortLog({
                             hours: 0,
                             description: "",
+                            category: "",
                             workDate: "",
                             startTime: "",
                             endTime: "",
@@ -14379,10 +14419,10 @@ const ScrumPage: React.FC = () => {
                           setIsLogEffortDialogOpen(true);
                         }}
                         title="Log work on this task"
-                        disabled={!canLogEffortOnTasks}
+                        disabled={!canLogEffortOnTasks || isSprintEnded}
                       >
                         <Clock className="w-4 h-4 mr-1 text-blue-600" />
-                        Add Log
+                        {isSprintEnded ? "Sprint Ended" : "Add Log"}
                       </Button>
                     </div>
                   </div>
@@ -14558,39 +14598,41 @@ const ScrumPage: React.FC = () => {
                                         )}
                                       </div>
                                     </div>
-                                    {/* Edit Button */}
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 px-2 text-xs hover:bg-blue-100 opacity-0 group-hover:opacity-100 transition-opacity ml-2"
-                                      onClick={() => {
-                                        setSelectedLogForEdit(log);
-                                        // Format workDate properly (handle both date string and Date object)
-                                        let workDateStr = "";
-                                        if (log.workDate) {
-                                          if (typeof log.workDate === 'string') {
-                                            workDateStr = log.workDate.split('T')[0];
+                                    <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 px-2 text-xs hover:bg-blue-100 transition-opacity"
+                                        onClick={() => {
+                                          setSelectedLogForEdit(log);
+                                          // Format workDate properly (handle both date string and Date object)
+                                          let workDateStr = "";
+                                          if (log.workDate) {
+                                            if (typeof log.workDate === 'string') {
+                                              workDateStr = log.workDate.split('T')[0];
+                                            } else {
+                                              workDateStr = new Date(log.workDate).toISOString().split("T")[0];
+                                            }
                                           } else {
-                                            workDateStr = new Date(log.workDate).toISOString().split("T")[0];
+                                            workDateStr = new Date().toISOString().split("T")[0];
                                           }
-                                        } else {
-                                          workDateStr = new Date().toISOString().split("T")[0];
-                                        }
 
-                                        setEditLogData({
-                                          hoursWorked: log.hoursWorked || 0,
-                                          description: log.description || "",
-                                          workDate: workDateStr,
-                                          startTime: log.startTime || "",
-                                          endTime: log.endTime || "",
-                                        });
-                                        setIsEditLogDialogOpen(true);
-                                      }}
-                                      title="Edit log entry"
-                                    >
-                                      <Edit3 className="w-3 h-3 mr-1 text-blue-600" />
-                                      Edit
-                                    </Button>
+                                          setEditLogData({
+                                            hoursWorked: log.hoursWorked || 0,
+                                            description: log.description || "",
+                                            category: log.entryType || "",
+                                            workDate: workDateStr,
+                                            startTime: log.startTime || "",
+                                            endTime: log.endTime || "",
+                                          });
+                                          setIsEditLogDialogOpen(true);
+                                        }}
+                                        title="Edit log entry"
+                                      >
+                                        <Edit3 className="w-3 h-3 text-blue-600" />
+                                      </Button>
+
+                                    </div>
                                   </div>
                                 </div>
                               ))}
@@ -15265,6 +15307,7 @@ const ScrumPage: React.FC = () => {
                                         setSubtaskLogEffort({
                                           hours: 0,
                                           description: "",
+                                          category: "",
                                           workDate: new Date().toISOString().split("T")[0],
                                           startTime: "",
                                           endTime: "",
@@ -15615,7 +15658,7 @@ const ScrumPage: React.FC = () => {
                                           description: "Assigned to task",
                                           entryType: "development",
                                           hoursWorked: 0,
-                                          workDate: getLocalToday(), // Today's date
+                                          workDate: new Date().toISOString().split("T")[0], // Today's date
                                           isBillable: true
                                         });
                                         console.log("Created 0h time entry for new assignee");
@@ -16047,6 +16090,7 @@ const ScrumPage: React.FC = () => {
                         setEffortLog({
                           hours: 0,
                           description: "",
+                          category: "",
                           workDate: "",
                           startTime: "",
                           endTime: "",
@@ -16232,8 +16276,42 @@ const ScrumPage: React.FC = () => {
                                         </Badge>
                                       )}
                                     </div>
+                                    </div>
+                                    <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 px-2 text-xs hover:bg-red-100 transition-opacity"
+                                        onClick={() => {
+                                          setSelectedLogForEdit(log);
+                                          let workDateStr = "";
+                                          if (log.workDate) {
+                                            if (typeof log.workDate === 'string') {
+                                              workDateStr = log.workDate.split('T')[0];
+                                            } else {
+                                              workDateStr = new Date(log.workDate).toISOString().split("T")[0];
+                                            }
+                                          } else {
+                                            workDateStr = new Date().toISOString().split("T")[0];
+                                          }
+
+                                          setEditLogData({
+                                            hoursWorked: log.hoursWorked || 0,
+                                            description: log.description || "",
+                                            category: log.entryType || "",
+                                            workDate: workDateStr,
+                                            startTime: log.startTime || "",
+                                            endTime: log.endTime || "",
+                                          });
+                                          setIsEditLogDialogOpen(true);
+                                        }}
+                                        title="Edit log entry"
+                                      >
+                                        <Edit3 className="w-3 h-3 text-red-600" />
+                                      </Button>
+
+                                    </div>
                                   </div>
-                                </div>
                               </div>
                             ))}
                           </div>
@@ -16823,6 +16901,7 @@ const ScrumPage: React.FC = () => {
                                         setSubtaskLogEffort({
                                           hours: 0,
                                           description: "",
+                                          category: "",
                                           workDate: new Date().toISOString().split("T")[0],
                                           startTime: "",
                                           endTime: "",
@@ -17193,7 +17272,7 @@ const ScrumPage: React.FC = () => {
                                         description: "Assigned to issue",
                                         entryType: "development",
                                         hoursWorked: 0,
-                                        workDate: getLocalToday(),
+                                        workDate: new Date().toISOString().split("T")[0],
                                         isBillable: true
                                       });
                                       console.log("Created 0h time entry for new issue assignee");
@@ -17532,70 +17611,7 @@ const ScrumPage: React.FC = () => {
         customLaneName={customLaneNameForDialog}
       />
 
-      {/* Add Task Dialog */}
 
-      <AddTaskDialog
-        isOpen={isAddTaskDialogOpen}
-        onClose={() => {
-          setIsAddTaskDialogOpen(false);
-
-          setNewTask({
-            title: "",
-
-            description: "",
-
-            storyId: newTask.storyId, // Keep storyId if set from button click
-
-            priority: "MEDIUM",
-
-            assigneeId: "",
-
-            estimatedHours: 0,
-
-            dueDate: "",
-          });
-          setCustomLaneNameForDialog(undefined);
-        }}
-        onSubmit={handleAddTask}
-        stories={
-          sprintStories.map((story) => ({
-            id: story.id,
-
-            title: story.title,
-
-            priority: (story.priority?.toLowerCase() || "medium") as
-              | "high"
-              | "medium"
-              | "low",
-
-            points: story.storyPoints || 0,
-
-            status: story.status?.toLowerCase()?.includes("backlog")
-              ? "stories"
-              : story.status?.toLowerCase()?.includes("todo")
-                ? "todo"
-                : story.status?.toLowerCase()?.includes("progress")
-                  ? "inprogress"
-                  : story.status?.toLowerCase()?.includes("review")
-                    ? "qa"
-                    : story.status?.toLowerCase()?.includes("done")
-                      ? "done"
-                      : ("stories" as
-                        | "stories"
-                        | "todo"
-                        | "inprogress"
-                        | "qa"
-                        | "done"),
-
-            assignee: undefined,
-            dueDate: story.dueDate || undefined,
-          }))
-        }
-        defaultStatus={newTask.storyId ? "todo" : "todo"}
-        defaultStoryId={newTask.storyId || undefined}
-        users={users}
-        customLaneName={customLaneNameForDialog}
-      />
 
       {/* Lane Configuration Modal */}
 
