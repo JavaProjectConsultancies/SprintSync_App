@@ -23,16 +23,30 @@ public class TimeEntryTypeConverter implements AttributeConverter<TimeEntryType,
 
     @Override
     public TimeEntryType convertToEntityAttribute(String dbData) {
-        if (dbData == null) {
+        if (dbData == null || dbData.trim().isEmpty()) {
             return null;
         }
-        
+
+        String normalized = dbData.trim().toLowerCase();
+
+        // Try exact match on value first
         for (TimeEntryType type : TimeEntryType.values()) {
-            if (type.getValue().equals(dbData)) {
+            if (type.getValue().equalsIgnoreCase(normalized)) {
                 return type;
             }
         }
-        
-        throw new IllegalArgumentException("Unknown TimeEntryType: " + dbData);
+
+        // Try matching with normalized hyphens/underscores
+        String searchData = normalized.replace("-", "").replace("_", "");
+        for (TimeEntryType type : TimeEntryType.values()) {
+            String typeVal = type.getValue().toLowerCase().replace("-", "").replace("_", "");
+            String typeName = type.name().toLowerCase().replace("-", "").replace("_", "");
+            if (typeVal.equals(searchData) || typeName.equals(searchData)) {
+                return type;
+            }
+        }
+
+        // Fallback to DEVELOPMENT instead of throwing exception to prevent 500 errors
+        return TimeEntryType.DEVELOPMENT;
     }
 }

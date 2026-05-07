@@ -466,7 +466,7 @@ const ScrumPage: React.FC = () => {
   const [subtaskLogEffort, setSubtaskLogEffort] = useState({
     hours: 0,
     description: "",
-    category: "",
+    category: "development",
     workDate: new Date().toISOString().split('T')[0],
     startTime: "",
     endTime: "",
@@ -656,15 +656,10 @@ const ScrumPage: React.FC = () => {
 
   const [effortLog, setEffortLog] = useState({
     hours: 0,
-
     description: "",
-
-    category: "",
-
-    workDate: "",
-
+    category: "development",
+    workDate: new Date().toISOString().split('T')[0],
     startTime: "",
-
     endTime: "",
   });
 
@@ -5649,7 +5644,7 @@ const ScrumPage: React.FC = () => {
 
         estimatedHours: 0,
 
-        category: "",
+        category: "development",
 
         dueDate: "",
       });
@@ -6163,7 +6158,7 @@ const ScrumPage: React.FC = () => {
         taskId: "",
         assigneeId: "",
         estimatedHours: 0,
-        category: "",
+        category: "development",
         dueDate: "",
       });
 
@@ -6445,7 +6440,7 @@ const ScrumPage: React.FC = () => {
       setSubtaskLogEffort({
         hours: 0,
         description: "",
-        category: "",
+        category: "development",
         workDate: new Date().toISOString().split("T")[0],
         startTime: "",
         endTime: "",
@@ -7264,15 +7259,10 @@ const ScrumPage: React.FC = () => {
 
       setEffortLog({
         hours: 0,
-
         description: "",
-
-        category: "",
-
+        category: "development",
         workDate: new Date().toISOString().split("T")[0],
-
         startTime: "",
-
         endTime: "",
       });
 
@@ -7431,7 +7421,7 @@ const ScrumPage: React.FC = () => {
       setEffortLog({
         hours: 0,
         description: "",
-        category: "",
+        category: "development",
         workDate: new Date().toISOString().split("T")[0],
         startTime: "",
         endTime: "",
@@ -7594,7 +7584,7 @@ const ScrumPage: React.FC = () => {
       setEffortLog({
         hours: 0,
         description: "",
-        category: "",
+        category: "development",
         workDate: new Date().toISOString().split("T")[0],
         startTime: "",
         endTime: "",
@@ -8064,7 +8054,7 @@ const ScrumPage: React.FC = () => {
                         setEffortLog({
                           hours: 0,
                           description: "",
-                          category: "",
+                          category: "development",
                           workDate: new Date().toISOString().split("T")[0],
                           startTime: "",
                           endTime: "",
@@ -8291,7 +8281,7 @@ const ScrumPage: React.FC = () => {
                         setEffortLog({
                           hours: 0,
                           description: "",
-                          category: "",
+                          category: "development",
                           workDate: new Date().toISOString().split("T")[0],
                           startTime: "",
                           endTime: "",
@@ -13334,7 +13324,7 @@ const ScrumPage: React.FC = () => {
                 taskId: "",
                 assigneeId: "",
                 estimatedHours: 0,
-                category: "",
+                category: "development",
                 dueDate: "",
               });
             }
@@ -13486,7 +13476,7 @@ const ScrumPage: React.FC = () => {
                     taskId: "",
                     assigneeId: "",
                     estimatedHours: 0,
-                    category: "",
+                    category: "development",
                     dueDate: "",
                   });
                 }}
@@ -13520,7 +13510,7 @@ const ScrumPage: React.FC = () => {
               setEditLogData({
                 hoursWorked: 0,
                 description: "",
-                category: "",
+                category: "development",
                 workDate: new Date().toISOString().split("T")[0],
                 startTime: "",
                 endTime: "",
@@ -13660,7 +13650,7 @@ const ScrumPage: React.FC = () => {
                   setEditLogData({
                     hoursWorked: 0,
                     description: "",
-                    category: "",
+                    category: "development",
                     workDate: new Date().toISOString().split("T")[0],
                     startTime: "",
                     endTime: "",
@@ -13689,7 +13679,7 @@ const ScrumPage: React.FC = () => {
               setSubtaskLogEffort({
                 hours: 0,
                 description: "",
-                category: "",
+                category: "development",
                 workDate: new Date().toISOString().split("T")[0],
                 startTime: "",
                 endTime: "",
@@ -14233,9 +14223,9 @@ const ScrumPage: React.FC = () => {
 
                     description: "",
 
-                    category: "",
+                    category: "development",
 
-                    workDate: "",
+                    workDate: new Date().toISOString().split('T')[0],
 
                     startTime: "",
 
@@ -14411,8 +14401,8 @@ const ScrumPage: React.FC = () => {
                           setEffortLog({
                             hours: 0,
                             description: "",
-                            category: "",
-                            workDate: "",
+                            category: "development",
+                            workDate: new Date().toISOString().split('T')[0],
                             startTime: "",
                             endTime: "",
                           });
@@ -15307,7 +15297,7 @@ const ScrumPage: React.FC = () => {
                                         setSubtaskLogEffort({
                                           hours: 0,
                                           description: "",
-                                          category: "",
+                                          category: "development",
                                           workDate: new Date().toISOString().split("T")[0],
                                           startTime: "",
                                           endTime: "",
@@ -16090,8 +16080,8 @@ const ScrumPage: React.FC = () => {
                         setEffortLog({
                           hours: 0,
                           description: "",
-                          category: "",
-                          workDate: "",
+                          category: "development",
+                          workDate: new Date().toISOString().split("T")[0],
                           startTime: "",
                           endTime: "",
                         });
@@ -16901,7 +16891,7 @@ const ScrumPage: React.FC = () => {
                                         setSubtaskLogEffort({
                                           hours: 0,
                                           description: "",
-                                          category: "",
+                                          category: "development",
                                           workDate: new Date().toISOString().split("T")[0],
                                           startTime: "",
                                           endTime: "",

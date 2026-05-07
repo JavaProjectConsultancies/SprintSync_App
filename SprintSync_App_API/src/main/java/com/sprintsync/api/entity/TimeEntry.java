@@ -1,6 +1,7 @@
 package com.sprintsync.api.entity;
 
 import com.sprintsync.api.entity.enums.TimeEntryType;
+import com.sprintsync.api.entity.converter.TimeEntryTypeConverter;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -44,8 +45,8 @@ public class TimeEntry extends BaseEntity {
     private String description;
 
     @NotNull(message = "Entry type cannot be null")
-    @Enumerated(EnumType.STRING)
-    @Column(name = "entry_type", nullable = false)
+    @Convert(converter = TimeEntryTypeConverter.class)
+    @Column(name = "entry_type", nullable = false, columnDefinition = "VARCHAR(50)")
     private TimeEntryType entryType;
 
     @NotNull(message = "Hours worked cannot be null")
@@ -181,5 +182,18 @@ public class TimeEntry extends BaseEntity {
 
     public void setIsBillable(Boolean isBillable) {
         this.isBillable = isBillable;
+    }
+    @Override
+    public String toString() {
+        return "TimeEntry{" +
+                "id='" + getId() + '\'' +
+                ", userId='" + userId + '\'' +
+                ", projectId='" + projectId + '\'' +
+                ", taskId='" + taskId + '\'' +
+                ", entryType=" + entryType +
+                ", hoursWorked=" + hoursWorked +
+                ", workDate=" + workDate +
+                ", description='" + description + '\'' +
+                '}';
     }
 }

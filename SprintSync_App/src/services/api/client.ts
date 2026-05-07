@@ -372,6 +372,9 @@ class ApiClient {
         }
 
         if (!response.ok) {
+          // Log the error response body for debugging
+          console.error(`[apiClient] ${method} ${url} failed with status ${response.status}:`, data);
+          
           // Extract error message from response body (handle different formats)
           let errorMessage = data.message || data.error || `HTTP ${response.status}: ${response.statusText}`;
 

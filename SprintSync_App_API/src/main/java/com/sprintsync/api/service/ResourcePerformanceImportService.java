@@ -94,7 +94,8 @@ public class ResourcePerformanceImportService {
         List<Sprint> sprintsToSave = buildSprints(rows, projectId, sprintIdByName);
         List<Story> storiesToSave = buildStories(rows, projectId, userIdByEmail, sprintIdByName, storyIdByLegacy);
         List<Task> tasksToSave = buildTasks(rows, userIdByEmail, storyIdByLegacy, taskIdByLegacy);
-        List<TimeEntry> timeEntriesToSave = buildTimeEntries(rows, projectId, userIdByEmail, storyIdByLegacy, taskIdByLegacy);
+        List<TimeEntry> timeEntriesToSave = buildTimeEntries(rows, projectId, userIdByEmail, storyIdByLegacy,
+                taskIdByLegacy);
 
         if (!sprintsToSave.isEmpty()) {
             sprintRepository.saveAll(sprintsToSave);
@@ -183,7 +184,8 @@ public class ResourcePerformanceImportService {
         return userMap;
     }
 
-    private List<Sprint> buildSprints(List<Map<String, String>> rows, String projectId, Map<String, String> sprintIdByName) {
+    private List<Sprint> buildSprints(List<Map<String, String>> rows, String projectId,
+            Map<String, String> sprintIdByName) {
         Map<String, Map<String, String>> unique = new LinkedHashMap<>();
         for (Map<String, String> row : rows) {
             String sprintName = safe(row.get("Sprint"));
@@ -333,7 +335,8 @@ public class ResourcePerformanceImportService {
             entry.setStoryId(storyIdByLegacy.get(safe(row.get("Story Id"))));
             entry.setTaskId(taskIdByLegacy.get(safe(row.get("Task/Issue Id"))));
             entry.setSubtaskId(null);
-            entry.setDescription(firstNonBlank(row.get("Task/Issue Name"), row.get("Story Name"), "Imported time entry"));
+            entry.setDescription(
+                    firstNonBlank(row.get("Task/Issue Name"), row.get("Story Name"), "Imported time entry"));
             entry.setEntryType(mapEntryType(row.get("Work Category")));
             entry.setHoursWorked(hoursWorked);
             entry.setWorkDate(resolveWorkDate(row));
@@ -431,6 +434,15 @@ public class ResourcePerformanceImportService {
         }
         if (v.contains("admin")) {
             return TimeEntryType.ADMINISTRATIVE;
+        }
+        if (v.contains("onsite") || v.contains("on-site")) {
+            return TimeEntryType.ONSITE;
+        }
+        if (v.contains("implementation")) {
+            return TimeEntryType.IMPLEMENTATION;
+        }
+        if (v.contains("support")) {
+            return TimeEntryType.SUPPORT;
         }
         return TimeEntryType.DEVELOPMENT;
     }

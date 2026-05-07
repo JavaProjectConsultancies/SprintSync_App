@@ -166,50 +166,79 @@ const extractTimeEntries = (payload: any): ApiTimeEntry[] => {
 
 const CATEGORY_OPTIONS = [
   'development',
-  'documentation',
-  'idle',
-  'learning',
-  'meeting',
-  'support',
   'testing',
+  'design',
+  'review',
+  'meeting',
+  'research',
+  'documentation',
+  'bug_fix',
+  'refactoring',
+  'deployment',
   'training',
+  'administrative',
+  'onsite',
+  'implementation',
+  'support',
+  'idle',
+  'learning'
 ] as const;
 
 const CATEGORY_OPTIONS_SET = new Set<string>(CATEGORY_OPTIONS);
 const DEFAULT_CATEGORY = CATEGORY_OPTIONS[0];
 
 const CATEGORY_SYNONYMS: Record<string, (typeof CATEGORY_OPTIONS)[number]> = {
-  dev: 'development',
-  development: 'development',
-  'code review': 'development',
-  codereview: 'development',
-  review: 'development',
-  docs: 'documentation',
-  doc: 'documentation',
-  documentation: 'documentation',
-  analysis: 'documentation',
-  report: 'documentation',
-  idle: 'idle',
-  bench: 'idle',
-  buffer: 'idle',
-  waiting: 'idle',
-  learning: 'learning',
-  research: 'learning',
-  study: 'learning',
-  meeting: 'meeting',
-  meetings: 'meeting',
-  sync: 'meeting',
-  support: 'support',
-  'customer support': 'support',
-  maintenance: 'support',
-  testing: 'testing',
-  qa: 'testing',
+  'dev': 'development',
+  'development': 'development',
+  'coding': 'development',
+  'code review': 'review',
+  'codereview': 'review',
+  'review': 'review',
+  'peer review': 'review',
+  'testing': 'testing',
+  'qa': 'testing',
   'quality assurance': 'testing',
-  test: 'testing',
-  verification: 'testing',
-  training: 'training',
-  onboarding: 'training',
-  'knowledge transfer': 'training',
+  'test': 'testing',
+  'verification': 'testing',
+  'design': 'design',
+  'ui/ux': 'design',
+  'prototyping': 'design',
+  'meeting': 'meeting',
+  'meetings': 'meeting',
+  'sync': 'meeting',
+  'call': 'meeting',
+  'research': 'research',
+  'study': 'research',
+  'investigation': 'research',
+  'documentation': 'documentation',
+  'docs': 'documentation',
+  'doc': 'documentation',
+  'writing': 'documentation',
+  'bug fix': 'bug_fix',
+  'bugfix': 'bug_fix',
+  'bug_fix': 'bug_fix',
+  'fixing': 'bug_fix',
+  'refactoring': 'refactoring',
+  'optimization': 'refactoring',
+  'cleanup': 'refactoring',
+  'deployment': 'deployment',
+  'release': 'deployment',
+  'deploy': 'deployment',
+  'training': 'training',
+  'onboarding': 'training',
+  'learning': 'learning',
+  'administrative': 'administrative',
+  'admin': 'administrative',
+  'onsite': 'onsite',
+  'on-site': 'onsite',
+  'implementation': 'implementation',
+  'setup': 'implementation',
+  'support': 'support',
+  'maintenance': 'support',
+  'customer support': 'support',
+  'idle': 'idle',
+  'bench': 'idle',
+  'waiting': 'idle'
 };
 
 const normalizeCategory = (value?: string | null): (typeof CATEGORY_OPTIONS)[number] => {
@@ -631,6 +660,7 @@ const TimeTrackingPage: React.FC = () => {
   const [allSubtasks, setAllSubtasks] = useState<any[]>([]);
   const [additionalProjects, setAdditionalProjects] = useState<Project[]>([]);
   const [userTasksMap, setUserTasksMap] = useState<Map<string, Task[]>>(new Map());
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
 
   useEffect(() => {
     const fetchStoriesAndTasks = async () => {
@@ -694,8 +724,11 @@ const TimeTrackingPage: React.FC = () => {
           acc[assigneeId] = (acc[assigneeId] || 0) + 1;
           return acc;
         }, {} as Record<string, number>));
+        
+        setIsInitialLoading(false);
       } catch (err) {
         console.error('Error fetching stories/tasks/issues/subtasks:', err);
+        setIsInitialLoading(false);
       }
     };
     fetchStoriesAndTasks();
@@ -915,12 +948,17 @@ const TimeTrackingPage: React.FC = () => {
 
     const normalizedCurrentUserId = currentUser?.id ? normalizeId(currentUser.id) : undefined;
 
-    // Admin and master_admin can see ALL projects (bypass filtering)
+    // Admin, master_admin, manager, and support_and_implementation can see ALL projects (bypass filtering)
     const userRole = (currentUser?.role as string)?.toLowerCase() || '';
-    const isAdminOrMasterAdmin = userRole === 'admin' || userRole === 'master_admin';
+    const isElevatedRole = 
+      userRole === 'admin' || 
+      userRole === 'master_admin' || 
+      userRole === 'manager' || 
+      userRole === 'qa_manager' || 
+      userRole === 'support_and_implementation';
 
-    if (isAdminOrMasterAdmin) {
-      return merged; // Return all projects for admin/master_admin
+    if (isElevatedRole) {
+      return merged; // Return all projects for elevated roles
     }
 
     // Filter to only show projects where the user is listed (manager, creator, or team member)
@@ -1267,7 +1305,8 @@ const TimeTrackingPage: React.FC = () => {
           role === 'admin' ||
           role === 'master_admin' ||
           role === 'manager' ||
-          role === 'qa_manager';
+          role === 'qa_manager' ||
+          role === 'support_and_implementation';
 
         // Fetch based on role
         if (isManagerOrAdmin) {
@@ -1409,9 +1448,13 @@ const TimeTrackingPage: React.FC = () => {
 
         let fetchedTasks: Task[] = [];
 
-        if (missingTaskIds.length > 0) {
-          const { taskApiService } = await import('../services/api/entities/taskApi');
-          const taskResults = await Promise.all(
+        // Safety: Only fetch individually if global fetch is done and count is small
+        if (missingTaskIds.length > 0 && !isInitialLoading) {
+          if (missingTaskIds.length > 20) {
+            console.warn(`Too many missing tasks (${missingTaskIds.length}), skipping individual fetches to avoid network flood.`);
+          } else {
+            const { taskApiService } = await import('../services/api/entities/taskApi');
+            const taskResults = await Promise.all(
             missingTaskIds.map(async id => {
               fetchedTaskIdsRef.current.add(id);
               try {
@@ -1430,6 +1473,7 @@ const TimeTrackingPage: React.FC = () => {
             setAllTasks(prev => mergeById(prev, fetchedTasks));
           }
         }
+      }
 
         fetchedTasks.forEach(task => {
           const storyId = normalizeId(task.storyId);
@@ -1451,10 +1495,14 @@ const TimeTrackingPage: React.FC = () => {
 
         let fetchedIssues: any[] = [];
 
-        if (missingIssueIds.length > 0) {
-          try {
-            const { issueApiService } = await import('../services/api/entities/issueApi');
-            const issueResults = await Promise.all(
+        // Safety: Only fetch individually if global fetch is done and count is small
+        if (missingIssueIds.length > 0 && !isInitialLoading) {
+          if (missingIssueIds.length > 20) {
+            console.warn(`Too many missing issues (${missingIssueIds.length}), skipping individual fetches.`);
+          } else {
+            try {
+              const { issueApiService } = await import('../services/api/entities/issueApi');
+              const issueResults = await Promise.all(
               missingIssueIds.map(async id => {
                 try {
                   const response = await issueApiService.getIssueById(id);
@@ -1476,6 +1524,7 @@ const TimeTrackingPage: React.FC = () => {
             // Continue without issues - time entries will still display
           }
         }
+      }
 
         // Add story IDs from fetched issues
         fetchedIssues.forEach(issue => {
@@ -1497,9 +1546,13 @@ const TimeTrackingPage: React.FC = () => {
 
         let fetchedStories: Story[] = [];
 
-        if (missingStoryIds.length > 0) {
-          const { storyApiService } = await import('../services/api/entities/storyApi');
-          const storyResults = await Promise.all(
+        // Safety: Only fetch individually if global fetch is done and count is small
+        if (missingStoryIds.length > 0 && !isInitialLoading) {
+          if (missingStoryIds.length > 20) {
+            console.warn(`Too many missing stories (${missingStoryIds.length}), skipping individual fetches.`);
+          } else {
+            const { storyApiService } = await import('../services/api/entities/storyApi');
+            const storyResults = await Promise.all(
             missingStoryIds.map(async id => {
               fetchedStoryIdsRef.current.add(id);
               try {
@@ -1518,6 +1571,7 @@ const TimeTrackingPage: React.FC = () => {
             setAllStories(prev => mergeById(prev, fetchedStories));
           }
         }
+      }
 
         fetchedStories.forEach(story => {
           const projectId = normalizeId(story.projectId);
@@ -1542,9 +1596,13 @@ const TimeTrackingPage: React.FC = () => {
           id => !knownProjectIds.has(id) && !fetchedProjectIdsRef.current.has(id)
         );
 
-        if (missingProjectIds.length > 0) {
-          const { projectApiService } = await import('../services/api/entities/projectApi');
-          const projectResults = await Promise.all(
+        // Safety: Only fetch individually if global fetch is done and count is small
+        if (missingProjectIds.length > 0 && !isInitialLoading) {
+          if (missingProjectIds.length > 10) {
+            console.warn(`Too many missing projects (${missingProjectIds.length}), skipping individual fetches.`);
+          } else {
+            const { projectApiService } = await import('../services/api/entities/projectApi');
+            const projectResults = await Promise.all(
             missingProjectIds.map(async id => {
               fetchedProjectIdsRef.current.add(id);
               try {
@@ -1563,6 +1621,7 @@ const TimeTrackingPage: React.FC = () => {
             setAdditionalProjects(prev => mergeById(prev, fetchedProjects));
           }
         }
+      }
 
         const baseSprintData = Array.isArray(sprintsResult.data) ? sprintsResult.data : [];
         const knownSprints = mergeById(baseSprintData, additionalSprints);
@@ -1576,9 +1635,13 @@ const TimeTrackingPage: React.FC = () => {
           id => !knownSprintIds.has(id) && !fetchedSprintIdsRef.current.has(id)
         );
 
-        if (missingSprintIds.length > 0) {
-          const { sprintApiService } = await import('../services/api/entities/sprintApi');
-          const sprintResults = await Promise.all(
+        // Safety: Only fetch individually if global fetch is done and count is small
+        if (missingSprintIds.length > 0 && !isInitialLoading) {
+          if (missingSprintIds.length > 10) {
+            console.warn(`Too many missing sprints (${missingSprintIds.length}), skipping individual fetches.`);
+          } else {
+            const { sprintApiService } = await import('../services/api/entities/sprintApi');
+            const sprintResults = await Promise.all(
             missingSprintIds.map(async id => {
               fetchedSprintIdsRef.current.add(id);
               try {
@@ -1597,6 +1660,7 @@ const TimeTrackingPage: React.FC = () => {
             setAdditionalSprints(prev => mergeById(prev, fetchedSprints));
           }
         }
+      }
 
         // Fetch missing users
         const knownUserIds = new Set(
@@ -1609,9 +1673,13 @@ const TimeTrackingPage: React.FC = () => {
           id => !knownUserIds.has(id) && !fetchedUserIdsRef.current.has(id)
         );
 
-        if (missingUserIds.length > 0) {
-          const { userApiService } = await import('../services/api/entities/userApi');
-          const userResults = await Promise.all(
+        // Safety: Only fetch individually if global fetch is done and count is small
+        if (missingUserIds.length > 0 && !isInitialLoading) {
+          if (missingUserIds.length > 20) {
+            console.warn(`Too many missing users (${missingUserIds.length}), skipping individual fetches.`);
+          } else {
+            const { userApiService } = await import('../services/api/entities/userApi');
+            const userResults = await Promise.all(
             missingUserIds.map(async id => {
               fetchedUserIdsRef.current.add(id);
               try {
@@ -1631,6 +1699,7 @@ const TimeTrackingPage: React.FC = () => {
             setAdditionalUsers(prev => mergeById(prev, fetchedUsers));
           }
         }
+      }
       } catch (err) {
         console.warn('Some related entities could not be fetched. Continuing with available data.');
         // Don't block the UI - time entries will display with whatever data is available

@@ -21,7 +21,10 @@ public enum TimeEntryType {
     REFACTORING("refactoring"),
     DEPLOYMENT("deployment"),
     TRAINING("training"),
-    ADMINISTRATIVE("administrative");
+    ADMINISTRATIVE("administrative"),
+    ONSITE("onsite"),
+    IMPLEMENTATION("implementation"),
+    SUPPORT("support");
 
     private final String value;
 

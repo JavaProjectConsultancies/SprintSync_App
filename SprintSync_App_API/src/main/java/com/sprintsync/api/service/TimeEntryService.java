@@ -51,6 +51,12 @@ public class TimeEntryService {
     }
 
     public TimeEntry createTimeEntry(TimeEntry timeEntry) {
+        if (timeEntry.getUserId() == null || timeEntry.getUserId().isBlank()) {
+            throw new IllegalArgumentException("User ID is required for time logging");
+        }
+        if (timeEntry.getEntryType() == null) {
+            throw new IllegalArgumentException("Work category (Entry Type) is required");
+        }
         // Generate custom ID if not provided
         if (timeEntry.getId() == null) {
             timeEntry.setId(idGenerationService.generateTimeEntryId());

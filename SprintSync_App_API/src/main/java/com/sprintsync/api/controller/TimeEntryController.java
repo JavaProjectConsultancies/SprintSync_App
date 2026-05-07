@@ -9,6 +9,8 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -40,14 +42,35 @@ public class TimeEntryController {
      * @return ResponseEntity containing the created time entry
      */
     @PostMapping
-    @CacheEvict(value = { "projects", "projects-summary" }, allEntries = true)
-    public ResponseEntity<TimeEntry> createTimeEntry(@RequestBody TimeEntry timeEntry) {
+    public ResponseEntity<?> createTimeEntry(@RequestBody TimeEntry timeEntry) {
         try {
+            System.out.println("DEBUG: Incoming createTimeEntry request: " + timeEntry);
             TimeEntry createdTimeEntry = timeEntryService.createTimeEntry(timeEntry);
-            return ResponseEntity.status(HttpStatus.CREATED).body(createdTimeEntry);
+            return ResponseEntity.ok(createdTimeEntry);
+        } catch (IllegalArgumentException e) {
+            System.err.println("DEBUG: Validation error: " + e.getMessage());
+            return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
+            System.err.println("DEBUG: Internal error during creation: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(new ErrorResponse("Failed to create time entry: " + e.getMessage()));
         }
+    }
+
+    // Helper class for error responses
+    public static class ErrorResponse {
+        private String message;
+        public ErrorResponse(String message) { this.message = message; }
+        public String getMessage() { return message; }
+        public void setMessage(String message) { this.message = message; }
+    }
+
+    // Handle JSON parsing errors explicitly
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleJsonError(HttpMessageNotReadableException ex) {
+        System.err.println("DEBUG: JSON Parsing Error: " + ex.getMessage());
+        String detail = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
+        return ResponseEntity.badRequest().body(new ErrorResponse("Invalid request format: " + detail));
     }
 
     /**
@@ -382,13 +405,13 @@ public class TimeEntryController {
      */
     @PutMapping("/{id}")
     @CacheEvict(value = { "projects", "projects-summary" }, allEntries = true)
-    public ResponseEntity<TimeEntry> updateTimeEntry(@PathVariable String id, @RequestBody TimeEntry timeEntryDetails) {
+    public ResponseEntity<?> updateTimeEntry(@PathVariable String id, @RequestBody TimeEntry timeEntryDetails) {
         try {
             timeEntryDetails.setId(id);
             TimeEntry updatedTimeEntry = timeEntryService.updateTimeEntry(timeEntryDetails);
             return ResponseEntity.ok(updatedTimeEntry);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("error", e.getMessage()));
         }
     }
 

@@ -226,7 +226,7 @@ export interface TimeEntry extends BaseEntity {
   isBillable: boolean;
 }
 
-export type TimeEntryType = 'development' | 'testing' | 'design' | 'review' | 'meeting' | 'research' | 'documentation' | 'bug_fix' | 'refactoring' | 'deployment' | 'training' | 'administrative';
+export type TimeEntryType = 'development' | 'testing' | 'design' | 'review' | 'meeting' | 'research' | 'documentation' | 'bug_fix' | 'refactoring' | 'deployment' | 'training' | 'administrative' | 'onsite' | 'implementation' | 'support';
 
 // Quality Gate entity
 export interface QualityGate extends BaseEntity {
