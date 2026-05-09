@@ -74,7 +74,7 @@ const Dashboard: React.FC = () => {
 
   // Use activeRole for filtering data when role is switched
   // Admin, master_admin and support_and_implementation always stay as their roles (they see everything relevant to their level), others use the activeRole from context
-  const effectiveRole: string = (user?.role === 'admin' || user?.role === 'master_admin' || user?.role === 'qa_manager' || user?.role === 'support_and_implementation' || user?.role === 'qa_developer') ? user.role : activeRole;
+  const effectiveRole: string = (user?.role === 'admin' || user?.role === 'master_admin' || user?.role === 'qa_manager' || user?.role === 'support_and_implementation' || user?.role === 'qa_developer' || user?.role === 'client') ? user.role : activeRole;
 
   // API authentication is now handled by AuthContext
   // No need for demo auth setup
@@ -137,6 +137,13 @@ const Dashboard: React.FC = () => {
 
     return () => clearTimeout(timer);
   }, [isLoadingAny]);
+
+  // Redirect client role to reports page immediately
+  useEffect(() => {
+    if (user?.role?.toLowerCase() === 'client') {
+      navigate('/reports');
+    }
+  }, [user, navigate]);
 
   // Calculate loading progress with better logic
   const loadingProgress = useMemo(() => {

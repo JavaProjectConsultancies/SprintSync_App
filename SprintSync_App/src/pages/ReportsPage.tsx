@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { useUsers, useWorkflowLanes, useProjects } from '../hooks/api';
 import { projectApiService, sprintApiService } from '../services/api';
 import { Project } from '../types/api';
+import { useAuth } from '../contexts/AuthContextEnhanced';
 
 import { getStatusLabel } from '../utils/statusUtils';
 
@@ -132,6 +133,7 @@ type ReportType = 'bug-report' | 'resource-performance' | 'resource-utilization'
 type ResourceDurationFilter = 'all' | 'last7' | 'last30' | 'custom';
 
 const ReportsPage: React.FC = () => {
+  const { user } = useAuth();
   // Start with no report selected; we'll preload resource performance data in the background
   const [activeReport, setActiveReport] = useState<ReportType>(null);
   const [bugReports, setBugReports] = useState<BugReportRow[]>([]);
@@ -161,6 +163,23 @@ const ReportsPage: React.FC = () => {
   const [expandedPerformanceLogs, setExpandedPerformanceLogs] = useState<Set<number>>(new Set());
   const [masterProjects, setMasterProjects] = useState<Project[]>([]);
   const [loadingMasterProjects, setLoadingMasterProjects] = useState(false);
+
+  // Resource Utilization - separate state and API
+  const [resourceUtilizationRows, setResourceUtilizationRows] = useState<ResourcePerformanceRow[]>([]);
+  const [loadingResourceUtilization, setLoadingResourceUtilization] = useState(false);
+  const [resourceUtilizationFilterOptions, setResourceUtilizationFilterOptions] = useState<{
+    projects: string[];
+    sprints: string[];
+    users: { id: string; label: string }[];
+    projectSprintMap: Record<string, string[]>;
+    projectUserMap: Record<string, string[]>;
+  }>({ projects: [], sprints: [], users: [], projectSprintMap: {}, projectUserMap: {} });
+
+  // Use a ref for filter options to avoid circular dependency in loadResourceUtilization
+  const filterOptionsRef = useRef(resourceUtilizationFilterOptions);
+  useEffect(() => {
+    filterOptionsRef.current = resourceUtilizationFilterOptions;
+  }, [resourceUtilizationFilterOptions]);
 
 
   const toggleUtilizationRow = useCallback((resourceKey: string) => {
@@ -211,7 +230,7 @@ const ReportsPage: React.FC = () => {
 
   // Fetch bug report data from API when bug report is selected
   useEffect(() => {
-    if (activeReport === 'bug-report') {
+    if (activeReport === 'bug-report' && user?.role !== 'client') {
       const fetchBugReports = async () => {
         try {
           setLoading(true);
@@ -347,17 +366,6 @@ const ReportsPage: React.FC = () => {
     }
   }, [activeReport, resourcePerformanceRows.length, loadResourcePerformance]);
 
-  // Resource Utilization - separate state and API
-  const [resourceUtilizationRows, setResourceUtilizationRows] = useState<ResourcePerformanceRow[]>([]);
-  const [loadingResourceUtilization, setLoadingResourceUtilization] = useState(false);
-  const [resourceUtilizationFilterOptions, setResourceUtilizationFilterOptions] = useState<{
-    projects: string[];
-    sprints: string[];
-    users: { id: string; label: string }[];
-    projectSprintMap: Record<string, string[]>;
-    projectUserMap: Record<string, string[]>;
-  }>({ projects: [], sprints: [], users: [], projectSprintMap: {}, projectUserMap: {} });
-
   // Updated to use a single loading effect for all dependencies
   useEffect(() => {
     if (activeReport !== null && masterProjects.length === 0) {
@@ -388,7 +396,7 @@ const ReportsPage: React.FC = () => {
   const loadResourceUtilization = useCallback(async () => {
     try {
       setLoadingResourceUtilization(true);
-      const needsFilterOptions = resourceUtilizationFilterOptions.users.length === 0;
+      const needsFilterOptions = filterOptionsRef.current.users.length === 0;
 
       const projectName = !needsFilterOptions && selectedResourceProject !== 'all' ? selectedResourceProject : undefined;
       const userKey = !needsFilterOptions && selectedResourceUser !== 'all' ? selectedResourceUser : undefined;
@@ -407,7 +415,7 @@ const ReportsPage: React.FC = () => {
 
       // Parallelize report fetch with project-specific sprint fetch if needed
       const projectForSprintFetch = selectedResourceProject !== 'all' ? masterProjects.find(p => p.name === selectedResourceProject) : null;
-      const hasSprintsForProject = selectedResourceProject === 'all' || (resourceUtilizationFilterOptions.projectSprintMap[selectedResourceProject] || []).length > 0;
+      const hasSprintsForProject = selectedResourceProject === 'all' || (filterOptionsRef.current.projectSprintMap[selectedResourceProject] || []).length > 0;
 
       const [reportResponse, sprintsResponse] = await Promise.all([
         reportsApiService.getIndividualUtilizationReport({
@@ -493,7 +501,7 @@ const ReportsPage: React.FC = () => {
         });
 
         // Convert Sets back to arrays and merge with prefetched sprints
-        const finalSprintMap: Record<string, string[]> = { ...resourceUtilizationFilterOptions.projectSprintMap };
+        const finalSprintMap: Record<string, string[]> = { ...filterOptionsRef.current.projectSprintMap };
         Object.keys(projectSprintMap).forEach(p => {
           const rowSprints = Array.from(projectSprintMap[p]);
           const prefetchedSprints = newSprintMapping[p] || [];
@@ -519,7 +527,7 @@ const ReportsPage: React.FC = () => {
     } finally {
       setLoadingResourceUtilization(false);
     }
-  }, [selectedResourceProject, selectedResourceUser, selectedResourceSprint, selectedResourceDuration, customDurationFrom, customDurationTo, resourceUtilizationFilterOptions, masterProjects, formatDate]);
+  }, [selectedResourceProject, selectedResourceUser, selectedResourceSprint, selectedResourceDuration, customDurationFrom, customDurationTo, masterProjects, formatDate]);
 
   useEffect(() => {
     if (activeReport === 'resource-utilization') {
@@ -535,7 +543,14 @@ const ReportsPage: React.FC = () => {
     return Array.from(new Set(bugReports.map(r => r.board).filter(Boolean))).sort();
   }, [masterProjects, bugReports]);
 
-  const sprints = Array.from(new Set(bugReports.map(r => r.sprint).filter(Boolean))).sort();
+  const sprints = useMemo(() => {
+    let filteredBugs = bugReports;
+    if (masterProjects.length > 0) {
+      const accessibleNames = new Set(masterProjects.map(p => p.name));
+      filteredBugs = bugReports.filter(r => r.board && accessibleNames.has(r.board));
+    }
+    return Array.from(new Set(filteredBugs.map(r => r.sprint).filter(Boolean))).sort();
+  }, [masterProjects, bugReports]);
 
   // Filter resource performance rows based on selected filters
   const filteredResourcePerformanceRows = useMemo(() => {
@@ -1263,6 +1278,12 @@ const ReportsPage: React.FC = () => {
 
   // Filter rows based on selected filters
   const rows = bugReports.filter(row => {
+    // SECURITY: Filter out inaccessible projects immediately
+    if (masterProjects.length > 0) {
+      const accessibleNames = new Set(masterProjects.map(p => p.name));
+      if (!row.board || !accessibleNames.has(row.board)) return false;
+    }
+
     const projectMatch = selectedProjects.length === 0 || selectedProjects.includes(row.board || '');
     const sprintMatch = selectedSprints.length === 0 || selectedSprints.includes(row.sprint || '');
     return projectMatch && sprintMatch;
@@ -1542,7 +1563,7 @@ const ReportsPage: React.FC = () => {
               <ArrowLeft className="h-5 w-5 text-gray-700" />
             </button>
             <div className="flex items-center space-x-4">
-              {activeReport === 'bug-report' && (
+              {activeReport === 'bug-report' && user?.role !== 'client' && (
                 <>
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-500 shadow-lg">
                     <Bug className="h-6 w-6 text-white" strokeWidth={2.5} />
@@ -2066,7 +2087,7 @@ const ReportsPage: React.FC = () => {
         )}
 
         {/* Bug Report Section */}
-        {activeReport === 'bug-report' && (
+        {activeReport === 'bug-report' && user?.role !== 'client' && (
           <div className="space-y-8">
             {/* Filters and Export */}
             <div className="flex items-end justify-end gap-6 mb-4 lg:mb-6">
@@ -2332,31 +2353,33 @@ const ReportsPage: React.FC = () => {
             {loadingResourcePerformance ? (
               <>
                 {/* Skeleton Summary Card */}
-                <Card className="shadow-lg border-t-4 border-t-blue-500">
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-3">
-                      <div className="rounded-lg bg-blue-100 p-2">
-                        <Users className="h-6 w-6 text-blue-600" strokeWidth={2.5} />
-                      </div>
-                      <span>Resource Performance Summary</span>
-                    </CardTitle>
-                    <CardDescription>Loading team utilization and allocation metrics...</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex w-full gap-4">
-                      {[1, 2, 3, 4, 5].map((i) => (
-                        <div
-                          key={i}
-                          className="flex-1 min-w-0 p-4 rounded-lg border border-slate-200 bg-slate-50 animate-pulse space-y-2"
-                        >
-                          <div className="h-3 w-24 bg-slate-200 rounded" />
-                          <div className="h-7 w-20 bg-slate-300 rounded" />
-                          <div className="h-3 w-28 bg-slate-200 rounded" />
+                {user?.role?.toLowerCase() !== 'client' && (
+                  <Card className="shadow-lg border-t-4 border-t-blue-500">
+                    <CardHeader>
+                      <CardTitle className="flex items-center space-x-3">
+                        <div className="rounded-lg bg-blue-100 p-2">
+                          <Users className="h-6 w-6 text-blue-600" strokeWidth={2.5} />
                         </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
+                        <span>Resource Performance Summary</span>
+                      </CardTitle>
+                      <CardDescription>Loading team utilization and allocation metrics...</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex w-full gap-4">
+                        {[1, 2, 3, 4, 5].map((i) => (
+                          <div
+                            key={i}
+                            className="flex-1 min-w-0 p-4 rounded-lg border border-slate-200 bg-slate-50 animate-pulse space-y-2"
+                          >
+                            <div className="h-3 w-24 bg-slate-200 rounded" />
+                            <div className="h-7 w-20 bg-slate-300 rounded" />
+                            <div className="h-3 w-28 bg-slate-200 rounded" />
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Skeleton Table Card */}
                 <Card className="shadow-md border-t-4 border-t-blue-500">
@@ -2530,129 +2553,131 @@ const ReportsPage: React.FC = () => {
                   </Card>
                 )}
 
-                <Card className="shadow-lg border-t-4 border-t-blue-500">
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-3">
-                      <div className="rounded-lg bg-blue-100 p-2">
-                        <Users className="h-6 w-6 text-blue-600" strokeWidth={2.5} />
-                      </div>
-                      <span>Resource Performance Summary</span>
-                    </CardTitle>
-                    <CardDescription>Team utilization and allocation metrics</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {summaryData ? (
-                      <>
-                        <div className="flex w-full gap-4">
-                          <div className="flex-1 min-w-0 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                            <p className="text-xs font-medium text-blue-700 uppercase tracking-wider mb-2">Total Resources</p>
-                            <p className="text-3xl font-bold text-blue-600">
-                              {summaryData.totalResources || summaryData.activeResources || 0}
-                            </p>
-                            <p className="text-xs text-blue-600 mt-1">Active team members</p>
-                          </div>
-                          <div className="flex-1 min-w-0 p-4 bg-purple-50 rounded-lg border border-purple-200">
-                            <p className="text-xs font-medium text-purple-700 uppercase tracking-wider mb-2">Utilization</p>
-                            <p className="text-3xl font-bold text-purple-600">
-                              {summaryData.averageUtilization != null
-                                ? `${Math.round(summaryData.averageUtilization)}%`
-                                : summaryData.utilizationRate != null
-                                  ? `${Math.round(summaryData.utilizationRate)}%`
-                                  : '0%'}
-                            </p>
-                             <p className="text-xs text-purple-600 mt-1">Total Actual / Total Est.</p>
-                            <div className="mt-2 pt-2 border-t border-purple-200 space-y-1">
-                              <p className="text-xs font-medium text-purple-700">Idle</p>
-                              <p className="text-xs text-purple-600">
-                                Not Allocated: {summaryData.idleNotAllocatedCount ?? 0} resource(s)
+                {user?.role?.toLowerCase() !== 'client' && (
+                  <Card className="shadow-lg border-t-4 border-t-blue-500">
+                    <CardHeader>
+                      <CardTitle className="flex items-center space-x-3">
+                        <div className="rounded-lg bg-blue-100 p-2">
+                          <Users className="h-6 w-6 text-blue-600" strokeWidth={2.5} />
+                        </div>
+                        <span>Resource Performance Summary</span>
+                      </CardTitle>
+                      <CardDescription>Team utilization and allocation metrics</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {summaryData ? (
+                        <>
+                          <div className="flex w-full gap-4">
+                            <div className="flex-1 min-w-0 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                              <p className="text-xs font-medium text-blue-700 uppercase tracking-wider mb-2">Total Resources</p>
+                              <p className="text-3xl font-bold text-blue-600">
+                                {summaryData.totalResources || summaryData.activeResources || 0}
                               </p>
-                              <p className="text-xs text-purple-600">
-                                Early Completed: {(summaryData.idleEarlyCompletedHours ?? 0).toFixed(2)} h
-                              </p>
+                              <p className="text-xs text-blue-600 mt-1">Active team members</p>
                             </div>
-                          </div>
-                          <div className={`flex-1 min-w-0 p-4 rounded-lg border transition-all duration-300 ${
-                            (summaryData.totalHours ?? 0) < 15
-                              ? 'bg-red-50 border-red-200 ring-1 ring-red-100 shadow-[0_0_15px_rgba(239,68,68,0.1)]'
-                              : 'bg-emerald-50 border-emerald-200'
-                          }`}>
-                            <p className={`text-xs font-medium uppercase tracking-wider mb-2 ${
-                              (summaryData.totalHours ?? 0) < 15 ? 'text-red-700' : 'text-emerald-700'
-                            }`}>Efficiency</p>
-                            <p className={`text-3xl font-bold ${
-                              (summaryData.totalHours ?? 0) < 15 ? 'text-red-600' : 'text-emerald-600'
-                            }`}>
-                              {summaryData.averageEfficiency != null
-                                ? `${Math.round(summaryData.averageEfficiency)}%`
-                                : summaryData.averageUtilization != null
+                            <div className="flex-1 min-w-0 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                              <p className="text-xs font-medium text-purple-700 uppercase tracking-wider mb-2">Utilization</p>
+                              <p className="text-3xl font-bold text-purple-600">
+                                {summaryData.averageUtilization != null
                                   ? `${Math.round(summaryData.averageUtilization)}%`
-                                  : '0%'}
-                            </p>
-                            <p className={`text-xs mt-1 ${
-                              (summaryData.totalHours ?? 0) < 15 ? 'text-red-600' : 'text-emerald-600'
-                            }`}>Total Est. / Total Actual</p>
-                            
-                            {(summaryData.totalHours ?? 0) < 15 && (
-                              <div className="mt-2 pt-2 border-t border-red-200">
-                                <p className="text-[10px] font-bold text-red-700 uppercase flex items-center">
-                                  <AlertCircle className="w-3 h-3 mr-1" />
-                                  Unreliable Stat
+                                  : summaryData.utilizationRate != null
+                                    ? `${Math.round(summaryData.utilizationRate)}%`
+                                    : '0%'}
+                              </p>
+                              <p className="text-xs text-purple-600 mt-1">Total Actual / Total Est.</p>
+                              <div className="mt-2 pt-2 border-t border-purple-200 space-y-1">
+                                <p className="text-xs font-medium text-purple-700">Idle</p>
+                                <p className="text-xs text-purple-600">
+                                  Not Allocated: {summaryData.idleNotAllocatedCount ?? 0} resource(s)
                                 </p>
-                                <p className="text-[10px] text-red-600 mt-0.5">
-                                  Logged hours ({summaryData.totalHours?.toFixed(2)}h) are under the required 10-15h threshold.
+                                <p className="text-xs text-purple-600">
+                                  Early Completed: {(summaryData.idleEarlyCompletedHours ?? 0).toFixed(2)} h
                                 </p>
                               </div>
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-                            <p className="text-xs font-medium text-indigo-700 uppercase tracking-wider mb-2">Allocated Hours</p>
-                            <p className="text-3xl font-bold text-indigo-600">
-                              {(summaryData.allocatedHours ?? 0).toFixed(2)}
-                            </p>
-                            <p className="text-xs text-indigo-600 mt-1">Planned allocation</p>
-                          </div>
-                          <div className="flex-1 min-w-0 p-4 bg-cyan-50 rounded-lg border border-cyan-200">
-                            <p className="text-xs font-medium text-cyan-700 uppercase tracking-wider mb-2">Total Hours</p>
-                            <p className="text-3xl font-bold text-cyan-600">
-                              {(summaryData.totalHours ?? 0).toFixed(2)}
-                            </p>
-                            <p className="text-xs text-cyan-600 mt-1">Actual hours logged</p>
-                          </div>
-                        </div>
-                        {summaryData.projectUtilization && summaryData.projectUtilization.length > 0 && (
-                          <div className="mt-4 pt-4 border-t border-gray-200">
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Top Projects by Utilization</p>
-                            <div className="space-y-2">
-                              {summaryData.projectUtilization.slice(0, 3).map((project, idx) => (
-                                <div key={idx} className="flex justify-between items-center text-sm">
-                                  <span className="text-foreground truncate max-w-[200px]" title={project.projectName}>
-                                    {project.projectName}
-                                  </span>
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-24 bg-gray-200 rounded-full h-2">
-                                      <div
-                                        className="bg-blue-600 h-2 rounded-full"
-                                        style={{ width: `${Math.min(project.utilization, 100)}%` }}
-                                      />
-                                    </div>
-                                    <span className="font-semibold text-blue-600 w-12 text-right">
-                                      {Math.round(project.utilization)}%
-                                    </span>
-                                  </div>
+                            </div>
+                            <div className={`flex-1 min-w-0 p-4 rounded-lg border transition-all duration-300 ${
+                              (summaryData.totalHours ?? 0) < 15
+                                ? 'bg-red-50 border-red-200 ring-1 ring-red-100 shadow-[0_0_15px_rgba(239,68,68,0.1)]'
+                                : 'bg-emerald-50 border-emerald-200'
+                            }`}>
+                              <p className={`text-xs font-medium uppercase tracking-wider mb-2 ${
+                                (summaryData.totalHours ?? 0) < 15 ? 'text-red-700' : 'text-emerald-700'
+                              }`}>Efficiency</p>
+                              <p className={`text-3xl font-bold ${
+                                (summaryData.totalHours ?? 0) < 15 ? 'text-red-600' : 'text-emerald-600'
+                              }`}>
+                                {summaryData.averageEfficiency != null
+                                  ? `${Math.round(summaryData.averageEfficiency)}%`
+                                  : summaryData.averageUtilization != null
+                                    ? `${Math.round(summaryData.averageUtilization)}%`
+                                    : '0%'}
+                              </p>
+                              <p className={`text-xs mt-1 ${
+                                (summaryData.totalHours ?? 0) < 15 ? 'text-red-600' : 'text-emerald-600'
+                              }`}>Total Est. / Total Actual</p>
+
+                              {(summaryData.totalHours ?? 0) < 15 && (
+                                <div className="mt-2 pt-2 border-t border-red-200">
+                                  <p className="text-[10px] font-bold text-red-700 uppercase flex items-center">
+                                    <AlertCircle className="w-3 h-3 mr-1" />
+                                    Unreliable Stat
+                                  </p>
+                                  <p className="text-[10px] text-red-600 mt-0.5">
+                                    Logged hours ({summaryData.totalHours?.toFixed(2)}h) are under the required 10-15h threshold.
+                                  </p>
                                 </div>
-                              ))}
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                              <p className="text-xs font-medium text-indigo-700 uppercase tracking-wider mb-2">Allocated Hours</p>
+                              <p className="text-3xl font-bold text-indigo-600">
+                                {(summaryData.allocatedHours ?? 0).toFixed(2)}
+                              </p>
+                              <p className="text-xs text-indigo-600 mt-1">Planned allocation</p>
+                            </div>
+                            <div className="flex-1 min-w-0 p-4 bg-cyan-50 rounded-lg border border-cyan-200">
+                              <p className="text-xs font-medium text-cyan-700 uppercase tracking-wider mb-2">Total Hours</p>
+                              <p className="text-3xl font-bold text-cyan-600">
+                                {(summaryData.totalHours ?? 0).toFixed(2)}
+                              </p>
+                              <p className="text-xs text-cyan-600 mt-1">Actual hours logged</p>
                             </div>
                           </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                        <BarChart3 className="h-12 w-12 mb-2 text-gray-300" />
-                        <p className="text-sm">Resource performance data not available</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                          {summaryData.projectUtilization && summaryData.projectUtilization.length > 0 && user?.role?.toLowerCase() !== 'client' && (
+                            <div className="mt-4 pt-4 border-t border-gray-200">
+                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Top Projects by Utilization</p>
+                              <div className="space-y-2">
+                                {summaryData.projectUtilization.slice(0, 3).map((project, idx) => (
+                                  <div key={idx} className="flex justify-between items-center text-sm">
+                                    <span className="text-foreground truncate max-w-[200px]" title={project.projectName}>
+                                      {project.projectName}
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-24 bg-gray-200 rounded-full h-2">
+                                        <div
+                                          className="bg-blue-600 h-2 rounded-full"
+                                          style={{ width: `${Math.min(project.utilization, 100)}%` }}
+                                        />
+                                      </div>
+                                      <span className="font-semibold text-blue-600 w-12 text-right">
+                                        {Math.round(project.utilization)}%
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                          <BarChart3 className="h-12 w-12 mb-2 text-gray-300" />
+                          <p className="text-sm">Resource performance data not available</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Resource Performance Table */}
                 <Card className="shadow-md border-t-4 border-t-blue-500">
@@ -2699,12 +2724,9 @@ const ReportsPage: React.FC = () => {
                       <Table className="[&_th]:text-xs [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-muted-foreground [&_th]:px-4 [&_th]:py-3 [&_td]:text-sm [&_td]:px-4 [&_td]:py-3">
                         <TableHeader>
                           <TableRow className="bg-slate-50 border-b-2 border-slate-300">
-                            <TableHead className="font-semibold border-r border-gray-300">Resource Email Id</TableHead>
                             <TableHead className="font-semibold border-r border-gray-300">Resource Name</TableHead>
                             <TableHead className="font-semibold border-r border-gray-300">Task/Issue Name</TableHead>
-                            <TableHead className="font-semibold border-r border-gray-300">Task/Issue Id</TableHead>
                             <TableHead className="font-semibold border-r border-gray-300">Story Name</TableHead>
-                            <TableHead className="font-semibold border-r border-gray-300">Story Id</TableHead>
                             <TableHead className="font-semibold border-r border-gray-300">Estimation Hours</TableHead>
                             <TableHead className="font-semibold border-r border-gray-300">Actual Hours</TableHead>
                             <TableHead className="font-semibold border-r border-gray-300">Remaining Hours</TableHead>
@@ -2713,7 +2735,9 @@ const ReportsPage: React.FC = () => {
                             <TableHead className="font-semibold border-r border-gray-300">Status</TableHead>
                             <TableHead className="font-semibold border-r border-gray-300">Created Date</TableHead>
                             <TableHead className="font-semibold border-r border-gray-300">Due Date</TableHead>
-                            <TableHead className="font-semibold border-r border-gray-300">Completed Date</TableHead>
+                            {user?.role !== 'client' && (
+                              <TableHead className="font-semibold border-r border-gray-300">Completed Date</TableHead>
+                            )}
                             <TableHead className="font-semibold border-r border-gray-300">Sprint</TableHead>
                             <TableHead className="font-semibold">Project</TableHead>
                           </TableRow>
@@ -2721,7 +2745,7 @@ const ReportsPage: React.FC = () => {
                         <TableBody>
                           {filteredResourcePerformanceRows.length === 0 ? (
                             <TableRow>
-                              <TableCell colSpan={17} className="text-center py-12">
+                              <TableCell colSpan={user?.role === 'client' ? 13 : 14} className="text-center py-12">
                                 <div className="flex flex-col items-center space-y-2 text-muted-foreground">
                                   <Users className="h-12 w-12 text-slate-300" />
                                   <p className="text-sm">
@@ -2762,23 +2786,14 @@ const ReportsPage: React.FC = () => {
                                       });
                                     } : undefined}
                                   >
-                                    <TableCell className="text-muted-foreground border-r border-gray-300">
-                                      {row.resourceEmailId || '—'}
-                                    </TableCell>
                                     <TableCell className="font-medium border-r border-gray-300">
                                       {row.resourceName || '—'}
                                     </TableCell>
                                     <TableCell className="border-r border-gray-300">
                                       {row.taskIssueName || '—'}
                                     </TableCell>
-                                    <TableCell className="border-r border-gray-300 font-mono text-[10px] text-blue-600">
-                                      {row.taskIssueId || '—'}
-                                    </TableCell>
                                     <TableCell className="border-r border-gray-300">
                                       {row.storyName || '—'}
-                                    </TableCell>
-                                    <TableCell className="border-r border-gray-300 font-mono text-[10px] text-blue-600 truncate max-w-[100px]" title={row.storyId}>
-                                      {row.storyId || '—'}
                                     </TableCell>
                                     <TableCell className="text-center border-r border-gray-300 tabular-nums font-medium text-indigo-600">
                                       {row.estimationHours != null ? row.estimationHours.toFixed(2) : '—'}
@@ -2823,9 +2838,11 @@ const ReportsPage: React.FC = () => {
                                     <TableCell className="border-r border-gray-300 text-xs">
                                       {row.dueDate || '—'}
                                     </TableCell>
-                                    <TableCell className="border-r border-gray-300 text-xs">
-                                      {row.completedDate || '—'}
-                                    </TableCell>
+                                    {user?.role !== 'client' && (
+                                      <TableCell className="border-r border-gray-300 text-xs">
+                                        {row.completedDate || '—'}
+                                      </TableCell>
+                                    )}
                                     <TableCell className="border-r border-gray-300 text-xs">
                                       {row.sprint || '—'}
                                     </TableCell>
@@ -2835,7 +2852,7 @@ const ReportsPage: React.FC = () => {
                                   </TableRow>
                                   {isExpanded && hasLogs && (
                                     <TableRow className="bg-blue-50/30 border-b border-blue-100/50 hover:bg-blue-50/30">
-                                      <TableCell colSpan={17} className="px-8 py-6">
+                                      <TableCell colSpan={user?.role === 'client' ? 13 : 14} className="px-8 py-6">
                                         <div className="bg-white rounded-xl border border-blue-200 shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500">
                                           {/* Header Section */}
                                           <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-6 py-4 flex items-center justify-between shadow-sm">
@@ -3270,27 +3287,29 @@ const ReportsPage: React.FC = () => {
         {/* Report Cards Grid */}
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {/* Bug Report Card */}
-          <Card
-            className="group cursor-pointer border border-slate-200/80 bg-white/80 shadow-sm hover:shadow-lg hover:border-red-200 hover:-translate-y-0.5 transition-all duration-200 rounded-xl"
-            onClick={() => setActiveReport('bug-report')}
-          >
-            <CardContent className="p-8 flex flex-col items-start space-y-3 text-left">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-50 group-hover:bg-red-100 transition-colors">
-                <Bug className="w-8 h-8 text-red-600" strokeWidth={2.5} />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-foreground mb-1 group-hover:text-red-600 transition-colors">
-                  Bug Report
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Code quality and bug reports.
+          {user?.role !== 'client' && (
+            <Card
+              className="group cursor-pointer border border-slate-200/80 bg-white/80 shadow-sm hover:shadow-lg hover:border-red-200 hover:-translate-y-0.5 transition-all duration-200 rounded-xl"
+              onClick={() => setActiveReport('bug-report')}
+            >
+              <CardContent className="p-8 flex flex-col items-start space-y-3 text-left">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-50 group-hover:bg-red-100 transition-colors">
+                  <Bug className="w-8 h-8 text-red-600" strokeWidth={2.5} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground mb-1 group-hover:text-red-600 transition-colors">
+                    Bug Report
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Code quality and bug reports.
+                  </p>
+                </div>
+                <p className="text-xs text-blue-600 font-medium mt-2 group-hover:underline">
+                  Click to view →
                 </p>
-              </div>
-              <p className="text-xs text-blue-600 font-medium mt-2 group-hover:underline">
-                Click to view →
-              </p>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Resource Performance Card */}
           <Card

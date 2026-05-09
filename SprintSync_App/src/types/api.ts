@@ -29,7 +29,7 @@ export interface User extends BaseEntity {
   lastLogin?: string;
 }
 
-export type UserRole = 'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'QA_MANAGER' | 'QA_DEVELOPER' | 'MASTER_ADMIN' | 'TESTER' | 'ANALYST' | 'SUPPORT_AND_IMPLEMENTATION';
+export type UserRole = 'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'QA_MANAGER' | 'QA_DEVELOPER' | 'MASTER_ADMIN' | 'TESTER' | 'ANALYST' | 'SUPPORT_AND_IMPLEMENTATION' | 'CLIENT';
 
 // Department entity
 export interface Department extends BaseEntity {

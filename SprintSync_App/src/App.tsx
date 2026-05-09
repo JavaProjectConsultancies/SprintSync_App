@@ -64,7 +64,8 @@ const ProtectedRoute: React.FC<{
         baseRole === 'master_admin' ||
         baseRole === 'qa_manager' ||
         baseRole === 'qa_developer' ||
-        baseRole === 'support_and_implementation'
+        baseRole === 'support_and_implementation' ||
+        baseRole === 'client'
         ? baseRole
         : (activeRole || baseRole).toLowerCase();
 
@@ -84,13 +85,21 @@ const AppContent: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Ensure users are redirected to dashboard after login
-  // This effect runs when user state changes (after login)
+  // Ensure users are redirected to dashboard or specific landing page after login
   useEffect(() => {
-    // If user is logged in and navigates to an invalid route, redirect to dashboard
-    // This ensures all users always land on dashboard after login
     if (user) {
-      // If somehow user lands on a non-existent route, redirect to dashboard
+      // Redirect clients to reports page as their landing page
+      if (user.role === 'client') {
+        const allowedClientRoutes = ['/reports'];
+        const isClientRoute = allowedClientRoutes.includes(location.pathname);
+        
+        if (!isClientRoute) {
+          navigate('/reports');
+          return;
+        }
+      }
+
+      // For other roles, if they navigate to an invalid route, redirect to dashboard
       const validRoutes = ['/', '/projects', '/backlog', '/scrum', '/time-tracking',
         '/team-allocation', '/reports', '/profile',
         '/admin-panel', '/todo-list', '/calendar', '/login-activity'];
@@ -148,6 +157,7 @@ const AppContent: React.FC = () => {
       qa_developer: ['/', '/projects', '/scrum', '/time-tracking', '/reports', '/profile', '/todo-list', '/calendar'],
       master_admin: ['/', '/projects', '/scrum', '/time-tracking', '/team-allocation', '/reports', '/profile', '/admin-panel', '/todo-list', '/calendar', '/backlog', '/login-activity'],
       support_and_implementation: ['/', '/projects', '/scrum', '/time-tracking', '/team-allocation', '/reports', '/profile', '/todo-list', '/calendar'],
+      client: ['/', '/reports', '/profile'],
     };
 
     return roleAccess[role]?.includes(path) || false;
@@ -635,6 +645,8 @@ const AppContent: React.FC = () => {
         return 'bg-teal-100 text-teal-800 border-teal-200';
       case 'master_admin':
         return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'client':
+        return 'bg-amber-100 text-amber-800 border-amber-200';
       case 'designer':
       case 'qa':
         return 'bg-pink-100 text-pink-800 border-pink-200';
@@ -771,8 +783,12 @@ const AppContent: React.FC = () => {
                   </ProtectedRoute>
                 } />
 
-                {/* Backlog - accessible by all roles */}
-                <Route path="/backlog" element={<BacklogPage />} />
+                {/* Backlog - accessible by manager, developer, qa_manager, qa_developer, master_admin */}
+                <Route path="/backlog" element={
+                  <ProtectedRoute allowedRoles={['admin', 'manager', 'developer', 'qa_manager', 'qa_developer', 'master_admin', 'support_and_implementation']}>
+                    <BacklogPage />
+                  </ProtectedRoute>
+                } />
 
                 {/* Scrum Management - accessible by manager, developer, qa_manager, qa_developer, master_admin */}
                 <Route path="/scrum" element={
@@ -803,13 +819,17 @@ const AppContent: React.FC = () => {
 
                 {/* Reports - accessible by all roles except developers */}
                 <Route path="/reports" element={
-                  <ProtectedRoute allowedRoles={['admin', 'manager', 'qa_manager', 'qa_developer', 'master_admin', 'support_and_implementation']}>
+                  <ProtectedRoute allowedRoles={['admin', 'manager', 'qa_manager', 'qa_developer', 'master_admin', 'support_and_implementation', 'client']}>
                     <ReportsPage />
                   </ProtectedRoute>
                 } />
 
-                {/* Profile - accessible by all roles */}
-                <Route path="/profile" element={<ProfilePage />} />
+                {/* Profile - accessible by all roles except client */}
+                <Route path="/profile" element={
+                  <ProtectedRoute allowedRoles={['admin', 'manager', 'developer', 'qa_manager', 'qa_developer', 'master_admin', 'support_and_implementation']}>
+                    <ProfilePage />
+                  </ProtectedRoute>
+                } />
 
                 {/* Admin Panel - accessible by admin and master_admin (view only for master_admin) */}
                 <Route path="/admin-panel" element={

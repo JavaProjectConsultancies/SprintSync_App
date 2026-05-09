@@ -23,6 +23,7 @@ import java.util.UUID;
  * @author SprintSync Team
  */
 @Service
+@Transactional
 @SuppressWarnings("null")
 public class PendingRegistrationService {
 

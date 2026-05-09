@@ -61,6 +61,7 @@ const PendingRegistrationsTab: React.FC<PendingRegistrationsTabProps> = ({ onRef
       case 'designer': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'qa': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'tester': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'client': return 'bg-amber-100 text-amber-800 border-amber-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };

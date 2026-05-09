@@ -387,6 +387,7 @@ const RegistrationPage: React.FC = () => {
                       <SelectItem value="support_and_implementation">Support & Implementation</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
                       <SelectItem value="master_admin">Master Admin</SelectItem>
+                      <SelectItem value="client">Client</SelectItem>
                     </SelectContent>
                   </Select>
                   {errors.role && (

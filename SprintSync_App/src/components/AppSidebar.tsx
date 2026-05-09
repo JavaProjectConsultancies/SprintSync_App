@@ -336,6 +336,17 @@ const AppSidebar: React.FC = () => {
           ]
         }
       ];
+    } else if (normalizedRole === 'client') {
+      // Client role only sees Reports
+      return [
+        {
+          title: 'ANALYTICS',
+          icon: Brain,
+          children: [
+            { title: 'Reports', icon: BarChart3, id: 'reports' },
+          ]
+        },
+      ];
     } else if (normalizedRole === 'qa_developer') {
       // QA Developer has access to typical dev tools plus Reports grouped under ANALYTICS
       return [
@@ -423,7 +434,8 @@ const AppSidebar: React.FC = () => {
         : (normalizedUserRole === 'qa_manager' ? 'qa_manager'
           : (normalizedUserRole === 'qa_developer' ? 'qa_developer'
             : (normalizedUserRole === 'support_and_implementation' ? 'support_and_implementation'
-              : activeRole))));
+              : (normalizedUserRole === 'client' ? 'client'
+                : activeRole)))));
   const menuItems = user ? getRoleBasedMenuItems(effectiveRole) : [];
 
   // Safely filter menu items with proper checks
@@ -464,6 +476,8 @@ const AppSidebar: React.FC = () => {
         return 'bg-teal-100 text-teal-800 border-teal-200';
       case 'master_admin':
         return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'client':
+        return 'bg-amber-100 text-amber-800 border-amber-200';
       case 'designer':
       case 'qa':
         return 'bg-pink-100 text-pink-800 border-pink-200';
@@ -487,6 +501,8 @@ const AppSidebar: React.FC = () => {
         return TestTube;
       case 'master_admin':
         return Eye;
+      case 'client':
+        return Users;
       case 'designer':
       case 'qa':
         return TestTube;

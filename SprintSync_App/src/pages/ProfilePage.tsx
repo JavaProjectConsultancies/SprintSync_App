@@ -134,6 +134,8 @@ const getRoleColor = (role?: string) => {
       return 'bg-teal-100 text-teal-800 border-teal-200';
     case 'master_admin':
       return 'bg-purple-100 text-purple-800 border-purple-200';
+    case 'client':
+      return 'bg-amber-100 text-amber-800 border-amber-200';
     case 'designer':
     case 'qa':
       return 'bg-purple-100 text-purple-800 border-purple-200';

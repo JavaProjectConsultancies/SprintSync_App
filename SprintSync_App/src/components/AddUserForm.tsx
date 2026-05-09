@@ -734,6 +734,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onClose, onSuccess, i
                       <SelectItem value="qa_developer">QA Developer</SelectItem>
                       <SelectItem value="support_and_implementation">Support & Implementation</SelectItem>
                       <SelectItem value="master_admin">Master Admin</SelectItem>
+                      <SelectItem value="client">Client</SelectItem>
                     </SelectContent>
                   </Select>
                   {errors.role && (

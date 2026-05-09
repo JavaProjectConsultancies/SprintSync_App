@@ -14,7 +14,8 @@ const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   qa_manager: ['view_projects', 'manage_projects', 'view_team', 'view_analytics'],
   qa_developer: ['view_projects', 'view_team', 'view_analytics'],
   master_admin: ['view_projects', 'view_team', 'view_analytics', 'view_all_data'],
-  support_and_implementation: ['view_projects', 'manage_projects', 'view_team', 'view_analytics']
+  support_and_implementation: ['view_projects', 'manage_projects', 'view_team', 'view_analytics'],
+  client: ['view_analytics']
 };
 
 interface AuthContextType {
@@ -425,8 +426,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!user) return false;
 
     // Only admin, master_admin, and support_and_implementation can access all projects
-    // manager, qa_manager, qa_developer, developer can only access their assigned projects
+    // manager, qa_manager, qa_developer, developer, client can only access their assigned projects
     if (user.role === 'admin' || user.role === 'master_admin' || user.role === 'support_and_implementation') return true;
+
+    // CLIENT role also only sees assigned projects
+    if (user.role === 'client') return user.assignedProjects?.includes(projectId) || false;
 
     // Other roles can only access assigned projects
     return user.assignedProjects?.includes(projectId) || false;

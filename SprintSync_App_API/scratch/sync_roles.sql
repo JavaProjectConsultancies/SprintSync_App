@@ -1,0 +1,9 @@
+ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'qa_manager';
+ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'qa_developer';
+ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'master_admin';
+ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'support_and_implementation';
+ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'client';
+ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'qa';
+ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'tester';
+ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'analyst';
+ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'designer';

@@ -157,7 +157,7 @@ const TeamAllocationPage: React.FC = () => {
 
   const { teamMembers: projectTeamMembers, refreshTeamMembers } = useProjectTeamMembers(selectedProjectId || undefined);
 
-  const roleOptions = ['developer', 'manager', 'admin', 'qa_manager', 'qa_developer', 'master_admin', 'support_and_implementation'];
+  const roleOptions = ['developer', 'manager', 'admin', 'qa_manager', 'qa_developer', 'master_admin', 'support_and_implementation', 'client'];
 
   // Project helpers: team members per project and manager names cache
   const [projectIdToMembers, setProjectIdToMembers] = useState<Record<string, any[]>>({});
@@ -2013,6 +2013,7 @@ const TeamAllocationPage: React.FC = () => {
                           <SelectItem value="qa_developer">QA Developer</SelectItem>
                           <SelectItem value="support_and_implementation">Support & Implementation</SelectItem>
                           <SelectItem value="master_admin">Master Admin</SelectItem>
+                          <SelectItem value="client">Client</SelectItem>
                         </SelectContent>
                       </Select>
 
