@@ -16,6 +16,7 @@ public class TeamMemberDto {
     private Boolean isTeamLead;
     private Integer workload; // percentage of current workload
     private Integer performance; // performance score out of 100
+    private Double allocatedHours;
 
     // Constructors
     public TeamMemberDto() {}
@@ -121,5 +122,13 @@ public class TeamMemberDto {
 
     public void setPerformance(Integer performance) {
         this.performance = performance;
+    }
+
+    public Double getAllocatedHours() {
+        return allocatedHours;
+    }
+
+    public void setAllocatedHours(Double allocatedHours) {
+        this.allocatedHours = allocatedHours;
     }
 }

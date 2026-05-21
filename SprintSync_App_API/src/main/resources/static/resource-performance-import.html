@@ -61,6 +61,9 @@
     <label for="fileInput">Excel File (.xlsx)</label>
     <input id="fileInput" type="file" accept=".xlsx,.xls">
 
+    <label for="sheetName">Sheet Name (optional)</label>
+    <input id="sheetName" type="text" value="Resource Performance Details" placeholder="Leave blank to auto-pick first sheet">
+
     <button id="importBtn" type="button">Import File</button>
   </div>
 
@@ -77,6 +80,7 @@
       const apiBase = document.getElementById("apiBase").value.trim();
       const projectId = document.getElementById("projectId").value.trim();
       const fileInput = document.getElementById("fileInput");
+      const sheetName = document.getElementById("sheetName").value.trim();
       const file = fileInput.files[0];
 
       if (!apiBase) {
@@ -96,6 +100,9 @@
       const formData = new FormData();
       formData.append("file", file);
       formData.append("projectId", projectId);
+      if (sheetName) {
+        formData.append("sheetName", sheetName);
+      }
 
       importBtn.disabled = true;
       output.textContent = "Import in progress...";

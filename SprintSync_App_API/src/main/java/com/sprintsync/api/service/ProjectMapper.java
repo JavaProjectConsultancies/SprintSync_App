@@ -354,23 +354,24 @@ public class ProjectMapper {
                 return Collections.emptyList();
             }
 
-            Map<String, com.sprintsync.api.entity.User> usersById = userRepository.findAllById(userIds).stream()
+            Map<String, Double> allocatedHoursMap = loadAllocatedHoursByUserForProject(projectId);
+
+            List<com.sprintsync.api.entity.User> users = userRepository.findAllById(userIds);
+            Map<String, com.sprintsync.api.entity.User> usersById = users.stream()
                     .collect(Collectors.toMap(com.sprintsync.api.entity.User::getId, user -> user));
 
-            if (usersById.isEmpty()) {
-                return Collections.emptyList();
-            }
-
-            Set<String> departmentIds = usersById.values().stream()
+            List<String> departmentIds = users.stream()
                     .map(com.sprintsync.api.entity.User::getDepartmentId)
                     .filter(Objects::nonNull)
-                    .collect(Collectors.toSet());
+                    .distinct()
+                    .collect(Collectors.toList());
 
-            Map<String, String> departmentNamesById = departmentIds.isEmpty()
-                    ? Collections.emptyMap()
-                    : departmentRepository.findAllById(departmentIds).stream()
-                        .collect(Collectors.toMap(com.sprintsync.api.entity.Department::getId,
-                                                  com.sprintsync.api.entity.Department::getName));
+            Map<String, String> departmentNamesById = Collections.emptyMap();
+            if (!departmentIds.isEmpty()) {
+                List<com.sprintsync.api.entity.Department> departments = departmentRepository.findAllById(departmentIds);
+                departmentNamesById = departments.stream()
+                        .collect(Collectors.toMap(com.sprintsync.api.entity.Department::getId, com.sprintsync.api.entity.Department::getName));
+            }
 
             List<TeamMemberDto> teamMembers = new ArrayList<>(assignments.size());
 
@@ -395,6 +396,7 @@ public class ProjectMapper {
                 dto.setHourlyRate(user.getHourlyRate() != null ? user.getHourlyRate().doubleValue() : 0.0);
                 dto.setAvatar(user.getAvatarUrl());
                 dto.setSkills(parseSkills(user.getSkills()));
+                dto.setAllocatedHours(allocatedHoursMap.getOrDefault(user.getId(), 0.0));
 
                 if (includeMetrics) {
                     dto.setWorkload(calculateWorkload(user.getId()));
@@ -409,6 +411,31 @@ public class ProjectMapper {
             logger.warn("Failed to load team members for project {}: {}", projectId, e.getMessage());
             return Collections.emptyList();
         }
+    }
+
+    /**
+     * Planned/allocated hours per user for this project: sum of task.estimated_hours on tasks they own in project stories.
+     */
+    private Map<String, Double> loadAllocatedHoursByUserForProject(String projectId) {
+        Map<String, Double> out = new HashMap<>();
+        try {
+            for (Object[] row : taskRepository.sumEstimatedTaskHoursByAssigneeForProject(projectId)) {
+                if (row == null || row.length < 2 || row[0] == null) {
+                    continue;
+                }
+                String userId = String.valueOf(row[0]);
+                double hours = 0.0;
+                if (row[1] instanceof BigDecimal) {
+                    hours = ((BigDecimal) row[1]).doubleValue();
+                } else if (row[1] instanceof Number) {
+                    hours = ((Number) row[1]).doubleValue();
+                }
+                out.put(userId, hours);
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to load allocated hours for project {}: {}", projectId, e.getMessage());
+        }
+        return out;
     }
 
     private String[] parseSkills(String skillsJson) {

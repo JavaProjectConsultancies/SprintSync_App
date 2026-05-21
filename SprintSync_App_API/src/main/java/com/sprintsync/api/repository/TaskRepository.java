@@ -482,4 +482,22 @@ public interface TaskRepository extends JpaRepository<Task, String> {
      */
     @Query("SELECT COALESCE(SUM(s.actualHours), 0) FROM Subtask s WHERE s.taskId = :taskId")
     java.math.BigDecimal sumSubtaskHoursByTaskId(@Param("taskId") String taskId);
+
+    /**
+     * Sum task estimated hours per assignee for a project (for team "allocated hours" display).
+     */
+    @Query(
+        value = """
+            SELECT
+                t.assignee_id AS assignee_id,
+                COALESCE(SUM(t.estimated_hours), 0) AS total_hours
+            FROM tasks t
+            INNER JOIN stories s ON s.id = t.story_id
+            WHERE s.project_id = :projectId
+              AND t.assignee_id IS NOT NULL
+            GROUP BY t.assignee_id
+            """,
+        nativeQuery = true
+    )
+    List<Object[]> sumEstimatedTaskHoursByAssigneeForProject(@Param("projectId") String projectId);
 }

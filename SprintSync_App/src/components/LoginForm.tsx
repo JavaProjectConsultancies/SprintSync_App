@@ -19,6 +19,7 @@ import LoadingSpinner from './LoadingSpinner';
 import { useDepartments } from '../hooks/api/useDepartments';
 import { useDomains } from '../hooks/api/useDomains';
 import ssLogo from '../assets/ss_logo.gif';
+import microproLogo from '../assets/ChatGPT Image May 11, 2026, 10_10_51 AM.png';
 import { toast } from 'sonner';
 
 interface LoginFormProps {
@@ -575,7 +576,16 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
       <div className="overlay-container">
         <div className="overlay">
           <div className="overlay-panel overlay-left">
-            <img src={ssLogo} alt="SprintSync" className="w-48 h-48 mb-4 object-contain" />
+            <div className="flex flex-col items-center mb-4">
+              <img
+                src={microproLogo}
+                alt="Micropro"
+                style={{ width: '200px', height: 'auto', marginBottom: '12px' }}
+              />
+              <p className="text-white text-[12px] font-bold tracking-[0.3em] uppercase opacity-60">presents</p>
+            </div>
+            <br></br>
+            <img src={ssLogo} alt="SprintSync" className="w-32 h-32 mb-4 object-contain" />
             <h1 className="overlay-title">Welcome Back!</h1>
             <p className="overlay-text">
               To keep connected with us please login with your personal info
@@ -588,11 +598,21 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onLoginError, isL
             </button>
           </div>
           <div className="overlay-panel overlay-right">
-            <img src={ssLogo} alt="SprintSync" className="w-48 h-48 mb-4 object-contain" />
-            <h1 className="overlay-title">Hello, Friend!</h1>
+            <div className="flex flex-col items-center mb-4">
+              <img
+                src={microproLogo}
+                alt="Micropro"
+                style={{ width: '200px', height: 'auto', marginBottom: '12px' }}
+              />
+              <p className="text-white text-[10px] font-bold tracking-[0.3em] uppercase opacity-60">presents</p>
+            </div>
+
+            <img src={ssLogo} alt="SprintSync" className="w-32 h-32 mb-4 object-contain" />
+            <h1 className="overlay-title mt-10">Hello, Friend!</h1>
             <p className="overlay-text">
               Enter your personal details and start your journey with SprintSync
             </p>
+            <br></br>
             <button
               className="form-button ghost-button"
               onClick={() => setIsPanelActive(true)}

@@ -22,7 +22,6 @@ import {
   Loader2
 } from 'lucide-react';
 import { authApiService } from '../services/api/authApi';
-import sprintSyncLogo from '../assets/aadf192e83d08c7cc03896c06b452017e84d04aa.png';
 import { useDepartments } from '../hooks/api/useDepartments';
 import { useDomains } from '../hooks/api/useDomains';
 
@@ -155,13 +154,13 @@ const RegistrationPage: React.FC = () => {
         <div className="text-center mb-6">
           <div className="flex justify-center mb-4">
             <img
-              src={sprintSyncLogo}
+              src="/logo.png"
               alt="SprintSync"
               className="w-16 h-16 object-contain"
             />
           </div>
-          <h1 className="text-3xl font-bold text-green-600 mb-2">SprintSync</h1>
-          <p className="text-muted-foreground">Your Agile Project Management Solution</p>
+          <h1 className="text-3xl font-bold text-green-600 mb-2">MIcropro presents</h1>
+          <p className="font-bold text-muted-foreground">SprintSync</p>
         </div>
 
         {/* Registration Card */}

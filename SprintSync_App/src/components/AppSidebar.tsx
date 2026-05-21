@@ -69,7 +69,8 @@ import {
 } from 'lucide-react';
 import { authApiService } from '../services/api/authApi';
 import { toast } from 'sonner';
-import sprintSyncLogo from '../assets/aadf192e83d08c7cc03896c06b452017e84d04aa.png';
+import ssLogo from '../assets/ss_logo.gif';
+import microproLogo from '../assets/ChatGPT Image May 11, 2026, 10_10_51 AM.png';
 
 interface MenuItem {
   title: string;
@@ -535,19 +536,13 @@ const AppSidebar: React.FC = () => {
                 console.error('Navigation error:', error);
                 window.location.href = '/';
               }
-            }}
-            title="Go to Dashboard"
-          >
-            <div className="relative">
-              <img
-                src={sprintSyncLogo}
-                alt="SprintSync Logo"
-                className="w-10 h-10 object-contain"
-              />
-            </div>
-            <div className="flex-1">
-              <h2 className="font-bold text-green-600">SprintSync</h2>
-              <p className="text-xs text-muted-foreground">AI Project Management</p>
+            }} title="Go to Dashboard">
+            <div className="flex flex-col items-start gap-1">
+              <div className="flex items-center space-x-2">
+                <img src={microproLogo} alt="Micropro" className="h-6 w-auto object-contain" />
+                <span className="text-[8px] uppercase font-bold opacity-60">presents</span>
+              </div>
+              <span className="font-bold text-green-600 text-lg">SprintSync</span>
             </div>
           </div>
         </SidebarHeader>

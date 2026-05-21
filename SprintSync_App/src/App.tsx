@@ -11,7 +11,8 @@ import { Button } from './components/ui/button';
 import { Badge } from './components/ui/badge';
 import { Alert, AlertDescription } from './components/ui/alert';
 import { Sparkles, ChevronRight } from 'lucide-react';
-import sprintSyncLogo from './assets/aadf192e83d08c7cc03896c06b452017e84d04aa.png';
+import ssLogo from './assets/ss_logo.gif';
+import microproLogo from './assets/ChatGPT Image May 11, 2026, 10_10_51 AM.png';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import AppSidebar from './components/AppSidebar';
@@ -92,7 +93,7 @@ const AppContent: React.FC = () => {
       if (user.role === 'client') {
         const allowedClientRoutes = ['/reports'];
         const isClientRoute = allowedClientRoutes.includes(location.pathname);
-        
+
         if (!isClientRoute) {
           navigate('/reports');
           return;
@@ -167,10 +168,11 @@ const AppContent: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-white to-cyan-50">
         <div className="space-y-6 text-center max-w-sm">
-          <div className="flex justify-center mb-6">
+          <div className="flex flex-col items-center gap-4 mb-6">
+            <img src={microproLogo} alt="Micropro" className="h-12 w-auto object-contain animate-pulse" />
             <div className="relative">
               <img
-                src={sprintSyncLogo}
+                src={ssLogo}
                 alt="SprintSync"
                 className="w-20 h-20 object-contain animate-pulse"
               />
@@ -384,7 +386,7 @@ const AppContent: React.FC = () => {
                     overflow: hidden;
                     width: 750px;
                     max-width: 100%;
-                    min-height: 550px;
+                    min-height: 620px;
                   }
 
                   @media (max-width: 768px) {
@@ -472,9 +474,9 @@ const AppContent: React.FC = () => {
                     position: absolute;
                     display: flex;
                     align-items: center;
-                    justify-content: center;
+                    justify-content: flex-start;
                     flex-direction: column;
-                    padding: 0 40px;
+                    padding: 30px 40px 0;
                     text-align: center;
                     top: 0;
                     height: 100%;
@@ -687,13 +689,6 @@ const AppContent: React.FC = () => {
                     className="flex items-center space-x-2 hover:text-green-600 transition-colors group cursor-pointer"
                     title="Go to Dashboard"
                   >
-                    <div className="relative">
-                      <img
-                        src={sprintSyncLogo}
-                        alt="SprintSync"
-                        className="w-5 h-5 object-contain group-hover:scale-110 transition-transform"
-                      />
-                    </div>
                     <span className="font-medium">SprintSync</span>
                   </BreadcrumbLink>
                 </BreadcrumbItem>

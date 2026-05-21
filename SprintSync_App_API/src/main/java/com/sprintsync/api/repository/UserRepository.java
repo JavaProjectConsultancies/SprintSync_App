@@ -170,4 +170,21 @@ public interface UserRepository extends JpaRepository<User, String> {
      */
     @Query(value = "SELECT id, email FROM sprintsync.users WHERE lower(email) IN (:emails)", nativeQuery = true)
     List<Object[]> findIdAndEmailByLowercaseEmailIn(@Param("emails") Set<String> emails);
+
+    /**
+     * Fetch only user id + name with native query for exact case-insensitive name mapping from Excel.
+     *
+     * @param names normalized lowercase names
+     * @return rows of [id, name]
+     */
+    @Query(value = "SELECT id, name FROM sprintsync.users WHERE lower(name) IN (:names)", nativeQuery = true)
+    List<Object[]> findIdAndNameByLowercaseNameIn(@Param("names") Set<String> names);
+
+    /**
+     * Fetch all user id + name for fuzzy name matching during imports.
+     *
+     * @return rows of [id, name]
+     */
+    @Query(value = "SELECT id, name FROM sprintsync.users", nativeQuery = true)
+    List<Object[]> findAllIdAndName();
 }

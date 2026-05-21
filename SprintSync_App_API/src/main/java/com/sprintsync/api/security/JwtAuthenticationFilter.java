@@ -88,6 +88,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * Check if the request path is a public endpoint that doesn't require authentication
      */
     private boolean isPublicEndpoint(String requestPath) {
+        // Skip JWT parsing for static resources
+        if (requestPath.endsWith(".html") || requestPath.endsWith(".js") || requestPath.endsWith(".css") || requestPath.endsWith(".ico")) {
+            return true;
+        }
         // Allow all GET requests to pass without authentication
         // This ensures projects API works on all pages
         if (requestPath.startsWith("/api/") && !requestPath.startsWith("/api/login-activity-logs")) {
